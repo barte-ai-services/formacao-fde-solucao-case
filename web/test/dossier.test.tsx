@@ -47,13 +47,12 @@ describe("#38/AC-1 o dossiê pronto mostra divergência, evidência e histórico
   });
 
   it("classificação e fonte que a tela não conhece aparecem como vieram", () => {
-    // #68: o fio pode trazer classificação e fonte que o tipo não conhece; o teste força esse valor.
     const unknownValues = {
       ...READY,
       divergences: [
         { classification: "E9", whatDiverges: "?", evidence: [{ key: "x", label: "Campo", value: "1", source: "satelite" }] },
       ],
-    } as unknown as DossierDto;
+    } as unknown as DossierDto; // #68: o fio pode trazer classificação e fonte que o tipo não conhece; o teste força esse valor.
     render(<Dossier dossier={unknownValues} />);
     expect(screen.getByText("E9")).toBeTruthy();
     expect(screen.getByText("satelite")).toBeTruthy();
