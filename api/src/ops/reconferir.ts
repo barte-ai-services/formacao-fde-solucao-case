@@ -5,18 +5,21 @@ import type { SupabaseRest } from '../connectors/supabase-rest.js';
 import type { Env } from '../env.js';
 
 /**
- * #56 As tabelas do domínio, na ordem em que podem ser apagadas (filhas antes da nota), com uma
- * coluna `not null` de cada uma: o PostgREST exige filtro para apagar, e `not.is.null` pega todas.
+ * #56 As tabelas do domínio, com uma coluna `not null` de cada uma: o PostgREST exige filtro para
+ * apagar, e `not.is.null` pega todas. A nota vai primeiro: o `on delete cascade` leva divergências,
+ * propostas, aprovações e títulos no mesmo comando, e uma rodada do Cron no meio não deixa filha
+ * órfã. As caixas de saída não têm chave para a nota e vão logo depois; as filhas ficam na lista
+ * para o caso de uma linha sem nota.
  */
 export const DOMAIN_TABLES: readonly (readonly [table: string, column: string])[] = Object.freeze([
+  ['invoices', 'access_key'],
+  ['outbox_dock_actions', 'id'],
+  ['outbox_registry_corrections', 'id'],
+  ['outbox_return_notes', 'id'],
   ['approvals', 'id'],
   ['proposals', 'id'],
   ['divergences', 'invoice_access_key'],
   ['titles', 'invoice_access_key'],
-  ['outbox_dock_actions', 'id'],
-  ['outbox_registry_corrections', 'id'],
-  ['outbox_return_notes', 'id'],
-  ['invoices', 'access_key'],
 ] as const);
 
 /** #56 Apaga as linhas das tabelas do domínio. Recusa qualquer tabela da base do kit. */

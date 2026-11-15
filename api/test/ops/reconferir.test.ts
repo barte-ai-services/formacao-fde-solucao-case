@@ -59,14 +59,14 @@ describe('#56 reconferir', () => {
   it('a lista de tabelas é só do domínio', () => {
     expect(DOMAIN_TABLES.every(([t]) => !t.startsWith('kit_'))).toBe(true);
     expect(DOMAIN_TABLES.map(([t]) => t)).toEqual([
+      'invoices',
+      'outbox_dock_actions',
+      'outbox_registry_corrections',
+      'outbox_return_notes',
       'approvals',
       'proposals',
       'divergences',
       'titles',
-      'outbox_dock_actions',
-      'outbox_registry_corrections',
-      'outbox_return_notes',
-      'invoices',
     ]);
   });
 });

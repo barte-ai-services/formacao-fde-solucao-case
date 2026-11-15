@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       confirmar:
-        description: 'Apaga invoices, divergences, proposals, approvals, titles e as outbox_*. Digite RECONFERIR para seguir.'
+        description: 'Apaga invoices, divergences, proposals, approvals, titles e as outbox_*. Dispare longe da virada de 15 minutos do Cron. Digite RECONFERIR para seguir.'
         required: true
         type: string
 
