@@ -102,8 +102,7 @@ const posted13773 = aPostedInvoice({
 });
 
 /** NF-020 do kit: o título lançado é o dela mesma, com a mesma chave. */
-const nf020 = (): Invoice =>
-  kitInvoice({
+const nf020Props: Omit<InvoiceProps, 'series' | 'entryChannel'> = {
     accessKey: '35261147573594000106550010000131371591560338',
     number: '13137',
     supplierId: 'F06',
@@ -116,7 +115,8 @@ const nf020 = (): Invoice =>
       item('F06-001', 'SKU-1019', 'Pão de queijo congelado 1 kg', 1524, 2490),
     ],
     total: Money.ofCents(11871960),
-  });
+  };
+const nf020 = (): Invoice => kitInvoice(nf020Props);
 
 const posted13137 = aPostedInvoice({
   accessKey: '35261147573594000106550010000131371591560338',
@@ -185,8 +185,35 @@ describe('E6 duplicidade: título já lançado', () => {
     expect(titles.map((e) => e.reference)).toEqual([posted89410.accessKey, other.accessKey]);
   });
 
-  it('#31/AC-2 regra 1: o título lançado com a mesma chave é a própria nota, não duplicidade (NF-020 do kit)', () => {
-    expect(checkDuplicidade(nf020(), emptyContext({ postedInvoices: [posted13137] }))).toEqual([]);
+  it('#142 regras 1 e 3: a mesma chave de um título já lançado é reenvio, E6 (NF-020 do kit)', () => {
+    const found = checkDuplicidade(nf020(), emptyContext({ postedInvoices: [posted13137] }));
+
+    expect(found).toHaveLength(1);
+    expect(found[0]?.classification).toBe('E6');
+    expect(duplicateReason(found[0]!)).toBe('titulo_lancado');
+    // Formato travado (web/src/evidence/e6.tsx): título existente e canal de chegada.
+    expect(found[0]?.evidence).toEqual([
+      {
+        source: 'erp_contas_a_pagar',
+        reference: posted13137.accessKey,
+        description: 'Título já lançado da nota 13137, ordem OC-2026-42950, R$ 118.719,60, situação lançada',
+      },
+      {
+        source: 'sefaz',
+        reference: posted13137.accessKey,
+        description: 'Nota 13137 cobra de novo a mesma chave de acesso, reenvio pelo canal SEFAZ',
+      },
+    ]);
+  });
+
+  it('#142 regra 1: reenvio de título já pago, e sem ordem, também é E6', () => {
+    const posted = aPostedInvoice({ ...posted13137, purchaseOrderRef: null, status: 'paga' });
+    const found = checkDuplicidade(
+      kitInvoice({ ...nf020Props, purchaseOrderRef: null }),
+      emptyContext({ postedInvoices: [posted] }),
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0]?.evidence[0]?.description).toContain('situação paga');
   });
 
   it('#31/AC-2: mesma ordem e valor diferente não é E6', () => {
@@ -260,7 +287,7 @@ describe('E6 duplicidade suspeita: ordem sem saldo', () => {
     expect(checkDuplicidade(anInvoice(), emptyContext({ purchaseOrders: [order] }))).toHaveLength(1);
   });
 
-  it('#31/AC-3 regra 1: ordem sem saldo e título com a mesma chave é a própria nota, não duplicidade (NF-020 do kit)', () => {
+  it('#142 regra 1: ordem sem saldo e título com a mesma chave: uma E6 só, de reenvio (NF-020 do kit)', () => {
     const order = aPurchaseOrder({
       id: 'OC-2026-42950',
       supplierId: 'F06',
@@ -271,7 +298,7 @@ describe('E6 duplicidade suspeita: ordem sem saldo', () => {
       ],
     });
     const ctx = emptyContext({ postedInvoices: [posted13137], purchaseOrders: [order] });
-    expect(checkDuplicidade(nf020(), ctx)).toEqual([]);
+    expect(checkDuplicidade(nf020(), ctx).map(duplicateReason)).toEqual(['titulo_lancado']);
   });
 
   it('#31/AC-3: título lançado e ordem sem saldo: uma E6 só, de motivo titulo_lancado', () => {
@@ -285,7 +312,7 @@ describe('E6 duplicidade suspeita: ordem sem saldo', () => {
 });
 
 describe('E6 na base do kit inteira', () => {
-  it('#31/AC-2 #31/AC-3 regras 1, 3 e 5: pelos conectores do kit, só NF-012, NF-058, NF-060 e NF-074 são E6', async () => {
+  it('#31/AC-2 #31/AC-3 regras 1, 3 e 5: pelos conectores do kit, são E6 as 4 reemissões e os 5 reenvios (#142)', async () => {
     const fake = new FakePostgrest(kitTables());
     const rest = new SupabaseRest({ url: 'https://fake.supabase.co', secretKey: 'sb_secret_fake', fetch: fake.fetch });
     const { captureDeps: d } = supabaseConnectors(rest);
@@ -305,14 +332,26 @@ describe('E6 na base do kit inteira', () => {
       .filter((r) => r.found.length > 0)
       .sort((a, b) => String(a.id).localeCompare(String(b.id)));
 
-    expect(e6.map((r) => r.id)).toEqual(['NF-012', 'NF-058', 'NF-060', 'NF-074']);
+    const reenvios = ['NF-020', 'NF-030', 'NF-041', 'NF-064', 'NF-075'];
+    const reemissoes = ['NF-012', 'NF-058', 'NF-060', 'NF-074'];
+    expect(e6.map((r) => r.id)).toEqual([...reemissoes, ...reenvios].sort());
     // Título lançado dispensa a checagem de saldo: uma divergência por nota, de motivo titulo_lancado.
-    expect(e6.map((r) => r.found.map(duplicateReason))).toEqual([
-      ['titulo_lancado'],
-      ['titulo_lancado'],
-      ['titulo_lancado'],
-      ['titulo_lancado'],
-    ]);
+    expect(e6.map((r) => r.found.map(duplicateReason))).toEqual(e6.map(() => ['titulo_lancado']));
+
+    // #142 regra 3: cada reenvio vai a bloqueio, recusar, com o valor da nota em risco (centavos do kit).
+    const cents: Record<string, number> = { 'NF-020': 11871960, 'NF-030': 294996, 'NF-041': 940340, 'NF-064': 96000, 'NF-075': 1678156 };
+    for (const id of reenvios) {
+      const inv = invoices.find((x) => idByKey.get(x.accessKey) === id)!;
+      inv.check({ ...ctx, capturedInvoices: invoices.filter((o) => o.accessKey !== inv.accessKey) }, CHECKS);
+      expect(inv.classification, id).toBe('E6');
+      expect(inv.total.cents, id).toBe(cents[id]);
+      const route = ApprovalPolicy.route(inv, { paymentBlocked: false });
+      expect(route.level, id).toBe('bloqueio');
+      const draft = draftProposal(inv, null);
+      const { proposal } = propose(inv, Title.post({ invoiceAccessKey: inv.accessKey, amount: inv.total, dueOn: '2026-11-20' }), { route, ...draft, today: '2026-11-15' });
+      expect(proposal.dockAction, id).toEqual({ kind: 'recusar' });
+      expect(proposal.amountAtRisk.amount.equals(inv.total), id).toBe(true);
+    }
   });
 });
 

@@ -19,8 +19,8 @@ function PostedTitle({ title, invoice }: { title: EvidenceDto; invoice: Evidence
   const number = NEW_INVOICE.exec(invoice?.description ?? "")?.[1] ?? null;
   const fields: ComparisonField[] = [
     { label: "Número", a: posted?.[1] ?? null, b: number, state: posted?.[1] === number ? "match" : "divergent" },
-    { label: "Chave de acesso", a: <code>{title.reference}</code>, b: invoice ? <code>{invoice.reference}</code> : null, state: "divergent", note: "nota nova" },
-    { label: "Ordem", a: posted?.[2] ?? null, b: posted?.[2] ?? null, state: "match", note: "a mesma ordem" },
+    { label: "Chave de acesso", a: <code>{title.reference}</code>, b: invoice ? <code>{invoice.reference}</code> : null, ...(invoice && title.reference === invoice.reference ? { state: "match" as const, note: "a mesma nota (reenvio)" } : { state: "divergent" as const, note: "nota nova" }) },
+    { label: "Ordem", a: posted?.[2] ?? null, b: posted?.[2] ?? null, state: "match", note: posted?.[2] === "sem-ordem" ? "sem ordem" : "a mesma ordem" },
     { label: "Valor", a: posted?.[3] ?? null, b: posted?.[3] ?? null, state: "match", note: "o mesmo valor" },
     { label: "Título", a: posted?.[4] ?? null, b: "bloqueado" },
   ];

@@ -45,25 +45,29 @@ export function blockDuplicateTitle(invoice: Pick<InvoiceView, 'accessKey' | 'cl
   title.block();
 }
 
-// regra 3, #31/AC-2: a nota cobra a mesma ordem e o mesmo valor de um título já lançado.
+// regra 3, #31/AC-2: a nota cobra a mesma ordem e o mesmo valor de um título já lançado (reemissão);
+// regra 1, #142: a mesma chave de um título já lançado ou pago é a mesma nota chegando de novo (reenvio).
 function postedDuplicate(invoice: InvoiceView, postedInvoices: readonly PostedInvoice[]): Divergence | null {
   const ref = invoice.purchaseOrderRef;
-  if (ref === null) return null;
-  const matches = postedInvoices.filter(
-    (p) =>
-      // regra 1, #31/AC-2: a mesma chave é a mesma nota; o título dela não é duplicidade.
-      p.accessKey !== invoice.accessKey && p.purchaseOrderRef === ref && p.total.equals(invoice.total),
-  );
+  const resent = postedInvoices.filter((p) => p.accessKey === invoice.accessKey);
+  const reissued =
+    ref === null
+      ? []
+      : postedInvoices.filter((p) => p.accessKey !== invoice.accessKey && p.purchaseOrderRef === ref && p.total.equals(invoice.total));
+  const matches = [...resent, ...reissued];
   if (matches.length === 0) return null;
   const evidence: Evidence[] = matches.map((p) => ({
     source: 'erp_contas_a_pagar',
     reference: p.accessKey,
-    description: `Título já lançado da nota ${p.number}, ordem ${ref}, ${p.total.toString()}, situação ${p.status}`,
+    description: `Título já lançado da nota ${p.number}, ordem ${p.purchaseOrderRef ?? 'sem-ordem'}, ${p.total.toString()}, situação ${p.status}`,
   }));
   evidence.push({
     source: 'sefaz',
     reference: invoice.accessKey,
-    description: `Nota ${invoice.number} cobra a mesma ordem e o mesmo valor`,
+    description:
+      resent.length > 0
+        ? `Nota ${invoice.number} cobra de novo a mesma chave de acesso, reenvio pelo canal ${invoice.entryChannel}`
+        : `Nota ${invoice.number} cobra a mesma ordem e o mesmo valor`,
   });
   // regra 6, #31/AC-2: Divergence.of exige ao menos uma evidência.
   return Divergence.of({ classification: 'E6', skus: skusOf(invoice.items), evidence });
@@ -73,8 +77,6 @@ function postedDuplicate(invoice: InvoiceView, postedInvoices: readonly PostedIn
 function orderWithoutBalance(invoice: InvoiceView, ctx: CheckContext): Divergence | null {
   const ref = invoice.purchaseOrderRef;
   if (ref === null) return null;
-  // regra 1, #31/AC-3: o título com a mesma chave é desta nota; o saldo que Compras publica já a desconta.
-  if (ctx.postedInvoices.some((p) => p.accessKey === invoice.accessKey)) return null;
   const order = ctx.purchaseOrders.find((o) => o.id === ref);
   if (!order) return null; // sem ordem é E5, de outro plano
   const charged = invoice.items.filter((i) => {

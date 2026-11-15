@@ -15,7 +15,8 @@ import { kitTables } from '../support/kit.js';
 const NF012 = '35261194433432000143550010000894281178831290';
 const ORIGINAL_NF012 = '35261194433432000143550010000894101464288543';
 const NOW = new Date('2026-11-15T12:00:00Z');
-const E6_IDS = ['NF-012', 'NF-058', 'NF-060', 'NF-074'];
+// #142: 4 reemissões e 5 reenvios (mesma chave já lançada no ERP).
+const E6_IDS = ['NF-012', 'NF-058', 'NF-060', 'NF-074', 'NF-020', 'NF-030', 'NF-041', 'NF-064', 'NF-075'].sort();
 
 /** A esteira do Cron como na main: captura, proposta do #63, e depois o bloqueio dos títulos E6. */
 async function pipeline(fetchWrapper?: (inner: FetchFn) => FetchFn) {
@@ -36,7 +37,7 @@ function e6Keys(fake: FakePostgrest): Set<string> {
 }
 
 describe('#31 duplicidade de ponta a ponta na base do kit (offline)', () => {
-  it('#31/AC-4 #31/AC-5 regra 3: captura, proposta do #63 e bloqueio: 4 E6, 4 propostas de bloqueio e 4 títulos bloqueados', async () => {
+  it('#31/AC-4 #31/AC-5 regra 3: captura, proposta do #63 e bloqueio: 9 E6, 9 propostas de bloqueio e 9 títulos bloqueados', async () => {
     const { fake, rest } = await pipeline();
     const ids = kitIdByKey();
     const keys = e6Keys(fake);
@@ -47,10 +48,10 @@ describe('#31 duplicidade de ponta a ponta na base do kit (offline)', () => {
     expect(before.every((t) => t.state === 'lancado')).toBe(true);
 
     const result = await blockDuplicateTitles(rest, () => NOW);
-    expect(result).toEqual({ blocked: 4, failed: 0 });
+    expect(result).toEqual({ blocked: 9, failed: 0 });
 
     const proposals = fake.rows('proposals').filter((p) => keys.has(String(p.invoice_access_key)));
-    expect(proposals).toHaveLength(4);
+    expect(proposals).toHaveLength(9);
     for (const p of proposals) {
       const invoice = fake.rows('invoices').find((i) => i.access_key === p.invoice_access_key);
       expect(p).toMatchObject({
@@ -63,7 +64,7 @@ describe('#31 duplicidade de ponta a ponta na base do kit (offline)', () => {
     }
 
     const titles = fake.rows('titles').filter((t) => keys.has(String(t.invoice_access_key)));
-    expect(titles).toHaveLength(4);
+    expect(titles).toHaveLength(9);
     expect(titles.every((t) => t.state === 'bloqueado' && t.updated_at === NOW.toISOString())).toBe(true);
     expect(titles.find((t) => t.invoice_access_key === NF012)).toMatchObject({ amount_cents: 120960 });
   });
@@ -82,7 +83,7 @@ describe('#31 duplicidade de ponta a ponta na base do kit (offline)', () => {
     const nf012Title = fake.rows('titles').find((t) => t.invoice_access_key === NF012);
     nf012Title!.state = 'liberado';
 
-    expect(await blockDuplicateTitles(rest, () => NOW)).toEqual({ blocked: 3, failed: 0 });
+    expect(await blockDuplicateTitles(rest, () => NOW)).toEqual({ blocked: 8, failed: 0 });
     expect(fake.rows('titles').find((t) => t.invoice_access_key === NF012)?.state).toBe('liberado');
   });
 
@@ -104,7 +105,7 @@ describe('#31 duplicidade de ponta a ponta na base do kit (offline)', () => {
         : inner(input, init),
     );
 
-    expect(await blockDuplicateTitles(rest, () => NOW)).toEqual({ blocked: 3, failed: 1 });
+    expect(await blockDuplicateTitles(rest, () => NOW)).toEqual({ blocked: 8, failed: 1 });
     expect(fake.rows('titles').find((t) => t.invoice_access_key === NF012)?.state).toBe('lancado');
 
     failing = false;
@@ -114,12 +115,12 @@ describe('#31 duplicidade de ponta a ponta na base do kit (offline)', () => {
   it('#31/AC-5 #31/AC-6: o leitor traz o estado do título: lancado antes do bloqueio, bloqueado depois', async () => {
     const { rest, reader } = await pipeline();
     const before = await reader.list();
-    expect(before).toHaveLength(4);
+    expect(before).toHaveLength(9);
     expect(before.every((e) => e.titleState === 'lancado')).toBe(true);
 
     await blockDuplicateTitles(rest, () => NOW);
     const after = await reader.list();
-    expect(after).toHaveLength(4);
+    expect(after).toHaveLength(9);
     expect(after.every((e) => e.titleState === 'bloqueado')).toBe(true);
   });
 
@@ -130,7 +131,7 @@ describe('#31 duplicidade de ponta a ponta na base do kit (offline)', () => {
     expect(entries.find((e) => e.duplicate.accessKey === NF012)?.titleState).toBeNull();
   });
 
-  it('#31/AC-6: o leitor do Supabase lista as quatro duplicadas, com o título original da NF-012', async () => {
+  it('#31/AC-6: o leitor do Supabase lista as nove duplicadas, com o título original da NF-012', async () => {
     const { reader } = await pipeline();
 
     const entries = await reader.list();
@@ -144,6 +145,17 @@ describe('#31 duplicidade de ponta a ponta na base do kit (offline)', () => {
     });
     expect(nf012?.duplicate.total.cents).toBe(120960);
     expect(nf012?.blockedAmount.cents).toBe(120960);
+  });
+
+  it('#142 AC-4: o reenvio da NF-020 aparece com a nota original (a mesma chave) e o valor barrado', async () => {
+    const { reader } = await pipeline();
+    const ids = kitIdByKey();
+    const entry = (await reader.list()).find((e) => ids.get(e.duplicate.accessKey) === 'NF-020');
+    expect(entry).toMatchObject({
+      reason: 'titulo_lancado',
+      original: { accessKey: entry?.duplicate.accessKey, number: '13137' },
+    });
+    expect(entry?.blockedAmount.cents).toBe(11871960);
   });
 
   it('#31/AC-6: sem nota E6 gravada, o leitor devolve a lista vazia', async () => {
@@ -174,7 +186,7 @@ describe('#31 duplicidade de ponta a ponta na base do kit (offline)', () => {
       count: number;
       duplicates: { duplicate: { accessKey: string }; titleState: string | null }[];
     };
-    expect(body.count).toBe(4);
+    expect(body.count).toBe(9);
     expect(body.duplicates.every((d) => d.titleState === 'bloqueado')).toBe(true);
     expect(body.duplicates.map((d) => d.duplicate.accessKey)).toContain(NF012);
   });

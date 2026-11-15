@@ -215,7 +215,7 @@ function DuplicateDrawer({ duplicate: d, onClose }: { duplicate: DuplicateDto; o
             columns={[`Original · NF ${d.original.number}`, `Duplicada · NF ${d.duplicate.number}`]}
             fields={[
               { label: "Número", a: d.original.number, b: d.duplicate.number, state: d.original.number === d.duplicate.number ? "match" : "divergent" },
-              { label: "Chave de acesso", a: <code>{d.original.accessKey}</code>, b: <code>{d.duplicate.accessKey}</code>, state: "divergent", note: "nota nova" },
+              { label: "Chave de acesso", a: <code>{d.original.accessKey}</code>, b: <code>{d.duplicate.accessKey}</code>, ...(d.original.accessKey === d.duplicate.accessKey ? { state: "match" as const, note: "a mesma nota (reenvio)" } : { state: "divergent" as const, note: "nota nova" }) },
               { label: "Título", a: d.original.status, b: badge.label.toLowerCase() },
             ]}
           />
