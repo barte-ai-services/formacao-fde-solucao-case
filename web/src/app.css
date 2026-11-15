@@ -44,3 +44,51 @@
 .pagar-partial-row { display: flex; gap: var(--spacing-sm); align-items: center; flex-wrap: wrap; }
 .pagar-partial-row > span { flex: 1 1 12rem; }
 .pagar-partial-row input { width: 6rem; }
+
+/* #127 As tabelas: corpo, cabeçalho, texto secundário (caption-sm) e selo no token de corpo do DS (12 px), nunca
+   abaixo dele. A linha cresce com o conteúdo (a altura do DS é piso, por token) e não corta texto nem selo. */
+table td,
+table th {
+  font-size: var(--typography-body-xs-fontSize);
+  line-height: var(--typography-body-xs-lineHeight);
+}
+table td {
+  height: var(--sizes-6xl);
+  overflow: visible;
+}
+table [class*="Text-module__captionSm"],
+table [class*="StatusBadge-module__label"] {
+  font-size: var(--typography-body-xs-fontSize);
+  line-height: var(--typography-body-xs-lineHeight);
+}
+
+/* #122 Coluna de valor (align="right"): o cabeçalho e o conteúdo à direita, dígitos tabulares. O DS alinha o texto
+   do th e do td, mas o miolo do th (cellContentWrapper > headerCellContent) é flex e não herda; sem isto o valor fica à esquerda da célula. */
+[class*="headerCell--right"],
+[class*="cell--right"] {
+  font-variant-numeric: tabular-nums;
+}
+[class*="headerCell--right"] [class*="cellContentWrapper"],
+[class*="headerCell--right"] [class*="headerCellContent"],
+[class*="cell--right"] > [class*="cellContentWrapper"] {
+  justify-content: flex-end;
+}
+
+/* #121 O filtro em pílula, o mesmo das telas de Conexões e Pessoas do Shell: o botão só leva o foco e o gesto, a
+   pílula (Pills do DS) tem a medida; o espaçamento entre elas vem do token. */
+.shell-connections-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+.shell-connections-filter {
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: var(--border-radius-full);
+  cursor: pointer;
+}
+.shell-connections-filter:focus-visible {
+  outline: var(--border-width-md) solid var(--stroke-brand);
+  outline-offset: var(--spacing-2xs);
+}
