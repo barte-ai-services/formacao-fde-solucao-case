@@ -91,8 +91,8 @@ export default function ReturnNotes(_props: RouteProps) {
       }
       empty={
         <EmptyState
-          title={texts.emptyState.devolucoes[status].title}
-          description={texts.emptyState.devolucoes[status].description}
+          title={texts.emptyState.returnNotes[status].title}
+          description={texts.emptyState.returnNotes[status].description}
           action={status === "pendente" ? { label: texts.emptyState.action, to: "/pagar/fila" } : undefined}
         />
       }

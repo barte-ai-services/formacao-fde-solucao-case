@@ -42,7 +42,7 @@ export default function FilaDeAprovacao(_props: RouteProps) {
       loadingLabel={texts.fila.loading}
       errorTitle={texts.fila.error}
       emptyLabel={texts.fila.empty}
-      empty={<EmptyState title={texts.emptyState.fila.title} description={texts.emptyState.fila.description} />}
+      empty={<EmptyState title={texts.emptyState.queue.title} description={texts.emptyState.queue.description} />}
     >
       {() => (
         <>

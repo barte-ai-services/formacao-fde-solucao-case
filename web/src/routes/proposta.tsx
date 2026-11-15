@@ -36,8 +36,8 @@ export default function Proposta({ params }: RouteProps) {
       emptyLabel={texts.proposta.empty}
       empty={
         <EmptyState
-          title={texts.emptyState.proposta.title}
-          description={texts.emptyState.proposta.description}
+          title={texts.emptyState.proposal.title}
+          description={texts.emptyState.proposal.description}
           action={{ label: texts.emptyState.action, to: "/pagar/fila" }}
         />
       }

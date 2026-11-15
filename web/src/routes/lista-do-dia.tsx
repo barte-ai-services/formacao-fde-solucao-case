@@ -34,8 +34,8 @@ export default function ListaDoDia(_props: RouteProps) {
       emptyLabel={texts.listaDoDia.empty}
       empty={
         <EmptyState
-          title={texts.emptyState.listaDoDia.title}
-          description={texts.emptyState.listaDoDia.description}
+          title={texts.emptyState.todayList.title}
+          description={texts.emptyState.todayList.description}
           action={{ label: texts.emptyState.action, to: "/pagar/fila" }}
         />
       }
