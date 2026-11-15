@@ -1,79 +1,74 @@
 import { DataList, Panel, ReconciliationDiff, type ComparisonField } from "@barte-ai-services/barte-ui-kit";
-import type { EvidenceDto } from "../api/contract";
 import { GenericEvidence } from "./GenericEvidence";
 import { divergenceLabel, sourceLabel } from "./labels";
 import { registerEvidence, type EvidenceProps } from "./registry";
 
-/** Os campos da E2, tirados das evidências. `null` é o que não veio. */
-interface ItemTrocado {
-  ordem: string | null;
-  pedido: string | null;
-  veio: string | null;
-  valor: string | null;
+/** #97: uma evidência como veio no fio; nenhum campo é confiável até ser lido por `text`. */
+interface LooseEvidence {
+  source?: unknown;
+  reference?: unknown;
+  description?: unknown;
 }
 
-const texto = (value: unknown): string | null => (typeof value === "string" && value.trim() !== "" ? value : null);
-
-/**
- * O trecho de `text` entre `start` e `end`. `null` quando o formato não bate.
- * `lastEnd` corta na última ocorrência de `end`: o valor fica no fim e a descrição pode conter o separador.
- */
-function between(text: string | null, start: string, end: string, lastEnd = false): string | null {
-  if (text === null) return null;
-  const from = text.indexOf(start);
-  if (from < 0) return null;
-  const rest = text.slice(from + start.length);
-  const to = lastEnd ? rest.lastIndexOf(end) : rest.indexOf(end);
-  return to < 0 ? null : texto(rest.slice(0, to).trim());
+/** #97: os campos da E2 tirados das evidências; `null` é o que não veio ou não foi lido. */
+interface SwappedItem {
+  order: string | null;
+  ordered: string | null;
+  received: string | null;
+  amount: string | null;
 }
 
-/** O que vem depois da última ocorrência de `marker`. */
-function after(text: string | null, marker: string): string | null {
-  if (text === null) return null;
-  const at = text.lastIndexOf(marker);
-  return at < 0 ? null : texto(text.slice(at + marker.length).trim());
+/** #97: a evidência da SEFAZ que o checkItemTrocado emite (#36), com o valor no fim. */
+const SEFAZ_CHARGE = /^Nota cobra (.+) por (-?R\$\s?[\d.]+,\d{2})$/;
+const ORDER_ASKS = /pede (.+?), não /;
+
+/** #97: texto e número viram texto; o resto do fio (objeto, vazio, nulo) vira `null`. */
+function text(value: unknown): string | null {
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return typeof value === "string" && value.trim() !== "" ? value : null;
 }
 
-/**
- * Lê as evidências que o domínio emite para a E2 (#36, #97): o ERP Compras diz o que a ordem pede, a
- * nota da SEFAZ diz o item que veio e quanto ele custa, o ERP Cadastro confirma o produto. Cada campo
- * que não casa com o formato volta o texto da fonte como veio.
- */
-function readItemTrocado(evidence: readonly EvidenceDto[]): ItemTrocado {
-  const of = (source: string) => evidence.find((item) => item?.source === source);
-  const compras = of("erp_compras");
-  const sefaz = of("sefaz");
-  const cadastro = of("erp_cadastro");
-  const comprasText = texto(compras?.description);
-  const sefazText = texto(sefaz?.description);
-  const cadastroText = texto(cadastro?.description);
+/** #97: cada campo que não casa com o formato do domínio volta o texto da fonte como veio. */
+function readSwappedItem(evidence: readonly LooseEvidence[]): SwappedItem {
+  const of = (source: string) => evidence.find((item) => item.source === source);
+  const purchases = of("erp_compras");
+  const purchasesText = text(purchases?.description);
+  const sefazText = text(of("sefaz")?.description);
+  const registryText = text(of("erp_cadastro")?.description);
+  const charge = sefazText === null ? null : SEFAZ_CHARGE.exec(sefazText);
+  const asks = purchasesText === null ? null : ORDER_ASKS.exec(purchasesText);
   return {
-    ordem: texto(compras?.reference),
-    pedido: between(comprasText, "pede ", ", não ") ?? comprasText,
-    veio: between(sefazText, "Nota cobra ", " por ", true) ?? cadastroText ?? sefazText,
-    valor: after(sefazText, " por "),
+    order: text(purchases?.reference),
+    ordered: text(asks?.[1]) ?? purchasesText,
+    received: text(charge?.[1]) ?? registryText ?? sefazText,
+    amount: text(charge?.[2]),
   };
 }
 
-/** E2 · Item trocado: o item que a ordem pede contra o item que a nota cobra no lugar, e o valor dele. */
+/** #97 (#94/AC-1, AC-2): o item que a ordem pede contra o item que a nota cobra no lugar, e o valor dele. */
 function ItemTrocadoEvidence({ divergence }: EvidenceProps) {
-  const evidence = (Array.isArray(divergence.evidence) ? divergence.evidence : []).filter(
-    (item): item is EvidenceDto => item !== null && typeof item === "object",
+  const evidence: LooseEvidence[] = (Array.isArray(divergence.evidence) ? (divergence.evidence as unknown[]) : []).filter(
+    (item): item is LooseEvidence => item !== null && typeof item === "object",
   );
-  const skus = Array.isArray(divergence.skus) ? divergence.skus.filter((sku) => typeof sku === "string") : [];
-  const campos = readItemTrocado(evidence);
-  if (campos.ordem === null && campos.pedido === null && campos.veio === null && campos.valor === null) {
-    return <GenericEvidence divergence={divergence} />;
-  }
+  if (evidence.length === 0) return <GenericEvidence divergence={divergence} />;
 
+  const skus = Array.isArray(divergence.skus) ? divergence.skus.map(text).filter((sku) => sku !== null) : [];
+  const swapped = readSwappedItem(evidence);
+  const parsed = Object.values(swapped).some((value) => value !== null);
   const fields: ComparisonField[] = [
-    { key: "ordem", label: "Ordem de compra", a: campos.ordem, b: campos.ordem, state: "match" },
-    { key: "item", label: "Item", a: campos.pedido, b: campos.veio, state: "divergent", note: "item trocado" },
     {
-      key: "valor",
+      key: "order",
+      label: "Ordem de compra",
+      a: swapped.order,
+      b: swapped.order,
+      state: swapped.order === null ? "missing" : "match",
+    },
+    { key: "item", label: "Item", a: swapped.ordered, b: swapped.received, state: "divergent", note: "item trocado" },
+    {
+      key: "amount",
       label: "Valor do item trocado",
       a: null,
-      b: campos.valor ?? "Valor indisponível",
+      b: swapped.amount ?? "Valor indisponível",
       state: "divergent",
     },
   ];
@@ -85,22 +80,24 @@ function ItemTrocadoEvidence({ divergence }: EvidenceProps) {
       size="sm"
       padding="md"
     >
-      <ReconciliationDiff
-        columns={["Ordem de compra", "Nota fiscal"]}
-        fields={fields}
-        showSummary={false}
-        variant="grid"
-        ariaLabel="Item pedido contra item cobrado"
-      />
+      {parsed ? (
+        <ReconciliationDiff
+          columns={["Fonte", "Nota fiscal"]}
+          fields={fields}
+          showSummary
+          variant="grid"
+          ariaLabel="Item pedido contra item cobrado"
+        />
+      ) : null}
       <DataList
         divided
         aria-label="Evidências"
         items={evidence.map((item, index) => ({
           key: String(index),
-          label: sourceLabel(String(item.source ?? "")),
+          label: sourceLabel(text(item.source) ?? ""),
           value: (
             <>
-              {item.description ?? ""} <code>{item.reference ?? ""}</code>
+              <span>{text(item.description) ?? ""}</span> <code>{text(item.reference) ?? ""}</code>
             </>
           ),
         }))}
