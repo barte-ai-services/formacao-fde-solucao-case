@@ -158,6 +158,34 @@ export type CountAssessment =
     };
 
 /**
+ * #116, regra 5: as linhas que casam com o mesmo item do pedido consomem um saldo só. Soma o faturado
+ * por item do pedido, já em UN, e compara a soma com o saldo; não cada linha com o saldo inteiro.
+ */
+function fitsOrderBalance(
+  order: PurchaseOrder,
+  lines: readonly ReconciliationLine[],
+  products: readonly Product[],
+): boolean {
+  const billed = new Map<number, Quantity>();
+  for (const line of lines) {
+    const at = order.items.findIndex(
+      (o) => o.supplierCode === line.supplierCode || (line.sku !== null && o.sku === line.sku),
+    );
+    if (at < 0) return false;
+    const sum = billed.get(at);
+    if (sum && sum.unit !== line.invoiced.unit) return false;
+    billed.set(at, sum ? Quantity.of(sum.amount + line.invoiced.amount, sum.unit) : line.invoiced);
+  }
+  for (const [at, total] of billed) {
+    const orderItem = order.items[at];
+    if (!orderItem) return false;
+    const balance = inUnits(orderItem.balance, productOf(order.supplierId, orderItem, products));
+    if (balance.unit !== total.unit || balance.isLessThan(total)) return false;
+  }
+  return true;
+}
+
+/**
  * #69/AC-3 e AC-7, gateway "A contagem bate?": contagem, nota e pedido na mesma unidade (UN).
  * Bate quando todo item da nota foi contado inteiro e cabe no saldo do pedido (regra 5).
  * Sem recebimento ligado pela chave, a nota espera a contagem.
@@ -169,17 +197,7 @@ export function assessCount(invoice: InvoiceView, ctx: CheckContext): CountAsses
   const order = orderOf(invoice, ctx.purchaseOrders);
 
   const countOk = lines.length === invoice.items.length && lines.every((l) => l.missing.amount === 0);
-  const orderOk =
-    order !== null &&
-    lines.every((line) => {
-      const orderItem = order.items.find(
-        (o) => o.supplierCode === line.supplierCode || (line.sku !== null && o.sku === line.sku),
-      );
-      if (!orderItem) return false;
-      const product = productOf(order.supplierId, orderItem, ctx.products);
-      const balance = inUnits(orderItem.balance, product);
-      return balance.unit === line.invoiced.unit && !balance.isLessThan(line.invoiced);
-    });
+  const orderOk = order !== null && fitsOrderBalance(order, lines, ctx.products);
 
   return { status: countOk && orderOk ? 'matches' : 'mismatch', receipt, lines };
 }
