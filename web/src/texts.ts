@@ -285,6 +285,7 @@ export const texts = {
       emitida: "Emitidas",
       cancelada: "Canceladas",
     } satisfies Record<ReturnStatus, string>,
+    filterLabel: "Filtrar por situação",
     tableEmpty: "Nenhuma nota.",
     columns: {
       origin: "Nota de origem",

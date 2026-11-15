@@ -111,4 +111,23 @@ describe("#140 /devolucoes", () => {
     expect(await screen.findByText("Nenhuma devolução pendente de emissão")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Ver a fila de aprovação" })).toBeTruthy();
   });
+
+  it("#207/AC-1 #207/AC-3 o filtro de situação é a pílula densa da fila, sem contador, e escolher uma situação recarrega a lista", async () => {
+    const { container } = renderRoute();
+    await screen.findByText("NF 70633");
+    const group = screen.getByRole("radiogroup", { name: "Filtrar por situação" });
+    expect(container.querySelector(".grid-filter")).toBeTruthy();
+    const radios = within(group).getAllByRole("radio");
+    expect(radios.map((r) => r.textContent)).toEqual(["Pendentes de emissão", "Emitidas", "Canceladas"]);
+    expect(radios.some((r) => /\d/.test(r.textContent ?? ""))).toBe(false);
+    expect(screen.getByRole("radio", { name: "Pendentes de emissão" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("radio", { name: "Emitidas" }).getAttribute("aria-checked")).toBe("false");
+    expect(container.querySelector("select")).toBeNull();
+
+    fetchMock.mockClear();
+    fireEvent.click(screen.getByRole("radio", { name: "Emitidas" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([u]) => String(u) === "/api/return-notes?status=emitida")).toBe(true));
+    expect(screen.getByRole("radio", { name: "Emitidas" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("radio", { name: "Pendentes de emissão" }).getAttribute("aria-checked")).toBe("false");
+  });
 });

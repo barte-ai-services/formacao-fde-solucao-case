@@ -1,9 +1,10 @@
 import { useState, type ReactNode } from "react";
-import { Alert, Button, Drawer, Input, Select, Table, Text } from "barte-design-system";
+import { Alert, Button, Drawer, Input, Table, Text } from "barte-design-system";
 import { DataList, formatCurrency } from "@barte-ai-services/barte-ui-kit";
 import { ApiError } from "../api/client";
 import { returnNotesApi, type ReturnNoteDto, type ReturnNoteStatusDto } from "../api/return-notes";
 import { GridBadge } from "../components/GridBadge";
+import { GridFilter } from "../components/GridFilter";
 import { InvoiceCell } from "../components/InvoiceCell";
 import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
@@ -64,8 +65,8 @@ export default function ReturnNotes(_props: RouteProps) {
     (signal) => returnNotesApi.list(status, signal),
     (list) => list.notes.length === 0,
   );
-  const choose = (value: string) => {
-    setStatus(value as ReturnNoteStatusDto);
+  const choose = (value: ReturnNoteStatusDto) => {
+    setStatus(value);
     retry();
   };
   const notes = data?.notes ?? [];
@@ -75,8 +76,8 @@ export default function ReturnNotes(_props: RouteProps) {
       title={texts.devolucoes.title}
       subtitle={texts.devolucoes.subtitle}
       actions={
-        <Select
-          size="sm"
+        <GridFilter
+          ariaLabel={texts.devolucoes.filterLabel}
           value={status}
           onChange={choose}
           options={(Object.keys(STATUS_LABEL) as ReturnNoteStatusDto[]).map((s) => ({ value: s, label: STATUS_LABEL[s] }))}
