@@ -35,6 +35,12 @@ class GeneratedFilesTest(unittest.TestCase):
             self.assertEqual(committed, generate_bpmn.render(process), f"{file_name} desatualizado: rode scripts/generate_bpmn.py")
 
 
+class CountMatchTest(unittest.TestCase):
+    def test_matching_count_skips_the_approval(self) -> None:
+        target = path_target(generate_bpmn.TARGET, "Gateway_CountMatches", "sim, pela regra")
+        self.assertEqual(target, "Gateway_DockDecision")
+
+
 class TargetProcessTest(unittest.TestCase):
     target = generate_bpmn.TARGET
 
