@@ -3,9 +3,9 @@ import { StatusBadge, type Tone } from "@barte-ai-services/barte-ui-kit";
 import "./GridBadge.css";
 
 export interface GridBadgeProps {
-  /** Padrão `neutral`, como o do kit. */
+  /** #201: padrão `neutral`, como o do kit. */
   tone?: Tone;
-  /** `soft` por padrão; `solid` onde o status precisa gritar (a ação da doca). */
+  /** #201: `soft` por padrão; `solid` onde o status precisa gritar (a ação da doca). */
   variant?: "soft" | "solid";
   children: ReactNode;
 }

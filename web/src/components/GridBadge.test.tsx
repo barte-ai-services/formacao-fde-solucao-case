@@ -18,7 +18,7 @@ function rule(selector: string): string {
   return bodies.join("\n");
 }
 
-/** O valor do token em rem, lido do design system. */
+/** #201: o valor do token em rem, lido do design system. */
 function rem(token: string): number {
   const match = dsCss.match(new RegExp(`${token}:\\s*(\\.?\\d*\\.?\\d+)rem`));
   if (!match) throw new Error(`sem token ${token}`);
@@ -72,13 +72,13 @@ describe("#201 GridBadge", () => {
   });
 
   it("AC2/AC7: a linha mantém a altura: o selo cabe dentro da linha de duas linhas da InvoiceCell", () => {
-    // Toda grid tem a InvoiceCell (body-xs + caption-sm) e a célula do DS tem padding spacing-md em cima e embaixo.
+    // #201: toda grid tem a InvoiceCell (body-xs + caption-sm) e a célula do DS tem padding spacing-md em cima e embaixo.
     const padding = 2 * rem("--spacing-md");
     const cellContent = rem("--typography-body-xs-fontSize") * 1.333 + rem("--typography-caption-sm-fontSize") * 1.5;
     const rowFromCell = cellContent + padding;
     const rowFromBadge = rem("--sizes-3xl") + padding;
     expect(rowFromBadge).toBeLessThanOrEqual(rowFromCell);
-    // E o selo não passa do piso de altura do DS por mais do que a célula já passa.
+    // #201: a linha com o selo fica acima do piso --sizes-6xl do DS.
     expect(rowFromBadge).toBeGreaterThan(rem("--sizes-6xl"));
   });
 });
