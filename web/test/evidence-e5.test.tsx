@@ -4,11 +4,11 @@ import { describe, expect, it } from "vitest";
 import type { DivergenceDto } from "../src/api/contract";
 import { EvidenceView } from "../src/evidence";
 
-const CHAVE = "35261112345678000190550010000123451000123456";
+const ACCESS_KEY = "35261112345678000190550010000123451000123456";
 
 const SEFAZ: DivergenceDto["evidence"][number] = {
   source: "sefaz",
-  reference: CHAVE,
+  reference: ACCESS_KEY,
   description: "Nota cita a ordem OC-9001",
 };
 
@@ -27,7 +27,7 @@ describe("#65 evidência da nota sem ordem", () => {
     render(<EvidenceView divergence={e5([SEFAZ, COMPRAS], ["SKU-12", "SKU-13"])} />);
     expect(screen.getByText("Nota sem ordem de compra")).toBeTruthy();
     expect(screen.getByText("Nota da SEFAZ")).toBeTruthy();
-    expect(screen.getByText(CHAVE)).toBeTruthy();
+    expect(screen.getByText(ACCESS_KEY)).toBeTruthy();
     expect(screen.getByText("Nota cita a ordem OC-9001")).toBeTruthy();
     expect(screen.getByText("ERP · ordem de compra")).toBeTruthy();
     expect(screen.getByText("OC-9001")).toBeTruthy();
@@ -39,7 +39,7 @@ describe("#65 evidência da nota sem ordem", () => {
   it("#65 só com a evidência da SEFAZ mostra o que veio, sem inventar a de Compras", () => {
     render(<EvidenceView divergence={e5([SEFAZ])} />);
     expect(screen.getByText("Nota sem ordem de compra")).toBeTruthy();
-    expect(screen.getByText(CHAVE)).toBeTruthy();
+    expect(screen.getByText(ACCESS_KEY)).toBeTruthy();
     expect(screen.queryByText("ERP · ordem de compra")).toBeNull();
     expect(screen.getByText("Encaminhada à coordenação")).toBeTruthy();
   });
@@ -48,7 +48,7 @@ describe("#65 evidência da nota sem ordem", () => {
     render(
       <EvidenceView
         divergence={e5([
-          { source: "sefaz", reference: CHAVE, description: "Nota sem ordem de compra citada" },
+          { source: "sefaz", reference: ACCESS_KEY, description: "Nota sem ordem de compra citada" },
           { source: "erp_compras", reference: "sem referência", description: "Compras não tem ordem para esta nota" },
         ])}
       />,
