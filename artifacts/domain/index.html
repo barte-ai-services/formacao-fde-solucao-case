@@ -1,39 +1,39 @@
-<title>Modelo de domínio do contas a pagar</title>
+<title>Modelo de domínio (camada semântica)</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap">
 <style>
 /* layout: faixa preta da Barte no topo; uma coluna larga, tamanhos de apresentação; tema claro de propósito */
 :root {
   color-scheme: light;
-  --brand: #df285d; --brand-light: #fbcad3; --brand-soft: #fdf0f4; --ink: #171717; --ink-2: #404040; --ink-3: #737373;
-  --black: #030202; --bg: #f9f9f9; --card: #fefefe; --line: #efefef; --line-2: #d4d4d4;
+  --brand: #C81F50; --brand-light: #F2C9D4; --brand-soft: #F7E9EC; --ink: #1A1918; --ink-2: #4F4C47; --ink-3: #76726B;
+  --black: #1A1918; --bg: #FAF8F4; --card: #FFFEFB; --line: #EDE8E0; --line-2: #E3DED5;
   --blue: #00749e; --blue-l: #e1f7ff; --purple: #6228c6; --purple-l: #e8e0f7; --orange: #e68619; --orange-l: #fff0db;
   --green: #12805c; --green-l: #d2fff1; --red: #c62828; --red-l: #f7e0e0;
-  --sans: "Inter", system-ui, sans-serif;
+  --sans: "IBM Plex Sans", system-ui, sans-serif;
 }
 body { background: var(--bg); color: var(--ink); font: 18px/1.55 var(--sans); }
-.top { background: var(--black); color: #fefefe; border-bottom: 6px solid var(--brand); }
+.top { background: var(--black); color: #FFFEFB; border-bottom: 6px solid var(--brand); }
 .top .in { max-width: 1320px; margin: 0 auto; padding-block: 36px 32px;
   padding-left: max(24px, env(safe-area-inset-left, 0px)); padding-right: max(24px, env(safe-area-inset-right, 0px)); }
 .eyebrow { color: var(--brand); font-weight: 700; font-size: 15px; letter-spacing: .08em; text-transform: uppercase; }
 h1 { font-size: clamp(32px, 4vw, 44px); line-height: 1.15; margin: 8px 0 0; font-weight: 700; }
-.q { font-size: clamp(20px, 2.2vw, 26px); margin: 14px 0 0; color: #fbcad3; font-weight: 500; max-width: 60ch; }
+.q { font-size: clamp(20px, 2.2vw, 26px); margin: 14px 0 0; color: #F2C9D4; font-weight: 500; max-width: 60ch; }
 .wrap { max-width: 1320px; margin: 0 auto; padding-block: 40px 72px;
   padding-left: max(24px, env(safe-area-inset-left, 0px)); padding-right: max(24px, env(safe-area-inset-right, 0px));
   display: grid; gap: 56px; }
 h2 { font-size: clamp(26px, 2.6vw, 32px); margin: 0 0 18px; font-weight: 700; display: flex; align-items: center; gap: 12px; }
 h2::before { content: ""; width: 8px; height: 30px; background: var(--brand); border-radius: 0; }
 h3 { font-size: 15px; margin: 18px 0 6px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--brand); }
-.diagram { background: var(--card); border: 1px solid var(--line-2); border-radius: 12px; padding: 20px; overflow-x: auto; }
+.diagram { background: var(--card); border: 1px solid var(--line-2); border-radius: 8px; padding: 20px; overflow-x: auto; }
 .diagram svg { max-width: none !important; height: auto; }
 .big { min-height: 460px; }
 .groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 20px; }
-.group { border: 3px solid; border-radius: 16px; padding: 20px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+.group { border: 3px solid; border-radius: 8px; padding: 20px; display: grid; gap: 12px; align-content: start; min-width: 0; }
 .group > header { font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; }
 .g-invoice { background: var(--brand-soft); border-color: var(--brand); } .g-invoice > header { color: var(--brand); }
 .g-order { background: var(--blue-l); border-color: var(--blue); } .g-order > header { color: var(--blue); }
 .g-ent { background: var(--card); border-color: var(--line-2); } .g-ent > header { color: var(--ink-2); }
-.ent { background: var(--card); border: 2px solid var(--line-2); border-radius: 10px; padding: 12px 16px; }
+.ent { background: var(--card); border: 2px solid var(--line-2); border-radius: 8px; padding: 12px 16px; }
 .ent.main { border-width: 3px; }
 .g-invoice .ent.main { border-color: var(--brand); } .g-order .ent.main { border-color: var(--blue); }
 .ent b { font-weight: 700; font-size: 21px; }
@@ -42,7 +42,7 @@ h3 { font-size: 15px; margin: 18px 0 6px; font-weight: 700; text-transform: uppe
 .ent-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
 .tag2 { background: var(--orange-l); border: 1px solid var(--orange); color: #935019; border-radius: 6px; font-size: 13px; font-weight: 700; padding: 1px 8px; margin-left: 6px; vertical-align: middle; }
 .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(560px, 1fr)); gap: 24px; }
-.board { background: var(--card); border: 1px solid var(--line-2); border-radius: 12px; padding: 20px; }
+.board { background: var(--card); border: 1px solid var(--line-2); border-radius: 8px; padding: 20px; }
 table { border-collapse: collapse; width: 100%; font-size: 18px; }
 th, td { text-align: left; vertical-align: top; padding: 12px 12px; border-bottom: 1px solid var(--line); }
 th { font-size: 14px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); }
@@ -57,7 +57,7 @@ ol li::marker { color: var(--brand); font-weight: 700; }
 .cmap { display: grid; grid-template-columns: minmax(200px,1fr) auto minmax(190px,auto) auto minmax(220px,1.1fr) auto minmax(200px,1fr); align-items: center; gap: 14px; }
 .stack { display: grid; gap: 10px; }
 .stack .lbl { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); }
-.box { border: 2px solid var(--line-2); background: var(--card); border-radius: 10px; padding: 12px 16px; font-size: 18px; font-weight: 600; text-align: center; }
+.box { border: 2px solid var(--line-2); background: var(--card); border-radius: 8px; padding: 12px 16px; font-size: 18px; font-weight: 600; text-align: center; }
 .box small { display: block; font-size: 14px; font-weight: 500; color: var(--ink-3); }
 .box.acl { background: var(--orange-l); border-color: var(--orange); border-width: 3px; }
 .box.core { background: var(--brand-soft); border-color: var(--brand); border-width: 4px; border-radius: 999px; padding: 26px 22px; font-size: 24px; font-weight: 700; }
@@ -73,7 +73,7 @@ ol li::marker { color: var(--brand); font-weight: 700; }
 .link::after { content: "→"; display: block; font-size: 26px; color: var(--ink-2); line-height: 1; }
 .states { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .st { border: 2px solid var(--brand); background: var(--brand-soft); border-radius: 999px; padding: 10px 18px; font-size: 18px; font-weight: 600; }
-.st.end { background: var(--black); color: #fefefe; border-color: var(--black); }
+.st.end { background: var(--black); color: #FFFEFB; border-color: var(--black); }
 .st.ok { background: var(--green-l); border-color: var(--green); }
 .st.wait { background: var(--purple-l); border-color: var(--purple); }
 .st.alt { background: var(--orange-l); border-color: var(--orange); }
@@ -84,19 +84,19 @@ ol li::marker { color: var(--brand); font-weight: 700; }
 
 .ctxmap { display: grid; grid-template-columns: 1fr auto minmax(260px, 1fr) auto 1fr; gap: 16px; align-items: center; }
 .ctxcol { display: grid; gap: 14px; }
-.ctx { border: 3px solid; border-radius: 14px; padding: 14px 16px; background: var(--card); }
+.ctx { border: 3px solid; border-radius: 8px; padding: 14px 16px; background: var(--card); }
 .ctx .n { font-size: 22px; font-weight: 700; }
 .ctx .t { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
 .ctx .r { font-size: 15px; color: var(--ink-2); margin-top: 6px; line-height: 1.4; }
 .ctx .r b { color: var(--ink); }
-.c-check { background: var(--brand-soft); border-color: var(--brand); border-width: 5px; text-align: center; padding: 28px 20px; border-radius: 24px; }
+.c-check { background: var(--brand-soft); border-color: var(--brand); border-width: 5px; text-align: center; padding: 28px 20px; border-radius: 8px; }
 .c-check .n { font-size: 30px; } .c-check .t { color: var(--brand); }
 .c-purchasing { border-color: var(--blue); } .c-purchasing .t { color: var(--blue); }
-.c-catalog { border-color: #737373; } .c-catalog .t { color: #404040; }
+.c-catalog { border-color: #76726B; } .c-catalog .t { color: #4F4C47; }
 .c-receiving { border-color: var(--orange); } .c-receiving .t { color: #935019; }
 .c-payables { border-color: var(--purple); } .c-payables .t { color: var(--purple); }
 .c-payments { border-color: var(--green); } .c-payments .t { color: var(--green); }
-.g-catalog { background: #fbfbfb; border-color: #737373; } .g-catalog > header { color: #404040; }
+.g-catalog { background: #F6F3EE; border-color: #76726B; } .g-catalog > header { color: #4F4C47; }
 .g-receiving { background: var(--orange-l); border-color: var(--orange); } .g-receiving > header { color: #935019; }
 .g-payables { background: var(--purple-l); border-color: var(--purple); } .g-payables > header { color: var(--purple); }
 .g-payments { background: var(--green-l); border-color: var(--green); } .g-payments > header { color: var(--green); }
@@ -104,11 +104,24 @@ ol li::marker { color: var(--brand); font-weight: 700; }
 @media (max-width: 1100px) { .ctxmap { grid-template-columns: 1fr; } }
 @media (max-width: 1100px) { .cmap { grid-template-columns: 1fr; } .arr { transform: rotate(90deg); } }
 @media (max-width: 560px) { .two, .groups { grid-template-columns: 1fr; } body { font-size: 16px; } }
+
+/* design do deck: creme, tinta, rosa; IBM Plex Sans e Instrument Serif */
+.top{background:#F7E9EC !important;color:#1A1918 !important;border-bottom:none !important}
+.top h1{font-weight:400 !important;letter-spacing:-1.5px}
+.top .q{color:#4F4C47 !important}
+.top .eyebrow{letter-spacing:.12em}
+h2{font-weight:500 !important;letter-spacing:-.5px}
+h2::before{display:none !important}
+.serif{font-family:"Instrument Serif",Georgia,serif;font-style:italic;font-weight:400;color:#C81F50;letter-spacing:0}
+.bar{background:#F1EDE6 !important;border-bottom:1px solid #E3DED5 !important}
+.bar button{color:#1A1918 !important;border-color:#D8D3CA !important}
+.bar button[aria-pressed="true"]{color:#FFFEFB !important}
+.legend{color:#1A1918 !important}
 </style>
 
 <div class="top"><div class="in">
   <div class="eyebrow">Já Chegou · contas a pagar</div>
-  <h1>Modelo de domínio</h1>
+  <h1>Modelo de domínio <span class="serif">(camada semântica)</span></h1>
   <p class="q">Esta nota fiscal cobra uma compra que existe, ainda não foi paga e chegou como foi pedida?</p>
 </div></div>
 <div class="wrap">
@@ -117,23 +130,23 @@ ol li::marker { color: var(--brand); font-weight: 700; }
     <h2>Mapa de contextos</h2>
     <div class="board"><div class="ctxmap">
       <div class="ctxcol">
-        <div class="ctx c-purchasing"><div class="t">Suporte · ERP</div><div class="n">Compras</div><div class="r"><b>Publica:</b> ordem de compra, itens e saldo<br><b>Consome:</b> proposta aprovada</div></div>
-        <div class="ctx c-catalog"><div class="t">Genérico · ERP</div><div class="n">Cadastro</div><div class="r"><b>Publica:</b> fornecedor e produto<br><b>Consome:</b> item sem cadastro, fator a corrigir</div></div>
-        <div class="ctx c-receiving"><div class="t">Suporte · WMS e app · 2ª</div><div class="n">Recebimento</div><div class="r"><b>Publica:</b> itens contados<br><b>Consome:</b> ação na doca aprovada</div></div>
+        <div class="ctx c-purchasing"><div class="t">ERP</div><div class="n">Compras</div><div class="r"><b>Publica:</b> ordem de compra, itens e saldo<br><b>Consome:</b> proposta aprovada</div></div>
+        <div class="ctx c-catalog"><div class="t">ERP</div><div class="n">Cadastro</div><div class="r"><b>Publica:</b> fornecedor e produto<br><b>Consome:</b> item sem cadastro, fator a corrigir</div></div>
+        <div class="ctx c-receiving"><div class="t">WMS e app · 2ª</div><div class="n">Recebimento</div><div class="r"><b>Publica:</b> itens contados<br><b>Consome:</b> ação na doca aprovada</div></div>
       </div>
       <div class="arr">⇄</div>
-      <div class="ctx c-check"><div class="t">Núcleo · SEFAZ ou base do kit</div><div class="n">Conferência</div><div class="r">Nota fiscal · divergências · proposta · aprovação</div></div>
+      <div class="ctx c-check"><div class="t">SEFAZ ou base do kit</div><div class="n">Conferência</div><div class="r">Nota fiscal · divergências · proposta · aprovação</div></div>
       <div class="arr">⇄</div>
       <div class="ctxcol">
-        <div class="ctx c-payables"><div class="t">Suporte · ERP</div><div class="n">Contas a pagar</div><div class="r"><b>Publica:</b> títulos lançados e pagos<br><b>Consome:</b> duplicidade, proposta aprovada</div></div>
-        <div class="ctx c-payments"><div class="t">Suporte · banco e ERP</div><div class="n">Pagamentos</div><div class="r"><b>Publica:</b> pagamentos, inclusive fora do fluxo<br><b>Consome:</b> nota vinculada a pagamento (E7)</div></div>
+        <div class="ctx c-payables"><div class="t">ERP</div><div class="n">Contas a pagar</div><div class="r"><b>Publica:</b> títulos lançados e pagos<br><b>Consome:</b> duplicidade, proposta aprovada</div></div>
+        <div class="ctx c-payments"><div class="t">Banco e ERP</div><div class="n">Pagamentos</div><div class="r"><b>Publica:</b> pagamentos, inclusive fora do fluxo<br><b>Consome:</b> nota vinculada a pagamento (E7)</div></div>
       </div>
     </div><p class="syn" style="margin:14px 0 0">Cada sistema entra no seu contexto por um conector.</p></div>
   </section>
 
   <section class="stack1">
     <div>
-      <h2>A corrente da compra</h2>
+      <h2>Do pedido ao pagamento</h2>
       <div class="board"><div class="chain">
         <div class="box order">Ordem de compra<small>itens e saldo</small></div><div class="link">cobrada por</div>
         <div class="box invoice">Nota fiscal</div><div class="link">entregue em</div>
@@ -237,7 +250,7 @@ ol li::marker { color: var(--brand); font-weight: 700; }
         <tr><td>Limites de aprovação</td><td>Quem aprova o quê, por valor e por tipo de divergência</td><td class="syn">régua, alçada</td></tr>
         <tr><td>Nível</td><td>Regra, analista, coordenação, diretoria ou bloqueio</td><td class="syn"></td></tr>
         <tr><td>Encaminhamento</td><td>O nível para onde a proposta foi</td><td class="syn"></td></tr>
-        <tr><td>Aprovação</td><td>A decisão de uma pessoa sobre a proposta. Nunca o agente</td><td class="syn">não "caso de alçada"</td></tr>
+        <tr><td>Aprovação</td><td>A decisão sobre a proposta: de uma pessoa, ou do motor dentro dos critérios. Diretoria e bloqueio, sempre uma pessoa</td><td class="syn">não "caso de alçada"</td></tr>
       </tbody>
     </table></div>
   </section>
@@ -250,10 +263,10 @@ ol li::marker { color: var(--brand); font-weight: 700; }
         <tbody>
           <tr><td>1</td><td>Duplicidade (E6)</td><td class="lvl" style="color:#c62828">bloqueio</td></tr>
           <tr><td>2</td><td>Acima de R$ 100 mil ou fornecedor com pagamento bloqueado</td><td class="lvl">diretoria</td></tr>
-          <tr><td>3</td><td>E5, E7, E8 ou não catalogada</td><td class="lvl">coordenação</td></tr>
+          <tr><td>3</td><td>E5, E8, não catalogada ou preço fora da tolerância</td><td class="lvl">coordenação</td></tr>
           <tr><td>4</td><td>E1 a E4 acima de R$ 20 mil</td><td class="lvl">coordenação</td></tr>
           <tr><td>5</td><td>E1 a E4 até R$ 20 mil</td><td class="lvl">analista</td></tr>
-          <tr><td>6</td><td>Match, ou na tolerância até R$ 5 mil</td><td class="lvl" style="color:#12805c">regra</td></tr>
+          <tr><td>6</td><td>Match, na tolerância até R$ 5 mil, ou E7 (liga ao pagamento já feito)</td><td class="lvl" style="color:#12805c">regra</td></tr>
         </tbody>
       </table></div>
     </div>
@@ -267,7 +280,7 @@ ol li::marker { color: var(--brand); font-weight: 700; }
         <li>A nota só cobra o saldo da ordem. Entrega parcial não é divergência.</li>
         <li>Toda divergência tem evidência. Valor em risco entre zero e o valor da nota.</li>
         <li>O encaminhamento nunca fica abaixo do limite de aprovação.</li>
-        <li>Só uma pessoa com o nível certo aprova, uma vez. O agente nunca aprova.</li>
+        <li>A proposta é aprovada uma vez: por uma pessoa com o nível certo, ou pelo motor dentro dos critérios. Diretoria e bloqueio, sempre uma pessoa.</li>
       </ol></div>
     </div>
   </section>
@@ -278,27 +291,28 @@ ol li::marker { color: var(--brand); font-weight: 700; }
       <div class="group g-receiving"><header>Recebimento · contagem</header>
         <div class="ent"><b>Contagem por foto</b><span>Foto do pallet no ato da entrega. Um agente conta pela imagem e serve de contraponto à contagem do operador. Divergência entre as duas vira evidência.</span></div></div>
       <div class="group g-invoice"><header>Conferência · aprovação</header>
-        <div class="ent"><b>Aprovação por agente</b><span>Sem agente, a decisão é sempre de uma pessoa. No processo agêntico, um agente aprova quando a confiança passa do limite e o critério está claro. Muda a regra 8 e pede o limite de confiança por nível.</span></div></div>
+        <div class="ent"><b>Aprovação pelo motor</b><span>O motor de decisão aprova sozinho quando a confiança do Clef é de 0,98 ou mais, até R$ 20 mil, depois de 4 semanas em modo sombra. Abaixo disso, decide uma pessoa. Diretoria e bloqueio, sempre uma pessoa.</span></div></div>
     </div>
   </section>
 
   <section>
-    <h2>Para você decidir</h2>
+    <h2>Decisões do modelo</h2>
     <div class="board"><ol>
-      <li>Precedência das exceções: E6, E7, E5, E8, E2, E4, E1, E3, depois a não catalogada.</li>
-      <li>E7 segue os limites de aprovação (coordenação), e não o BPMN (sem pessoa).</li>
-      <li>Preço fora da tolerância é divergência não catalogada (coordenação).</li>
-      <li>Bloqueio é resolvido pela coordenação.</li>
-      <li>Na 1ª entrega, o E7 se prova pelo pagamento fora do fluxo.</li>
-      <li>Uma ordem de compra pode ser cobrada por várias notas?</li>
-      <li>"Proposta" basta, ou vira "proposta de ação"?</li>
-      <li>A ação na doca vale para a nota de loja, que não tem doca?</li>
-      <li>O limite de R$ 20 mil foi validado com a Já Chegou? O dossiê só traz R$ 5 mil e R$ 100 mil.</li>
-      <li>O valor em risco só entra no P1 quando a nota é paga mesmo assim?</li>
-      <li>O segundo boleto da mesma nota entra na 1ª entrega?</li>
-      <li>A aprovação fica dentro da Conferência, e não num contexto à parte.</li>
-      <li>Cadastro é genérico: dados mestres, sem regra própria do pagar errado.</li>
-      <li>Compras baixa o saldo da ordem quando a proposta é aprovada.</li>
+      <li><b>Precedência das exceções:</b> E6, E7, E5, E8, E2, E4, E1, E3, depois a não catalogada. Primeiro o que impede pagar duas vezes, depois o que falta na ordem, por último o recebido.</li>
+      <li><b>E7 segue o BPMN:</b> a regra liga a nota ao pagamento já feito, sem pessoa. Nenhum dinheiro sai, então não precisa de aprovação.</li>
+      <li><b>Preço fora da tolerância</b> é divergência não catalogada e vai para a coordenação. Na dúvida, o nível sobe.</li>
+      <li><b>Bloqueio</b> é resolvido pela coordenação, sempre por uma pessoa.</li>
+      <li><b>Na 1ª entrega,</b> o E7 se prova pelo pagamento fora do fluxo. O recebimento entra na 2ª.</li>
+      <li><b>Uma ordem de compra pode ser cobrada por várias notas,</b> até o saldo de cada item. Entrega parcial não é divergência.</li>
+      <li><b>"Proposta" basta.</b> O glossário já a separa da proposta de pagamento da lista do dia.</li>
+      <li><b>A ação na doca é só do CD.</b> A loja tem a ação própria de recebimento, no app da loja, com as mesmas opções: receber, receber parcial ou recusar.</li>
+      <li><b>O limite de R$ 20 mil fica,</b> como parâmetro da régua que dá para mudar sem código. As 4 semanas de modo sombra validam o valor com a Já Chegou.</li>
+      <li><b>O valor em risco vale para toda nota com divergência,</b> como diz o glossário. O que foi pago mesmo assim é medido à parte.</li>
+      <li><b>O segundo boleto da mesma nota entra na 1ª entrega,</b> como duplicidade (E6). O título carrega a chave da nota, e a nota é única.</li>
+      <li><b>A aprovação fica dentro da Conferência,</b> e não num contexto à parte.</li>
+      <li><b>Cadastro só guarda dados mestres,</b> sem regra própria do pagar errado.</li>
+      <li><b>Compras baixa o saldo da ordem</b> quando a proposta é aprovada.</li>
     </ol></div>
   </section>
 </div>
+

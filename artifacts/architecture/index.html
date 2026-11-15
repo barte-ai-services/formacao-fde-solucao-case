@@ -1,22 +1,22 @@
 <title>Arquitetura de solução</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap">
 <style>
 /* layout: faixa preta da Barte; o diagrama da solução de ponta a ponta com os logos da stack; a lista do que compõe a entrega; os dois runtimes, o MCP, os cinco agentes do case e o pipeline */
 :root {
   color-scheme: light;
-  --brand: #df285d; --brand-soft: #fdf0f4; --brand-l: #fbcad3; --brand-d: #a3163f;
-  --ink: #171717; --ink-2: #404040; --ink-3: #737373;
-  --black: #030202; --bg: #f9f9f9; --card: #fefefe; --line: #efefef; --line-2: #d4d4d4;
+  --brand: #C81F50; --brand-soft: #F7E9EC; --brand-l: #F2C9D4; --brand-d: #a3163f;
+  --ink: #1A1918; --ink-2: #4F4C47; --ink-3: #76726B;
+  --black: #1A1918; --bg: #FAF8F4; --card: #FFFEFB; --line: #EDE8E0; --line-2: #E3DED5;
   --blue: #00749e; --blue-l: #e1f7ff; --blue-d: #004c68;
   --orange: #e68619; --orange-l: #fff0db; --orange-d: #935019;
   --astro: #BC52EE; --react: #087EA4; --ts: #3178C6; --hono: #E36002; --supabase: #3ECF8E;
   --cloudflare: #F38020; --claude: #D97757;
-  --sans: "Inter", system-ui, sans-serif;
+  --sans: "IBM Plex Sans", system-ui, sans-serif;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 18px/1.5 var(--sans); }
-.top { background: var(--black); color: #fefefe; border-bottom: 6px solid var(--brand); }
+.top { background: var(--black); color: #FFFEFB; border-bottom: 6px solid var(--brand); }
 .top .in, .wrap { max-width: 1320px; margin: 0 auto;
   padding-left: max(24px, env(safe-area-inset-left, 0px)); padding-right: max(24px, env(safe-area-inset-right, 0px)); }
 .top .in { padding-block: 36px 32px; }
@@ -33,12 +33,12 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: .88em; }
 .logos { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
 /* diagrama */
-.flow { display: grid; grid-template-columns: 0.9fr 36px 1.15fr 36px 1.9fr 36px 1.15fr; grid-template-rows: auto 40px auto; align-items: stretch; background: var(--card); border: 1px solid var(--line-2); border-radius: 18px; padding: 24px; }
-.n { border: 2.5px solid var(--line-2); border-radius: 14px; padding: 14px 16px; background: #fff; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.flow { display: grid; grid-template-columns: 0.9fr 36px 1.15fr 36px 1.9fr 36px 1.15fr; grid-template-rows: auto 40px auto; align-items: stretch; background: var(--card); border: 1px solid var(--line-2); border-radius: 8px; padding: 24px; }
+.n { border: 2.5px solid var(--line-2); border-radius: 8px; padding: 14px 16px; background: #fff; display: grid; gap: 8px; align-content: start; min-width: 0; }
 .n .k { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-3); }
 .n b { font-size: 22px; line-height: 1.2; }
 .n .s { font-size: 15.5px; color: var(--ink-2); line-height: 1.35; }
-.n.dash { border-style: dashed; border-color: #8a8a8a; background: #fafafa; }
+.n.dash { border-style: dashed; border-color: #8a8a8a; background: #F6F3EE; }
 .n.cf { border-color: var(--cloudflare); }
 .n.sb { border-color: var(--supabase); }
 .n.lite { border: 3px solid var(--black); }
@@ -56,21 +56,21 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: .88em; }
 .r3 { grid-row: 3; }
 .outs { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
 .conn { display: grid; gap: 8px; }
-.conn div { border: 2px solid var(--line-2); border-radius: 10px; padding: 7px 8px; min-width: 0; flex-wrap: wrap; background: #fff; display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; }
+.conn div { border: 2px solid var(--line-2); border-radius: 8px; padding: 7px 8px; min-width: 0; flex-wrap: wrap; background: #fff; display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; }
 .mock { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--orange-d); background: var(--orange-l); border: 1.5px dashed var(--orange); border-radius: 6px; padding: 1px 7px; white-space: nowrap; }
 .region { font-size: 14.5px; font-weight: 600; color: #0b6b45; background: #e6faf1; border-radius: 8px; padding: 4px 9px; }
 .guards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.gd { background: var(--card); border: 2px solid var(--black); border-radius: 12px; padding: 14px 18px; display: flex; gap: 12px; align-items: flex-start; font-size: 17px; font-weight: 600; }
+.gd { background: var(--card); border: 2px solid var(--black); border-radius: 8px; padding: 14px 18px; display: flex; gap: 12px; align-items: flex-start; font-size: 17px; font-weight: 600; }
 .gd .num { flex: none; width: 30px; height: 30px; border-radius: 50%; background: var(--black); color: #fff; display: grid; place-items: center; font-size: 15px; }
 .n.ts { border: 3px solid var(--brand); box-shadow: 0 0 0 5px var(--brand-soft); }
-.ship { margin-top: 14px; display: flex; align-items: center; gap: 12px; border: 2px dashed var(--line-2); border-radius: 12px; padding: 10px 16px; background: #fff; font-size: 16px; color: var(--ink-2); }
+.ship { margin-top: 14px; display: flex; align-items: center; gap: 12px; border: 2px dashed var(--line-2); border-radius: 8px; padding: 10px 16px; background: #fff; font-size: 16px; color: var(--ink-2); }
 .ship b { color: var(--ink); }
 .host { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ink-3); font-weight: 600; }
 .host .logo { width: 20px; height: 20px; }
 
 /* entrega */
 .pieces { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 12px; }
-.pc { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; background: var(--card); border: 1px solid var(--line-2); border-radius: 12px; padding: 14px 18px; }
+.pc { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; background: var(--card); border: 1px solid var(--line-2); border-radius: 8px; padding: 14px 18px; }
 .pc .logos { min-width: 68px; }
 .pc b { display: block; font-size: 19px; }
 .pc span.t { font-size: 16px; color: var(--ink-2); }
@@ -78,17 +78,17 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: .88em; }
 .pc.opt { border-style: dashed; }
 
 /* agente */
-.agent { background: var(--black); color: #fefefe; border: 4px solid var(--brand); box-shadow: 0 0 0 6px var(--brand-l); border-radius: 16px; padding: 22px 24px; display: grid; gap: 16px; }
+.agent { background: var(--black); color: #FFFEFB; border: 4px solid var(--brand); box-shadow: 0 0 0 6px var(--brand-l); border-radius: 8px; padding: 22px 24px; display: grid; gap: 16px; }
 .badge { display: inline-block; background: var(--brand); color: #fff; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; border-radius: 6px; padding: 3px 10px; }
 .agent h3 { margin: 6px 0 0; font-size: 30px; }
 .casc { display: grid; grid-template-columns: 1fr 40px 1fr 40px 1fr; align-items: stretch; }
-.cs { border: 3px solid; border-radius: 14px; padding: 14px 16px; background: #fff; color: var(--ink); display: grid; gap: 8px; align-content: start; }
+.cs { border: 3px solid; border-radius: 8px; padding: 14px 16px; background: #fff; color: var(--ink); display: grid; gap: 8px; align-content: start; }
 .cs .h { display: flex; align-items: center; gap: 10px; }
 .cs b { font-size: 22px; }
 .cs span.t { font-size: 16px; color: var(--ink-2); }
-.cs.r { border-color: #404040; } .cs.c { border-color: var(--blue); background: var(--blue-l); } .cs.p { border-color: var(--orange); background: var(--orange-l); }
+.cs.r { border-color: #4F4C47; } .cs.c { border-color: var(--blue); background: var(--blue-l); } .cs.p { border-color: var(--orange); background: var(--orange-l); }
 .casc .ar { color: var(--brand-l); }
-.agent .foot { font-size: 16.5px; color: #e5e5e5; }
+.agent .foot { font-size: 16.5px; color: #D8D3CA; }
 .agent .foot b { color: var(--brand-l); }
 
 @media (max-width: 1000px) {
@@ -111,13 +111,13 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: .88em; }
 .n.mcp { border-color: var(--ink); }
 .tag { display: inline-block; font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; border-radius: 6px; padding: 2px 8px; background: var(--black); color: #fff; width: fit-content; }
 .tag.no { background: var(--orange-l); color: var(--orange-d); border: 1.5px dashed var(--orange); }
-.src { display: grid; grid-template-columns: 1fr 36px 1.2fr 36px 1fr; align-items: stretch; background: var(--card); border: 1px solid var(--line-2); border-radius: 18px; padding: 24px; }
+.src { display: grid; grid-template-columns: 1fr 36px 1.2fr 36px 1fr; align-items: stretch; background: var(--card); border: 1px solid var(--line-2); border-radius: 8px; padding: 24px; }
 .src .ar { font-size: 26px; }
 .tools { display: grid; gap: 6px; }
 .tools span { border: 1.5px solid var(--line-2); border-radius: 7px; padding: 4px 8px; font-size: 14.5px; font-weight: 600; background: #fff; }
 .tools .w { border-color: var(--brand); background: var(--brand-soft); }
 .ags { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; }
-.ag { background: var(--card); border: 2px solid var(--line-2); border-radius: 14px; padding: 16px 18px; display: grid; gap: 8px; align-content: start; }
+.ag { background: var(--card); border: 2px solid var(--line-2); border-radius: 8px; padding: 16px 18px; display: grid; gap: 8px; align-content: start; }
 .ag .h { display: flex; align-items: center; gap: 12px; }
 .ag .h b { font-size: 21px; line-height: 1.2; }
 .ag .l { flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--brand); color: #fff; font-weight: 700; display: grid; place-items: center; }
@@ -125,7 +125,7 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: .88em; }
 .ag dt { color: var(--ink-3); font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; padding-top: 2px; }
 .ag dd { margin: 0; color: var(--ink-2); }
 .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; counter-reset: st; }
-.st { background: var(--card); border: 2px solid var(--black); border-radius: 12px; padding: 12px 14px; font-size: 16px; font-weight: 600; position: relative; display: grid; gap: 4px; align-content: start; }
+.st { background: var(--card); border: 2px solid var(--black); border-radius: 8px; padding: 12px 14px; font-size: 16px; font-weight: 600; position: relative; display: grid; gap: 4px; align-content: start; }
 .st small { font-size: 13.5px; font-weight: 500; color: var(--ink-3); }
 .st.par { border-color: var(--brand); background: var(--brand-soft); }
 .st.back { border-style: dashed; }
@@ -134,6 +134,19 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: .88em; }
 .chg .pc small { color: var(--ink-3); font-weight: 600; font-size: 14px; }
 .guards.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (max-width: 1000px) { .rt, .src, .guards.four { grid-template-columns: 1fr; } .src .ar { transform: rotate(90deg); height: 30px; } }
+
+/* design do deck: creme, tinta, rosa; IBM Plex Sans e Instrument Serif */
+.top{background:#F7E9EC !important;color:#1A1918 !important;border-bottom:none !important}
+.top h1{font-weight:400 !important;letter-spacing:-1.5px}
+.top .q{color:#4F4C47 !important}
+.top .eyebrow{letter-spacing:.12em}
+h2{font-weight:500 !important;letter-spacing:-.5px}
+h2::before{display:none !important}
+.serif{font-family:"Instrument Serif",Georgia,serif;font-style:italic;font-weight:400;color:#C81F50;letter-spacing:0}
+.bar{background:#F1EDE6 !important;border-bottom:1px solid #E3DED5 !important}
+.bar button{color:#1A1918 !important;border-color:#D8D3CA !important}
+.bar button[aria-pressed="true"]{color:#FFFEFB !important}
+.legend{color:#1A1918 !important}
 </style>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -151,7 +164,7 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: .88em; }
 
 <div class="top"><div class="in">
   <div class="eyebrow">Já Chegou · arquitetura de referência</div>
-  <h1>A solução e os cinco agentes do case</h1>
+  <h1>A solução e os cinco agentes <span class="serif">do case</span></h1>
   <p class="q">Contra o pagar errado: R$ 543 mil por mês pagos sem a mercadoria.</p>
 </div></div>
 
@@ -257,3 +270,4 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: .88em; }
   </section>
 
 </div>
+
