@@ -29,7 +29,7 @@ function serve(path: string, body: unknown): void {
   );
 }
 
-/** O texto da célula "Código" de cada linha, na ordem das linhas do corpo da tabela. */
+/** #201 AC3: o texto da célula "Código" de cada linha, na ordem das linhas do corpo da tabela. */
 function codeCells(): string[] {
   const table = screen.getByRole("table");
   const head = within(table).getAllByRole("columnheader").map((h) => h.textContent);
