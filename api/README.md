@@ -1,7 +1,8 @@
 # API
 
 O Worker `formacao-fde-solucao-case-api`, na Cloudflare. Por enquanto, responde
-`GET /health`, `GET /me` e a tela de `web/` (as duas atrás do Cloudflare Access, #60) e tem um Cron a cada 15 minutos que só
+`GET /health`, `GET /me` e `GET /api/valor-barrado` e a tela de `web/` (atrás do Cloudflare Access, #60; o
+painel está em `src/panel/README.md`) e tem um Cron a cada 15 minutos que só
 registra que rodou.
 
 ## Rodar local

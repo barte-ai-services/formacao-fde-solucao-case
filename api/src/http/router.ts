@@ -2,9 +2,10 @@ import type { Env } from "../env";
 import { authenticate, type AccessVerifier, type Identity } from "./access";
 import { health } from "./health";
 import { me } from "./me";
+import { valorBarrado } from "./valor-barrado";
 
 type PublicHandler = () => Response;
-type ProtectedHandler = (identity: Identity) => Response;
+type ProtectedHandler = (identity: Identity, request: Request, env: Env) => Response | Promise<Response>;
 
 /** Rotas abertas: não passam pelo Access. Só o `/health`, que a esteira e o monitor chamam (#54). */
 const publicRoutes: Record<string, Record<string, PublicHandler>> = {
@@ -14,6 +15,7 @@ const publicRoutes: Record<string, Record<string, PublicHandler>> = {
 /** Rotas que exigem um JWT válido do Cloudflare Access (#54). */
 const protectedRoutes: Record<string, Record<string, ProtectedHandler>> = {
   "/me": { GET: me },
+  "/api/valor-barrado": { GET: valorBarrado },
 };
 
 export interface RouterDeps {
@@ -35,7 +37,7 @@ export async function route(request: Request, env: Env, deps: RouterDeps): Promi
   if ("response" in auth) return auth.response;
 
   const methods = own(protectedRoutes, pathname);
-  if (methods) return dispatch(request, methods, (handler) => handler(auth.identity));
+  if (methods) return dispatch(request, methods, (handler) => handler(auth.identity, request, env));
   if (env.ASSETS && isScreenRequest(request.method, pathname)) return env.ASSETS.fetch(request);
   return Response.json({ error: "not_found" }, { status: 404 });
 }
@@ -51,7 +53,11 @@ function own<T>(record: Record<string, T>, key: string): T | undefined {
   return Object.hasOwn(record, key) ? record[key] : undefined;
 }
 
-function dispatch<H>(request: Request, methods: Record<string, H>, run: (handler: H) => Response): Response {
+function dispatch<H>(
+  request: Request,
+  methods: Record<string, H>,
+  run: (handler: H) => Response | Promise<Response>,
+): Response | Promise<Response> {
   const handler = own(methods, request.method);
   if (!handler) {
     return Response.json(
