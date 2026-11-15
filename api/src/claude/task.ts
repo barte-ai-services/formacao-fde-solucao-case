@@ -3,7 +3,7 @@
  * src/tasks/ e entra no registro de src/tasks/index.ts com uma linha. Outros planos (#65, #68)
  * acrescentam as suas sem mexer no laço (#66).
  */
-import type { Ask } from './client.js';
+import type { Ask, Converse } from './client.js';
 import type { Db } from './db.js';
 
 /** #66 Um pedido pendente: a chave estável da entrada e a entrada em si. */
@@ -17,6 +17,14 @@ export type ClaudeTask<I, O> = {
   readonly name: string;
   /** #66 O que falta sugerir, lido do banco e estreitado por guard. O laço tira o que já está ok. */
   pending(db: Db): Promise<PendingResult<I>>;
-  /** #66 Pergunta ao Claude e devolve a saída já validada, pronta para gravar. */
-  run(input: I, ask: Ask): Promise<O>;
+  /**
+   * #230 Teto de pedidos desta tarefa por rodada, abaixo do teto do laço. Opcional: uma tarefa com tool use
+   * gasta várias chamadas à Messages API e leituras do banco por pedido, e o plano gratuito tem 50 subrequests.
+   */
+  readonly maxPerRun?: number;
+  /**
+   * #66 Pergunta ao Claude e devolve a saída já validada, pronta para gravar.
+   * #230 `converse` é o laço de tool use, só para a tarefa que oferece tools; sem ele, ela falha fechada.
+   */
+  run(input: I, ask: Ask, converse?: Converse): Promise<O>;
 };

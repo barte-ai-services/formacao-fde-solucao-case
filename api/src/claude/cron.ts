@@ -12,6 +12,7 @@ import { tasksFor } from './tasks/index.js';
 /**
  * #171 Pedidos por tarefa a cada rodada. Cada pedido custa 2 subrequests (a Messages API e o upsert) e a rodada
  * lê umas 7 vezes antes: 2 tarefas × 5 × 2 + 7 = 27, dentro dos 50 do plano gratuito. A rodada vai depois da captura.
+ * #230 O auditor (invoice-audit, `maxPerRun` 1) soma 22 no pior caso, 27 + 22 = 49; a conta está em tasks/invoice-audit.ts.
  */
 export const CRON_LIMIT = 5;
 
@@ -38,6 +39,7 @@ export async function runClaudeRound(
     result = await runTasks({
       db: restDb(rest),
       ask: client.ask,
+      converse: (options) => client.converse(options),
       tasks: tasksFor(rest),
       log: (line) => log(`cron: ${line}`),
       limit: CRON_LIMIT,

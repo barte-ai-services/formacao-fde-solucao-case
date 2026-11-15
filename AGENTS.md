@@ -9,6 +9,7 @@
 - **Nada de segredo** no git. Credenciais ficam no `.env`, que o git ignora.
 - **Prosa em português.**
 - **O gate** é `make check` e passa antes de cada commit.
+- **Testes da API** ficam em `api/test/`, não ao lado do código; a regra de testes colocados (`colocated-tests`) não se aplica a `api/`.
 
 <!-- ahrena:agency:start -->
 ## Build work enters through the agency

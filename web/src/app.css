@@ -96,11 +96,43 @@ table [class*="StatusBadge-module__label"] {
   outline-offset: var(--spacing-2xs);
 }
 
-/* #211 A faixa de automação, com o mesmo respiro lateral das telas. */
+/* #211 #242 A faixa de automação: discreta, com o mesmo respiro lateral das telas. Só tokens da barte-design-system, nenhuma cor fixa.
+   Grade ícone | texto | ação; o tom vem de data-tone. */
 .pagar-automation-band {
-  margin: var(--spacing-md) 0 0;
-  padding: 0 var(--spacing-xl);
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  column-gap: var(--spacing-sm);
+  min-height: var(--sizes-6xl);
+  margin: var(--spacing-md) var(--spacing-xl) 0;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: var(--border-width-sm) solid var(--stroke-primary);
+  border-radius: var(--border-radius-md);
+  font-size: var(--typography-body-sm-fontSize);
+  line-height: var(--typography-body-sm-lineHeight);
 }
+.pagar-automation-band__icon { display: flex; width: var(--sizes-md); height: var(--sizes-md); }
+.pagar-automation-band__icon svg { width: 100%; height: 100%; }
+.pagar-automation-band__text { display: flex; flex-direction: column; gap: var(--spacing-2xs); min-width: 0; }
+.pagar-automation-band__title { font-weight: var(--typography-body-sm-fontWeight); color: var(--content-primary); }
+.pagar-automation-band__figures {
+  font-size: var(--typography-body-xs-fontSize);
+  line-height: var(--typography-body-xs-lineHeight);
+  font-weight: var(--typography-caption-sm-fontWeight);
+  color: var(--content-tertiary);
+}
+/* O "Ver rodadas" é o Button link do kit; sem respiro lateral, para alinhar ao texto, e a seta a --spacing-xs do rótulo. */
+.pagar-automation-band .pagar-automation-band__action { padding: 0; gap: var(--spacing-xs); }
+.pagar-automation-band[data-tone="info"] { background: var(--accent-blue-light); }
+.pagar-automation-band[data-tone="info"] .pagar-automation-band__icon { color: var(--accent-blue); }
+.pagar-automation-band[data-tone="warning"] { background: var(--accent-orange-light); }
+.pagar-automation-band[data-tone="warning"] .pagar-automation-band__icon { color: var(--accent-orange); }
+.pagar-automation-band[data-tone="error"] { background: var(--accent-red-light); }
+.pagar-automation-band[data-tone="error"] .pagar-automation-band__icon { color: var(--accent-red); }
+.pagar-automation-band[data-tone="error"] .pagar-automation-band__title { font-weight: var(--typography-label-sm-fontWeight); }
+.pagar-automation-band[data-tone="neutral"] { background: var(--bg-primary); }
+.pagar-automation-band[data-tone="neutral"] .pagar-automation-band__icon { color: var(--content-tertiary); }
+.pagar-automation-band[data-tone="neutral"] .pagar-automation-band__title { color: var(--content-secondary); }
 
 /* #209 A linha da grid abre a nota: o foco do teclado aparece na linha toda, com o mesmo realce do passar o mouse. */
 .pagar-row-table tbody tr:focus-visible { outline: 2px solid var(--stroke-brand); outline-offset: -2px; background: var(--bg-secondary); }
@@ -112,11 +144,18 @@ table [class*="StatusBadge-module__label"] {
 .pagar-row-table tbody td:first-child, .pagar-row-table thead th:first-child { position: sticky; inset-inline-start: 0; z-index: 1; background: var(--bg-primary); }
 .pagar-row-table tbody tr:hover td:first-child, .pagar-row-table tbody tr:focus-visible td:first-child { background: var(--bg-secondary); }
 
-/* #222 A faixa de automação: abaixo de 600 px o botão "Ver rodadas" desce para baixo do texto. */
+/* #222 #242 A faixa de automação: abaixo de 600 px o "Ver rodadas" desce para baixo do texto, alinhado a ele. */
 @media (max-width: 600px) {
-  .pagar-automation-band { padding: 0 var(--spacing-lg); }
-  .pagar-automation-band [class*="Alert-module__alert"] { flex-wrap: wrap; }
-  .pagar-automation-band [class*="Alert-module__actions"] { flex-basis: 100%; }
+  .pagar-automation-band {
+    grid-template-columns: auto 1fr;
+    grid-template-areas: "i t" ". a";
+    row-gap: var(--spacing-xs);
+    align-items: start;
+    margin: var(--spacing-md) var(--spacing-md) 0;
+  }
+  .pagar-automation-band__icon { grid-area: i; }
+  .pagar-automation-band__text { grid-area: t; }
+  .pagar-automation-band__action { grid-area: a; justify-self: start; }
 }
 
 /* #222 No celular as células perdem o respiro lateral para o selo de status caber mais perto da NF e do valor. */

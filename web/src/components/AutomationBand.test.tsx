@@ -29,7 +29,7 @@ const band = (d: AutomationDto) =>
 describe("#211 AC-2 faixa de automação", () => {
   it("ok: a última rodada, a próxima e o que ela fez", async () => {
     band(dto("ok", run(1, "2026-11-16T13:15:00Z")));
-    expect(await screen.findByText("⚙ Automático · última rodada às 10h15 (há 3 min) · próxima às 10h30")).toBeTruthy();
+    expect(await screen.findByText("Automático · última rodada às 10h15 (há 3 min) · próxima às 10h30")).toBeTruthy();
     expect(screen.getByText("12 notas capturadas · 12 conferidas · 7 aprovadas pela regra · 4 para pessoa · 5 ações publicadas na doca")).toBeTruthy();
     expect(document.querySelector("[data-state='ok']")).toBeTruthy();
   });
@@ -74,6 +74,62 @@ describe("#211 AC-2 faixa de automação", () => {
       </AutomationProvider>,
     );
     await waitFor(() => expect(container.textContent).toBe(""));
+  });
+});
+
+const tone = () => document.querySelector(".pagar-automation-band")?.getAttribute("data-tone");
+
+describe("#242 faixa discreta, um tom por estado", () => {
+  it("ok: informativa, sem alerta", async () => {
+    band(dto("ok", run(1, "2026-11-16T13:15:00Z")));
+    await screen.findByText(/Automático · última rodada/);
+    expect(tone()).toBe("info");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+  it("falhou: aviso, distinto do informativo, sem alerta", async () => {
+    band(dto("failed", run(1, "2026-11-16T13:15:00Z", "failed")));
+    await screen.findByText(/A última rodada falhou/);
+    expect(tone()).toBe("warning");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+  it("parada desde um horário: alerta, anunciada como alerta", async () => {
+    band(dto("stalled", run(1, "2026-11-16T12:45:00Z")));
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("A automação está parada desde 9h45.");
+    expect(tone()).toBe("error");
+  });
+  it("ainda não rodou: neutra, sem tom de erro nem alerta", async () => {
+    band(dto("stalled", null));
+    await screen.findByText("A automação ainda não rodou.");
+    expect(tone()).toBe("neutral");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+  it("os quatro tons são distintos entre si", async () => {
+    const seen: string[] = [];
+    for (const d of [
+      dto("ok", run(1, "2026-11-16T13:15:00Z")),
+      dto("failed", run(1, "2026-11-16T13:15:00Z", "failed")),
+      dto("stalled", run(1, "2026-11-16T12:45:00Z")),
+      dto("stalled", null),
+    ]) {
+      const { container, unmount } = band(d);
+      await waitFor(() => expect(container.querySelector(".pagar-automation-band")).toBeTruthy());
+      seen.push(tone() ?? "");
+      unmount();
+    }
+    expect(new Set(seen).size).toBe(4);
+  });
+  it("Ver rodadas é um link discreto com a seta à direita do texto, em todos os estados", async () => {
+    for (const d of [dto("ok", run(1, "2026-11-16T13:15:00Z")), dto("stalled", null)]) {
+      const { unmount } = band(d);
+      const button = await screen.findByRole("button", { name: "Ver rodadas" });
+      expect(button.className).toMatch(/link/);
+      expect(button.className).not.toMatch(/outline/);
+      const [text, icon] = Array.from(button.children) as [Element, Element];
+      expect(text.textContent).toBe("Ver rodadas");
+      expect(icon.querySelector("svg")).toBeTruthy();
+      unmount();
+    }
   });
 });
 
