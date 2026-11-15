@@ -26,3 +26,15 @@
 /* #124 As barras do ranking: o kit fixa 6px e não expõe a altura; sobem para o passo de espaçamento do DS. Depende do nome da classe do kit (paliativo). A barra de progresso usa `size="md"`. */
 .pagar-ranking { --pagar-bar-height: var(--spacing-md); }
 .pagar-ranking [class*="RankingBars-module__track"] { height: var(--pagar-bar-height); }
+/* #129 A gaveta lateral 50 px mais larga que os 480 px do design system, para a chave de 44 dígitos
+   caber numa linha. A medida mora no token; o resto do CSS só lê a variável. */
+:root { --pagar-drawer-width: 530px; }
+.shell-connection-panel { width: var(--pagar-drawer-width); }
+.pagar-access-key { display: inline-flex; align-items: center; gap: var(--spacing-sm); }
+.pagar-access-key__value { white-space: nowrap; overflow-wrap: normal; }
+.pagar-access-key__copy { display: none; }
+@media (max-width: 600px) {
+  .pagar-access-key { flex-wrap: wrap; }
+  .pagar-access-key__value { white-space: normal; overflow-wrap: anywhere; }
+  .pagar-access-key__copy { display: inline-block; }
+}

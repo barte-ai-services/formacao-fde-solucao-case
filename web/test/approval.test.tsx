@@ -206,3 +206,25 @@ describe("#133 fila: Encaminhada a e Minhas", () => {
     expect(screen.queryByText(/NF 81/)).toBeNull();
   });
 });
+
+describe("#129 chave de acesso na gaveta", () => {
+  it("AC-1 e AC-3: a chave inteira numa linha só e o botão de copiar entrega a chave", async () => {
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    respond = () => Response.json(detail());
+    renderAt(`/pagar/fila/${KEY}`);
+    const key = await screen.findByText(KEY);
+    expect(key.className).toContain("pagar-access-key__value");
+    fireEvent.click(screen.getByRole("button", { name: "Copiar chave" }));
+    expect(writeText).toHaveBeenCalledWith(KEY);
+  });
+});
+
+describe("#129 AC-2 largura da gaveta por token", () => {
+  it("a largura vem de uma variável, não de um valor solto", async () => {
+    const { readFileSync } = await import("node:fs");
+    const css = readFileSync("src/app.css", "utf8");
+    expect(css).toMatch(/--pagar-drawer-width:\s*5[0-3]0px/);
+    expect(css).toMatch(/\.shell-connection-panel\s*{\s*width:\s*var\(--pagar-drawer-width\)/);
+  });
+});

@@ -7,6 +7,7 @@ import { Alert } from "barte-design-system";
 import { Block, DataList, DecisionForm, StatusBadge } from "@barte-ai-services/barte-ui-kit";
 import { ApiError } from "../api/client";
 import { approvalApi, type DecisionResultDto, type ProposalDetailDto } from "../api/approval";
+import { AccessKey } from "../components/AccessKey";
 import { Dossier } from "../components/Dossier";
 import { EvidenceView } from "../evidence";
 import { ACTION_LABEL, ACTION_TONE, LEVEL_LABEL, LEVEL_TONE, type DockActionKind } from "./labels";
@@ -75,7 +76,7 @@ export function ProposalPanel({
           { key: "fornecedor", label: texts.proposalPanel.rows.supplier, value: proposal.supplierId },
           { key: "destino", label: texts.proposalPanel.rows.destination, value: proposal.store },
           { key: "justificativa", label: texts.proposalPanel.rows.justification, value: proposal.justification },
-          { key: "chave", label: texts.proposalPanel.rows.accessKey, value: proposal.invoiceAccessKey, mono: true },
+          { key: "chave", label: texts.proposalPanel.rows.accessKey, value: <AccessKey value={proposal.invoiceAccessKey} />, mono: true },
         ]}
       />
       <Block title={texts.proposalPanel.evidenceTitle} size="sm">
