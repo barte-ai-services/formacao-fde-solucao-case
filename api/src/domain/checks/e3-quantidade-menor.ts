@@ -1,5 +1,5 @@
 import { AmountAtRisk } from '../amount-at-risk.js';
-import type { ApprovalLevel } from '../approval-level.js';
+import { routeDivergences } from '../approval-policy.js';
 import type { CheckContext } from '../context.js';
 import { Divergence } from '../divergence.js';
 import { DockAction } from '../dock-action.js';
@@ -12,23 +12,6 @@ import type { Quantity } from '../quantity.js';
 import { findReceipt, orderOf, reconcile, type ReconciliationLine } from '../reconciliation.js';
 import type { Title } from '../title.js';
 import type { Check } from './check.js';
-
-const HUNDRED_THOUSAND = Money.ofCents(10_000_000);
-const TWENTY_THOUSAND = Money.ofCents(2_000_000);
-
-// temporário até a #63: troca pela ApprovalPolicy (fonte única do encaminhamento) e apaga este helper
-/**
- * Nível de aprovação do E3 pela tabela de limites (docs/domain/README.md). A `ApprovalPolicy` é do
- * plano #63; até lá, só as linhas que valem para o E3: linha 2 (nota acima de R$ 100 mil ou
- * fornecedor com pagamento bloqueado → diretoria), linha 4 (acima de R$ 20 mil → coordenação),
- * linha 5 (até R$ 20 mil → analista).
- */
-function levelOf(invoice: InvoiceView, ctx: CheckContext): ApprovalLevel {
-  const blocked = ctx.suppliers.find((s) => s.id === invoice.supplierId)?.paymentBlocked ?? false;
-  if (blocked || invoice.total.compare(HUNDRED_THOUSAND) > 0) return 'diretoria';
-  if (invoice.total.compare(TWENTY_THOUSAND) > 0) return 'coordenacao';
-  return 'analista';
-}
 
 /** Linha que chegou a menos: mesma unidade, contado acima de zero e abaixo do faturado. Zero é E1. */
 export function isShortLine(line: ReconciliationLine): boolean {
@@ -98,7 +81,12 @@ export function proposeE3(
     dockAction: DockAction.partial(
       short.map((l) => ({ sku: skuOf(l), quantity: l.missing, disposition: 'devolver' as const })),
     ),
-    level: levelOf(invoice, ctx),
+    // #63: a régua é a fonte única do encaminhamento (linhas 2, 4 e 5 para o E3).
+    level: routeDivergences(
+      [{ classification: 'E3' }],
+      invoice.total,
+      ctx.suppliers.find((s) => s.id === invoice.supplierId),
+    ).level,
     amountAtRisk: amountAtRiskOfShortfall(invoice, short),
     justification: `Chegou menos do que a nota ${invoice.number} cobra (${counts}). Receber o contado e devolver a diferença.`,
   };
