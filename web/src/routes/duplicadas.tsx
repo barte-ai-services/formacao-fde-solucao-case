@@ -12,6 +12,7 @@ import {
 import { apiGet } from "../api";
 import type { DuplicateDto, DuplicateReason, DuplicatesResponseDto, TitleState } from "../api/contract";
 import { EmptyState } from "../components/EmptyState";
+import { NotaFiscal } from "../components/NotaFiscal";
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
 import type { RouteProps } from "./types";
@@ -54,17 +55,6 @@ const ALERT_DESCRIPTION: Record<Tone, string> = texts.duplicadas.alertDescriptio
 function reasonLabel(reason: string): string {
   return Object.hasOwn(REASON_LABEL, reason) ? REASON_LABEL[reason as DuplicateReason] : reason;
 }
-
-/** O número da nota como link: alcançável pelo teclado, com as cores e a tipografia do DS. */
-const LINK_BUTTON = {
-  background: "none",
-  border: 0,
-  padding: 0,
-  font: "inherit",
-  color: "var(--content-brand)",
-  textDecoration: "underline",
-  cursor: "pointer",
-} as const;
 
 /** Duas linhas na mesma célula: o que importa em cima, o contexto embaixo. */
 function TwoLines({ top, bottom }: { top: ReactNode; bottom: ReactNode }) {
@@ -131,25 +121,12 @@ export default function NotasDuplicadas(_props: RouteProps) {
                 title: texts.duplicadas.columns.duplicate,
                 dataIndex: "duplicate",
                 render: (_, d) => (
-                  <TwoLines
-                    top={
-                      <>
-                        <button
-                          type="button"
-                          aria-label={texts.duplicadas.openInvoice(d.duplicate.number)}
-                          onClick={(event) => {
-                            // A linha também abre no clique do mouse: o botão não deixa abrir duas vezes.
-                            event.stopPropagation();
-                            setOpenKey(d.duplicate.accessKey);
-                          }}
-                          style={LINK_BUTTON}
-                        >
-                          NF {d.duplicate.number}
-                        </button>
-                        {` · ${formatIsoDate(d.duplicate.issuedOn)}`}
-                      </>
-                    }
+                  <NotaFiscal
+                    number={d.duplicate.number}
+                    issuedOn={d.duplicate.issuedOn}
                     bottom={`${d.duplicate.supplierId} · ${d.duplicate.total}`}
+                    openLabel={texts.duplicadas.openInvoice(d.duplicate.number)}
+                    onOpen={() => setOpenKey(d.duplicate.accessKey)}
                   />
                 ),
               },
@@ -161,7 +138,7 @@ export default function NotasDuplicadas(_props: RouteProps) {
                   d.original === null ? (
                     <TwoLines top="—" bottom={NO_ORIGINAL_LABEL} />
                   ) : (
-                    <TwoLines top={`NF ${d.original.number}`} bottom={d.original.status} />
+                    <NotaFiscal number={d.original.number} bottom={d.original.status} />
                   ),
               },
               {

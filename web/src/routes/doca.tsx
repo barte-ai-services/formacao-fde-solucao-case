@@ -5,6 +5,7 @@ import { dockApi, type DockBoardDto, type DockRowDto } from "../api/dock";
 import type { DockActionDto, QuantityDto } from "../api/contract";
 import { ACTION_LABEL, ACTION_TONE } from "../approval/labels";
 import { EmptyState } from "../components/EmptyState";
+import { NotaFiscal } from "../components/NotaFiscal";
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
 import type { RouteProps } from "./types";
@@ -149,7 +150,7 @@ export function ReceivingBoard({ title, subtitle, load, words, noun, emptyIn, wa
             size="md"
             emptyText={texts.recebimento.tableEmpty}
             columns={[
-              { key: "nota", title: texts.recebimento.columns.invoice, dataIndex: "number", render: (_, n) => <Two top={`NF ${n.number}`} bottom={n.supplierId} /> },
+              { key: "nota", title: texts.recebimento.columns.invoice, dataIndex: "number", render: (_, n) => <NotaFiscal number={n.number} bottom={n.supplierId} /> },
               {
                 key: "itens",
                 title: texts.recebimento.columns.items,

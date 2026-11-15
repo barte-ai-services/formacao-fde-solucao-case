@@ -2,6 +2,7 @@ import { Table } from "barte-design-system";
 import { Stat, StatGrid, StatusBadge } from "@barte-ai-services/barte-ui-kit";
 import { approvalApi, type TodayDto } from "../api/approval";
 import { ACTION_LABEL, ACTION_TONE } from "../approval/labels";
+import { NotaFiscal } from "../components/NotaFiscal";
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
 import type { RouteProps } from "./types";
@@ -45,7 +46,7 @@ export default function ListaDoDia(_props: RouteProps) {
             size="md"
             emptyText={texts.listaDoDia.tableEmpty}
             columns={[
-              { key: "nota", title: texts.listaDoDia.columns.invoice, dataIndex: "number", render: (_, i) => `NF ${i.number} · ${i.supplierId}` },
+              { key: "nota", title: texts.listaDoDia.columns.invoice, dataIndex: "number", render: (_, i) => <NotaFiscal number={i.number} bottom={i.supplierId} /> },
               {
                 key: "excecao",
                 title: texts.listaDoDia.columns.classification,

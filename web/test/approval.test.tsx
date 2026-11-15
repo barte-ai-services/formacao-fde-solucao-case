@@ -69,9 +69,9 @@ describe("#63 fila de aprovação", () => {
         ? Response.json({ approver: { email: "c", level: "coordenacao" }, items: [item()] })
         : Response.json(detail());
     renderAt("/pagar/fila");
-    expect(await screen.findByText("NF 80 · F12")).toBeTruthy();
+    expect(await screen.findByText("NF 80")).toBeTruthy();
     expect(screen.getAllByText("Bloqueio").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByText("NF 80 · F12"));
+    fireEvent.click(screen.getByText("NF 80"));
     expect(await screen.findByText("Mesma ordem já lançada", { exact: false })).toBeTruthy();
     expect(screen.getByText(/Linha 1 da régua/)).toBeTruthy();
     expect(screen.getByText("Sua decisão")).toBeTruthy();
@@ -89,7 +89,7 @@ describe("#128 exceção pelo nome na fila", () => {
   it("AC-1 e AC-2: o selo mostra o nome e o código fica na coluna Código", async () => {
     respond = () => Response.json({ approver: { email: "c", level: "coordenacao" }, items: [item()] });
     renderAt("/pagar/fila");
-    const row = (await screen.findByText("NF 80 · F12")).closest("tr") as HTMLElement;
+    const row = (await screen.findByText("NF 80")).closest("tr") as HTMLElement;
     expect(within(row).getByText("Duplicidade")).toBeTruthy();
     expect(within(row).getByText("E6")).toBeTruthy();
     expect(screen.getByRole("columnheader", { name: "Código" })).toBeTruthy();
@@ -193,7 +193,7 @@ describe("#63 lista do dia", () => {
         total: { cents: 96_916 },
       });
     renderAt("/pagar/hoje");
-    const row = (await screen.findByText("NF 36 · F03")).closest("tr");
+    const row = (await screen.findByText("NF 36")).closest("tr");
     expect(row).toBeTruthy();
     expect(within(row as HTMLElement).getByText("Regra")).toBeTruthy();
   });
@@ -208,7 +208,7 @@ describe("#63 lista do dia", () => {
         total: { cents: 1 },
       });
     renderAt("/pagar/hoje");
-    const row = (await screen.findByText("NF 36 · F03")).closest("tr") as HTMLElement;
+    const row = (await screen.findByText("NF 36")).closest("tr") as HTMLElement;
     expect(within(row).getByText("Unidade de medida")).toBeTruthy();
     expect(within(row).getByText("E4")).toBeTruthy();
     expect(screen.getByRole("columnheader", { name: "Código" })).toBeTruthy();
@@ -228,7 +228,7 @@ describe("#133 fila: Encaminhada a e Minhas", () => {
   it("AC-1 e AC-2: sem a coluna Você aprova?, com Encaminhada a pelo nome do glossário", async () => {
     respond = queue;
     renderAt("/pagar/fila");
-    expect(await screen.findByText("NF 80 · F12")).toBeTruthy();
+    expect(await screen.findByText("NF 80")).toBeTruthy();
     expect(screen.queryByText("Você aprova?")).toBeNull();
     expect(screen.getByText("Encaminhada a")).toBeTruthy();
     expect(screen.getAllByText("Diretoria").length).toBeGreaterThan(0);
@@ -237,11 +237,11 @@ describe("#133 fila: Encaminhada a e Minhas", () => {
   it("AC-3: a linha que não decide fica esmaecida com a dica, e Minhas mostra só as decidíveis", async () => {
     respond = queue;
     renderAt("/pagar/fila");
-    await screen.findByText("NF 80 · F12");
+    await screen.findByText("NF 80");
     expect(document.querySelectorAll(".pagar-dimmed[title='Precisa de Diretoria']").length).toBeGreaterThan(0);
     expect(document.querySelectorAll(".pagar-dimmed[title='Precisa de Coordenação']").length).toBe(0);
     fireEvent.click(screen.getByRole("radio", { name: /Minhas/ }));
-    expect(screen.getByText("NF 80 · F12")).toBeTruthy();
+    expect(screen.getByText("NF 80")).toBeTruthy();
     expect(screen.queryByText(/NF 81/)).toBeNull();
   });
 });
