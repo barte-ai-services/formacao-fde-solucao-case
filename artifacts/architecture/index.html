@@ -82,7 +82,7 @@ code { font-family: var(--mono); font-size: .88em; background: var(--line); bord
 .step.m { border-color: var(--brand); background: var(--brand-soft); }
 .step.v { border-color: var(--black); }
 .arr { flex: 0 0 26px; display: grid; place-items: center; color: var(--brand); font-weight: 700; font-size: 22px; }
-.code { background: var(--black); color: #f1eee8; border-radius: 12px; padding: 16px 18px; font: 14.5px/1.55 var(--mono); overflow-x: auto; white-space: pre; margin: 0; }
+.code { background: var(--black); color: #f1eee8; border-radius: 12px; padding: 16px 18px; font: 14.5px/1.55 var(--mono); overflow-x: auto; white-space: pre; margin: 0; font-variant-ligatures: none; }
 .code .c { color: #9a948c; } .code .k { color: var(--brand-l); }
 .split { display: grid; grid-template-columns: 1.25fr 1fr; gap: 18px; align-items: start; }
 
@@ -134,26 +134,58 @@ td b { font-size: 17px; }
   body { font-size: 16px; }
 }
 @media (max-width: 560px) { .ctx, .acl { grid-template-columns: 1fr; } }
+/* gateway: backend → LiteLLM → Claude e Clef */
+.gw { display: grid; grid-template-columns: 1fr 44px 1.1fr 44px 1fr; gap: 0; align-items: center; }
+.gw .col { display: grid; gap: 14px; }
+.gw .ar { display: grid; gap: 14px; text-align: center; color: var(--brand); font-size: 26px; font-weight: 700; }
+.gw .box b { font-size: 21px; }
+.box.lite { border: 3px solid var(--black); background: #fff; }
+.box.clef { border-color: var(--blue); background: var(--blue-l); }
+.ep { display: block; font-family: var(--mono); font-size: 13.5px; color: var(--ink-2); margin-top: 6px; }
+/* cascata */
+.cascade { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; align-items: stretch; }
+.cs { border: 3px solid; border-radius: 14px; padding: 14px 16px; background: #fff; display: grid; gap: 6px; align-content: start; }
+.cs .num { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; }
+.cs b { font-size: 21px; color: #171717; }
+.cs span { font-size: 15.5px; color: var(--ink-2); line-height: 1.4; }
+.cs.r { border-color: #404040; } .cs.r .num { color: #404040; }
+.cs.c { border-color: var(--blue); background: var(--blue-l); } .cs.c .num { color: var(--blue-d); }
+.cs.p { border-color: var(--orange); background: var(--orange-l); } .cs.p .num { color: var(--orange-d); }
+.cascade-wrap .gap { display: grid; place-items: center; color: var(--brand-l); font-size: 26px; font-weight: 700; }
+.cascade-wrap { display: grid; grid-template-columns: 1fr 34px 1fr 34px 1fr; }
+.never { margin-top: 4px; font-size: 15.5px; color: #e5e5e5; }
+.never b { color: var(--brand-l); }
+.checks { display: grid; gap: 10px; counter-reset: ck; }
+.codes { display: grid; gap: 14px; margin-top: 18px; }
+.ck { background: var(--card); border: 2px solid var(--line-2); border-radius: 12px; padding: 12px 16px 12px 58px; position: relative; font-size: 16.5px; color: var(--ink-2); }
+.ck::before { counter-increment: ck; content: counter(ck); position: absolute; left: 14px; top: 11px; width: 30px; height: 30px; border-radius: 50%; background: var(--brand); color: #fff; font-weight: 700; display: grid; place-items: center; font-size: 15px; }
+.ck b { color: var(--ink); }
+.ck.first { border-color: var(--brand); }
+@media (max-width: 1000px) {
+  .gw, .cascade-wrap { grid-template-columns: 1fr; }
+  .gw .ar, .cascade-wrap .gap { transform: rotate(90deg); height: 30px; }
+  .gw .ar span + span { display: none; }
+}
 </style>
 
 <div class="top"><div class="in">
   <div class="eyebrow">Já Chegou · arquitetura de solução</div>
   <h1>Em cima do que cada agente roda</h1>
-  <p class="q">A arquitetura de referência da turma, com o modelo de domínio dentro do backend e a LLM chamada direto pela API do Claude.</p>
+  <p class="q">A arquitetura de referência da turma, com o modelo de domínio dentro do backend e todo modelo chamado pelo gateway do LiteLLM.</p>
 </div></div>
 
 <div class="wrap">
   <section>
     <div class="rule3">
-      <div><b>A regra decide o que é conta</b><span>Duplicidade, valor em risco, conversão, limites de aprovação.</span></div>
-      <div><b>O Clef confirma</b><span>Código Python no domínio. Refaz a conta com os dados do banco e confirma só o que passa nas travas.</span></div>
-      <div><b>A LLM recomenda</b><span>Uma chamada direta à API. Devolve recomendação e porquê. Nunca escreve no banco, aprova ou paga.</span></div>
+      <div><b>A regra decide o que é conta</b><span>Código nosso: duplicidade, valor em risco, conversão, limites de aprovação.</span></div>
+      <div><b>O Clef confirma ou devolve</b><span>O modelo de decisão da Cloudflare. Entra o caso, sai a decisão e a confiança. Quem aplica o limite é o servidor.</span></div>
+      <div><b>O Claude recomenda</b><span>Saída estruturada, validada antes de gravar. Nunca escreve no banco, aprova ou paga.</span></div>
     </div>
   </section>
 
   <section>
     <h2>As camadas</h2>
-    <p class="sub">Cinco faixas. A borda e os dados vêm da referência da turma. O que muda está dentro do <code>/api</code>: os seis contextos, a anticorrupção por sistema e a camada de LLM.</p>
+    <p class="sub">A borda e os dados vêm da referência da turma. O que muda: os seis contextos dentro do <code>/api</code>, a anticorrupção por sistema, e o LiteLLM entre o backend e os modelos.</p>
     <div class="diagram">
       <div class="band b-user">
         <div class="bl">Quem usa</div>
@@ -169,12 +201,12 @@ td b { font-size: 17px; }
         <div class="bc"><div class="cols3">
           <div class="box cf"><b>Astro com React</b><span class="tag">ja-chegou-web</span><span>Fila de propostas, nota ao lado da ordem, a recomendação com o porquê, e aprovar, alterar ou recusar.</span></div>
           <div class="api star-out">
-            <div class="hd"><b>FastAPI</b><span class="tag">/api · Python Worker com Cron</span><span>Um backend só, com os contextos como módulos. O Cron é a esteira: confere, chama o Clef e a LLM fora da requisição da tela.</span></div>
+            <div class="hd"><b>FastAPI</b><span class="tag">/api · Python Worker com Cron</span><span>Um backend só, com os contextos como módulos. O Cron é a esteira: confere, roda a cascata e chama os modelos fora da requisição da tela.</span></div>
             <div class="row">
               <div>
                 <div class="inner-t">Domínio · seis contextos</div>
                 <div class="ctx">
-                  <div class="core">Conferência · núcleo<small>Nota fiscal, Proposta, Aprovação e o Clef</small></div>
+                  <div class="core">Conferência · núcleo<small>Nota fiscal, Proposta, Aprovação e a cascata</small></div>
                   <div>Compras<small>ordem, saldo</small></div>
                   <div>Cadastro<small>fornecedor, produto</small></div>
                   <div>Recebimento<small>itens contados</small></div>
@@ -182,7 +214,7 @@ td b { font-size: 17px; }
                   <div>Pagamentos<small>pagos, fora do fluxo</small></div>
                 </div>
               </div>
-              <div class="box llm"><b>Camada de LLM</b><span class="tag">AsyncAnthropic</span><span>Um system prompt por papel: classificar, escrever o dossiê, recomendar a alteração, contar pela foto. Saída num schema Pydantic.</span></div>
+              <div class="box llm"><b>Papéis de modelo</b><span class="tag">httpx → LiteLLM</span><span>Um system prompt fixo por papel e um schema Pydantic de saída. Classificar, dossiê, recomendar, contar pela foto, e a pergunta ao Clef.</span></div>
             </div>
             <div>
               <div class="inner-t">Anticorrupção · uma por sistema, traduz e não decide</div>
@@ -197,7 +229,7 @@ td b { font-size: 17px; }
           <div class="box cf opt"><b>Servidor MCP</b><span class="tag">ja-chegou-mcp · opcional</span><span>Tools só de leitura. Para quando o modelo precisa explorar, como achar a ordem provável entre várias.</span></div>
         </div></div>
       </div>
-      <div class="wire"><span>RLS com o JWT da pessoa</span><span>o Cron grava como o usuário <code>agente</code></span><span>URL assinada do XML, do PDF e da foto</span><span>webhook: proposta nova</span></div>
+      <div class="wire"><span>RLS com o JWT da pessoa</span><span>o Cron grava como o usuário <code>agente</code></span><span>URL assinada do XML, do PDF e da foto</span><span><code>/api</code> → LiteLLM, com a chave virtual do backend</span></div>
       <div class="band b-data">
         <div class="bl">Dados<small>Supabase</small></div>
         <div class="bc"><div class="cols3">
@@ -206,46 +238,63 @@ td b { font-size: 17px; }
           <div class="box sb"><b>Storage</b><span>XML e PDF das notas, e as fotos da doca. Privado.</span></div>
         </div></div>
       </div>
-      <div class="wire"><span>a camada de LLM chama a API, com a chave em secret do Worker</span><span>a anticorrupção lê as fontes</span><span>o <code>/api</code> avisa pelo Resend</span></div>
+      <div class="band b-edge">
+        <div class="bl">Gateway<small>container</small></div>
+        <div class="bc"><div class="box lite"><b>Proxy do LiteLLM</b><span class="tag">imagem oficial · Cloudflare Containers ou outro host de container</span><span>O ponto único das chaves, dos logs, do custo e da troca de modelo. Guarda a chave da Anthropic e a da Cloudflare; o backend só tem a chave virtual. Os logs de gasto vão para um schema próprio no Postgres do Supabase.</span></div></div>
+      </div>
+      <div class="wire"><span>LiteLLM → Claude: <code>/v1/chat/completions</code></span><span>LiteLLM → Clef: <code>/v1/decisions</code></span><span>a anticorrupção lê as fontes</span><span>o <code>/api</code> avisa pelo Resend</span></div>
       <div class="band b-out">
         <div class="bl">Fora</div>
         <div class="bc"><div class="cols3">
-          <div class="box ext llm"><b>API do Claude</b><span class="tag">claude-opus-5-5</span><span>Recebe o contexto pronto e devolve a recomendação. Não vê o banco.</span></div>
-          <div class="box ext"><b>Base do kit</b><span>Simula a SEFAZ, o ERP, o WMS e o banco. Trocar pela fonte real muda só a anticorrupção.</span></div>
-          <div class="box ext"><b>Resend</b><span>E-mail para quem aprova, com o link da tela.</span></div>
+          <div class="box ext llm"><b>Claude</b><span class="tag">anthropic/claude-opus-5-5</span><span>Recebe o contexto pronto e devolve a recomendação. Não vê o banco.</span></div>
+          <div class="box ext clef"><b>Clef, da Cloudflare</b><span class="tag">cloudflare/clef</span><span>Modelo de decisão. Devolve a escolha, as probabilidades e a confiança.</span></div>
+          <div class="box ext"><b>Base do kit · Resend</b><span>A base simula a SEFAZ, o ERP, o WMS e o banco: trocar pela fonte real muda só a anticorrupção. O Resend leva o e-mail a quem aprova.</span></div>
         </div></div>
       </div>
       <div class="band b-code">
         <div class="bl">Código<small>GitHub</small></div>
-        <div class="bc"><div class="box"><b>Actions</b><span>Publicam os três Workers, aplicam as migrações e rodam o eval dos prompts antes do merge. O lote do agente da referência vira o Cron do <code>/api</code>.</span></div></div>
+        <div class="bc"><div class="box"><b>Actions</b><span>Publicam os três Workers e o container do LiteLLM, aplicam as migrações e rodam o eval dos prompts antes do merge. O lote do agente da referência vira o Cron do <code>/api</code>.</span></div></div>
       </div>
     </div>
   </section>
 
   <section>
-    <h2>A camada de LLM</h2>
-    <p class="sub">Sem LangChain e sem framework de agente. Uma chamada à API por papel, com o SDK oficial <code>anthropic</code> em Python. Dois caminhos, e um deles é o padrão.</p>
+    <h2>Todo modelo passa pelo LiteLLM</h2>
+    <p class="sub">Sem LangChain e sem framework de agente. O backend faz um POST por papel no proxy, com o <code>httpx</code> assíncrono, e valida a resposta com Pydantic.</p>
+    <div class="gw">
+      <div class="col"><div class="box cf"><b>/api · Cron</b><span>Lê o banco, monta o contexto e escolhe o papel.</span></div></div>
+      <div class="ar"><span>→</span><span>→</span></div>
+      <div class="col"><div class="box lite"><b>LiteLLM</b><span>Chaves, logs, custo e troca de modelo num lugar só.</span><span class="ep">POST /v1/chat/completions</span><span class="ep">POST /v1/decisions</span></div></div>
+      <div class="ar"><span>→</span><span>→</span></div>
+      <div class="col">
+        <div class="box llm"><b>Claude</b><span>Classificar, dossiê, recomendar a alteração, contar pela foto. <code>response_format</code> com JSON schema vira a saída estruturada da Anthropic.</span></div>
+        <div class="box clef"><b>Clef</b><span>Uma pergunta <code>choice</code>: confirmar ou devolver. Volta <code>choice</code>, <code>probabilities</code> e <code>confidence</code>.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
     <div class="paths">
       <div class="path def">
         <h3><span class="pill p-def">Padrão</span>O backend monta o contexto</h3>
         <div class="flow">
           <div class="step"><b>Lê o banco</b><span>Nota, ordem, cadastro e contagem, pelos contextos.</span></div>
           <div class="arr">→</div>
-          <div class="step m"><b><code>messages.parse</code></b><span>System fixo do papel, com cache. Os dados vão na mensagem.</span></div>
+          <div class="step m"><b>Chama o LiteLLM</b><span>System fixo do papel, com cache. Os dados vão na mensagem.</span></div>
           <div class="arr">→</div>
           <div class="step m"><b>Schema Pydantic</b><span>Recomendação, justificativa, evidências e confiança.</span></div>
           <div class="arr">→</div>
-          <div class="step v"><b>O backend valida</b><span>Contrato e regras. Recusa, ou saída fora do contrato, vai para a pessoa.</span></div>
+          <div class="step v"><b>O backend valida</b><span>Contrato e regras. Saída fora do contrato vai para a pessoa.</span></div>
           <div class="arr">→</div>
           <div class="step v"><b>Grava</b><span>Como recomendação, nunca como decisão.</span></div>
         </div>
       </div>
       <div class="path">
-        <h3><span class="pill p-opt">Quando precisa explorar</span>O modelo busca pelo MCP</h3>
+        <h3><span class="pill p-opt">Quando precisa explorar</span>O Claude busca pelo MCP</h3>
         <div class="flow">
           <div class="step"><b>O backend pergunta</b><span>"Qual destas ordens a nota cobra?", sem a lista toda.</span></div>
           <div class="arr">→</div>
-          <div class="step m"><b>Conector MCP da API</b><span>O modelo chama as tools de leitura do <code>ja-chegou-mcp</code>. Beta.</span></div>
+          <div class="step m"><b>Claude, pelo LiteLLM</b><span>Chama as tools de leitura do <code>ja-chegou-mcp</code>.</span></div>
           <div class="arr">→</div>
           <div class="step m"><b>Mesmo schema</b><span>Ordem provável, evidências.</span></div>
           <div class="arr">→</div>
@@ -256,52 +305,65 @@ td b { font-size: 17px; }
   </section>
 
   <section>
-    <div class="split">
-      <pre class="code"><span class="c"># papeis/recomendar.py · roda no Cron do /api</span>
-client = AsyncAnthropic()  <span class="c"># chave em secret do Worker</span>
-
-resp = await client.messages.parse(
-    model=<span class="k">"claude-opus-5-5"</span>,
-    max_tokens=8000,
-    output_config={<span class="k">"effort"</span>: <span class="k">"medium"</span>},
-    system=[{<span class="k">"type"</span>: <span class="k">"text"</span>, <span class="k">"text"</span>: PROMPT_RECOMENDAR,
-             <span class="k">"cache_control"</span>: {<span class="k">"type"</span>: <span class="k">"ephemeral"</span>}}],
-    messages=[{<span class="k">"role"</span>: <span class="k">"user"</span>, <span class="k">"content"</span>: contexto.model_dump_json()}],
-    output_format=Recomendacao,  <span class="c"># Pydantic</span>
-)
-<span class="k">if</span> resp.stop_reason == <span class="k">"refusal"</span> <span class="k">or</span> resp.parsed_output <span class="k">is None</span>:
-    <span class="k">return</span> para_a_pessoa(nota)
-rec = conferencia.validar(resp.parsed_output, nota)  <span class="c"># contrato e regras</span>
-<span class="k">await</span> repo.gravar_recomendacao(rec)  <span class="c"># o modelo não toca no banco</span></pre>
-      <table>
-        <tr><th>Papel</th><th>Recebe</th><th>Devolve</th></tr>
-        <tr><td><b>Classificar</b></td><td>Item da nota e o cadastro do fornecedor</td><td>SKU provável e evidência. A regra classifica.</td></tr>
-        <tr><td><b>Dossiê</b></td><td>Divergência, ação proposta e histórico</td><td>Texto para quem aprova</td></tr>
-        <tr><td><b>Recomendar</b></td><td>Proposta, nota, ordem, cadastro, contagem e o resultado do Clef</td><td>Manter ou alterar, porquê, evidências</td></tr>
-        <tr><td><b>Contar</b></td><td>Foto do pallet</td><td>Quantidade por item. A regra concilia.</td></tr>
-      </table>
+    <h2>O agente que a turma vai construir</h2>
+    <div class="agents">
+      <div class="ag star">
+        <div><span class="badge">Agente que iremos construir</span><div class="n">Confirmar ou alterar a ação</div></div>
+        <div class="cascade-wrap">
+          <div class="cs r"><span class="num">1 · Regra · código nosso</span><b>A conta fecha?</b><span>Duplicidade, limites de aprovação e a conta na mesma unidade. Decide sozinha quando há regra escrita, sem chamar o Clef.</span></div>
+          <div class="gap">→</div>
+          <div class="cs c"><span class="num">2 · Clef · pelo LiteLLM</span><b>Confirmar ou devolver?</b><span>Só quando a casa da matriz permite o agente e a conta não decide. O servidor lê a confiança: abaixo de 0,98, vai para a pessoa. O Clef nunca altera.</span></div>
+          <div class="gap">→</div>
+          <div class="cs p"><span class="num">3 · Pessoa da alçada</span><b>Confirma ou altera</b><span>Vê a recomendação do Claude, pelo LiteLLM, com o porquê. A decisão é dela e final: o Clef não roda de novo.</span></div>
+        </div>
+        <div class="never"><b>Nunca chega ao Clef:</b> duplicidade, fornecedor bloqueado, nota acima de R$ 100 mil, pedido de alterar. O servidor barra antes.</div>
+        <div class="when">Roda duas vezes: quando a proposta é registrada, antes da doca, e quando a contagem entra no banco. O limite de 0,98 é configuração do projeto, fixado pelo CFO depois de 4 semanas em modo sombra.</div>
+      </div>
+    </div>
+    <div class="codes">
+      <pre class="code"><span class="c"># conferencia/cascata.py · passo 2, no Cron do /api</span>
+r = <span class="k">await</span> litellm.post(<span class="k">"/v1/decisions"</span>, json={
+    <span class="k">"model"</span>: <span class="k">"clef"</span>,  <span class="c"># config: cloudflare/clef</span>
+    <span class="k">"input"</span>: caso.model_dump_json(),
+    <span class="k">"questions"</span>: [{
+        <span class="k">"type"</span>: <span class="k">"choice"</span>, <span class="k">"name"</span>: <span class="k">"acao"</span>,
+        <span class="k">"instructions"</span>: <span class="k">"Confirmar a ação proposta ou devolver?"</span>,
+        <span class="k">"choices"</span>: [{<span class="k">"value"</span>: <span class="k">"confirmar"</span>}, {<span class="k">"value"</span>: <span class="k">"devolver"</span>}],
+    }],
+})
+resp = r.json()[<span class="k">"answers"</span>][0]
+<span class="k">if</span> resp[<span class="k">"choice"</span>] == <span class="k">"confirmar"</span> <span class="k">and</span> resp[<span class="k">"confidence"</span>] &gt;= LIMITE:
+    <span class="k">await</span> conferencia.confirmar(proposta)  <span class="c"># as travas no banco</span>
+<span class="k">else</span>:
+    <span class="k">await</span> conferencia.devolver(proposta)  <span class="c"># vai para a pessoa</span></pre>
+      <pre class="code"><span class="c"># papeis/recomendar.py · para a pessoa decidir</span>
+r = <span class="k">await</span> litellm.post(<span class="k">"/v1/chat/completions"</span>, json={
+    <span class="k">"model"</span>: <span class="k">"claude-opus-5-5"</span>,
+    <span class="k">"reasoning_effort"</span>: <span class="k">"medium"</span>,
+    <span class="k">"messages"</span>: [
+        {<span class="k">"role"</span>: <span class="k">"system"</span>, <span class="k">"content"</span>: [{<span class="k">"type"</span>: <span class="k">"text"</span>,
+            <span class="k">"text"</span>: PROMPT_RECOMENDAR,
+            <span class="k">"cache_control"</span>: {<span class="k">"type"</span>: <span class="k">"ephemeral"</span>}}]},
+        {<span class="k">"role"</span>: <span class="k">"user"</span>, <span class="k">"content"</span>: contexto.model_dump_json()},
+    ],
+    <span class="k">"response_format"</span>: {<span class="k">"type"</span>: <span class="k">"json_schema"</span>, <span class="k">"json_schema"</span>: {
+        <span class="k">"name"</span>: <span class="k">"recomendacao"</span>,
+        <span class="k">"schema"</span>: Recomendacao.model_json_schema()}},
+})
+texto = r.json()[<span class="k">"choices"</span>][0][<span class="k">"message"</span>][<span class="k">"content"</span>]
+rec = Recomendacao.model_validate_json(texto)  <span class="c"># falhou: pessoa</span>
+<span class="k">await</span> repo.gravar_recomendacao(conferencia.validar(rec))</pre>
     </div>
   </section>
 
   <section>
-    <h2>Onde cada agente roda</h2>
-    <p class="sub">Os nós da página "Onde entra agente". Todos rodam no Cron do <code>/api</code>, disparados por um estado novo no banco.</p>
+    <h2>Onde roda cada um dos outros agentes</h2>
+    <p class="sub">Os nós da página "Onde entra agente". Todos rodam no Cron do <code>/api</code>, disparados por um estado novo no banco, e chamam o Claude pelo LiteLLM.</p>
     <div class="agents">
-      <div class="ag star">
-        <div><span class="badge">Agente que iremos construir</span><div class="n">Confirmar ou alterar a ação</div></div>
-        <div class="chips"><span class="chip c-clef">Clef</span><span class="chip c-llm">LLM</span><span class="chip c-pessoa">Pessoa</span></div>
-        <ol>
-          <li><b>Clef</b>, no contexto Conferência: refaz a conta com a nota, a ordem, o cadastro e a contagem, e calcula a confiança pelos fatores.</li>
-          <li>Passou nas travas e no limite (até R$ 20 mil, 0,98)? <b>Confirma</b> como o usuário <code>agente</code>. O banco recusa qualquer outra coisa.</li>
-          <li>Não passou? O papel <b>Recomendar</b> chama a API e grava a recomendação com o porquê.</li>
-          <li>A <b>pessoa</b> decide no Astro. Diretoria e bloqueio, sempre ela.</li>
-        </ol>
-        <div class="when">Roda duas vezes: quando a proposta é registrada, antes da doca, e quando a contagem entra no banco.</div>
-      </div>
       <div class="ag">
         <div class="n">Classificar a divergência</div>
         <div class="chips"><span class="chip c-regra">Regra</span><span class="chip c-llm">LLM</span></div>
-        <div class="where"><b>Conferência</b>, com o papel <b>Classificar</b> quando o SKU vem vazio. Achar a ordem provável entre várias usa o caminho do MCP.</div>
+        <div class="where">A regra classifica na <b>Conferência</b>. O papel <b>Classificar</b> casa a descrição com o cadastro quando o SKU vem vazio. Achar a ordem provável entre várias usa o caminho do MCP.</div>
         <div class="when">Dispara: nota fiscal recebida.</div>
       </div>
       <div class="ag">
@@ -313,26 +375,38 @@ rec = conferencia.validar(resp.parsed_output, nota)  <span class="c"># contrato 
       <div class="ag">
         <div class="n">Contar a mercadoria</div>
         <div class="chips"><span class="chip c-llm">LLM com visão</span><span class="chip c-pessoa">Pessoa</span></div>
-        <div class="where">A foto vai para o Storage. O papel <b>Contar</b> manda a imagem à API. A contagem fica no <b>Recebimento</b>, ao lado da do operador.</div>
+        <div class="where">A foto vai para o Storage. O papel <b>Contar</b> manda a imagem ao Claude. A contagem fica no <b>Recebimento</b>, ao lado da do operador.</div>
         <div class="when">Dispara: foto da doca enviada.</div>
       </div>
     </div>
   </section>
 
   <section>
-    <h2>O que mudou na proposta</h2>
-    <div class="changes">
-      <div class="chg keep"><span class="st">Conferido</span><b>O SDK roda no Python Worker</b><span><code>anthropic</code> 2.8 com <code>AsyncAnthropic</code> chamou a API dentro do <code>pywrangler dev</code>. O cliente síncrono não serve no Worker. Falta testar com o deploy.</span></div>
-      <div class="chg mod"><span class="st">Ajuste</span><b>A chamada roda no Cron</b><span>Uma chamada com raciocínio leva segundos. Fica fora da requisição da tela e do webhook do banco.</span></div>
-      <div class="chg mod"><span class="st">Ajuste</span><b>A confiança da LLM não decide</b><span>É autodeclarada. Vai para a tela. Quem confirma é a confiança do Clef, calculada pelos fatores.</span></div>
-      <div class="chg mod"><span class="st">Ajuste</span><b>O MCP só lê</b><span>Na referência, ele registrava a proposta. Aqui, quem grava é o backend, depois de validar.</span></div>
-      <div class="chg mod"><span class="st">Ajuste</span><b>Esforço explícito</b><span>No <code>claude-opus-5-5</code>, o raciocínio não desliga e o padrão é <code>medium</code>. Vale <code>low</code> para classificar e <code>medium</code> para recomendar.</span></div>
-      <div class="chg mod"><span class="st">Ajuste</span><b>Cache só com 512 tokens</b><span>O system abaixo disso não entra no cache, e sem erro. Conferir em <code>cache_read_input_tokens</code>.</span></div>
-      <div class="chg mod"><span class="st">Em aberto</span><b>O Clef confirmar muda a regra 8</b><span>O modelo de domínio diz que o agente nunca aprova. Confirmar dentro do limite é a oportunidade 2, ainda a validar com a Já Chegou.</span></div>
+    <h2>Verificações técnicas, na ordem</h2>
+    <div class="checks">
+      <div class="ck first"><b>Uma chamada completa ao Clef.</b> A página de decisões do LiteLLM não traz exemplo com <code>cloudflare/clef</code> do pedido à resposta. Conferir o pedido, a resposta e a confiança com um caso da base do kit.</div>
+      <div class="ck"><b>Saída estruturada com o <code>claude-opus-5-5</code>.</b> O LiteLLM converte o <code>response_format</code> e manda um header beta de saída estruturada. Conferir que o modelo aceita, e que o <code>reasoning_effort</code> chega como esforço.</div>
+      <div class="ck"><b>Onde o proxy roda.</b> A imagem do LiteLLM num container da Cloudflare, com as duas chaves como secret e o Postgres do Supabase para os logs.</div>
+      <div class="ck"><b>O MCP pelo LiteLLM.</b> Só para o caminho de exploração. O padrão não depende dele.</div>
+      <div class="ck"><b>Recurso novo da API chega com atraso pelo LiteLLM.</b> Não afeta chat com saída estruturada, que é tudo o que a solução usa.</div>
     </div>
   </section>
 
   <section>
-    <div class="rule">O banco lê, o backend monta o contexto, <em>a LLM recomenda</em>, o backend valida, <em>o Clef confirma</em> o que passa nas travas, e <em>a pessoa decide</em> o resto.</div>
+    <h2>O que mudou na proposta</h2>
+    <div class="changes">
+      <div class="chg mod"><span class="st">Decisão do Fernando</span><b>O Clef é o da Cloudflare</b><span>Um serviço consultado pelo LiteLLM, não código nosso. A regra roda antes, em código nosso.</span></div>
+      <div class="chg mod"><span class="st">Decisão do Fernando</span><b>Todo modelo pelo LiteLLM</b><span>No lugar da chamada direta com o SDK <code>anthropic</code>. O backend usa só <code>httpx</code>.</span></div>
+      <div class="chg keep"><span class="st">Conferido</span><b>O cliente HTTP roda no Python Worker</b><span>O <code>httpx</code> assíncrono fez a chamada dentro do <code>pywrangler dev</code>. Falta conferir num deploy.</span></div>
+      <div class="chg mod"><span class="st">Ajuste</span><b>A chamada roda no Cron</b><span>Uma chamada com raciocínio leva segundos. Fica fora da requisição da tela e do webhook do banco.</span></div>
+      <div class="chg mod"><span class="st">Ajuste</span><b>A confiança do Claude não decide</b><span>É autodeclarada e vai para a tela. Quem decide pelo limite é a confiança do Clef.</span></div>
+      <div class="chg mod"><span class="st">Ajuste</span><b>O MCP só lê</b><span>Na referência, ele registrava a proposta. Aqui, quem grava é o backend, depois de validar.</span></div>
+      <div class="chg mod"><span class="st">Ajuste</span><b>Esforço e cache explícitos</b><span>No <code>claude-opus-5-5</code> o raciocínio não desliga e o padrão é <code>medium</code>. O system só entra no cache a partir de 512 tokens.</span></div>
+      <div class="chg mod"><span class="st">Em aberto</span><b>Confirmar sem pessoa muda a regra 8</b><span>O modelo de domínio diz que o agente nunca aprova. A cascata pede a regra 8 nova: "o agente só confirma, nas camadas ligadas".</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="rule">A <em>regra</em> decide o que é conta, o <em>Clef</em> confirma o que passa do limite, o <em>Claude</em> explica, e a <em>pessoa</em> decide o resto. Tudo pelo LiteLLM, e nada grava sem o backend validar.</div>
   </section>
 </div>
