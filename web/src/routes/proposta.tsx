@@ -4,6 +4,7 @@ import { ProposalPanel } from "../approval/ProposalPanel";
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
 import type { RouteProps } from "./types";
+import { texts } from "../texts";
 
 /**
  * /pagar/fila/:id: a proposta de uma nota, pela chave de acesso. Na fila ela abre como gaveta; aqui
@@ -25,13 +26,13 @@ export default function Proposta({ params }: RouteProps) {
   );
   return (
     <Screen
-      title={`Proposta da nota ${data?.number ?? id}`}
-      subtitle="A ação na doca proposta pelo agente, a evidência por divergência e a sua decisão."
+      title={texts.proposta.title(data?.number ?? id)}
+      subtitle={texts.proposta.subtitle}
       state={state}
       onRetry={retry}
-      loadingLabel="Carregando a proposta…"
-      errorTitle="Não consegui ler esta proposta agora"
-      emptyLabel="Esta proposta ainda não chegou. Ela aparece aqui assim que o agente conferir a nota."
+      loadingLabel={texts.proposta.loading}
+      errorTitle={texts.proposta.error}
+      emptyLabel={texts.proposta.empty}
     >
       {() => (data ? <ProposalPanel proposal={data} /> : null)}
     </Screen>

@@ -15,6 +15,7 @@ import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
 import { divergenceLabel } from "../evidence/labels";
 import type { RouteProps } from "./types";
+import { texts } from "../texts";
 
 /** #71: a soma de uma exceção no mês, como `GET /api/valor-barrado` entrega. */
 export interface BarredExceptionDto {
@@ -106,7 +107,7 @@ export function rankingByException(panel: BarredAmountDto): RankingItem[] {
       key: code,
       label: divergenceLabel(code),
       value: sum.cents,
-      meta: sum.count === 1 ? "1 nota" : `${sum.count} notas`,
+      meta: texts.common.noteWord(sum.count),
     }));
 }
 
@@ -130,46 +131,46 @@ function BarredAmountView({ panel }: { panel: BarredAmountDto }): ReactElement {
     <>
       <StatGrid columns={3}>
         <Stat
-          caption={`Barrado em ${monthName(panel.month)}`}
+          caption={texts.valorBarrado.statBarred.caption(monthName(panel.month))}
           value={formatBrlShort(barred)}
-          context="propostas aprovadas"
+          context={texts.valorBarrado.statBarred.context}
           tone="positive"
         />
         <Stat
-          caption="Contra o pagar errado"
+          caption={texts.valorBarrado.statAgainst.caption}
           value={percentOf(barred, baseline)}
-          context={`de ${baselineLabel} por mês; ${percentOf(barred + waiting, baseline)} com tudo aprovado`}
+          context={texts.valorBarrado.statAgainst.context(baselineLabel, percentOf(barred + waiting, baseline))}
         />
-        <Stat caption="Ainda em risco" value={formatBrlShort(waiting)} context="aguardando aprovação" tone="waiting" />
+        <Stat caption={texts.valorBarrado.statWaiting.caption} value={formatBrlShort(waiting)} context={texts.valorBarrado.statWaiting.context} tone="waiting" />
       </StatGrid>
-      <Panel title={`O mês contra os ${baselineLabel}`} size="sm">
+      <Panel title={texts.valorBarrado.monthPanel(baselineLabel)} size="sm">
         <ProgressBar
           max={baseline}
           showLegend
-          valueText={`${formatBrlShort(barred + waiting)} de ${baselineLabel}`}
+          valueText={texts.valorBarrado.progressValue(formatBrlShort(barred + waiting), baselineLabel)}
           segments={[
-            { value: barred, tone: "positive", label: "Barrado" },
-            { value: waiting, tone: "waiting", label: "Aguardando aprovação" },
+            { value: barred, tone: "positive", label: texts.valorBarrado.segmentBarred },
+            { value: waiting, tone: "waiting", label: texts.valorBarrado.segmentWaiting },
           ]}
         />
       </Panel>
       <div style={{ display: "grid", gap: "var(--spacing-xl)", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))" }}>
-        <Panel title="Acumulado no mês" size="sm">
+        <Panel title={texts.valorBarrado.cumulativePanel} size="sm">
           <LineChart
             data={daily}
             xKey="day"
             series={[
-              { key: "barred", label: "Barrado (aprovado)" },
-              { key: "proposed", label: "Proposto, aguardando aprovação", color: toneColor.waiting },
-              { key: "baseline", label: `${baselineLabel} por mês`, dashed: true, color: toneColor.negative },
+              { key: "barred", label: texts.valorBarrado.seriesBarred },
+              { key: "proposed", label: texts.valorBarrado.seriesProposed, color: toneColor.waiting },
+              { key: "baseline", label: texts.valorBarrado.seriesBaseline(baselineLabel), dashed: true, color: toneColor.negative },
             ]}
             height={220}
             formatValue={formatBrl}
-            formatAxis={(cents) => `${Math.round(cents / 100_000)} mil`}
-            ariaLabel={`Valor barrado acumulado por dia, contra ${baselineLabel}`}
+            formatAxis={(cents) => texts.valorBarrado.axisThousands(Math.round(cents / 100_000))}
+            ariaLabel={texts.valorBarrado.chartLabel(baselineLabel)}
           />
         </Panel>
-        <Panel title="Valor em risco por tipo de divergência" size="sm">
+        <Panel title={texts.valorBarrado.rankingPanel} size="sm">
           <RankingBars items={rankingByException(panel)} formatValue={formatBrlShort} tone="positive" />
         </Panel>
       </div>
@@ -185,13 +186,13 @@ export default function BarredAmountRoute(_props: RouteProps): ReactElement {
   );
   return (
     <Screen
-      title="Valor barrado"
-      subtitle="Quanto a conferência impediu de pagar errado neste mês, contra os R$ 543 mil por mês que a Já Chegou pagava sem a mercadoria."
+      title={texts.valorBarrado.title}
+      subtitle={texts.valorBarrado.subtitle}
       state={state}
       onRetry={retry}
-      loadingLabel="Somando o valor barrado…"
-      errorTitle="Não consegui somar o valor barrado agora"
-      emptyLabel="Nada barrado neste mês ainda. O valor aparece aqui assim que a primeira proposta for aprovada."
+      loadingLabel={texts.valorBarrado.loading}
+      errorTitle={texts.valorBarrado.error}
+      emptyLabel={texts.valorBarrado.empty}
     >
       {() => (data ? <BarredAmountView panel={data} /> : null)}
     </Screen>

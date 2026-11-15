@@ -7,6 +7,7 @@ import { ACTION_LABEL, ACTION_TONE } from "../approval/labels";
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
 import type { RouteProps } from "./types";
+import { texts } from "../texts";
 
 function qty(q: QuantityDto): string {
   return `${q.amount} ${q.unit}`;
@@ -19,11 +20,7 @@ export interface ReceivingWording {
   awaiting: string;
 }
 
-const DOCK_WORDING: ReceivingWording = {
-  receive: "Descarregue tudo",
-  refuse: "Devolva o caminhão inteiro",
-  awaiting: "Não descarregue ainda",
-};
+const DOCK_WORDING: ReceivingWording = texts.doca.words;
 
 /** #43 AC-2: o que o operador faz no receber parcial, a partir das linhas a segurar ou devolver. */
 function instruction(action: DockActionDto, words: ReceivingWording): string {
@@ -35,10 +32,10 @@ function instruction(action: DockActionDto, words: ReceivingWording): string {
     case "receber_parcial": {
       const { lines } = action;
       const of = (d: "segurar" | "devolver") =>
-        lines.filter((l) => l.disposition === d).map((l) => `${qty(l.quantity)} de ${l.sku}`);
+        lines.filter((l) => l.disposition === d).map((l) => texts.recebimento.quantityOf(qty(l.quantity), l.sku));
       const hold = of("segurar");
       const back = of("devolver");
-      return [hold.length ? `Segure ${hold.join(", ")}` : "", back.length ? `Devolva ${back.join(", ")}` : ""]
+      return [hold.length ? texts.recebimento.hold(hold.join(", ")) : "", back.length ? texts.recebimento.giveBack(back.join(", ")) : ""]
         .filter(Boolean)
         .join("; ");
     }
@@ -78,13 +75,13 @@ export interface ReceivingBoardProps {
 export default function Doca(_props: RouteProps) {
   return (
     <ReceivingBoard
-      title="Doca"
-      subtitle="As notas que chegam hoje neste destino e o que fazer com cada caminhão. Nada é descarregado antes da decisão."
+      title={texts.doca.title}
+      subtitle={texts.doca.subtitle}
       load={(destination, signal) => dockApi.board(destination, signal)}
       words={DOCK_WORDING}
-      noun="doca"
-      emptyIn={(shown) => `Nenhuma nota com entrega prevista hoje ${shown ? `na ${shown}` : "neste destino"}.`}
-      warning="Segure o caminhão: a ação aparece aqui assim que a pessoa decidir."
+      noun={texts.doca.noun}
+      emptyIn={texts.doca.emptyIn}
+      warning={texts.doca.warning}
     />
   );
 }
@@ -125,8 +122,8 @@ export function ReceivingBoard({ title, subtitle, load, words, noun, emptyIn, wa
       }
       state={state}
       onRetry={retry}
-      loadingLabel={`Carregando as notas da ${noun}…`}
-      errorTitle={`Não consegui ler as notas desta ${noun} agora`}
+      loadingLabel={texts.recebimento.loading(noun)}
+      errorTitle={texts.recebimento.error(noun)}
       emptyLabel={emptyIn(shown)}
     >
       {() => (
@@ -134,7 +131,7 @@ export function ReceivingBoard({ title, subtitle, load, words, noun, emptyIn, wa
           {awaiting > 0 ? (
             <Alert
               variant="warning"
-              title={`${awaiting} ${awaiting === 1 ? "nota aguarda" : "notas aguardam"} aprovação.`}
+              title={texts.recebimento.awaitingTitle(awaiting)}
               description={warning}
             />
           ) : null}
@@ -142,30 +139,30 @@ export function ReceivingBoard({ title, subtitle, load, words, noun, emptyIn, wa
             data={rows}
             rowKey={(n) => n.invoiceAccessKey}
             size="md"
-            emptyText="Nenhuma nota."
+            emptyText={texts.recebimento.tableEmpty}
             columns={[
-              { key: "nota", title: "Nota fiscal", dataIndex: "number", render: (_, n) => <Two top={`NF ${n.number}`} bottom={n.supplierId} /> },
+              { key: "nota", title: texts.recebimento.columns.invoice, dataIndex: "number", render: (_, n) => <Two top={`NF ${n.number}`} bottom={n.supplierId} /> },
               {
                 key: "itens",
-                title: "Itens",
+                title: texts.recebimento.columns.items,
                 dataIndex: "items",
                 render: (_, n) => (
                   <Two
-                    top={`${n.items.length} ${n.items.length === 1 ? "item" : "itens"}`}
+                    top={texts.recebimento.itemCount(n.items.length)}
                     bottom={n.items.map((i) => i.description).join(", ")}
                   />
                 ),
               },
               {
                 key: "acao",
-                title: "O que fazer",
+                title: texts.recebimento.columns.whatToDo,
                 dataIndex: "status",
                 render: (_, n) =>
                   n.status.kind === "aguardando_aprovacao" ? (
                     <Two
                       top={
                         <StatusBadge size="sm" tone="waiting">
-                          Aguardando aprovação
+                          {texts.recebimento.awaitingBadge}
                         </StatusBadge>
                       }
                       bottom={words.awaiting}

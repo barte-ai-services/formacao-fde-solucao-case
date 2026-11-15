@@ -6,12 +6,9 @@ import { returnNotesApi, type ReturnNoteDto, type ReturnNoteStatusDto } from "..
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
 import type { RouteProps } from "./types";
+import { texts } from "../texts";
 
-const STATUS_LABEL: Record<ReturnNoteStatusDto, string> = {
-  pendente: "Pendentes de emissão",
-  emitida: "Emitidas",
-  cancelada: "Canceladas",
-};
+const STATUS_LABEL: Record<ReturnNoteStatusDto, string> = texts.devolucoes.status;
 
 const STATUS_TONE: Record<ReturnNoteStatusDto, "waiting" | "positive" | "neutral"> = {
   pendente: "waiting",
@@ -22,25 +19,25 @@ const STATUS_TONE: Record<ReturnNoteStatusDto, "waiting" | "positive" | "neutral
 /** #140 Há quanto tempo a nota espera (ou esperou) a emissão. */
 export function pendingSince(seconds: number | null): string {
   if (seconds === null) return "—";
-  if (seconds < 60) return "há menos de 1 min";
+  if (seconds < 60) return texts.devolucoes.lessThanMinute;
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `há ${minutes} min`;
+  if (minutes < 60) return texts.devolucoes.minutesAgo(minutes);
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return minutes % 60 === 0 ? `há ${hours} h` : `há ${hours} h ${minutes % 60} min`;
+  if (hours < 24) return minutes % 60 === 0 ? texts.devolucoes.hoursAgo(hours) : texts.devolucoes.hoursMinutesAgo(hours, minutes % 60);
   const days = Math.floor(hours / 24);
-  return `há ${days} ${days === 1 ? "dia" : "dias"}`;
+  return texts.devolucoes.daysAgo(days);
 }
 
 const money = (cents: number | null) => (cents === null ? "—" : formatCurrency(cents / 100));
-const qty = (l: ReturnNoteDto["lines"][number]) => `${l.quantity.amount} ${l.quantity.unit} de ${l.description}`;
+const qty = (l: ReturnNoteDto["lines"][number]) => texts.devolucoes.quantityOf(String(l.quantity.amount), l.quantity.unit, l.description);
 
 function decisionError(reason: unknown): string {
   if (reason instanceof ApiError) {
-    if (reason.status === 409) return "Esta nota já foi decidida por outra pessoa.";
-    if (reason.status === 404) return "Esta nota não existe mais na fila.";
-    if (reason.status === 400) return "A API não aceitou o que foi preenchido. Confira os campos.";
+    if (reason.status === 409) return texts.devolucoes.errors.conflict;
+    if (reason.status === 404) return texts.devolucoes.errors.notFound;
+    if (reason.status === 400) return texts.devolucoes.errors.badRequest;
   }
-  return "Não consegui registrar agora. Tente de novo em um minuto.";
+  return texts.devolucoes.errors.other;
 }
 
 function Two({ top, bottom }: { top: ReactNode; bottom: ReactNode }) {
@@ -72,8 +69,8 @@ export default function ReturnNotes(_props: RouteProps) {
   const open = notes.find((n) => n.id === openId);
   return (
     <Screen
-      title="Notas de devolução"
-      subtitle="As devoluções que o fiscal precisa emitir no ERP. Marque como emitida com o número da NF-e de devolução; o motivo mostra de qual exceção veio cada uma."
+      title={texts.devolucoes.title}
+      subtitle={texts.devolucoes.subtitle}
       actions={
         <Select
           size="sm"
@@ -84,12 +81,12 @@ export default function ReturnNotes(_props: RouteProps) {
       }
       state={state}
       onRetry={retry}
-      loadingLabel="Carregando as notas de devolução…"
-      errorTitle="Não consegui ler as notas de devolução agora"
+      loadingLabel={texts.devolucoes.loading}
+      errorTitle={texts.devolucoes.error}
       emptyLabel={
         status === "pendente"
-          ? "Nenhuma devolução pendente de emissão. As novas aparecem aqui quando uma proposta de receber parcial for aprovada."
-          : "Nenhuma nota neste estado."
+          ? texts.devolucoes.emptyPending
+          : texts.devolucoes.emptyOther
       }
     >
       {() => (
@@ -99,34 +96,34 @@ export default function ReturnNotes(_props: RouteProps) {
             rowKey={(n) => String(n.id)}
             size="md"
             onRowClick={(n) => setOpenId(n.id)}
-            emptyText="Nenhuma nota."
+            emptyText={texts.devolucoes.tableEmpty}
             columns={[
               {
                 key: "origem",
-                title: "Nota de origem",
+                title: texts.devolucoes.columns.origin,
                 dataIndex: "invoiceNumber",
                 render: (_, n) => <Two top={`NF ${n.invoiceNumber ?? n.invoiceAccessKey.slice(-8)}`} bottom={n.supplierId ?? "—"} />,
               },
               {
                 key: "itens",
-                title: "Itens a devolver",
+                title: texts.devolucoes.columns.items,
                 dataIndex: "lines",
                 render: (_, n) => (
-                  <Two top={n.lines.map(qty)[0] ?? "—"} bottom={n.lines.length > 1 ? `e mais ${n.lines.length - 1}` : ""} />
+                  <Two top={n.lines.map(qty)[0] ?? "—"} bottom={n.lines.length > 1 ? texts.devolucoes.moreItems(n.lines.length - 1) : ""} />
                 ),
               },
-              { key: "valor", title: "Valor", dataIndex: "valueCents", align: "right", render: (_, n) => money(n.valueCents) },
-              { key: "motivo", title: "Motivo", dataIndex: "reason", render: (_, n) => n.reason },
+              { key: "valor", title: texts.devolucoes.columns.value, dataIndex: "valueCents", align: "right", render: (_, n) => money(n.valueCents) },
+              { key: "motivo", title: texts.devolucoes.columns.reason, dataIndex: "reason", render: (_, n) => n.reason },
               {
                 key: "tempo",
-                title: status === "pendente" ? "Pendente" : "Esteve pendente",
+                title: status === "pendente" ? texts.devolucoes.columns.timePending : texts.devolucoes.columns.timeWasPending,
                 dataIndex: "pendingSeconds",
                 render: (_, n) => (
                   <Two
                     top={pendingSince(n.pendingSeconds)}
                     bottom={
                       <StatusBadge size="sm" tone={STATUS_TONE[n.status]}>
-                        {n.emitted ? `NF-e ${n.emitted.number}` : n.status === "cancelada" ? "Cancelada" : "Aguardando emissão"}
+                        {n.emitted ? texts.devolucoes.badgeEmitted(n.emitted.number) : n.status === "cancelada" ? texts.devolucoes.badgeCancelled : texts.devolucoes.badgeAwaiting}
                       </StatusBadge>
                     }
                   />
@@ -162,55 +159,55 @@ function NoteDrawer({ note, onClose, onDecided }: { note: ReturnNoteDto; onClose
     }
   }
   const emit = () => {
-    if (!/^\d{1,9}$/.test(nfe.trim())) return setNfeError("Informe o número da NF-e de devolução.");
+    if (!/^\d{1,9}$/.test(nfe.trim())) return setNfeError(texts.devolucoes.nfeMissing);
     setNfeError(null);
     void run(() => returnNotesApi.emit(note.id, nfe.trim()));
   };
   const cancel = () => {
-    if (why.trim() === "") return setWhyError("Explique por que a devolução foi cancelada.");
+    if (why.trim() === "") return setWhyError(texts.devolucoes.whyMissing);
     setWhyError(null);
     void run(() => returnNotesApi.cancel(note.id, why.trim()));
   };
 
   return (
-    <Drawer isOpen title={`Devolução da NF ${note.invoiceNumber ?? "—"}`} onClose={onClose} className="shell-connection-panel">
+    <Drawer isOpen title={texts.devolucoes.drawerTitle(note.invoiceNumber ?? "—")} onClose={onClose} className="shell-connection-panel">
       <div style={{ display: "grid", gap: "var(--spacing-xl)" }}>
         {failure ? <Alert variant="error" title={failure} /> : null}
         <DataList
           items={[
-            { label: "Fornecedor", value: note.supplierId ?? "—" },
-            { label: "Motivo", value: note.reason },
-            { label: "Valor", value: money(note.valueCents), emphasis: true },
-            { label: "Pendente", value: pendingSince(note.pendingSeconds) },
+            { label: texts.devolucoes.detail.supplier, value: note.supplierId ?? "—" },
+            { label: texts.devolucoes.detail.reason, value: note.reason },
+            { label: texts.devolucoes.detail.value, value: money(note.valueCents), emphasis: true },
+            { label: texts.devolucoes.detail.pending, value: pendingSince(note.pendingSeconds) },
             ...note.lines.map((l) => ({ label: l.supplierCode, value: `${qty(l)} · ${money(l.valueCents)}` })),
-            ...(note.emitted ? [{ label: "NF-e de devolução", value: `${note.emitted.number}, por ${note.emitted.by}` }] : []),
-            ...(note.cancelled ? [{ label: "Cancelada", value: `${note.cancelled.justification}, por ${note.cancelled.by}` }] : []),
+            ...(note.emitted ? [{ label: texts.devolucoes.detail.emitted, value: texts.devolucoes.detail.emittedValue(note.emitted.number, note.emitted.by) }] : []),
+            ...(note.cancelled ? [{ label: texts.devolucoes.detail.cancelled, value: texts.devolucoes.detail.cancelledValue(note.cancelled.justification, note.cancelled.by) }] : []),
           ]}
         />
         {pending ? (
           <>
             <Input
               id="nfe-devolucao"
-              aria-label="Número da NF-e de devolução"
-              label="Número da NF-e de devolução"
+              aria-label={texts.devolucoes.nfeLabel}
+              label={texts.devolucoes.nfeLabel}
               value={nfe}
               onChange={(e) => setNfe(e.target.value)}
               error={nfeError ?? undefined}
               inputMode="numeric"
             />
             <Button onClick={emit} disabled={busy}>
-              Marcar como emitida
+              {texts.devolucoes.emit}
             </Button>
             <Input
               id="justificativa-cancelamento"
-              aria-label="Justificativa do cancelamento"
-              label="Justificativa do cancelamento"
+              aria-label={texts.devolucoes.whyLabel}
+              label={texts.devolucoes.whyLabel}
               value={why}
               onChange={(e) => setWhy(e.target.value)}
               error={whyError ?? undefined}
             />
             <Button variant="outline" onClick={cancel} disabled={busy}>
-              Cancelar nota
+              {texts.devolucoes.cancel}
             </Button>
           </>
         ) : null}

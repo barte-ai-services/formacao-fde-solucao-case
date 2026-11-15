@@ -10,22 +10,18 @@ import { approvalApi, type DecisionResultDto, type ProposalDetailDto } from "../
 import { Dossier } from "../components/Dossier";
 import { EvidenceView } from "../evidence";
 import { ACTION_LABEL, ACTION_TONE, LEVEL_LABEL, LEVEL_TONE, type DockActionKind } from "./labels";
+import { texts } from "../texts";
 
-const STATE_LABEL: Record<ProposalDetailDto["state"], string> = {
-  registrada: "Registrada",
-  aguardando_aprovacao: "Aguardando aprovação",
-  aprovada: "Aprovada",
-  alterada: "Alterada",
-};
+const STATE_LABEL: Record<ProposalDetailDto["state"], string> = texts.proposalPanel.state;
 
 /** O que a API recusou, em português para quem decide. */
 export function decisionError(reason: unknown): string {
   if (reason instanceof ApiError) {
-    if (reason.status === 403) return "Seu nível não aprova esta proposta.";
-    if (reason.status === 409) return "Esta proposta já foi decidida por outra pessoa.";
-    if (reason.status === 422) return "A decisão não foi aceita: confira a justificativa.";
+    if (reason.status === 403) return texts.proposalPanel.errors.forbidden;
+    if (reason.status === 409) return texts.proposalPanel.errors.conflict;
+    if (reason.status === 422) return texts.proposalPanel.errors.unprocessable;
   }
-  return "Não consegui registrar a decisão agora. Tente de novo em um minuto.";
+  return texts.proposalPanel.errors.other;
 }
 
 type Choice = "aprovar" | "alterar_receber" | "alterar_recusar";
@@ -58,7 +54,7 @@ export function ProposalPanel({
           {STATE_LABEL[proposal.state]}
         </StatusBadge>
         <StatusBadge variant="soft" tone={LEVEL_TONE[proposal.level]}>
-          Nível {LEVEL_LABEL[proposal.level]}
+          {texts.proposalPanel.level(LEVEL_LABEL[proposal.level])}
         </StatusBadge>
       </div>
       <DataList
@@ -66,25 +62,25 @@ export function ProposalPanel({
         items={[
           {
             key: "acao",
-            label: "Ação na doca proposta",
+            label: texts.proposalPanel.rows.action,
             value: (
               <StatusBadge size="sm" tone={ACTION_TONE[action]}>
                 {ACTION_LABEL[action]}
               </StatusBadge>
             ),
           },
-          { key: "risco", label: "Valor em risco", value: proposal.amountAtRisk.text, emphasis: true },
-          { key: "valor", label: "Valor da nota", value: proposal.total.text },
-          { key: "regua", label: "Por que este nível", value: `Linha ${proposal.line} da régua: ${proposal.reason}` },
-          { key: "fornecedor", label: "Fornecedor", value: proposal.supplierId },
-          { key: "destino", label: "Destino", value: proposal.store },
-          { key: "justificativa", label: "Justificativa", value: proposal.justification },
-          { key: "chave", label: "Chave de acesso", value: proposal.invoiceAccessKey, mono: true },
+          { key: "risco", label: texts.proposalPanel.rows.risk, value: proposal.amountAtRisk.text, emphasis: true },
+          { key: "valor", label: texts.proposalPanel.rows.total, value: proposal.total.text },
+          { key: "regua", label: texts.proposalPanel.rows.why, value: texts.proposalPanel.rows.whyValue(proposal.line, proposal.reason) },
+          { key: "fornecedor", label: texts.proposalPanel.rows.supplier, value: proposal.supplierId },
+          { key: "destino", label: texts.proposalPanel.rows.destination, value: proposal.store },
+          { key: "justificativa", label: texts.proposalPanel.rows.justification, value: proposal.justification },
+          { key: "chave", label: texts.proposalPanel.rows.accessKey, value: proposal.invoiceAccessKey, mono: true },
         ]}
       />
-      <Block title="Evidência por divergência" size="sm">
+      <Block title={texts.proposalPanel.evidenceTitle} size="sm">
         {proposal.divergences.length === 0 ? (
-          <p>Nenhuma divergência: a nota confere com a ordem.</p>
+          <p>{texts.proposalPanel.noDivergence}</p>
         ) : (
           proposal.divergences.map((d, i) => <EvidenceView key={`${d.classification}-${i}`} divergence={d} />)
         )}
@@ -93,21 +89,24 @@ export function ProposalPanel({
       {decided ?? proposal.approval ? (
         <Alert
           variant="success"
-          title="Decisão registrada"
-          description={`Ação final: ${ACTION_LABEL[(decided?.approval ?? proposal.approval)!.dockAction.kind as DockActionKind].toLowerCase()}. O título está ${(decided?.title.state ?? proposal.title.state).replaceAll("_", " ")}.`}
+          title={texts.proposalPanel.decidedTitle}
+          description={texts.proposalPanel.decidedDescription(
+            ACTION_LABEL[(decided?.approval ?? proposal.approval)!.dockAction.kind as DockActionKind].toLowerCase(),
+            (decided?.title.state ?? proposal.title.state).replaceAll("_", " "),
+          )}
         />
       ) : proposal.canApprove ? (
         <DecisionForm<Choice>
-          title="Sua decisão"
-          description="Aprovar mantém a ação proposta. Alterar troca a ação e pede justificativa. A decisão é registrada uma vez."
+          title={texts.proposalPanel.form.title}
+          description={texts.proposalPanel.form.description}
           minNoteLength={10}
           onSubmit={(d) => submit(d).catch((e: unknown) => Promise.reject(new Error(decisionError(e))))}
-          texts={{ noteLabel: "Justificativa", submit: "Registrar a decisão", done: null }}
+          texts={{ noteLabel: texts.proposalPanel.form.note, submit: texts.proposalPanel.form.submit, done: null }}
           options={[
-            { value: "aprovar", label: `Aprovar: ${ACTION_LABEL[action].toLowerCase()}`, tone: "positive" },
+            { value: "aprovar", label: texts.proposalPanel.form.approve(ACTION_LABEL[action].toLowerCase()), tone: "positive" },
             ...others.map((k) => ({
               value: (k === "receber" ? "alterar_receber" : "alterar_recusar") as Choice,
-              label: `Alterar para ${ACTION_LABEL[k].toLowerCase()}`,
+              label: texts.proposalPanel.form.change(ACTION_LABEL[k].toLowerCase()),
               tone: "waiting" as const,
               noteRequired: true,
             })),
@@ -116,8 +115,8 @@ export function ProposalPanel({
       ) : (
         <Alert
           variant="warning"
-          title={`Esta proposta pede o nível ${LEVEL_LABEL[proposal.requiredApproverLevel].toLowerCase()} ou acima.`}
-          description="Você vê a proposta, sem aprovar. Quem tem o nível encontra a proposta na fila."
+          title={texts.proposalPanel.needsLevel(LEVEL_LABEL[proposal.requiredApproverLevel].toLowerCase())}
+          description={texts.proposalPanel.needsLevelDescription}
         />
       )}
     </div>

@@ -14,14 +14,12 @@ import type { DuplicateDto, DuplicateReason, DuplicatesResponseDto, TitleState }
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
 import type { RouteProps } from "./types";
+import { texts } from "../texts";
 
 /** O motivo da duplicidade na língua do controller. */
-const REASON_LABEL: Record<DuplicateReason, string> = {
-  titulo_lancado: "mesma ordem e mesmo valor de um título já lançado",
-  ordem_sem_saldo: "duplicidade suspeita: a ordem não tem saldo",
-};
+const REASON_LABEL: Record<DuplicateReason, string> = texts.duplicadas.reason;
 
-const NO_ORIGINAL_LABEL = "sem título original: a ordem não tem saldo";
+const NO_ORIGINAL_LABEL = texts.duplicadas.noOriginal;
 
 type Tone = "negative" | "waiting" | "info";
 
@@ -32,29 +30,25 @@ type Tone = "negative" | "waiting" | "info";
 function titleBadge(state: TitleState | null): { label: string; tone: Tone } {
   switch (state) {
     case "bloqueado":
-      return { label: "Título bloqueado", tone: "negative" };
+      return { label: texts.duplicadas.badge.bloqueado, tone: "negative" };
     case "lancado":
     case null:
-      return { label: "Bloqueio pendente", tone: "waiting" };
+      return { label: texts.duplicadas.badge.pendente, tone: "waiting" };
     case "liberado":
-      return { label: "Título liberado", tone: "info" };
+      return { label: texts.duplicadas.badge.liberado, tone: "info" };
     case "reduzido":
-      return { label: "Título reduzido", tone: "info" };
+      return { label: texts.duplicadas.badge.reduzido, tone: "info" };
     case "na_lista_do_dia":
-      return { label: "Título na lista do dia", tone: "info" };
+      return { label: texts.duplicadas.badge.naLista, tone: "info" };
     default:
       // O fio pode trazer um estado que o contrato ainda não conhece: aparece como veio.
-      return { label: `Título ${String(state)}`, tone: "info" };
+      return { label: texts.duplicadas.badge.other(String(state)), tone: "info" };
   }
 }
 
 const ALERT_VARIANT: Record<Tone, "error" | "warning" | "info"> = { negative: "error", waiting: "warning", info: "info" };
 
-const ALERT_DESCRIPTION: Record<Tone, string> = {
-  negative: "A coordenação resolve. A nota duplicada é recusada e não vai a pagamento.",
-  waiting: "O contas a pagar ainda não bloqueou o título desta nota. Até bloquear, ela pode entrar na lista do dia.",
-  info: "A nota é duplicada, mas o título dela não está bloqueado. A coordenação precisa olhar.",
-};
+const ALERT_DESCRIPTION: Record<Tone, string> = texts.duplicadas.alertDescription;
 
 function reasonLabel(reason: string): string {
   return Object.hasOwn(REASON_LABEL, reason) ? REASON_LABEL[reason as DuplicateReason] : reason;
@@ -99,23 +93,23 @@ export default function NotasDuplicadas(_props: RouteProps) {
 
   return (
     <Screen
-      title="Notas duplicadas"
-      subtitle="Cada nota que cobra uma compra já cobrada, ao lado da original. O título fica bloqueado: ninguém paga até a coordenação resolver."
+      title={texts.duplicadas.title}
+      subtitle={texts.duplicadas.subtitle}
       state={state}
       onRetry={retry}
-      loadingLabel="Procurando duplicidades…"
-      errorTitle="Não consegui ler as duplicidades agora"
-      emptyLabel="Nenhuma nota duplicada neste mês. Quando uma nota cobrar uma compra já cobrada, ela aparece aqui, bloqueada."
+      loadingLabel={texts.duplicadas.loading}
+      errorTitle={texts.duplicadas.error}
+      emptyLabel={texts.duplicadas.empty}
     >
       {() => (
         <>
           <StatGrid columns={3}>
-            <Stat caption="Duplicadas" value={duplicates.length} context="notas barradas" tone="negative" />
-            <Stat caption="Valor barrado" value={formatCurrency(blockedCents / 100)} context="não pago duas vezes" tone="positive" />
+            <Stat caption={texts.duplicadas.statDuplicates.caption} value={duplicates.length} context={texts.duplicadas.statDuplicates.context} tone="negative" />
+            <Stat caption={texts.duplicadas.statBlocked.caption} value={formatCurrency(blockedCents / 100)} context={texts.duplicadas.statBlocked.context} tone="positive" />
             <Stat
-              caption="Por quê"
+              caption={texts.duplicadas.statWhy.caption}
               value={`${byReason("titulo_lancado")} · ${byReason("ordem_sem_saldo")}`}
-              context="título já lançado · ordem sem saldo"
+              context={texts.duplicadas.statWhy.context}
             />
           </StatGrid>
           <Table<DuplicateDto>
@@ -126,7 +120,7 @@ export default function NotasDuplicadas(_props: RouteProps) {
             columns={[
               {
                 key: "duplicate",
-                title: "Nota duplicada",
+                title: texts.duplicadas.columns.duplicate,
                 dataIndex: "duplicate",
                 render: (_, d) => (
                   <TwoLines
@@ -134,7 +128,7 @@ export default function NotasDuplicadas(_props: RouteProps) {
                       <>
                         <button
                           type="button"
-                          aria-label={`Abrir a nota ${d.duplicate.number}`}
+                          aria-label={texts.duplicadas.openInvoice(d.duplicate.number)}
                           onClick={(event) => {
                             // A linha também abre no clique do mouse: o botão não deixa abrir duas vezes.
                             event.stopPropagation();
@@ -153,7 +147,7 @@ export default function NotasDuplicadas(_props: RouteProps) {
               },
               {
                 key: "original",
-                title: "Nota original",
+                title: texts.duplicadas.columns.original,
                 dataIndex: "original",
                 render: (_, d) =>
                   d.original === null ? (
@@ -164,7 +158,7 @@ export default function NotasDuplicadas(_props: RouteProps) {
               },
               {
                 key: "reason",
-                title: "Por quê",
+                title: texts.duplicadas.columns.reason,
                 dataIndex: "reason",
                 render: (_, d) => (
                   <StatusBadge size="sm" tone="neutral">
@@ -174,14 +168,14 @@ export default function NotasDuplicadas(_props: RouteProps) {
               },
               {
                 key: "blocked",
-                title: "Valor barrado",
+                title: texts.duplicadas.columns.blocked,
                 dataIndex: "blockedAmount",
                 align: "right",
                 render: (_, d) => <b>{d.blockedAmount}</b>,
               },
               {
                 key: "title",
-                title: "Título",
+                title: texts.duplicadas.columns.title,
                 dataIndex: "blockedAmountCents",
                 render: (_, d) => {
                   const badge = titleBadge(d.titleState);
@@ -205,27 +199,27 @@ export default function NotasDuplicadas(_props: RouteProps) {
 function DuplicateDrawer({ duplicate: d, onClose }: { duplicate: DuplicateDto; onClose: () => void }) {
   const badge = titleBadge(d.titleState);
   return (
-    <Drawer isOpen title={`NF ${d.duplicate.number}, duplicada`} onClose={onClose} className="shell-connection-panel">
+    <Drawer isOpen title={texts.duplicadas.drawerTitle(d.duplicate.number)} onClose={onClose} className="shell-connection-panel">
       <div style={{ display: "grid", gap: "var(--spacing-xl)" }}>
         <Alert variant={ALERT_VARIANT[badge.tone]} title={badge.label} description={ALERT_DESCRIPTION[badge.tone]} />
         {d.original === null ? (
           <Alert variant="warning" title={reasonLabel(d.reason)} description={NO_ORIGINAL_LABEL} />
         ) : (
           <ReconciliationDiff
-            columns={[`Original · NF ${d.original.number}`, `Duplicada · NF ${d.duplicate.number}`]}
+            columns={texts.duplicadas.diffColumns(d.original.number, d.duplicate.number)}
             fields={[
-              { label: "Número", a: d.original.number, b: d.duplicate.number, state: d.original.number === d.duplicate.number ? "match" : "divergent" },
-              { label: "Chave de acesso", a: <code>{d.original.accessKey}</code>, b: <code>{d.duplicate.accessKey}</code>, ...(d.original.accessKey === d.duplicate.accessKey ? { state: "match" as const, note: "a mesma nota (reenvio)" } : { state: "divergent" as const, note: "nota nova" }) },
-              { label: "Título", a: d.original.status, b: badge.label.toLowerCase() },
+              { label: texts.duplicadas.fields.number, a: d.original.number, b: d.duplicate.number, state: d.original.number === d.duplicate.number ? "match" : "divergent" },
+              { label: texts.duplicadas.fields.accessKey, a: <code>{d.original.accessKey}</code>, b: <code>{d.duplicate.accessKey}</code>, ...(d.original.accessKey === d.duplicate.accessKey ? { state: "match" as const, note: texts.duplicadas.fields.sameInvoice } : { state: "divergent" as const, note: texts.duplicadas.fields.newInvoice }) },
+              { label: texts.duplicadas.fields.title, a: d.original.status, b: badge.label.toLowerCase() },
             ]}
           />
         )}
         <DataList
           items={[
-            { label: "Por quê", value: reasonLabel(d.reason) },
-            { label: "Fornecedor", value: d.duplicate.supplierId },
-            { label: "Emissão", value: formatIsoDate(d.duplicate.issuedOn) },
-            { label: "Valor barrado", value: d.blockedAmount, emphasis: true },
+            { label: texts.duplicadas.detail.why, value: reasonLabel(d.reason) },
+            { label: texts.duplicadas.detail.supplier, value: d.duplicate.supplierId },
+            { label: texts.duplicadas.detail.issued, value: formatIsoDate(d.duplicate.issuedOn) },
+            { label: texts.duplicadas.detail.blocked, value: d.blockedAmount, emphasis: true },
           ]}
         />
       </div>

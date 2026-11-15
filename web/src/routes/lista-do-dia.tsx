@@ -5,6 +5,7 @@ import { ACTION_LABEL, ACTION_TONE } from "../approval/labels";
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
 import type { RouteProps } from "./types";
+import { texts } from "../texts";
 
 const DAY = new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long", timeZone: "UTC" });
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -22,34 +23,34 @@ export default function ListaDoDia(_props: RouteProps) {
   );
   const items = data?.items ?? [];
   const byRule = items.filter((i) => i.approver === "regra").length;
-  const day = data ? DAY.format(new Date(`${data.day}T00:00:00Z`)) : "hoje";
+  const day = data ? DAY.format(new Date(`${data.day}T00:00:00Z`)) : texts.listaDoDia.today;
   return (
     <Screen
-      title="Lista do dia"
-      subtitle={`Os títulos liberados para pagar em ${day}: pela regra, sem pessoa, ou por quem aprovou a proposta.`}
+      title={texts.listaDoDia.title}
+      subtitle={texts.listaDoDia.subtitle(day)}
       state={state}
       onRetry={retry}
-      loadingLabel="Carregando a lista do dia…"
-      errorTitle="Não consegui ler a lista do dia agora"
-      emptyLabel="Nenhum título liberado hoje. Eles aparecem aqui quando a regra ou uma pessoa aprova a proposta."
+      loadingLabel={texts.listaDoDia.loading}
+      errorTitle={texts.listaDoDia.error}
+      emptyLabel={texts.listaDoDia.empty}
     >
       {() => (
         <>
           <StatGrid columns={3}>
-            <Stat caption="Títulos na lista" value={items.length} context="liberados hoje" />
-            <Stat caption="A pagar" value={BRL.format((data?.total.cents ?? 0) / 100)} context="soma dos títulos" />
-            <Stat caption="Liberados pela regra" value={byRule} context="sem pessoa" tone="positive" />
+            <Stat caption={texts.listaDoDia.statTitles.caption} value={items.length} context={texts.listaDoDia.statTitles.context} />
+            <Stat caption={texts.listaDoDia.statToPay.caption} value={BRL.format((data?.total.cents ?? 0) / 100)} context={texts.listaDoDia.statToPay.context} />
+            <Stat caption={texts.listaDoDia.statByRule.caption} value={byRule} context={texts.listaDoDia.statByRule.context} tone="positive" />
           </StatGrid>
           <Table<Row>
             data={items}
             rowKey={(i) => i.invoiceAccessKey}
             size="md"
-            emptyText="Nenhum título."
+            emptyText={texts.listaDoDia.tableEmpty}
             columns={[
-              { key: "nota", title: "Nota fiscal", dataIndex: "number", render: (_, i) => `NF ${i.number} · ${i.supplierId}` },
+              { key: "nota", title: texts.listaDoDia.columns.invoice, dataIndex: "number", render: (_, i) => `NF ${i.number} · ${i.supplierId}` },
               {
                 key: "acao",
-                title: "Ação na doca",
+                title: texts.listaDoDia.columns.action,
                 dataIndex: "dockAction",
                 render: (_, i) => (
                   <StatusBadge size="sm" tone={ACTION_TONE[i.dockAction]}>
@@ -57,8 +58,8 @@ export default function ListaDoDia(_props: RouteProps) {
                   </StatusBadge>
                 ),
               },
-              { key: "quem", title: "Aprovado por", dataIndex: "approver", render: (_, i) => (i.approver === "regra" ? "Regra" : (i.approver ?? "—")) },
-              { key: "valor", title: "A pagar", dataIndex: "amount", align: "right", render: (_, i) => `${i.amount.text} de ${i.invoiceTotal.text}` },
+              { key: "quem", title: texts.listaDoDia.columns.approver, dataIndex: "approver", render: (_, i) => (i.approver === "regra" ? texts.listaDoDia.rule : (i.approver ?? "—")) },
+              { key: "valor", title: texts.listaDoDia.columns.amount, dataIndex: "amount", align: "right", render: (_, i) => `${i.amount.text} de ${i.invoiceTotal.text}` },
             ]}
           />
         </>

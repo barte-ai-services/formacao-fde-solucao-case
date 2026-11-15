@@ -2,6 +2,7 @@ import type { ReactElement } from "react";
 import { dockApi } from "../api/dock";
 import { ReceivingBoard } from "./doca";
 import type { RouteProps } from "./types";
+import { texts } from "../texts";
 
 /**
  * #135 /recebimento/loja: as notas do dia numa loja e a ação que o app da loja recebeu para cada uma.
@@ -10,13 +11,13 @@ import type { RouteProps } from "./types";
 export default function RecebimentoNaLoja(_props: RouteProps): ReactElement {
   return (
     <ReceivingBoard
-      title="Recebimento na loja"
-      subtitle="As notas que chegam hoje nesta loja e a ação que o app da loja recebeu para cada uma. Nada é recebido antes da decisão."
+      title={texts.recebimentoLoja.title}
+      subtitle={texts.recebimentoLoja.subtitle}
       load={(store, signal) => dockApi.storeBoard(store, signal)}
-      words={{ receive: "Receba tudo no app", refuse: "Recuse a nota inteira no app", awaiting: "Não receba ainda" }}
-      noun="loja"
-      emptyIn={(shown) => `Nenhuma nota com entrega prevista hoje ${shown ? `na ${shown}` : "nesta loja"}.`}
-      warning="Segure o recebimento: a ação aparece aqui assim que a pessoa decidir."
+      words={texts.recebimentoLoja.words}
+      noun={texts.recebimentoLoja.noun}
+      emptyIn={texts.recebimentoLoja.emptyIn}
+      warning={texts.recebimentoLoja.warning}
     />
   );
 }

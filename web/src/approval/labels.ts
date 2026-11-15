@@ -1,14 +1,9 @@
 /** #63 Os nomes e os tons de nível e de ação na doca, como no wireframe aprovado (F3). */
 import type { Tone } from "@barte-ai-services/barte-ui-kit";
 import type { ApprovalLevel, DockActionDto } from "../api/contract";
+import { texts } from "../texts";
 
-export const LEVEL_LABEL: Record<ApprovalLevel, string> = {
-  regra: "Regra",
-  analista: "Analista",
-  coordenacao: "Coordenação",
-  diretoria: "Diretoria",
-  bloqueio: "Bloqueio",
-};
+export const LEVEL_LABEL: Record<ApprovalLevel, string> = texts.level;
 
 export const LEVEL_TONE: Record<ApprovalLevel, Tone> = {
   regra: "positive",
@@ -20,11 +15,7 @@ export const LEVEL_TONE: Record<ApprovalLevel, Tone> = {
 
 export type DockActionKind = DockActionDto["kind"];
 
-export const ACTION_LABEL: Record<DockActionKind, string> = {
-  receber: "Receber",
-  receber_parcial: "Receber parcial",
-  recusar: "Recusar",
-};
+export const ACTION_LABEL: Record<DockActionKind, string> = texts.action;
 
 export const ACTION_TONE: Record<DockActionKind, Tone> = {
   receber: "positive",

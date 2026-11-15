@@ -7,6 +7,7 @@ import { useLoad } from "./components/useLoad";
 import { matchRoute, navigate, usePathname } from "./router";
 import { REDIRECTS, ROUTES } from "./routes";
 import { loadShellContext, ZONE } from "./shell/context";
+import { texts } from "./texts";
 
 /** A rota do caminho atual, na moldura. `/` leva à fila; caminho desconhecido, "Página não encontrada". */
 function CurrentRoute() {
@@ -41,8 +42,8 @@ export function App({ loadContext = loadShellContext }: { loadContext?: () => Pr
       <LoadFeedback
         state={state === "ready" ? "loading" : state}
         size="page"
-        loadingLabel="Abrindo o contas a pagar…"
-        errorTitle="Não consegui abrir o contas a pagar agora"
+        loadingLabel={texts.app.loading}
+        errorTitle={texts.app.error}
         errorDescription={ERROR_DESCRIPTION}
         retryLabel={RETRY_LABEL}
         onRetry={retry}

@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 import { LoadFeedback, PageTitleBar, type LoadState } from "@barte-ai-services/barte-ui-kit";
+import { texts } from "../texts";
 
-export const RETRY_LABEL = "Tentar de novo";
-export const ERROR_DESCRIPTION = "Tente de novo em um minuto. Se continuar, avise o suporte da Barte.";
+export const RETRY_LABEL = texts.common.retry;
+export const ERROR_DESCRIPTION = texts.common.errorDescription;
 
 export interface ScreenProps {
   title: string;

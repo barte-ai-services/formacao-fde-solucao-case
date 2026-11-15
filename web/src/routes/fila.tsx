@@ -8,6 +8,7 @@ import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
 import { divergenceLabel } from "../evidence/labels";
 import type { RouteProps } from "./types";
+import { texts } from "../texts";
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 
@@ -24,42 +25,42 @@ export default function FilaDeAprovacao(_props: RouteProps) {
 
   return (
     <Screen
-      title="Fila de aprovação"
-      subtitle="As propostas do agente que esperam uma pessoa decidir. O nível mais alto e o maior valor em risco vêm primeiro."
+      title={texts.fila.title}
+      subtitle={texts.fila.subtitle}
       state={state}
       onRetry={retry}
-      loadingLabel="Carregando a fila…"
-      errorTitle="Não consegui ler a fila de aprovação agora"
-      emptyLabel="Nenhuma proposta esperando você. As novas aparecem aqui assim que o agente conferir a nota."
+      loadingLabel={texts.fila.loading}
+      errorTitle={texts.fila.error}
+      emptyLabel={texts.fila.empty}
     >
       {() => (
         <>
           <StatGrid columns={3}>
-            <Stat caption="Aguardando aprovação" value={items.length} context="propostas na fila" />
-            <Stat caption="Valor em risco na fila" value={BRL.format(risk / 100)} context="se pagas como vieram" tone="waiting" />
-            <Stat caption="Bloqueadas por duplicidade" value={blocked} context="ninguém paga até resolver" tone="negative" />
+            <Stat caption={texts.fila.statWaiting.caption} value={items.length} context={texts.fila.statWaiting.context} />
+            <Stat caption={texts.fila.statRisk.caption} value={BRL.format(risk / 100)} context={texts.fila.statRisk.context} tone="waiting" />
+            <Stat caption={texts.fila.statBlocked.caption} value={blocked} context={texts.fila.statBlocked.context} tone="negative" />
           </StatGrid>
           <Table<QueueItemDto>
             data={items}
             rowKey={(i) => i.invoiceAccessKey}
             size="md"
             onRowClick={(i) => setOpen(i.invoiceAccessKey)}
-            emptyText="Nenhuma proposta na fila."
+            emptyText={texts.fila.tableEmpty}
             columns={[
-              { key: "nota", title: "Nota fiscal", dataIndex: "number", render: (_, i) => `NF ${i.number} · ${i.supplierId}` },
+              { key: "nota", title: texts.fila.columns.invoice, dataIndex: "number", render: (_, i) => `NF ${i.number} · ${i.supplierId}` },
               {
                 key: "classificacao",
-                title: "Divergência",
+                title: texts.fila.columns.classification,
                 dataIndex: "classification",
                 render: (_, i) => (
                   <StatusBadge size="sm" tone="neutral">
-                    {i.classification === "MATCH" ? "Confere" : divergenceLabel(i.classification)}
+                    {i.classification === "MATCH" ? texts.fila.match : divergenceLabel(i.classification)}
                   </StatusBadge>
                 ),
               },
               {
                 key: "acao",
-                title: "Ação na doca",
+                title: texts.fila.columns.action,
                 dataIndex: "dockAction",
                 render: (_, i) => (
                   <StatusBadge size="sm" tone={ACTION_TONE[i.dockAction.kind]}>
@@ -69,7 +70,7 @@ export default function FilaDeAprovacao(_props: RouteProps) {
               },
               {
                 key: "nivel",
-                title: "Nível",
+                title: texts.fila.columns.level,
                 dataIndex: "level",
                 render: (_, i) => (
                   <StatusBadge size="sm" variant="soft" tone={LEVEL_TONE[i.level]}>
@@ -79,16 +80,16 @@ export default function FilaDeAprovacao(_props: RouteProps) {
               },
               {
                 key: "risco",
-                title: "Valor em risco",
+                title: texts.fila.columns.risk,
                 dataIndex: "amountAtRisk",
                 align: "right",
                 render: (_, i) => `${i.amountAtRisk.text} de ${i.total.text}`,
               },
               {
                 key: "pode",
-                title: "Você aprova?",
+                title: texts.fila.columns.canApprove,
                 dataIndex: "canApprove",
-                render: (_, i) => (i.canApprove ? "Sim" : "Não, outro nível"),
+                render: (_, i) => (i.canApprove ? texts.fila.yes : texts.fila.noOtherLevel),
               },
             ]}
           />
@@ -116,11 +117,11 @@ function ProposalDrawer({
 }) {
   const { state, data } = useLoad((signal): Promise<ProposalDetailDto> => approvalApi.proposal(invoiceAccessKey, signal));
   return (
-    <Drawer isOpen title={data ? `Proposta da NF ${data.number}` : "Proposta"} onClose={onClose} className="shell-connection-panel">
+    <Drawer isOpen title={texts.fila.drawerTitle(data ? data.number : null)} onClose={onClose} className="shell-connection-panel">
       {state === "ready" && data ? (
         <ProposalPanel proposal={data} onDecided={onDecided} />
       ) : (
-        <InlineEmpty>{state === "error" ? "Não consegui ler esta proposta agora." : "Carregando a proposta…"}</InlineEmpty>
+        <InlineEmpty>{state === "error" ? texts.fila.drawerError : texts.fila.drawerLoading}</InlineEmpty>
       )}
     </Drawer>
   );

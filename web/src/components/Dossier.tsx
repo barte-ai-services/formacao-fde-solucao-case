@@ -3,6 +3,7 @@ import { Alert, Text } from "barte-design-system";
 import type { JSX } from "react";
 import type { DossierField } from "../api/contract";
 import { divergenceLabel } from "../evidence/labels";
+import { texts } from "../texts";
 
 /** #68: o dossiê pronto, como o domínio o define. */
 type ReadyDossier = Extract<DossierField, { status: "ready" }>;
@@ -11,19 +12,11 @@ type DossierEvidenceList = ReadyDossier["divergences"][number]["evidence"];
 /** #68: de onde o Claude tirou cada evidência do dossiê. */
 type DossierEvidenceSource = DossierEvidenceList[number]["source"];
 
-export const DOSSIER_UNAVAILABLE_TITLE = "Não há dossiê do Claude para esta proposta.";
-export const DOSSIER_NOT_GENERATED =
-  "O dossiê ainda não foi gerado. Decida pelas divergências e evidências da conferência.";
-export const DOSSIER_RULE_NOTE =
-  "O Claude explica; quem decide é a regra ou você. A ação, o nível e o valor vêm da regra.";
+export const DOSSIER_UNAVAILABLE_TITLE = texts.dossier.unavailableTitle;
+export const DOSSIER_NOT_GENERATED = texts.dossier.notGenerated;
+export const DOSSIER_RULE_NOTE = texts.dossier.ruleNote;
 
-const SOURCE_LABEL: Record<DossierEvidenceSource, string> = {
-  invoice: "Nota fiscal",
-  purchase_order: "Ordem de compra",
-  registry: "Cadastro",
-  receipt: "Recebimento",
-  history: "Histórico",
-};
+const SOURCE_LABEL: Record<DossierEvidenceSource, string> = texts.dossier.source;
 
 function sourceLabel(source: string): string {
   return Object.hasOwn(SOURCE_LABEL, source) ? SOURCE_LABEL[source as DossierEvidenceSource] : source;
@@ -46,7 +39,7 @@ export function Dossier({ dossier }: DossierProps): JSX.Element {
   }
   const divergences = Array.isArray(dossier.divergences) ? dossier.divergences : [];
   return (
-    <Panel title="Dossiê do Claude" aside={<AiSourceBadge source="ai" label="Claude" size="sm" />} size="sm">
+    <Panel title={texts.dossier.panelTitle} aside={<AiSourceBadge source="ai" label={texts.dossier.badge} size="sm" />} size="sm">
       <Text variant="body-sm" color="var(--content-primary)">
         {dossier.summary}
       </Text>
@@ -63,7 +56,7 @@ export function Dossier({ dossier }: DossierProps): JSX.Element {
             <DataList
               size="sm"
               divided
-              aria-label="Evidências do dossiê"
+              aria-label={texts.dossier.evidenceLabel}
               items={evidenceItems.map((item, i) => ({
                 key: item?.key || String(i),
                 label: item?.label ?? "",
@@ -80,7 +73,7 @@ export function Dossier({ dossier }: DossierProps): JSX.Element {
           </Block>
         );
       })}
-      <Block title="Histórico do fornecedor" size="sm" headingLevel={4}>
+      <Block title={texts.dossier.supplierHistory} size="sm" headingLevel={4}>
         <Text variant="body-sm" color="var(--content-primary)">
           {dossier.supplierHistory}
         </Text>
