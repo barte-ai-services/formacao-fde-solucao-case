@@ -2,7 +2,7 @@
   "pages": {
     "domain": {
       "file": "index.html",
-      "title": "Modelo de domínio do contas a pagar",
+      "title": "Modelo de domínio (camada semântica)",
       "home": "team",
       "links": {
         "team": "https://claude.ai/artifact/1kUeshgUCn7vtrViwgAxHC"
