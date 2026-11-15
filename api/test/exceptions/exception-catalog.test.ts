@@ -28,8 +28,13 @@ describe('catálogo das exceções (#128)', () => {
     expect(sql).toMatch(/create table public\.exceptions/i);
     expect(sql).toMatch(/alter table public\.exceptions enable row level security/i);
     expect(sql).not.toMatch(/create policy/i);
-    const kit = JSON.parse(readFileSync(new URL('../../../data/kit/excecoes.json', import.meta.url), 'utf8')) as Record<string, string>;
-    for (const [code, text] of Object.entries(kit)) expect(sql).toContain(`'${code}', '${EXCEPTION_CATALOG[code as keyof typeof EXCEPTION_CATALOG].name}', '${text.replaceAll("'", "''")}'`);
+    const kit: unknown = JSON.parse(readFileSync(new URL('../../../data/kit/excecoes.json', import.meta.url), 'utf8'));
+    if (typeof kit !== 'object' || kit === null) throw new Error('excecoes.json não é um objeto');
+    for (const [code, text] of Object.entries(kit)) {
+      if (typeof text !== 'string') throw new Error(`excecoes.json: ${code} sem texto`);
+      const name = EXCEPTION_CATALOG[code as keyof typeof EXCEPTION_CATALOG].name;
+      expect(sql).toContain(`'${code}', '${name}', '${text.replaceAll("'", "''")}'`);
+    }
     expect(sql).not.toMatch(/join public\.kit_excecoes/i);
     for (const [code, entry] of Object.entries(EXCEPTION_CATALOG)) {
       expect(sql).toContain(`'${code}'`);
