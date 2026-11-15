@@ -105,7 +105,7 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: .88em; }
 }
 
 /* três runtimes, MCP, agentes, pipeline */
-.rt { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.rt { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .rt .n b { font-size: 21px; }
 .rt ul, .ag ul { margin: 0; padding-left: 18px; font-size: 15.5px; color: var(--ink-2); display: grid; gap: 3px; }
 .n.gh { border-color: var(--ink); }
@@ -171,7 +171,6 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: .88em; }
         <div class="host"><svg class="logo" role="img" aria-label="cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg>Cloudflare Worker, com Cron a cada 15 min</div></div>
       <div class="ar" style="grid-column:6;grid-row:1">→</div>
       <div class="models" style="grid-column:7;grid-row:1">
-        <div class="n gh"><div class="logos"><svg class="logo" role="img" aria-label="cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg><svg class="logo" role="img" aria-label="claude" style="color:var(--claude)"><use href="#i-claude"/></svg></div><b>Executor do Claude</b><div class="s">Container da Cloudflare, disparado pelo Worker, com o Agent SDK e o setup token.</div></div>
         <div class="n clef"><div class="logos"><svg class="logo" role="img" aria-label="cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg></div><b>Clef</b><div class="s">Workers AI, pelo binding.</div></div>
       </div>
       <div class="ar down">↕</div>
@@ -185,30 +184,27 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: .88em; }
   </section>
 
   <section>
-    <h2>Três runtimes</h2>
+    <h2>Dois runtimes</h2>
     <div class="rt">
-      <div class="n cf"><div class="k">1 · Worker</div><div class="logos"><svg class="logo" role="img" aria-label="cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg><svg class="logo" role="img" aria-label="typescript" style="color:var(--ts)"><use href="#i-typescript"/></svg><svg class="logo" role="img" aria-label="hono" style="color:var(--hono)"><use href="#i-hono"/></svg></div><b>Regra e Clef, sem Claude</b>
-        <span class="tag no">Sem Claude</span>
-        <ul><li>Cron, API e conferência.</li><li>Regra no código do domínio; Clef pelo binding do Workers AI.</li><li>Roda o motor de decisão (agente A).</li></ul></div>
-      <div class="n gh"><div class="k">2 · Executor</div><div class="logos"><svg class="logo" role="img" aria-label="cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg><svg class="logo" role="img" aria-label="claude" style="color:var(--claude)"><use href="#i-claude"/></svg></div><b>Container da Cloudflare com o Agent SDK</b>
-        <span class="tag">Agent SDK</span>
-        <ul><li>Autentica pelo setup token. Não há chave da API da Anthropic.</li><li>O Worker dispara o container. O acesso ao MCP vai por um binding interno ou um segredo do Worker.</li><li>Roda os agentes C, D e E, cada um com suas Skills.</li></ul></div>
-      <div class="n claude"><div class="k">3 · Claude do analista</div><div class="logos"><svg class="logo" role="img" aria-label="claude" style="color:var(--claude)"><use href="#i-claude"/></svg><svg class="logo" role="img" aria-label="modelcontextprotocol" style="color:var(--ink)"><use href="#i-modelcontextprotocol"/></svg></div><b>MCP, MCP App e Skill</b>
+      <div class="n cf"><div class="k">1 · Worker</div><div class="logos"><svg class="logo" role="img" aria-label="cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg><svg class="logo" role="img" aria-label="typescript" style="color:var(--ts)"><use href="#i-typescript"/></svg><svg class="logo" role="img" aria-label="hono" style="color:var(--hono)"><use href="#i-hono"/></svg></div><b>A, C, D e E, com Cron</b>
+        <span class="tag">Claude nos agentes C, D e E</span>
+        <ul><li>Cron, API e conferência.</li><li>Regra no código do domínio; Clef pelo binding do Workers AI.</li><li>Motor de decisão (A) sem Claude. Dossiê, auditor e tratativa (C, D, E) são módulos com um laço de tool use com o Claude, rodando no Cron.</li><li>As tools dos agentes são a própria API da solução.</li><li>Credencial do Claude: a confirmar.</li></ul></div>
+      <div class="n claude"><div class="k">2 · Claude do analista</div><div class="logos"><svg class="logo" role="img" aria-label="claude" style="color:var(--claude)"><use href="#i-claude"/></svg><svg class="logo" role="img" aria-label="modelcontextprotocol" style="color:var(--ink)"><use href="#i-modelcontextprotocol"/></svg></div><b>MCP, MCP App e Skill</b>
         <span class="tag">MCP · MCP App · Skill</span>
-        <ul><li>O analista decide a fila e delega ao motor sem sair do Claude.</li><li>O MCP App mostra a fila, a proposta e o relatório na conversa.</li><li>A Skill orienta o Claude (agente B).</li></ul></div>
+        <ul><li>O analista decide a fila e delega ao motor sem sair do Claude.</li><li>O MCP App mostra a fila, a proposta e o relatório na conversa.</li><li>A Skill orienta o Claude (agente B).</li><li>O MCP é a porta do analista e chama a mesma API que os agentes usam como tools.</li></ul></div>
     </div>
   </section>
 
   <section>
-    <h2>O MCP é a fonte única</h2>
+    <h2>Uma só API: agentes e analista</h2>
     <div class="src">
-      <div class="n"><div class="k">Quem lê</div><div class="logos"><svg class="logo" role="img" aria-label="claude" style="color:var(--claude)"><use href="#i-claude"/></svg><svg class="logo" role="img" aria-label="cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg></div><b>Agentes e analista</b><div class="s">Container do executor (C, D, E) e Claude do analista (B). Ninguém lê o banco, nem arquivo do kit.</div></div>
+      <div class="n"><div class="k">Quem lê</div><div class="logos"><svg class="logo" role="img" aria-label="claude" style="color:var(--claude)"><use href="#i-claude"/></svg><svg class="logo" role="img" aria-label="cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg></div><b>Agentes e analista</b><div class="s">Os agentes do Worker (A, C, D, E) chamam a API como tools. O analista (B) entra pelo MCP. Ninguém lê o banco, nem arquivo do kit.</div></div>
       <div class="ar">→</div>
       <div class="n mcp"><div class="k">MCP · atrás do Access</div><div class="logos"><svg class="logo" role="img" aria-label="modelcontextprotocol" style="color:var(--ink)"><use href="#i-modelcontextprotocol"/></svg><svg class="logo" role="img" aria-label="typescript" style="color:var(--ts)"><use href="#i-typescript"/></svg><svg class="logo" role="img" aria-label="cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg></div><b><code>formacao-fde-solucao-case-mcp</code></b>
         <div class="tools"><span>Leitura: fila, proposta, evidência, histórico, critérios</span><span class="w">Escrita por papel: decisão e delegação (analista)</span><span class="w">Escrita por papel: só opinião e alerta (auditor)</span><span class="w">Escrita por papel: dossiê e pedido ao fornecedor</span></div>
-        <div class="s">O container do executor entra por um binding interno ou um segredo do Worker; o analista, pela identidade dele.</div></div>
+        <div class="s">O analista entra pela identidade dele, no Access. O MCP chama a API; ele não é a porta dos agentes.</div></div>
       <div class="ar">→</div>
-      <div class="n cf"><div class="k">API</div><div class="logos"><svg class="logo" role="img" aria-label="hono" style="color:var(--hono)"><use href="#i-hono"/></svg><svg class="logo" role="img" aria-label="supabase" style="color:var(--supabase)"><use href="#i-supabase"/></svg></div><b>Worker e Supabase</b><div class="s">O MCP chama a API, nunca o banco. O auditor não aprova nem muda o nível.</div></div>
+      <div class="n cf"><div class="k">API</div><div class="logos"><svg class="logo" role="img" aria-label="hono" style="color:var(--hono)"><use href="#i-hono"/></svg><svg class="logo" role="img" aria-label="supabase" style="color:var(--supabase)"><use href="#i-supabase"/></svg></div><b>Worker e Supabase</b><div class="s">O MCP e os agentes chamam a API, nunca o banco. O auditor não aprova nem muda o nível.</div></div>
     </div>
   </section>
 
@@ -217,9 +213,9 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: .88em; }
     <div class="ags">
       <div class="ag"><div class="h"><span class="l">A</span><b>Motor de decisão</b></div><dl><dt>Runtime</dt><dd>Worker, sem Claude</dd><dt>Formato</dt><dd>Módulo no Worker: regra → Clef → pessoa. Modo sombra, depois aprova dentro dos critérios.</dd><dt>Fonte</dt><dd>Dados da proposta e base de critérios (#139). Saída gravada no banco.</dd></dl></div>
       <div class="ag"><div class="h"><span class="l">B</span><b>Decisão no Claude</b></div><dl><dt>Runtime</dt><dd>Claude do analista</dd><dt>Formato</dt><dd>MCP, MCP App e Skill</dd><dt>Fonte</dt><dd>O MCP <code>formacao-fde-solucao-case-mcp</code>.</dd></dl></div>
-      <div class="ag"><div class="h"><span class="l">C</span><b>Dossiê</b></div><dl><dt>Runtime</dt><dd>Container da Cloudflare</dd><dt>Formato</dt><dd>Agent SDK com Skill. Rodada agendada e pedido na gaveta.</dd><dt>Fonte</dt><dd>O MCP. Todo número vem do catálogo de fatos.</dd></dl></div>
-      <div class="ag"><div class="h"><span class="l">D</span><b>Auditor de notas</b></div><dl><dt>Runtime</dt><dd>Container da Cloudflare</dd><dt>Formato</dt><dd>Agent SDK com o subagente <code>auditor-de-notas</code> e as 3 skills do domingo. Roda em paralelo à regra; só sobe o nível, nunca desce.</dd><dt>Fonte</dt><dd>O MCP, no lugar dos arquivos do kit.</dd></dl></div>
-      <div class="ag"><div class="h"><span class="l">E</span><b>Tratativa com o fornecedor</b></div><dl><dt>Runtime</dt><dd>Container da Cloudflare</dd><dt>Formato</dt><dd>Agent SDK com Skills: escrever o pedido e ler a resposta. Uma pessoa revisa e envia.</dd><dt>Fonte</dt><dd>O MCP, com caixa de saída e caixa de entrada <span class="mock">mock</span> no banco.</dd></dl></div>
+      <div class="ag"><div class="h"><span class="l">C</span><b>Dossiê</b></div><dl><dt>Runtime</dt><dd>Worker, com Cron</dd><dt>Formato</dt><dd>Módulo no Worker com laço de tool use com o Claude. Rodada agendada e pedido na gaveta.</dd><dt>Fonte</dt><dd>A API da solução, como tools. Todo número vem do catálogo de fatos.</dd></dl></div>
+      <div class="ag"><div class="h"><span class="l">D</span><b>Auditor de notas</b></div><dl><dt>Runtime</dt><dd>Worker, com Cron</dd><dt>Formato</dt><dd>Módulo no Worker com laço de tool use com o Claude, reaproveitando o subagente <code>auditor-de-notas</code> e as 3 skills do domingo. Roda em paralelo à regra; só sobe o nível, nunca desce.</dd><dt>Fonte</dt><dd>A API da solução, como tools, no lugar dos arquivos do kit.</dd></dl></div>
+      <div class="ag"><div class="h"><span class="l">E</span><b>Tratativa com o fornecedor</b></div><dl><dt>Runtime</dt><dd>Worker, com Cron</dd><dt>Formato</dt><dd>Módulo no Worker com laço de tool use com o Claude: escrever o pedido e ler a resposta. Uma pessoa revisa e envia.</dd><dt>Fonte</dt><dd>A API da solução, como tools, com caixa de saída e caixa de entrada <span class="mock">mock</span> no banco.</dd></dl></div>
     </div>
   </section>
 
@@ -250,8 +246,7 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: .88em; }
   <section>
     <h2>O que mudou desde o desenho original</h2>
     <div class="chg">
-      <div class="pc"><div><b>Claude fora do Worker</b><span class="t">Roda num container da Cloudflare que o Worker dispara, com o Agent SDK e o setup token.</span> <small>#76</small></div></div>
-      <div class="pc"><div><b>Executor ainda no GitHub Actions</b><span class="t">Pendente: o executor que está na main (<code>claude-enrich.yml</code>, PR #109) ainda roda no GitHub Actions e vai migrar para o container da Cloudflare.</span> <small>#171</small></div></div>
+      <div class="pc"><div><b>Executor ainda no GitHub Actions</b><span class="t">Pendente: o executor que está na main (<code>claude-enrich.yml</code>, PR #109) ainda roda no GitHub Actions e vai migrar para o Worker.</span> <small>#171</small></div></div>
       <div class="pc"><div><b>Access no host inteiro</b><span class="t">Até o <code>/health</code> passa pelo login.</span> <small>#76</small></div></div>
       <div class="pc"><div><b>Loja separada da doca</b><span class="t">O recebimento na loja tem a ação própria, no app da loja.</span> <small>#135</small></div></div>
       <div class="pc"><div><b>Fila de devolução</b><span class="t">Notas de devolução pendentes de emissão no portal.</span> <small>#140</small></div></div>
