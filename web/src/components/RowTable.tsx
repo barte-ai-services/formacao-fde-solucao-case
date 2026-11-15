@@ -6,7 +6,14 @@ type TableProps<T extends object> = Parameters<typeof Table<T>>[0];
 /** #209 O que é controle dentro da linha: clicar nele faz o que ele faz e não abre a gaveta. */
 const CONTROL = 'a, button, input, select, textarea, label, [role="combobox"], [role="listbox"], [role="option"], [role="menuitem"], [data-row-control]';
 
-export interface RowTableProps<T extends object> extends Omit<TableProps<T>, "onRowClick"> {
+/**
+ * O teclado e o rótulo entram pela posição da linha em `data`. Ordenação, paginação e carga do `Table` mexem nessa
+ * posição, então ficam de fora: a grid entrega `data` já na ordem em que quer ver.
+ */
+type Fixed = "onRowClick" | "sortState" | "onSort" | "pagination" | "loading" | "columns";
+
+export interface RowTableProps<T extends object> extends Omit<TableProps<T>, Fixed> {
+  columns: (Omit<TableProps<T>["columns"][number], "sortable"> & { sortable?: false })[];
   /** #209 Abre a gaveta da nota daquela linha. */
   onOpenRow: (row: T) => void;
   /** #209 O nome da linha para leitor de tela ("Abrir a nota 123"). */
@@ -54,7 +61,7 @@ export function RowTable<T extends object>({ onOpenRow, rowLabel, data, ...table
       }}
     >
       <Table<T>
-        {...(table as TableProps<T>)}
+        {...(table as unknown as TableProps<T>)}
         data={data}
         onRowClick={(record) => {
           const ignore = fromControl.current;

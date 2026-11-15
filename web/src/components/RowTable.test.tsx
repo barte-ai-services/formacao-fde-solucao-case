@@ -53,3 +53,14 @@ describe("#209 RowTable", () => {
     expect(onOpenRow).not.toHaveBeenCalled();
   });
 });
+
+describe("#209 RowTable: sem o que reordena as linhas", () => {
+  it("não aceita coluna ordenável, e cada linha leva o rótulo da sua nota", () => {
+    // @ts-expect-error a coluna ordenável fica de fora: a posição da linha é a chave do teclado e do rótulo
+    const bad = <RowTable<Row> data={rows} rowKey={(r) => r.key} onOpenRow={() => {}} rowLabel={(r) => r.number} columns={[{ key: "n", title: "N", dataIndex: "number", sortable: true }]} />;
+    expect(bad).toBeTruthy();
+    setup();
+    expect(row("10").textContent).toContain("10");
+    expect(row("20").textContent).toContain("20");
+  });
+});

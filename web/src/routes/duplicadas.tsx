@@ -176,7 +176,7 @@ export default function NotasDuplicadas(_props: RouteProps) {
               },
             ]}
           />
-          {open !== undefined ? <DuplicateDrawer duplicate={open} onClose={() => setOpenKey(null)} /> : null}
+          {open !== undefined ? <DuplicateDrawer duplicate={open} onClose={() => setOpenKey(null)} onDecided={retry} /> : null}
         </>
       )}
     </Screen>
@@ -184,10 +184,10 @@ export default function NotasDuplicadas(_props: RouteProps) {
 }
 
 /** O detalhe de uma duplicidade: a original contra a duplicada, campo a campo. */
-function DuplicateDrawer({ duplicate: d, onClose }: { duplicate: DuplicateDto; onClose: () => void }) {
+function DuplicateDrawer({ duplicate: d, onClose, onDecided }: { duplicate: DuplicateDto; onClose: () => void; onDecided: () => void }) {
   const badge = titleBadge(d.titleState);
   return (
-    <InvoiceDrawer invoiceAccessKey={d.duplicate.accessKey} title={() => texts.duplicadas.drawerTitle(d.duplicate.number)} onClose={onClose}>
+    <InvoiceDrawer invoiceAccessKey={d.duplicate.accessKey} title={() => texts.duplicadas.drawerTitle(d.duplicate.number)} onClose={onClose} onDecided={onDecided}>
       <div style={{ display: "grid", gap: "var(--spacing-xl)" }}>
         <Alert variant={ALERT_VARIANT[badge.tone]} title={badge.label} description={ALERT_DESCRIPTION[badge.tone]} />
         {d.original === null ? (

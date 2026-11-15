@@ -1,6 +1,7 @@
-import type { ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { Drawer } from "barte-design-system";
 import { InlineEmpty } from "@barte-ai-services/barte-ui-kit";
+import { ApiError } from "../api/client";
 import { approvalApi, type DecisionResultDto, type ProposalDetailDto } from "../api/approval";
 import { useLoad } from "../components/useLoad";
 import { texts } from "../texts";
@@ -24,15 +25,15 @@ export function InvoiceDrawer({
   onClose: () => void;
   onDecided?: (result: DecisionResultDto) => void;
   children?: ReactNode;
-}) {
-  const { state, data } = useLoad((signal): Promise<ProposalDetailDto> => approvalApi.proposal(invoiceAccessKey, signal));
+}): ReactElement {
+  const { state, data, error } = useLoad((signal): Promise<ProposalDetailDto> => approvalApi.proposal(invoiceAccessKey, signal));
   return (
     <Drawer isOpen title={title(data ? data.number : null)} onClose={onClose} className="shell-connection-panel">
       {children !== undefined ? <div style={{ padding: "var(--spacing-lg)" }}>{children}</div> : null}
       {state === "ready" && data ? (
         <ProposalPanel proposal={data} onDecided={onDecided} />
       ) : (
-        <InlineEmpty>{state === "error" ? texts.fila.drawerError : texts.fila.drawerLoading}</InlineEmpty>
+        <InlineEmpty>{state === "error" ? (error instanceof ApiError && error.status === 404 ? texts.fila.noProposal : texts.fila.drawerError) : texts.fila.drawerLoading}</InlineEmpty>
       )}
     </Drawer>
   );
