@@ -23,6 +23,6 @@
 .pagar-line-chart { padding-inline: var(--spacing-lg) var(--spacing-sm); }
 .pagar-line-chart .recharts-wrapper, .pagar-line-chart .recharts-surface { overflow: visible; }
 
-/* #124 As barras do ranking e da barra de progresso: o kit fixa 6px; aqui sobem para o passo de espaçamento do DS. */
+/* #124 As barras do ranking: o kit fixa 6px e não expõe a altura; sobem para o passo de espaçamento do DS. Depende do nome da classe do kit (paliativo). A barra de progresso usa `size="md"`. */
 .pagar-ranking { --pagar-bar-height: var(--spacing-md); }
 .pagar-ranking [class*="RankingBars-module__track"] { height: var(--pagar-bar-height); }

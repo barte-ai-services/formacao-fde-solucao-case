@@ -159,19 +159,19 @@ function BarredAmountView({ panel }: { panel: BarredAmountDto }): ReactElement {
       <div style={{ display: "grid", gap: "var(--spacing-xl)", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))" }}>
         <Panel title={texts.valorBarrado.cumulativePanel} size="sm">
           <div className="pagar-line-chart">
-          <LineChart
-            data={daily}
-            xKey="day"
-            series={[
-              { key: "barred", label: texts.valorBarrado.seriesBarred },
-              { key: "proposed", label: texts.valorBarrado.seriesProposed, color: toneColor.waiting },
-              { key: "baseline", label: texts.valorBarrado.seriesBaseline(baselineLabel), dashed: true, color: toneColor.negative },
-            ]}
-            height={220}
-            formatValue={formatBrl}
-            formatAxis={(cents) => texts.valorBarrado.axisThousands(Math.round(cents / 100_000))}
-            ariaLabel={texts.valorBarrado.chartLabel(baselineLabel)}
-          />
+            <LineChart
+              data={daily}
+              xKey="day"
+              series={[
+                { key: "barred", label: texts.valorBarrado.seriesBarred },
+                { key: "proposed", label: texts.valorBarrado.seriesProposed, color: toneColor.waiting },
+                { key: "baseline", label: texts.valorBarrado.seriesBaseline(baselineLabel), dashed: true, color: toneColor.negative },
+              ]}
+              height={220}
+              formatValue={formatBrl}
+              formatAxis={(cents) => texts.valorBarrado.axisThousands(Math.round(cents / 100_000))}
+              ariaLabel={texts.valorBarrado.chartLabel(baselineLabel)}
+            />
           </div>
         </Panel>
         <Panel title={texts.valorBarrado.rankingPanel} size="sm">
