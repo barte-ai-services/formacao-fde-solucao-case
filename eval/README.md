@@ -31,6 +31,8 @@ python3 eval/auditor.py auditorias.jsonl --format md     # o relatório legível
 
 Opções para teste: `--answer-key <arquivo>` (padrão `eval/gabarito/gabarito.json`) e `--runs-dir <pasta>` (padrão `eval/rodadas/`).
 
+Do banco, num comando só: `make eval` exporta as auditorias e as propostas da regra (`scripts/export_audits.py`, só leitura nas tabelas `invoice_audits` e `proposals`, com `BARTE_ACADEMY_SUPABASE_URL` e `BARTE_ACADEMY_SUPABASE_SECRET_KEY` do ambiente ou do `.env`) para `eval/saidas/auditorias.jsonl` e roda o eval sobre ele. Nota sem auditoria fica fora do arquivo e conta como erro.
+
 ### Formato de entrada
 
 `auditorias.jsonl` tem uma linha por nota auditada, ligada ao gabarito por `invoice_access_key` == `chave`. Se a mesma chave aparecer mais de uma vez, vale a última linha. Campos:
