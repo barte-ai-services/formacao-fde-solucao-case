@@ -1,0 +1,14 @@
+{
+  "pages": {
+    "agents": {
+      "file": "index.html",
+      "title": "Onde entra agente no processo",
+      "home": "team",
+      "links": {
+        "team": "https://claude.ai/artifact/MCJyqzJZHWVbUEX31uneYA"
+      },
+      "capabilities": {}
+    }
+  },
+  "publishOrder": ["agents"]
+}
