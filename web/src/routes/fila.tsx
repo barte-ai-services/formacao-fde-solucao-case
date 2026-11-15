@@ -1,10 +1,11 @@
 import { useState, type ReactNode } from "react";
 import { Drawer, Table } from "barte-design-system";
-import { InlineEmpty, SegmentedFilter, Stat, StatGrid } from "@barte-ai-services/barte-ui-kit";
+import { InlineEmpty, Stat, StatGrid } from "@barte-ai-services/barte-ui-kit";
 import { approvalApi, type ProposalDetailDto, type QueueDto, type QueueItemDto } from "../api/approval";
 import { ProposalPanel } from "../approval/ProposalPanel";
 import { ACTION_LABEL, ACTION_TONE, LEVEL_LABEL, LEVEL_TONE, byQueueOrder, codeLabel } from "../approval/labels";
 import { GridBadge } from "../components/GridBadge";
+import { GridFilter } from "../components/GridFilter";
 import { InvoiceCell } from "../components/InvoiceCell";
 import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
@@ -53,7 +54,7 @@ export default function FilaDeAprovacao(_props: RouteProps) {
             <Stat caption={texts.fila.statRisk.caption} value={BRL.format(risk / 100)} context={texts.fila.statRisk.context} tone="waiting" />
             <Stat caption={texts.fila.statBlocked.caption} value={blocked} context={texts.fila.statBlocked.context} tone="negative" />
           </StatGrid>
-          <SegmentedFilter
+          <GridFilter
             ariaLabel={texts.fila.filterLabel}
             value={view}
             onChange={setView}
