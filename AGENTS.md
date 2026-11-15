@@ -1,7 +1,9 @@
 # Regras do repositório da solução
 
-- **Interno.** A solução de referência não vai para o `formacao-fde-case`, que é público, nem
-  para nenhum fork da turma.
+- **Público, com a turma escrevendo.** Os alunos são colaboradores com escrita: empurram a
+  própria branch e abrem PR contra a `main`, que só aceita PR com o CI verde e uma aprovação.
+  As credenciais de produção ficam só no environment `producao`, que só a `main` alcança;
+  nenhum workflow de PR usa secret.
 - **Nenhum nome de cliente real.** A Já Chegou é fictícia.
 - **Nada de segredo** no git. Credenciais ficam no `.env`, que o git ignora.
 - **Prosa em português.**

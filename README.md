@@ -1,7 +1,7 @@
 # Formação FDE: solução do case Já Chegou
 
-Repositório **interno** com a solução de referência do case **Já Chegou** da Formação FDE.
-Ele não é público e não entra no repositório da turma (`formacao-fde-case`), que é público.
+Repositório público com a solução de referência do case **Já Chegou** da Formação FDE. A turma
+contribui aqui por clone e PR, sem fork: o passo a passo está no [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## O problema
 
