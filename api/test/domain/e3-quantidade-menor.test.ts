@@ -3,8 +3,8 @@ import {
   amountAtRiskOfShortfall,
   isShortLine,
   checkQuantidadeMenor,
-  proposeQuantidadeMenor,
-  settleQuantidadeMenor,
+  proposeE3,
+  settleE3,
 } from '../../src/domain/checks/e3-quantidade-menor.js';
 import {
   DomainError,
@@ -67,7 +67,7 @@ const line = (invoiced: number, counted: number, countedUnit: Unit = 'UN'): Reco
   missing: Quantity.of(invoiced - counted, 'UN'),
 });
 
-/** Contagem do WMS ligada à nota: contado zero é o item que não aparece na contagem. */
+/** #73: contagem do WMS ligada à nota; contado zero é o item que não aparece na contagem. */
 const counted = (amount: number, unit: Unit = 'UN', invoiceAccessKey: string | null = KEY): Receipt => ({
   ...receipt(invoiceAccessKey),
   items:
@@ -128,7 +128,7 @@ describe('#73 E3 quantidade menor: proposta e liquidação', () => {
   });
 
   it('#73/AC-2: a proposta é receber parcial, devolvendo a diferença, com valor em risco igual à diferença', () => {
-    const props = proposeQuantidadeMenor(invoice(78_900), ctx(), [line(100, 75)]);
+    const props = proposeE3(invoice(78_900), ctx(), [line(100, 75)]);
     expect(props.classification).toBe('E3');
     expect(props.dockAction.kind).toBe('receber_parcial');
     const [l] = props.dockAction.kind === 'receber_parcial' ? props.dockAction.lines : [];
@@ -140,13 +140,13 @@ describe('#73 E3 quantidade menor: proposta e liquidação', () => {
   });
 
   it('#73/AC-2, limites de aprovação linhas 4 e 5: até R$ 20 mil é analista; acima, coordenação', () => {
-    expect(proposeQuantidadeMenor(invoice(2_000_000), ctx(), [line(100, 75)]).level).toBe('analista');
-    expect(proposeQuantidadeMenor(invoice(2_000_001), ctx(), [line(100, 75)]).level).toBe('coordenacao');
+    expect(proposeE3(invoice(2_000_000), ctx(), [line(100, 75)]).level).toBe('analista');
+    expect(proposeE3(invoice(2_000_001), ctx(), [line(100, 75)]).level).toBe('coordenacao');
   });
 
   it('#73/AC-2, limites de aprovação linha 2: nota acima de R$ 100 mil ou fornecedor bloqueado vai à diretoria', () => {
-    expect(proposeQuantidadeMenor(invoice(10_000_000), ctx(), [line(100, 75)]).level).toBe('coordenacao');
-    expect(proposeQuantidadeMenor(invoice(10_000_001), ctx(), [line(100, 75)]).level).toBe('diretoria');
+    expect(proposeE3(invoice(10_000_000), ctx(), [line(100, 75)]).level).toBe('coordenacao');
+    expect(proposeE3(invoice(10_000_001), ctx(), [line(100, 75)]).level).toBe('diretoria');
     const blocked = {
       id: 'F08',
       legalName: 'Fornecedor bloqueado',
@@ -154,17 +154,17 @@ describe('#73 E3 quantidade menor: proposta e liquidação', () => {
       paymentBlocked: true,
       blockReason: 'pendência fiscal',
     };
-    expect(proposeQuantidadeMenor(invoice(78_900), ctx({ suppliers: [blocked] }), [line(100, 75)]).level).toBe(
+    expect(proposeE3(invoice(78_900), ctx({ suppliers: [blocked] }), [line(100, 75)]).level).toBe(
       'diretoria',
     );
   });
 
   it('#73/AC-2: sem linha a menos não há proposta de E3', () => {
-    expect(() => proposeQuantidadeMenor(invoice(), ctx(), [line(100, 0)])).toThrow(DomainError);
+    expect(() => proposeE3(invoice(), ctx(), [line(100, 0)])).toThrow(DomainError);
   });
 
   const approved = (inv: Invoice) => {
-    const p = Proposal.register(proposeQuantidadeMenor(inv, ctx(), [line(100, 75)]));
+    const p = Proposal.register(proposeE3(inv, ctx(), [line(100, 75)]));
     p.awaitApproval();
     p.approve();
     return p;
@@ -173,7 +173,7 @@ describe('#73 E3 quantidade menor: proposta e liquidação', () => {
   it('#73/AC-3 e AC-4: a proposta aprovada reduz o título ao valor recebido e dá a nota de devolução da diferença', () => {
     const inv = invoice(78_900);
     const title = Title.post({ invoiceAccessKey: KEY, amount: inv.total, dueOn: '2026-12-10' });
-    const note = settleQuantidadeMenor(approved(inv), title, inv, [line(100, 75)]);
+    const note = settleE3(approved(inv), title, inv, [line(100, 75)]);
     expect(title.state).toBe('reduzido');
     expect(title.amount.cents).toBe(78_900 - 19_725);
     expect(note.invoiceAccessKey).toBe(KEY);
@@ -185,21 +185,37 @@ describe('#73 E3 quantidade menor: proposta e liquidação', () => {
   it('#73/AC-3, regra 8: proposta não aprovada ou alterada não é liquidada', () => {
     const inv = invoice(78_900);
     const title = () => Title.post({ invoiceAccessKey: KEY, amount: inv.total, dueOn: '2026-12-10' });
-    const waiting = Proposal.register(proposeQuantidadeMenor(inv, ctx(), [line(100, 75)]));
+    const waiting = Proposal.register(proposeE3(inv, ctx(), [line(100, 75)]));
     waiting.awaitApproval();
-    expect(() => settleQuantidadeMenor(waiting, title(), inv, [line(100, 75)])).toThrow(DomainError);
-    const altered = Proposal.register(proposeQuantidadeMenor(inv, ctx(), [line(100, 75)]));
+    expect(() => settleE3(waiting, title(), inv, [line(100, 75)])).toThrow(DomainError);
+    const altered = Proposal.register(proposeE3(inv, ctx(), [line(100, 75)]));
     altered.awaitApproval();
     altered.alter({ kind: 'receber' }, 'aceita a carga como veio');
     const t = title();
-    expect(() => settleQuantidadeMenor(altered, t, inv, [line(100, 75)])).toThrow(DomainError);
+    expect(() => settleE3(altered, t, inv, [line(100, 75)])).toThrow(DomainError);
     expect(t.state).toBe('lancado');
+  });
+
+  it('#73/AC-4, regra 8: a devolução que não bate com a ação na doca aprovada não é liquidada', () => {
+    const inv = invoice(78_900);
+    const title = Title.post({ invoiceAccessKey: KEY, amount: inv.total, dueOn: '2026-12-10' });
+    expect(() => settleE3(approved(inv), title, inv, [line(100, 60)])).toThrow(DomainError);
+    expect(title.state).toBe('lancado');
+  });
+
+  it('#73/AC-3: título já reduzido não é reduzido de novo', () => {
+    const inv = invoice(78_900);
+    const title = Title.post({ invoiceAccessKey: KEY, amount: inv.total, dueOn: '2026-12-10' });
+    const proposal = approved(inv);
+    settleE3(proposal, title, inv, [line(100, 75)]);
+    expect(() => settleE3(proposal, title, inv, [line(100, 75)])).toThrow(DomainError);
+    expect(title.amount.cents).toBe(78_900 - 19_725);
   });
 
   it('#73/AC-3: título de outra nota não é reduzido', () => {
     const inv = invoice(78_900);
     const other = Title.post({ invoiceAccessKey: 'OUTRA', amount: inv.total, dueOn: '2026-12-10' });
-    expect(() => settleQuantidadeMenor(approved(inv), other, inv, [line(100, 75)])).toThrow(DomainError);
+    expect(() => settleE3(approved(inv), other, inv, [line(100, 75)])).toThrow(DomainError);
     expect(other.state).toBe('lancado');
   });
 });

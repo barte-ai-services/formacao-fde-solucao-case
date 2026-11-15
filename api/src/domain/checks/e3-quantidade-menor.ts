@@ -13,8 +13,8 @@ import { findReceipt, orderOf, reconcile, type ReconciliationLine } from '../rec
 import type { Title } from '../title.js';
 import type { Check } from './check.js';
 
-const CEM_MIL = Money.ofCents(10_000_000);
-const VINTE_MIL = Money.ofCents(2_000_000);
+const HUNDRED_THOUSAND = Money.ofCents(10_000_000);
+const TWENTY_THOUSAND = Money.ofCents(2_000_000);
 
 // temporário até a #63: troca pela ApprovalPolicy (fonte única do encaminhamento) e apaga este helper
 /**
@@ -25,8 +25,8 @@ const VINTE_MIL = Money.ofCents(2_000_000);
  */
 function levelOf(invoice: InvoiceView, ctx: CheckContext): ApprovalLevel {
   const blocked = ctx.suppliers.find((s) => s.id === invoice.supplierId)?.paymentBlocked ?? false;
-  if (blocked || invoice.total.compare(CEM_MIL) > 0) return 'diretoria';
-  if (invoice.total.compare(VINTE_MIL) > 0) return 'coordenacao';
+  if (blocked || invoice.total.compare(HUNDRED_THOUSAND) > 0) return 'diretoria';
+  if (invoice.total.compare(TWENTY_THOUSAND) > 0) return 'coordenacao';
   return 'analista';
 }
 
@@ -52,7 +52,7 @@ const fmt = (q: Quantity): string => `${q.amount} ${q.unit}`;
  *
  * Concilia pela `reconcile` do #69: o recebimento entra pela chave de acesso (`findReceipt`).
  */
-export const checkQuantidadeMenor: Check = (invoice, ctx) => {
+export const checkQuantidadeMenor: Check = (invoice, ctx) => { // ADR-002
   const receipt = findReceipt(invoice, ctx.receipts);
   if (receipt === null) return [];
   const short = reconcile(invoice, receipt, ctx.products).filter(isShortLine);
@@ -85,7 +85,7 @@ export function amountAtRiskOfShortfall(invoice: InvoiceView, lines: readonly Re
  * #45/AC-2: a proposta do E3 é receber parcial, devolvendo o que faltou, com valor em risco igual à
  * diferença. Devolve as props; quem registra (`Proposal.register`) é quem chama.
  */
-export function proposeQuantidadeMenor(
+export function proposeE3(
   invoice: InvoiceView,
   ctx: CheckContext,
   lines: readonly ReconciliationLine[],
@@ -112,12 +112,12 @@ export type ReturnNote = {
 };
 
 /**
- * #45/AC-3 e AC-4: liquida a proposta aprovada do E3. Reduz o título ao valor recebido (o atual
- * menos o valor em risco) e devolve a nota de devolução da diferença, para a caixa de saída.
- * Só a proposta `aprovada`: a `alterada` trocou a ação na doca e não é liquidada por aqui (lança
- * DomainError), assim como qualquer outro estado.
+ * #45/AC-4: a nota de devolução da proposta aprovada do E3, sem mudar nada. Só a proposta
+ * `aprovada`: a `alterada` trocou a ação na doca e não é liquidada por aqui (#45, decisão no PR #92).
+ * As linhas da nota são as `devolver` da ação aprovada; se a conciliação passada não bate com elas,
+ * lança DomainError em vez de devolver outra coisa.
  */
-export function settleQuantidadeMenor(
+export function e3ReturnNote(
   proposal: Proposal,
   title: Title,
   invoice: InvoiceView,
@@ -132,12 +132,37 @@ export function settleQuantidadeMenor(
   if (title.invoiceAccessKey !== invoice.accessKey) {
     throw new DomainError('E3: o título não é da nota');
   }
+  if (title.state !== 'lancado') {
+    throw new DomainError(`E3: só o título lançado é reduzido, este está "${title.state}"`);
+  }
   const short = lines.filter(isShortLine);
   if (short.length === 0) throw new DomainError('E3: sem linha a menos para devolver');
-  title.reduce(title.amount.subtract(proposal.amountAtRisk.amount));
+  const approved = proposal.dockAction.kind === 'receber_parcial' ? proposal.dockAction.lines : [];
+  const returned = approved.filter((l) => l.disposition === 'devolver');
+  const same =
+    returned.length === short.length &&
+    short.every((l) => returned.some((r) => r.sku === skuOf(l) && r.quantity.equals(l.missing)));
+  if (!same) throw new DomainError('E3: a devolução não bate com a ação na doca aprovada');
   return {
     invoiceAccessKey: invoice.accessKey,
     lines: short.map((l) => ({ supplierCode: l.supplierCode, quantity: l.missing })),
     reason: `E3 quantidade menor na nota ${invoice.number}: devolução da diferença`,
   };
+}
+
+/** #45/AC-3: reduz o título ao valor recebido, o atual menos o valor em risco da proposta. */
+export function reduceE3Title(proposal: Proposal, title: Title): void {
+  title.reduce(title.amount.subtract(proposal.amountAtRisk.amount));
+}
+
+/** #45/AC-3 e AC-4: liquida a proposta aprovada do E3: valida, reduz o título e devolve a nota. */
+export function settleE3(
+  proposal: Proposal,
+  title: Title,
+  invoice: InvoiceView,
+  lines: readonly ReconciliationLine[],
+): ReturnNote {
+  const note = e3ReturnNote(proposal, title, invoice, lines);
+  reduceE3Title(proposal, title);
+  return note;
 }

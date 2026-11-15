@@ -1,9 +1,9 @@
 // #45/AC-3 e AC-4: liquida a proposta aprovada do E3 e publica a nota de devolução na caixa de saída do ERP.
-import { settleQuantidadeMenor } from '../domain/checks/e3-quantidade-menor.js';
+import { e3ReturnNote, reduceE3Title } from '../domain/checks/e3-quantidade-menor.js';
 import type { InvoiceView, Proposal, ReconciliationLine, Title } from '../domain/index.js';
 import type { Published, ReturnNoteMessage, ReturnNoteOutbox } from './ports.js';
 
-export type SettleQuantidadeMenorInput = {
+export type SettleE3ShortfallInput = {
   readonly proposal: Proposal;
   readonly title: Title;
   readonly invoice: InvoiceView;
@@ -11,14 +11,19 @@ export type SettleQuantidadeMenorInput = {
   readonly outbox: ReturnNoteOutbox;
 };
 
-/** Reduz o título e publica a devolução. Publicar de novo a mesma nota não grava outra linha. */
-export async function settleApprovedQuantidadeMenor({
+/**
+ * #73: publica a devolução antes de reduzir o título. Se publicar falha, o título fica como estava e
+ * a nova tentativa passa; publicar de novo a mesma nota não grava outra linha (#59).
+ */
+export async function settleApprovedE3Shortfall({
   proposal,
   title,
   invoice,
   lines,
   outbox,
-}: SettleQuantidadeMenorInput): Promise<Published<ReturnNoteMessage>> {
-  const note: ReturnNoteMessage = settleQuantidadeMenor(proposal, title, invoice, lines);
-  return outbox.publish(note);
+}: SettleE3ShortfallInput): Promise<Published<ReturnNoteMessage>> {
+  const note: ReturnNoteMessage = e3ReturnNote(proposal, title, invoice, lines);
+  const published = await outbox.publish(note);
+  reduceE3Title(proposal, title);
+  return published;
 }

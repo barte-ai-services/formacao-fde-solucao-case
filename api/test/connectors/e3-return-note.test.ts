@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { settleApprovedQuantidadeMenor } from '../../src/connectors/e3-return-note.js';
+import { settleApprovedE3Shortfall } from '../../src/connectors/e3-return-note.js';
+import type { ReturnNoteOutbox } from '../../src/connectors/ports.js';
 import { supabaseConnectors } from '../../src/connectors/supabase-connectors.js';
 import { SupabaseRest } from '../../src/connectors/supabase-rest.js';
 import {
   isShortLine,
   checkQuantidadeMenor,
-  proposeQuantidadeMenor,
+  proposeE3,
 } from '../../src/domain/checks/e3-quantidade-menor.js';
 import {
   Money,
@@ -42,7 +43,7 @@ async function kit() {
 
 const check = checkQuantidadeMenor;
 
-// Dados de base do kit (notas.json, recebimentos.json): faturado, contado e o valor do item.
+// #73: dados de base do kit (notas.json, recebimentos.json): faturado, contado e o valor do item.
 const E3_CASES = [
   { receipt: 'RC-9219', number: '37423', code: 'F08-001', invoiced: 100, counted: 75, itemValue: 789.0, level: 'analista' },
   { receipt: 'RC-9228', number: '72768', code: 'F01-001', invoiced: 88, counted: 66, itemValue: 430.32, level: 'analista' },
@@ -70,7 +71,7 @@ describe('#73 E3 quantidade menor nos recebimentos do kit (offline)', () => {
     it(`#73/AC-2, regra 6: ${c.receipt} propõe receber parcial, devolvendo ${c.invoiced - c.counted}, com valor em risco igual à diferença`, async () => {
       const { ctx, caseOf } = await kit();
       const { invoice, lines } = caseOf(c.receipt);
-      const props = proposeQuantidadeMenor(invoice, ctx, lines);
+      const props = proposeE3(invoice, ctx, lines);
       expect(props.dockAction.kind).toBe('receber_parcial');
       const dockLines = props.dockAction.kind === 'receber_parcial' ? props.dockAction.lines : [];
       expect(dockLines).toHaveLength(1);
@@ -83,11 +84,11 @@ describe('#73 E3 quantidade menor nos recebimentos do kit (offline)', () => {
     it(`#73/AC-3 e AC-4: ${c.receipt} aprovado reduz o título ao recebido e publica a devolução na caixa de saída do ERP`, async () => {
       const { ctx, caseOf, returnNotes, fake } = await kit();
       const { invoice, lines } = caseOf(c.receipt);
-      const proposal = Proposal.register(proposeQuantidadeMenor(invoice, ctx, lines));
+      const proposal = Proposal.register(proposeE3(invoice, ctx, lines));
       proposal.awaitApproval();
       proposal.approve();
       const title = Title.post({ invoiceAccessKey: invoice.accessKey, amount: invoice.total, dueOn: '2026-12-10' });
-      const published = await settleApprovedQuantidadeMenor({ proposal, title, invoice, lines, outbox: returnNotes });
+      const published = await settleApprovedE3Shortfall({ proposal, title, invoice, lines, outbox: returnNotes });
 
       expect(title.state).toBe('reduzido');
       expect(title.amount.cents).toBe(invoice.total.cents - expectedRiskCents(c));
@@ -103,6 +104,27 @@ describe('#73 E3 quantidade menor nos recebimentos do kit (offline)', () => {
       expect(fake.rows('outbox_return_notes')).toHaveLength(1);
     });
   }
+
+  it('#73/AC-3 e AC-4: RC-9219, publicar a devolução falha e o título fica lançado; a nova tentativa liquida', async () => {
+    const { ctx, caseOf, returnNotes, fake } = await kit();
+    const { invoice, lines } = caseOf('RC-9219');
+    const proposal = Proposal.register(proposeE3(invoice, ctx, lines));
+    proposal.awaitApproval();
+    proposal.approve();
+    const title = Title.post({ invoiceAccessKey: invoice.accessKey, amount: invoice.total, dueOn: '2026-12-10' });
+    const failing: ReturnNoteOutbox = {
+      publish: () => Promise.reject(new Error('caixa de saída fora do ar')),
+      list: () => returnNotes.list(),
+    };
+
+    await expect(settleApprovedE3Shortfall({ proposal, title, invoice, lines, outbox: failing })).rejects.toThrow();
+    expect(title.state).toBe('lancado');
+    expect(fake.rows('outbox_return_notes')).toHaveLength(0);
+
+    await settleApprovedE3Shortfall({ proposal, title, invoice, lines, outbox: returnNotes });
+    expect(title.state).toBe('reduzido');
+    expect(fake.rows('outbox_return_notes')).toHaveLength(1);
+  });
 
   it('#73/AC-1: RC-9107, com a contagem batendo com a nota, não marca E3', async () => {
     const { ctx, caseOf } = await kit();
