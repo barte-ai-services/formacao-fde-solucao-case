@@ -10,3 +10,12 @@ python3 eval/avaliar.py eval/saidas/propostas.jsonl --comparar eval/saidas/basel
 ```
 
 O `propostas.jsonl` tem uma linha por nota, com `nota_id`, `classificacao`, `acao_doca` e `encaminhamento`. Se a mesma nota aparecer mais de uma vez, vale a última. Os dados das notas vêm de `data/kit/`; o gabarito fica em `eval/gabarito/` e a aplicação nunca o lê.
+
+## Baseline
+
+O `baseline/regras.py`, ao lado de `eval/`, é a referência sem IA: as regras que um time de operação escreveria numa primeira tentativa. O `eval/saidas/baseline.jsonl` já vem gerado (46% de acerto completo). Para gerar de novo e comparar o agente com ele:
+
+```bash
+python3 baseline/regras.py
+python3 eval/avaliar.py eval/saidas/propostas.jsonl --comparar eval/saidas/baseline.jsonl
+```
