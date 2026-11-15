@@ -30,7 +30,7 @@ export interface DockBoardDto {
 }
 
 export const dockApi = {
-  /** Sem destino, a API abre no primeiro destino do dia; sem data, usa hoje. */
+  /** #72 Sem destino, a API abre no primeiro destino do dia; sem data, usa hoje. */
   board(destination: string | null, signal?: AbortSignal): Promise<DockBoardDto> {
     const query = destination ? `?destino=${encodeURIComponent(destination)}` : "";
     return apiGet<DockBoardDto>(`/api/doca${query}`, { signal });

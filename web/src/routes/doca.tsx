@@ -45,7 +45,7 @@ export default function Doca(_props: RouteProps) {
     (signal): Promise<DockBoardDto> => dockApi.board(destination, signal),
     (board) => board.rows.length === 0,
   );
-  // Trocar o destino carrega de novo: as duas mudanças entram no mesmo render, e o `useLoad` lê a carga nova.
+  // #72 Trocar o destino carrega de novo: as duas mudanças entram no mesmo render, e o `useLoad` lê a carga nova.
   const choose = (value: string) => {
     setDestination(value);
     retry();
