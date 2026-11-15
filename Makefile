@@ -10,6 +10,7 @@ export NODE_AUTH_TOKEN ?= $(shell gh auth token 2>/dev/null)
 check:
 	@python3 scripts/validar_bpmn.py $(BPMN)
 	@python3 -m unittest discover -s scripts -p '*_test.py'
+	@python3 -m unittest discover -s eval -p '*_test.py'
 	@npm --prefix api ci --no-audit --no-fund --loglevel=error
 	@npm --prefix api run typecheck
 	@npm --prefix api test

@@ -10,3 +10,38 @@ python3 eval/avaliar.py eval/saidas/propostas.jsonl --comparar eval/saidas/basel
 ```
 
 O `propostas.jsonl` tem uma linha por nota, com `nota_id`, `classificacao`, `acao_doca` e `encaminhamento`. Se a mesma nota aparecer mais de uma vez, vale a última. Os dados das notas vêm de `data/kit/`; o gabarito fica em `eval/gabarito/` e a aplicação nunca o lê.
+
+## Eval do auditor de notas (#239)
+
+Mede as auditorias que o agente auditor gravou (`record_audit`, #153) contra o gabarito das 80 notas. O comando lê só o arquivo de auditorias e o gabarito; não usa rede, banco nem a base do kit, e nada do código do agente lê o gabarito.
+
+```bash
+python3 eval/auditor.py auditorias.jsonl                  # a rodada em JSON, na saída padrão
+python3 eval/auditor.py auditorias.jsonl --formato md     # o relatório legível, em português
+```
+
+Opções para teste: `--gabarito <arquivo>` (padrão `eval/gabarito/gabarito.json`) e `--rodadas <pasta>` (padrão `eval/rodadas/`).
+
+### Formato de entrada
+
+`auditorias.jsonl` tem uma linha por nota auditada, ligada ao gabarito por `invoice_access_key` == `chave`. Se a mesma chave aparecer mais de uma vez, vale a última linha. Campos:
+
+- `invoice_access_key`, `classification` (`MATCH`, `E1` a `E8` ou `NAO_CATALOGADA`, que nunca é acerto), `dock_action` (`receber`, `receber_parcial`, `recusar`), `routing` (`regra`, `analista`, `coordenacao`, `diretoria`, `bloqueio`), `justification`, `amount_at_risk` (`{"cents": int}` ou `null`), `model`, `audited_at`;
+- `rule`: a proposta da regra para a mesma nota, a baseline sem IA, com `classification`, `dock_action` e `routing`;
+- `not_audited` (opcional): `{"reason": "..."}`; a nota conta como erro e entra em `errors[]` com o motivo;
+- `refusals` (opcional): lista de recusas do `record_audit`, cada uma com `refusal` igual a `routing_below_regua` ou `invalid_field`;
+- `prompt_version` (opcional).
+
+### Saída
+
+Por rodada: `run_id` (data e hora UTC mais um hash curto do arquivo), `model` e `prompt_version` (o valor único, ou a lista ordenada se variarem; `null` se ausentes), `full_match_rate` (classificação, ação na doca e encaminhamento iguais ao gabarito, sobre todas as notas do gabarito), `by_field`, `by_exception` (`match` e `E1` a `E8`: total e acertos por campo e completo), `routing_below_regua`, `first_try_routing_rate`, `errors[]` e `vs_baseline` (por exceção e no total, o acerto do agente contra o da regra). Nota do gabarito sem linha conta como erro; chave fora do gabarito entra em `errors[]` e não muda o denominador.
+
+Sem nenhuma linha com `refusals` no arquivo, `routing_below_regua` e `first_try_routing_rate` saem `null` ("não medido" no Markdown), nunca 0. Com `refusals`, o primeiro conta as recusas `routing_below_regua` e o segundo é a parcela das linhas auditadas sem recusa.
+
+Cada rodada é gravada em `eval/rodadas/<run_id>.json` (a pasta não vai para o git). Quando há uma rodada anterior, a saída traz `vs_previous` com a diferença de `full_match_rate`, de `by_field` e do acerto completo por exceção.
+
+### Códigos de saída
+
+- `0`: medido, e toda duplicidade (E6) do gabarito foi classificada como E6;
+- `1`: alguma E6 do gabarito não foi classificada E6 (inclusive sem auditoria ou não auditada), qualquer que seja o resto;
+- `2`: uso ou entrada inválidos (arquivo ilegível, linha que não é JSON ou sem `invoice_access_key`).
