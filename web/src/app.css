@@ -7,3 +7,7 @@
 }
 .pagar-screen { padding-bottom: 96px; }
 .pagar-body { display: grid; gap: var(--spacing-xl); min-width: 0; }
+
+/* #63 A proposta: os selos lado a lado e os blocos com o mesmo respiro da tela. */
+.pagar-proposal { display: grid; gap: var(--spacing-xl); padding: var(--spacing-lg); }
+.pagar-badges { display: flex; gap: var(--spacing-sm); flex-wrap: wrap; }

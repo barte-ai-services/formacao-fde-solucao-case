@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { act } from "react";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Frame } from "../src/App";
 import { navigate } from "../src/router";
 import { ROUTES } from "../src/routes";
@@ -10,7 +10,7 @@ import { fallbackContext } from "../src/shell/context";
 const EXPECTED: Record<string, { path: string; title: string; empty: string }> = {
   "/pagar/fila": { path: "/pagar/fila", title: "Fila de aprovação", empty: "Nenhuma proposta esperando você" },
   "/pagar/fila/:id": { path: "/pagar/fila/35261100", title: "Proposta da nota 35261100", empty: "Esta proposta ainda não chegou" },
-  "/pagar/hoje": { path: "/pagar/hoje", title: "Lista do dia", empty: "Nenhuma nota fiscal chegou hoje" },
+  "/pagar/hoje": { path: "/pagar/hoje", title: "Lista do dia", empty: "Nenhum título liberado hoje" },
   "/pagar/duplicadas": { path: "/pagar/duplicadas", title: "Notas duplicadas", empty: "Nenhuma nota duplicada neste mês" },
   "/pagar/valor-barrado": { path: "/pagar/valor-barrado", title: "Valor barrado", empty: "Nada barrado neste mês ainda" },
   "/doca": { path: "/doca", title: "Doca", empty: "Nenhuma nota com entrega prevista hoje" },
@@ -21,7 +21,19 @@ function renderAt(path: string) {
   return render(<Frame context={fallbackContext("aluna@barte.com")} />);
 }
 
+/** #63 A API vazia: a fila e a lista do dia sem itens, e nenhuma proposta (404). */
+function emptyApi(input: RequestInfo | URL): Promise<Response> {
+  const path = String(input);
+  if (path.startsWith("/api/propostas/")) return Promise.resolve(Response.json({ error: "not_found" }, { status: 404 }));
+  if (path === "/api/fila") return Promise.resolve(Response.json({ approver: { email: null, level: null }, items: [] }));
+  if (path === "/api/hoje") return Promise.resolve(Response.json({ day: "2026-11-15", items: [], total: { cents: 0 } }));
+  return Promise.resolve(Response.json({ error: "not_found" }, { status: 404 }));
+}
+
 describe("#60/AC-1 cada rota abre na moldura do Shell com o estado vazio", () => {
+  beforeEach(() => vi.stubGlobal("fetch", vi.fn(emptyApi)));
+  afterEach(() => vi.unstubAllGlobals());
+
   it("a tabela de rotas e a lista esperada são as mesmas", () => {
     expect(ROUTES.map((r) => r.path).sort()).toEqual(Object.keys(EXPECTED).sort());
   });
