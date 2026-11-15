@@ -10,6 +10,7 @@ import type {
   ApprovalLevel,
   Classification,
   DockAction,
+  DossierField,
   Evidence,
   EvidenceSource,
   ExceptionCode,
@@ -23,6 +24,7 @@ import type {
 export type {
   ApprovalLevel,
   Classification,
+  DossierField,
   Evidence,
   EvidenceSource,
   ExceptionCode,
@@ -106,6 +108,8 @@ export interface ProposalDto {
   amountAtRiskCents: Cents;
   justification: string;
   state: ProposalState;
+  /** #68: o dossiê do Claude, já conferido contra o banco; sem ele, o aviso de por quê (#38/AC-4). */
+  dossier: DossierField;
 }
 
 /** O título a pagar da nota, no contas a pagar. */

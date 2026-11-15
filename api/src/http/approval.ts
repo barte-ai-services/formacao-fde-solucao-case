@@ -9,11 +9,23 @@ import type { Money } from '../domain/money.js';
 import { Quantity, type Unit } from '../domain/quantity.js';
 import type { Env } from '../env.js';
 import type { Identity } from './access.js';
+import type { CheckContext } from '../domain/index.js';
+import { dossierField } from '../dossier/proposal-field.js';
+import { readDossier } from '../dossier/read-dossier.js';
+import type { DossierSource } from '../dossier/source.js';
 
 export interface ApprovalDeps {
   store: ApprovalStore;
   /** O dia de hoje em Brasília (AAAA-MM-DD). Injetável para os testes. */
   today?: () => string;
+  /** #68: de onde a proposta lê o dossiê do Claude. Sem ele, o dossiê aparece pendente. */
+  dossier?: DossierDeps;
+}
+
+/** #68: a fonte do dossiê e o contexto da nota, para conferir os números contra o banco. */
+export interface DossierDeps {
+  source: DossierSource;
+  context: (invoiceAccessKey: string) => Promise<CheckContext>;
 }
 
 const PROPOSAL_PATH = /^\/api\/propostas\/([^/]+)(?:\/(aprovar|alterar))?$/;
@@ -55,7 +67,7 @@ export async function approvalRoutes(
     return error(400, 'chave_invalida');
   }
   const action = match[2];
-  if (!action) return only(request, 'GET', () => proposalDetail(deps.store, key, identity, directory));
+  if (!action) return only(request, 'GET', () => proposalDetail(deps.store, key, identity, directory, deps.dossier));
   return only(request, 'POST', () => decide(request, deps.store, key, action, identity, directory, today()));
 }
 
@@ -109,9 +121,14 @@ async function proposalDetail(
   key: string,
   identity: Identity,
   directory: ApproverDirectory,
+  dossier?: DossierDeps,
 ): Promise<Response> {
   const file = await store.find(key);
   if (!file) return error(404, 'not_found');
+  // #68: o dossiê é conferido contra o banco na hora de mostrar; sem fonte, fica pendente.
+  const result = dossier
+    ? await readDossier({ invoiceAccessKey: key, invoice: file.invoice, ctx: await dossier.context(key), source: dossier.source })
+    : null;
   return Response.json({
     ...summary(file, directory(identity.email)),
     justification: file.proposal.justification,
@@ -130,6 +147,7 @@ async function proposalDetail(
     })),
     title: { state: file.title.state, amount: money(file.title.amount), dueOn: file.title.dueOn },
     approval: file.approval,
+    dossier: dossierField(result),
   });
 }
 

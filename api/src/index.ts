@@ -5,6 +5,9 @@ import { route, type RouterDeps } from "./http/router";
 import { MemoryApprovalStore } from "./approval/store";
 import { SupabaseApprovalStore } from "./approval/supabase-store";
 import { SupabaseRest } from "./connectors/supabase-rest";
+import { supabaseConnectors } from "./connectors/supabase-connectors";
+import { loadDossierContext } from "./dossier/context";
+import { SupabaseDossierSource } from "./dossier/source";
 
 /** Monta o Worker com as dependências dadas. Os testes injetam um verificador sem rede (#54). */
 export function createWorker(deps: RouterDeps) {
@@ -24,7 +27,16 @@ function approvalDeps(env: Env) {
   const url = env.BARTE_ACADEMY_SUPABASE_URL;
   const secretKey = env.BARTE_ACADEMY_SUPABASE_SECRET_KEY;
   if (!url || !secretKey) return { store: new MemoryApprovalStore() };
-  return { store: new SupabaseApprovalStore(new SupabaseRest({ url, secretKey })) };
+  const rest = new SupabaseRest({ url, secretKey });
+  const { captureDeps } = supabaseConnectors(rest);
+  return {
+    store: new SupabaseApprovalStore(rest),
+    // #68: o dossiê que o job do Claude gravou, conferido contra o contexto da nota.
+    dossier: {
+      source: new SupabaseDossierSource(rest),
+      context: (key: string) => loadDossierContext(captureDeps, key),
+    },
+  };
 }
 
 export default createWorker({
