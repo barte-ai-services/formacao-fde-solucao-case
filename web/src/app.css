@@ -114,11 +114,11 @@ table [class*="StatusBadge-module__label"] {
 .pagar-automation-band__icon { display: flex; width: var(--sizes-md); height: var(--sizes-md); }
 .pagar-automation-band__icon svg { width: 100%; height: 100%; }
 .pagar-automation-band__text { display: flex; flex-direction: column; gap: var(--spacing-2xs); min-width: 0; }
-.pagar-automation-band__title { font-weight: 500; color: var(--content-primary); }
+.pagar-automation-band__title { font-weight: var(--typography-body-sm-fontWeight); color: var(--content-primary); }
 .pagar-automation-band__figures {
   font-size: var(--typography-body-xs-fontSize);
   line-height: var(--typography-body-xs-lineHeight);
-  font-weight: 400;
+  font-weight: var(--typography-caption-sm-fontWeight);
   color: var(--content-tertiary);
 }
 /* O "Ver rodadas" é o Button link do kit; sem respiro lateral, para alinhar ao texto, e a seta a --spacing-xs do rótulo. */
@@ -129,7 +129,7 @@ table [class*="StatusBadge-module__label"] {
 .pagar-automation-band[data-tone="warning"] .pagar-automation-band__icon { color: var(--accent-orange); }
 .pagar-automation-band[data-tone="error"] { background: var(--accent-red-light); }
 .pagar-automation-band[data-tone="error"] .pagar-automation-band__icon { color: var(--accent-red); }
-.pagar-automation-band[data-tone="error"] .pagar-automation-band__title { font-weight: 600; }
+.pagar-automation-band[data-tone="error"] .pagar-automation-band__title { font-weight: var(--typography-label-sm-fontWeight); }
 .pagar-automation-band[data-tone="neutral"] { background: var(--bg-primary); }
 .pagar-automation-band[data-tone="neutral"] .pagar-automation-band__icon { color: var(--content-tertiary); }
 .pagar-automation-band[data-tone="neutral"] .pagar-automation-band__title { color: var(--content-secondary); }
@@ -151,7 +151,7 @@ table [class*="StatusBadge-module__label"] {
     grid-template-areas: "i t" ". a";
     row-gap: var(--spacing-xs);
     align-items: start;
-    margin: var(--spacing-md) var(--spacing-lg) 0;
+    margin: var(--spacing-md) var(--spacing-md) 0;
   }
   .pagar-automation-band__icon { grid-area: i; }
   .pagar-automation-band__text { grid-area: t; }

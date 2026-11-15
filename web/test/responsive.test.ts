@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -37,6 +37,18 @@ describe("#222 #242 a faixa de automação empilha no celular", () => {
     const rules = css.match(/\.pagar-automation-band[^{]*\{[^}]*\}/g) ?? [];
     expect(rules.length).toBeGreaterThan(0);
     for (const rule of rules) expect(rule).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/);
+  });
+  it("todo var(--...) e todo peso de fonte da faixa vêm de token definido no CSS do kit", () => {
+    const kit = readdirSync(resolve(process.cwd(), "node_modules/barte-design-system/dist"))
+      .filter((f) => f.endsWith(".css"))
+      .map((f) => readFileSync(resolve(process.cwd(), "node_modules/barte-design-system/dist", f), "utf8"))
+      .join("\n");
+    const defined = new Set([...kit.matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]));
+    const rules = (css.match(/\.pagar-automation-band[^{]*\{[^}]*\}/g) ?? []).join("\n");
+    const used = [...rules.matchAll(/var\((--[\w-]+)/g)].map((m) => m[1]!);
+    expect(used.length).toBeGreaterThan(0);
+    expect(used.filter((v) => !defined.has(v))).toEqual([]);
+    expect(rules).not.toMatch(/font-weight:\s*\d/);
   });
 });
 

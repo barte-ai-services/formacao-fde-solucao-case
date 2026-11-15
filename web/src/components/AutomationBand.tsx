@@ -1,6 +1,6 @@
 // #211 AC-2 e #242 A faixa de automação, no topo de todas as telas: a última rodada, a próxima e o que ela fez.
-// Informativa (azul) quando está ok, aviso (laranja) quando a última falhou, alerta (vermelha) quando está parada,
-// neutra quando ainda não rodou. Só tokens da barte-design-system; o ícone muda de forma para o tom não depender só da cor.
+// #242 Informativa (azul) quando está ok, aviso (laranja) quando a última falhou, alerta (vermelha) quando está parada,
+// #242 neutra quando ainda não rodou. Só tokens da barte-design-system; o ícone muda de forma para o tom não depender só da cor.
 import { useState } from "react";
 import { CaretRight, Hourglass, Info, Warning, WarningOctagon } from "@phosphor-icons/react";
 import { Button, Drawer, Icon, Table } from "barte-design-system";
