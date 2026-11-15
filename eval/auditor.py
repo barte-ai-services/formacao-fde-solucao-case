@@ -32,6 +32,10 @@ EXIT_USAGE = 2
 class InvalidInput(ValueError):
     """O arquivo de auditorias ou o gabarito não tem o formato esperado."""
 
+    def __init__(self, why: str) -> None:
+        super().__init__(why)
+        self.why = why
+
 
 def normalize(classification_value: Json) -> Json:
     return "match" if classification_value == "MATCH" else classification_value
@@ -46,7 +50,7 @@ def parse_lines(text: str) -> list[Record]:
         try:
             obj = json.loads(raw)
         except json.JSONDecodeError as error:
-            raise InvalidInput(f"linha {number}: JSON inválido ({error.msg})") from error
+            raise InvalidInput(f"linha {number}: JSON inválido") from error
         if not isinstance(obj, dict):
             raise InvalidInput(f"linha {number}: falta `invoice_access_key`")
         _check_line_shape(obj, number)
@@ -331,7 +335,7 @@ def _read_answer_key(path: Path) -> list[Record]:
     try:
         answer_key = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
-        raise InvalidInput(f"gabarito ilegível: {path}") from error
+        raise InvalidInput("gabarito ilegível") from error
     if not isinstance(answer_key, list) or not all(_valid_note(n) for n in answer_key):
         raise InvalidInput("gabarito deve ser lista de notas com `chave`, `classificacao`, `acao_doca` e `encaminhamento`")
     return answer_key
@@ -360,8 +364,12 @@ def _execute(args: argparse.Namespace, now: datetime) -> Record:
     try:
         content = args.audits.read_bytes()
     except OSError as error:
-        raise InvalidInput(f"auditorias ilegíveis: {args.audits}") from error
-    run = measure(parse_lines(content.decode("utf-8")), _read_answer_key(args.answer_key))
+        raise InvalidInput("auditorias ilegíveis") from error
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise InvalidInput("auditorias não estão em UTF-8") from error
+    run = measure(parse_lines(text), _read_answer_key(args.answer_key))
     run = {"run_id": make_run_id(now, content), **run}
     previous = previous_run(args.runs_dir, run["run_id"])
     if previous is not None:
@@ -387,8 +395,8 @@ def main(argv: list[str] | None = None, now: Callable[[], datetime] | None = Non
         return exit_status.code if isinstance(exit_status.code, int) else EXIT_USAGE
     try:
         run = _execute(args, (now or (lambda: datetime.now(timezone.utc)))())
-    except (InvalidInput, UnicodeDecodeError) as error:
-        print(f"erro: {error}", file=sys.stderr)
+    except InvalidInput as error:
+        print(f"erro: {error.why}", file=sys.stderr)
         return EXIT_USAGE
     if args.format == "md":
         print(markdown_report(run, run.get("vs_previous")))

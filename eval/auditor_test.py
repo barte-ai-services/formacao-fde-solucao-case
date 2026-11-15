@@ -337,6 +337,15 @@ class MalformedInputTest(unittest.TestCase):
         lines[0].update(field)
         return lines
 
+    def test_ac1_audits_not_utf8_exits_two_with_fixed_message(self) -> None:
+        """#239/AC-1: auditorias com byte fora de UTF-8 saem 2, com mensagem fixa."""
+        audits = self.folder / "auditorias.jsonl"
+        audits.write_bytes(b'{"invoice_access_key": "\xff"}\n')
+        argv = [str(audits), "--answer-key", str(self.key_file), "--runs-dir", str(self.runs_dir)]
+        result = run_cli(argv)
+        self.assert_invalid(result)
+        self.assertEqual(result[2], "erro: auditorias não estão em UTF-8\n")
+
     def test_ac1_not_audited_not_an_object_exits_two(self) -> None:
         """#239/AC-1: `not_audited` que não é objeto sai 2."""
         self.assert_invalid(self.exit_of(self.with_field(not_audited=True)))
