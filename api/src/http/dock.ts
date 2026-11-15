@@ -11,9 +11,9 @@ import { supabaseDockSource } from "../dock/dock-source";
 import type { Env } from "../env";
 
 export interface DockDeps {
-  /** Monta o cliente do Supabase a partir do Env; nulo sem credenciais. Os testes injetam um fake. */
+  /** Monta o cliente do Supabase a partir do Env; nulo sem credenciais. Os testes injetam um fake (#72). */
   supabase?: (env: Env) => SupabaseRest | null;
-  /** Hoje, em AAAA-MM-DD. */
+  /** Hoje, em AAAA-MM-DD (#72). */
   today?: () => string;
 }
 
@@ -33,7 +33,7 @@ export function todayInSaoPaulo(now: Date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 
-/** AAAA-MM-DD de um dia que existe no calendário. */
+/** AAAA-MM-DD de um dia que existe no calendário (#72). */
 function isCalendarDate(value: string): boolean {
   if (!DATE.test(value)) return false;
   const parsed = new Date(`${value}T00:00:00Z`);
@@ -42,7 +42,7 @@ function isCalendarDate(value: string): boolean {
 
 /**
  * Registra a falha do Supabase com a operação, a tabela e o status. O detalhe fica de fora, porque
- * traz o corpo da resposta; e nada disso sai para quem chamou.
+ * traz o corpo da resposta; e nada disso sai para quem chamou (#72).
  */
 function logFailure(error: unknown): null {
   const summary =

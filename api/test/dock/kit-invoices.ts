@@ -2,26 +2,26 @@
 import { readFileSync } from 'node:fs';
 
 type KitItem = {
-  codigo_fornecedor: string;
-  sku: string | null;
-  descricao: string;
-  quantidade: number;
-  unidade: 'UN' | 'CX';
-  preco_unitario: number;
-  valor: number;
+  codigo_fornecedor: string; // ADR-001
+  sku: string | null; // ADR-001
+  descricao: string; // ADR-001
+  quantidade: number; // ADR-001
+  unidade: 'UN' | 'CX'; // ADR-001
+  preco_unitario: number; // ADR-001
+  valor: number; // ADR-001
 };
 
 type KitNote = {
-  chave: string;
-  numero: number;
-  serie: number;
-  fornecedor_id: string;
-  destino: string;
-  data_emissao: string;
-  pedido_referenciado: string | null;
-  canal_entrada: string;
-  itens: KitItem[];
-  valor_total: number;
+  chave: string; // ADR-001
+  numero: number; // ADR-001
+  serie: number; // ADR-001
+  fornecedor_id: string; // ADR-001
+  destino: string; // ADR-001
+  data_emissao: string; // ADR-001
+  pedido_referenciado: string | null; // ADR-001
+  canal_entrada: string; // ADR-001
+  itens: KitItem[]; // ADR-001
+  valor_total: number; // ADR-001
 };
 
 export function kitNotes(): KitNote[] {

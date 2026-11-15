@@ -42,17 +42,21 @@ type Body = {
   rows: { invoiceAccessKey: string; status: { kind: string; action?: { kind: string; lines?: unknown[] } } }[];
 };
 
-// #72 Espelho do `DockActionDto` de `web/src/api/contract.ts`: o tsconfig da API não enxerga `web/`,
-// então o formato é repetido aqui com os mesmos tipos do domínio. Este espelho guarda a API: se a
-// doca mudar o fio, o typecheck e o teste abaixo quebram. Uma mudança só no `contract.ts` não é vista aqui.
+/*
+ * #72 Espelho do `DockActionDto` de `web/src/api/contract.ts`: o tsconfig da API não enxerga `web/`,
+ * então o formato é repetido aqui com os mesmos tipos do domínio. Este espelho guarda a API: se a
+ * doca mudar o fio, o typecheck e o teste abaixo quebram. Uma mudança só no `contract.ts` não é vista aqui.
+ */
 type QuantityDto = { amount: number; unit: Unit };
 type PartialLineDto = { sku: string; quantity: QuantityDto; disposition: PartialLine['disposition'] };
 type DockActionDto = { kind: 'receber' | 'recusar' } | { kind: 'receber_parcial'; lines: PartialLineDto[] };
 
-// Checagem de tipo, feita pelo `tsc` no `make check`: a ação que a doca serializa é exatamente o
-// `DockActionDto`, nos dois sentidos da atribuição. Limite conhecido: um campo opcional a mais de um
-// dos lados passa; a igualdade estrita não serve porque o domínio separa `receber` e `recusar` em dois
-// membros da união, e o contrato junta os dois num só.
+/*
+ * #72 Checagem de tipo, feita pelo `tsc` no `make check`: a ação que a doca serializa é exatamente o
+ * `DockActionDto`, nos dois sentidos da atribuição. Limite conhecido: um campo opcional a mais de um
+ * dos lados passa; a igualdade estrita não serve porque o domínio separa `receber` e `recusar` em dois
+ * membros da união, e o contrato junta os dois num só.
+ */
 type Mutable<T> = { -readonly [K in keyof T]: T[K] extends readonly (infer U)[] ? Mutable<U>[] : T[K] extends object ? Mutable<T[K]> : T[K] };
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 const viewIsDto: Same<Mutable<DockActionView>, DockActionDto> = true;
@@ -61,7 +65,7 @@ void viewIsDto;
 const UNITS: readonly unknown[] = ['UN', 'CX'] satisfies Unit[];
 const DISPOSITIONS: readonly unknown[] = ['segurar', 'devolver'] satisfies PartialLine['disposition'][];
 
-/** Checagem estrutural do JSON: o valor tem exatamente o formato de um `DockActionDto`. */
+/** Checagem estrutural do JSON: o valor tem exatamente o formato de um `DockActionDto` (#72). */
 function isDockActionDto(value: unknown): value is DockActionDto {
   if (typeof value !== 'object' || value === null) return false;
   const v = value as Record<string, unknown>;

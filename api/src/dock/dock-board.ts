@@ -60,7 +60,7 @@ export type DockBoard = {
 export type DockBoardInput = {
   readonly invoices: readonly DockInvoice[];
   readonly published: readonly Published<DockActionMessage>[];
-  /** Nulo: o primeiro destino do dia. */
+  /** Nulo: o primeiro destino do dia (#72). */
   readonly destination: string | null;
   readonly date: string;
 };
