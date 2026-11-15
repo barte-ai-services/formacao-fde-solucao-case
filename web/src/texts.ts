@@ -26,9 +26,9 @@ export const texts = {
         "Quando uma nota cobrar uma compra já cobrada, ela aparece aqui ao lado da original, com o título bloqueado.",
     },
     valorBarrado: {
-      title: "Nada barrado neste mês ainda",
+      title: "Nada evitado neste mês ainda",
       description: (baseline: string) =>
-        `A linha de base é ${baseline} por mês. O valor barrado aparece aqui assim que a primeira proposta for aprovada.`,
+        `A perda mensal hoje é ${baseline}. O valor evitado aparece aqui assim que a primeira proposta for aprovada.`,
     },
     recebimento: {
       title: (noun: string) => `Nenhuma nota na ${noun} hoje`,
@@ -86,18 +86,18 @@ export const texts = {
   fila: {
     title: "Fila de aprovação",
     subtitle:
-      "As propostas do agente que esperam uma pessoa decidir. O nível mais alto e o maior valor em risco vêm primeiro.",
+      "Notas que esperam a sua decisão, da mais urgente para a menos.",
     loading: "Carregando a fila…",
     error: "Não consegui ler a fila de aprovação agora",
-    empty: "Nenhuma proposta esperando você. As novas aparecem aqui assim que o agente conferir a nota.",
+    empty: "Nenhuma proposta espera a sua decisão.",
     statWaiting: { caption: "Aguardando aprovação", context: "propostas na fila" },
     statRisk: { caption: "Valor em risco na fila", context: "se pagas como vieram" },
     statBlocked: { caption: "Bloqueadas por duplicidade", context: "ninguém paga até resolver" },
     tableEmpty: "Nenhuma proposta na fila.",
     columns: {
       invoice: "Nota fiscal",
-      classification: "Divergência",
-      action: "Ação na doca",
+      classification: "Exceção",
+      action: "Ação no recebimento",
       level: "Nível",
       risk: "Valor em risco",
       forwardedTo: "Encaminhada a",
@@ -115,32 +115,30 @@ export const texts = {
 
   listaDoDia: {
     title: "Lista do dia",
-    subtitle: (day: string) =>
-      `Os títulos liberados para pagar em ${day}: pela regra, sem pessoa, ou por quem aprovou a proposta.`,
-    today: "hoje",
+    subtitle: "Títulos conferidos que podem ser pagos hoje.",
     loading: "Carregando a lista do dia…",
     error: "Não consegui ler a lista do dia agora",
-    empty: "Nenhum título liberado hoje. Eles aparecem aqui quando a regra ou uma pessoa aprova a proposta.",
+    empty: "Nenhum título para pagar hoje.",
     statTitles: { caption: "Títulos na lista", context: "liberados hoje" },
     statToPay: { caption: "A pagar", context: "soma dos títulos" },
     statByRule: { caption: "Liberados pela regra", context: "sem pessoa" },
     tableEmpty: "Nenhum título.",
-    columns: { invoice: "Nota fiscal", action: "Ação na doca", approver: "Aprovado por", amount: "A pagar" },
+    columns: { invoice: "Nota fiscal", action: "Ação no recebimento", approver: "Aprovado por", amount: "A pagar" },
     rule: "Regra",
   },
 
   proposta: {
     title: (numberOrId: string) => `Proposta da nota ${numberOrId}`,
-    subtitle: "A ação na doca proposta pelo agente, a evidência por divergência e a sua decisão.",
+    subtitle: "A ação no recebimento proposta, a evidência de cada divergência e a sua decisão.",
     loading: "Carregando a proposta…",
     error: "Não consegui ler esta proposta agora",
-    empty: "Esta proposta ainda não chegou. Ela aparece aqui assim que o agente conferir a nota.",
+    empty: "Esta nota ainda não tem proposta.",
   },
 
   doca: {
     title: "Doca",
     subtitle:
-      "As notas que chegam hoje neste destino e o que fazer com cada caminhão. Nada é descarregado antes da decisão.",
+      "Notas que chegam hoje neste destino e o que fazer com cada caminhão. Nada é descarregado antes da decisão.",
     noun: "doca",
     emptyIn: (shown: string | null) =>
       `Nenhuma nota com entrega prevista hoje ${shown ? `na ${shown}` : "neste destino"}.`,
@@ -155,7 +153,7 @@ export const texts = {
   recebimentoLoja: {
     title: "Recebimento na loja",
     subtitle:
-      "As notas que chegam hoje nesta loja e a ação que o app da loja recebeu para cada uma. Nada é recebido antes da decisão.",
+      "Notas que chegam hoje nesta loja e a ação que o app da loja recebeu para cada uma. Nada é recebido antes da decisão.",
     noun: "loja",
     emptyIn: (shown: string | null) =>
       `Nenhuma nota com entrega prevista hoje ${shown ? `na ${shown}` : "nesta loja"}.`,
@@ -181,47 +179,57 @@ export const texts = {
     quantityOf: (quantity: string, sku: string) => `${quantity} de ${sku}`,
   },
 
+  /** #125: o painel do pagamento errado evitado, na linguagem do glossário e do CFO. */
   valorBarrado: {
-    title: "Valor barrado",
-    subtitle:
-      "Quanto a conferência impediu de pagar errado neste mês, contra os R$ 543 mil por mês que a Já Chegou pagava sem a mercadoria.",
-    loading: "Somando o valor barrado…",
-    error: "Não consegui somar o valor barrado agora",
-    empty: "Nada barrado neste mês ainda. O valor aparece aqui assim que a primeira proposta for aprovada.",
-    statBarred: { caption: (month: string) => `Barrado em ${month}`, context: "propostas aprovadas" },
-    statAgainst: {
-      caption: "Contra o pagar errado",
-      context: (baseline: string, withAll: string) => `de ${baseline} por mês; ${withAll} com tudo aprovado`,
+    title: "Pagamento errado evitado",
+    subtitle: "O que foi evitado no mês, contra a perda de R$ 543 mil por mês.",
+    loading: "Somando o pagamento errado evitado…",
+    error: "Não consegui somar o pagamento errado evitado agora",
+    empty: "Nada evitado neste mês ainda. O valor aparece aqui assim que a primeira proposta for aprovada.",
+    statAvoided: {
+      caption: (month: string) => `Evitado em ${month}`,
+      context: (share: string) => `${share} da perda mensal, em propostas aprovadas que recusam ou recebem parcial`,
     },
-    statWaiting: { caption: "Ainda em risco", context: "aguardando aprovação" },
-    monthPanel: (baseline: string) => `O mês contra os ${baseline}`,
+    statLoss: {
+      caption: "Perda mensal hoje",
+      context: "pago sem mercadoria correspondente, menos o recuperado (P1)",
+    },
+    statDeciding: {
+      caption: "Em decisão",
+      context: (share: string) => `${share} da perda mensal, em propostas aguardando aprovação`,
+    },
+    statDouble: {
+      caption: "Pagamento em dobro evitado",
+      context: "duplicidade e pago fora do fluxo, fora da comparação com a perda mensal",
+      decidingExtra: (amount: string) => `; mais ${amount} em decisão`,
+    },
+    monthPanel: (baseline: string) => `O mês contra a perda de ${baseline}`,
     progressValue: (sum: string, baseline: string) => `${sum} de ${baseline}`,
-    segmentBarred: "Barrado",
-    segmentWaiting: "Aguardando aprovação",
+    segmentAvoided: "Evitado",
+    segmentDeciding: "Em decisão",
     cumulativePanel: "Acumulado no mês",
-    seriesBarred: "Barrado (aprovado)",
-    seriesProposed: "Proposto, aguardando aprovação",
-    seriesBaseline: (baseline: string) => `${baseline} por mês`,
+    seriesAvoided: "Valor em risco, aprovado",
+    seriesDeciding: "Valor em risco, em decisão",
     axisThousands: (n: number) => `${n} mil`,
-    chartLabel: (baseline: string) => `Valor barrado acumulado por dia, contra ${baseline}`,
-    rankingPanel: "Valor em risco por tipo de divergência",
+    chartLabel: "Valor em risco acumulado por dia, com duplicidade e pago fora do fluxo",
+    rankingPanel: "Valor em risco por exceção",
   },
 
   duplicadas: {
     title: "Notas duplicadas",
     subtitle:
-      "Cada nota que cobra uma compra já cobrada, ao lado da original. O título fica bloqueado: ninguém paga até a coordenação resolver.",
+      "Notas que cobram uma compra já cobrada, ao lado da original. O título fica bloqueado até a coordenação resolver.",
     loading: "Procurando duplicidades…",
     error: "Não consegui ler as duplicidades agora",
-    empty: "Nenhuma nota duplicada neste mês. Quando uma nota cobrar uma compra já cobrada, ela aparece aqui, bloqueada.",
-    statDuplicates: { caption: "Duplicadas", context: "notas barradas" },
-    statBlocked: { caption: "Valor barrado", context: "não pago duas vezes" },
+    empty: "Nenhuma nota duplicada neste mês.",
+    statDuplicates: { caption: "Duplicadas", context: "notas bloqueadas" },
+    statBlocked: { caption: "Pagamento em dobro evitado", context: "não pago duas vezes" },
     statWhy: { caption: "Por quê", context: "título já lançado · ordem sem saldo" },
     columns: {
       duplicate: "Nota duplicada",
       original: "Nota original",
       reason: "Por quê",
-      blocked: "Valor barrado",
+      blocked: "Valor evitado",
       title: "Título",
     },
     openInvoice: (number: string) => `Abrir a nota ${number}`,
@@ -253,17 +261,17 @@ export const texts = {
       newInvoice: "nota nova",
       title: "Título",
     },
-    detail: { why: "Por quê", supplier: "Fornecedor", issued: "Emissão", blocked: "Valor barrado" },
+    detail: { why: "Por quê", supplier: "Fornecedor", issued: "Emissão", blocked: "Valor evitado" },
   },
 
   devolucoes: {
     title: "Notas de devolução",
     subtitle:
-      "As devoluções que o fiscal precisa emitir no ERP. Marque como emitida com o número da NF-e de devolução; o motivo mostra de qual exceção veio cada uma.",
+      "Devoluções que o fiscal emite no ERP. Marque como emitida com o número da NF-e de devolução.",
     loading: "Carregando as notas de devolução…",
     error: "Não consegui ler as notas de devolução agora",
     emptyPending:
-      "Nenhuma devolução pendente de emissão. As novas aparecem aqui quando uma proposta de receber parcial for aprovada.",
+      "Nenhuma devolução pendente de emissão.",
     emptyOther: "Nenhuma nota neste estado.",
     status: {
       pendente: "Pendentes de emissão",
@@ -329,7 +337,7 @@ export const texts = {
     },
     level: (label: string) => `Nível ${label}`,
     rows: {
-      action: "Ação na doca proposta",
+      action: "Ação no recebimento proposta",
       risk: "Valor em risco",
       total: "Valor da nota",
       why: "Por que este nível",

@@ -15,7 +15,7 @@ export const NAVIGATION: NavGroup[] = [
       { key: "fila", label: "Fila de aprovação", href: "/pagar/fila", zone: ZONE, icon: "list-checks" },
       { key: "hoje", label: "Lista do dia", href: "/pagar/hoje", zone: ZONE, icon: "calendar" },
       { key: "duplicadas", label: "Notas duplicadas", href: "/pagar/duplicadas", zone: ZONE, icon: "receipt" },
-      { key: "barrado", label: "Valor barrado", href: "/pagar/valor-barrado", zone: ZONE, icon: "chart-bar" },
+      { key: "barrado", label: "Pagamento errado evitado", href: "/pagar/valor-barrado", zone: ZONE, icon: "chart-bar" },
     ],
   },
   {

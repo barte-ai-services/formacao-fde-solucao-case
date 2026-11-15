@@ -8,11 +8,11 @@ import { fallbackContext } from "../src/shell/context";
 
 /** Um caminho de exemplo para cada rota da tabela, com o título e o texto vazio esperados. */
 const EXPECTED: Record<string, { path: string; title: string; empty: string }> = {
-  "/pagar/fila": { path: "/pagar/fila", title: "Fila de aprovação", empty: "Nenhuma proposta esperando você" },
-  "/pagar/fila/:id": { path: "/pagar/fila/35261100", title: "Proposta da nota 35261100", empty: "Esta proposta ainda não chegou" },
-  "/pagar/hoje": { path: "/pagar/hoje", title: "Lista do dia", empty: "Nenhum título liberado hoje" },
+  "/pagar/fila": { path: "/pagar/fila", title: "Fila de aprovação", empty: "Nenhuma proposta espera a sua decisão" },
+  "/pagar/fila/:id": { path: "/pagar/fila/35261100", title: "Proposta da nota 35261100", empty: "Esta nota ainda não tem proposta" },
+  "/pagar/hoje": { path: "/pagar/hoje", title: "Lista do dia", empty: "Nenhum título para pagar hoje" },
   "/pagar/duplicadas": { path: "/pagar/duplicadas", title: "Notas duplicadas", empty: "Nenhuma nota duplicada neste mês" },
-  "/pagar/valor-barrado": { path: "/pagar/valor-barrado", title: "Valor barrado", empty: "Nada barrado neste mês ainda" },
+  "/pagar/valor-barrado": { path: "/pagar/valor-barrado", title: "Pagamento errado evitado", empty: "Nada evitado neste mês ainda" },
   "/doca": { path: "/doca", title: "Doca", empty: "Nenhuma nota com entrega prevista hoje" },
   "/devolucoes": { path: "/devolucoes", title: "Notas de devolução", empty: "Nenhuma devolução pendente de emissão" },
   "/recebimento/loja": { path: "/recebimento/loja", title: "Recebimento na loja", empty: "Nenhuma nota com entrega prevista hoje" },

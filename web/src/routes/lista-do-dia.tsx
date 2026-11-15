@@ -7,7 +7,6 @@ import { useLoad } from "../components/useLoad";
 import type { RouteProps } from "./types";
 import { texts } from "../texts";
 
-const DAY = new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long", timeZone: "UTC" });
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
 type Row = TodayDto["items"][number];
@@ -23,11 +22,10 @@ export default function ListaDoDia(_props: RouteProps) {
   );
   const items = data?.items ?? [];
   const byRule = items.filter((i) => i.approver === "regra").length;
-  const day = data ? DAY.format(new Date(`${data.day}T00:00:00Z`)) : texts.listaDoDia.today;
   return (
     <Screen
       title={texts.listaDoDia.title}
-      subtitle={texts.listaDoDia.subtitle(day)}
+      subtitle={texts.listaDoDia.subtitle}
       state={state}
       onRetry={retry}
       loadingLabel={texts.listaDoDia.loading}

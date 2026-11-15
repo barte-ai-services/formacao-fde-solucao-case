@@ -54,6 +54,10 @@ O briefing pede exatamente isto: anotar os "termos que cada cargo usa com sentid
 | **Nota sem ordem** (`E5`) | Nota que não cobra nenhuma ordem de compra. | Exceção 5: "Nota sem ordem \| — \| nota \| recebido \| Ninguém sabe quem comprou"; "Notas sem ordem de compra: Cerca de 4%" | |
 | **Valor em risco** (`AmountAtRisk`) | Quanto a Já Chegou pagaria a mais se a nota fosse paga como veio. | A tool `registrar_proposta` do MCP do kit: "quanto a Já Chegou pagaria a mais se a nota passasse como veio". Liga-se ao P1: "Pago sem mercadoria correspondente, menos o recuperado" | |
 | **Pagar errado** (P1) | Pagar por mercadoria que não chegou ou que não foi pedida. É a perda que o projeto move. | Briefing: "Pagar por mercadoria que não chegou ou que não foi pedida"; dossiê: "R$ 543 mil" por mês | |
+| **Perda mensal** (P1) | O que a Já Chegou paga errado por mês hoje: pago sem mercadoria correspondente, menos o recuperado. São os R$ 543 mil. | Dossiê: "R$ 543 mil" por mês | |
+| **Pagamento errado evitado** (#125) | O valor em risco das propostas aprovadas que recusam ou recebem parcial, sem E6 e E7. Compara-se com a perda mensal. Na tela, **Evitado**. | Liga o valor em risco ao P1 | Proibido: "valor barrado", "barrado" |
+| **Em decisão** (#125) | O valor em risco das propostas que aguardam aprovação, sem E6 e E7. Um termo só para o que antes era "proposto, aguardando aprovação" e "ainda em risco". | Estado **aguardando aprovação** da proposta | Proibido: "ainda em risco" |
+| **Pagamento em dobro evitado** (#125) | O valor em risco das propostas de duplicidade (E6) e de pago fora do fluxo (E7). É pagar duas vezes, e não pagar sem mercadoria, por isso fica numa linha separada e fora da comparação com a perda mensal. | Exceções 6 e 7 do Anexo 4: "Paga duas vezes" | |
 
 ## O recebimento
 
@@ -125,7 +129,9 @@ O dossiê não decide estas questões.
    filtrada pela loja. Nenhum texto chama de doca o recebimento da loja.
 4. **O degrau de R$ 20 mil.** O dossiê dá R$ 5 mil e R$ 100 mil; R$ 20 mil só aparece nos limites
    de aprovação da base do kit. É o limite validado com a Já Chegou?
-5. **Valor em risco × P1.** O P1 é "pago sem mercadoria correspondente, menos o recuperado". O valor
-   em risco de uma nota soma no P1 só quando a nota é paga mesmo assim?
+5. **Valor em risco × P1.** *Respondida (#125).* O P1 é "pago sem mercadoria correspondente, menos
+   o recuperado". O valor em risco soma na comparação com a perda mensal só nas exceções que o P1
+   cobre. A duplicidade (E6) e o pago fora do fluxo (E7) são pagar duas vezes, e aparecem numa linha
+   separada, **pagamento em dobro evitado**, fora da comparação com os R$ 543 mil.
 6. **Duplicidade por boleto.** O dossiê fala em "duas notas ou dois boletos". O segundo boleto da
    mesma nota é duplicidade de pagamento, e não de nota. Entra na 1ª entrega?

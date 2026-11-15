@@ -116,15 +116,24 @@ function isEmpty(panel: BarredAmountDto): boolean {
   return panel.barred.totalCents === 0 && panel.ifApprovedAsProposed.totalCents === 0;
 }
 
+/** #125 pergunta 5: duplicidade (E6) e pago fora do fluxo (E7) são pagar duas vezes, e não pagar sem mercadoria (P1). */
+const DOUBLE_PAYMENT: readonly DivergenceCode[] = ["E6", "E7"];
+
+/** #125: a parte de um painel que é pagamento em dobro, em centavos. */
+export function doublePaymentCents(breakdown: BarredBreakdownDto): number {
+  return breakdown.byException.filter((e) => DOUBLE_PAYMENT.includes(e.classification)).reduce((sum, e) => sum + e.cents, 0);
+}
+
 function BarredAmountView({ panel }: { panel: BarredAmountDto }): ReactElement {
-  const barred = panel.barred.totalCents;
-  const waiting = panel.ifApprovedAsProposed.totalCents;
+  const doubleBarred = doublePaymentCents(panel.barred);
+  const doubleWaiting = doublePaymentCents(panel.ifApprovedAsProposed);
+  const barred = panel.barred.totalCents - doubleBarred;
+  const waiting = panel.ifApprovedAsProposed.totalCents - doubleWaiting;
   const baseline = panel.baselineCents;
   const daily = panel.daily.map((point) => ({
     day: dayLabel(point.day),
     barred: point.barredCumulativeCents,
     proposed: point.proposedCumulativeCents,
-    baseline,
   }));
   const baselineLabel = formatBrlShort(baseline);
 
@@ -132,17 +141,30 @@ function BarredAmountView({ panel }: { panel: BarredAmountDto }): ReactElement {
     <>
       <StatGrid columns={3}>
         <Stat
-          caption={texts.valorBarrado.statBarred.caption(monthName(panel.month))}
+          caption={texts.valorBarrado.statAvoided.caption(monthName(panel.month))}
           value={formatBrlShort(barred)}
-          context={texts.valorBarrado.statBarred.context}
+          context={texts.valorBarrado.statAvoided.context(percentOf(barred, baseline))}
           tone="positive"
         />
         <Stat
-          caption={texts.valorBarrado.statAgainst.caption}
-          value={percentOf(barred, baseline)}
-          context={texts.valorBarrado.statAgainst.context(baselineLabel, percentOf(barred + waiting, baseline))}
+          caption={texts.valorBarrado.statLoss.caption}
+          value={baselineLabel}
+          context={texts.valorBarrado.statLoss.context}
         />
-        <Stat caption={texts.valorBarrado.statWaiting.caption} value={formatBrlShort(waiting)} context={texts.valorBarrado.statWaiting.context} tone="waiting" />
+        <Stat
+          caption={texts.valorBarrado.statDeciding.caption}
+          value={formatBrlShort(waiting)}
+          context={texts.valorBarrado.statDeciding.context(percentOf(waiting, baseline))}
+          tone="waiting"
+        />
+      </StatGrid>
+      <StatGrid columns={3}>
+        <Stat
+          caption={texts.valorBarrado.statDouble.caption}
+          value={formatBrlShort(doubleBarred)}
+          context={`${texts.valorBarrado.statDouble.context}${doubleWaiting > 0 ? texts.valorBarrado.statDouble.decidingExtra(formatBrlShort(doubleWaiting)) : ""}`}
+          tone="positive"
+        />
       </StatGrid>
       <Panel title={texts.valorBarrado.monthPanel(baselineLabel)} size="sm">
         <ProgressBar
@@ -151,8 +173,8 @@ function BarredAmountView({ panel }: { panel: BarredAmountDto }): ReactElement {
           showLegend
           valueText={texts.valorBarrado.progressValue(formatBrlShort(barred + waiting), baselineLabel)}
           segments={[
-            { value: barred, tone: "positive", label: texts.valorBarrado.segmentBarred },
-            { value: waiting, tone: "waiting", label: texts.valorBarrado.segmentWaiting },
+            { value: barred, tone: "positive", label: texts.valorBarrado.segmentAvoided },
+            { value: waiting, tone: "waiting", label: texts.valorBarrado.segmentDeciding },
           ]}
         />
       </Panel>
@@ -163,14 +185,13 @@ function BarredAmountView({ panel }: { panel: BarredAmountDto }): ReactElement {
               data={daily}
               xKey="day"
               series={[
-                { key: "barred", label: texts.valorBarrado.seriesBarred },
-                { key: "proposed", label: texts.valorBarrado.seriesProposed, color: toneColor.waiting },
-                { key: "baseline", label: texts.valorBarrado.seriesBaseline(baselineLabel), dashed: true, color: toneColor.negative },
+                { key: "barred", label: texts.valorBarrado.seriesAvoided },
+                { key: "proposed", label: texts.valorBarrado.seriesDeciding, color: toneColor.waiting },
               ]}
               height={220}
               formatValue={formatBrl}
               formatAxis={(cents) => texts.valorBarrado.axisThousands(Math.round(cents / 100_000))}
-              ariaLabel={texts.valorBarrado.chartLabel(baselineLabel)}
+              ariaLabel={texts.valorBarrado.chartLabel}
             />
           </div>
         </Panel>
@@ -184,7 +205,7 @@ function BarredAmountView({ panel }: { panel: BarredAmountDto }): ReactElement {
   );
 }
 
-/** /pagar/valor-barrado: o painel do valor barrado (#71). */
+/** /pagar/valor-barrado: o painel do pagamento errado evitado (#71, #125). */
 export default function BarredAmountRoute(_props: RouteProps): ReactElement {
   const { state, data, retry } = useLoad(
     (signal) => apiGet<BarredAmountDto>("/api/valor-barrado", { signal }),
