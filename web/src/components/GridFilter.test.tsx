@@ -4,9 +4,9 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { GridFilter } from "./GridFilter";
 
-/* #207 (plano #208): a pílula de filtro das grids é o SegmentedFilter do kit, "gordinha", com tokens do design
-   system aplicados só aqui. Sem layout no jsdom, o teste afirma as regras do componente (por token, sem px) e a
-   conta da altura. */
+/* #207 (plano #208): a pílula de filtro das grids é o SegmentedFilter do kit, "gordinha": o texto (e o contador)
+   vêm do tamanho `base` do kit (body-sm), e a altura e o respiro, de tokens do design system aplicados só aqui.
+   Sem layout no jsdom, o teste afirma as regras do componente (por token, sem px) e a conta da altura. */
 
 const css = readFileSync(resolve(process.cwd(), "src/components/GridFilter.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 const dsCss = readFileSync(resolve(process.cwd(), "node_modules/barte-design-system/dist/barte-design-system.css"), "utf8");
@@ -27,7 +27,6 @@ function rem(token: string): number {
 }
 
 const PILL = '.grid-filter.grid-filter [class*="SegmentedFilter-module__pill"]';
-const TEXT = '.grid-filter.grid-filter [class*="SegmentedFilter-module__pill"] [class*="Text-module__text"]';
 
 function renderFilter(onChange = vi.fn()) {
   render(
@@ -77,20 +76,43 @@ describe("#207 GridFilter", () => {
     expect(onChange).toHaveBeenCalledWith("mine");
   });
 
-  it("AC2: altura, respiro vertical e horizontal e texto (e contador) um degrau acima do body-xs, por token", () => {
+  it("AC2: altura e respiro horizontal por token, e nenhuma regra mira o texto do kit", () => {
     const pill = rule(PILL);
     expect(pill).toMatch(/height:\s*var\(--sizes-3xl\)/);
     expect(pill).toMatch(/padding:\s*0 var\(--spacing-md\)/);
-    const text = rule(TEXT);
-    expect(text).toMatch(/font-size:\s*var\(--typography-body-sm-fontSize\)/);
-    expect(text).toMatch(/line-height:\s*var\(--typography-body-sm-lineHeight\)/);
+    // #207: o tamanho do texto vem do `size="base"` do kit, não de CSS que mire uma classe privada do Text.
+    expect(css).not.toMatch(/Text-module/);
+    expect(css).not.toMatch(/font-size|line-height/);
   });
 
-  it("AC2: é mais denso que a pílula do kit (altura 3xl contra o miolo xs com respiro 2xs, respiro md contra sm, texto sm contra xs)", () => {
+  it("AC2: o tamanho base do kit está aplicado, o texto sobe de body-xs para body-sm e o contador segue legível ao lado do rótulo", () => {
+    renderFilter();
+    for (const radio of screen.getAllByRole("radio")) {
+      const pill = radio.firstElementChild!;
+      expect(pill.className).toMatch(/Pills-module__base__/);
+      expect(pill.className).not.toMatch(/Pills-module__sm__/);
+      const text = pill.firstElementChild!;
+      expect(text.className).toMatch(/Text-module__bodySm__/);
+      expect(text.className).not.toMatch(/Text-module__bodyXs__/);
+      // rótulo e contador no mesmo texto, não cortados nem em outro nó.
+      expect(text.textContent).toMatch(/^(Todas · 66|Minhas · 12)$/);
+    }
+  });
+
+  it("AC2: todo seletor privado do kit que o CSS ainda mira casa com um elemento do DOM, para a troca de nome no kit ficar vermelha", () => {
+    renderFilter();
+    const selectors = [...css.matchAll(/\[class\*="[^"]+"\]/g)].map(([s]) => s);
+    expect(selectors.length).toBeGreaterThan(0);
+    expect(selectors).toContain('[class*="SegmentedFilter-module__pill"]');
+    for (const selector of new Set(selectors)) {
+      expect(document.querySelectorAll(`.grid-filter ${selector}`).length, selector).toBeGreaterThan(0);
+    }
+  });
+
+  it("AC2: é mais denso que a pílula padrão do kit (altura 3xl contra o miolo xs com respiro 2xs, respiro md contra sm) e o texto base cabe na altura", () => {
     const kitHeight = rem("--typography-body-xs-fontSize") * 1.333 + 2 * rem("--spacing-2xs");
     expect(rem("--sizes-3xl")).toBeGreaterThan(kitHeight);
     expect(rem("--spacing-md")).toBeGreaterThan(rem("--spacing-sm"));
-    expect(rem("--typography-body-sm-fontSize")).toBeGreaterThan(rem("--typography-body-xs-fontSize"));
     // #207: o texto cabe na altura da pílula.
     expect(rem("--typography-body-sm-fontSize") * 1.429).toBeLessThanOrEqual(rem("--sizes-3xl"));
   });

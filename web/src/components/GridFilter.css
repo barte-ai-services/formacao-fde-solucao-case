@@ -1,13 +1,8 @@
-/* #207 AC2/AC3: a pílula de filtro das grids é a do kit, mais gorda: mais altura, mais respiro vertical e
-   horizontal, texto (e contador) um degrau acima do body-xs. Só tokens do design system, só aqui. Fundo e cor do
+/* #207 AC2/AC3: a pílula de filtro das grids é a do kit no tamanho `base` (texto e contador em body-sm, do próprio
+   kit), mais gorda: mais altura e mais respiro horizontal. Só tokens do design system, só aqui. Fundo e cor do
    texto ficam com o DS (marcado cheio, desmarcado vazado): este arquivo não toca neles, para o selecionado seguir
-   distinto. A classe dobrada vence as regras de classe única do kit. */
+   distinto, nem no tamanho do texto, que é do `size`. A classe dobrada vence as regras de classe única do kit. */
 .grid-filter.grid-filter [class*="SegmentedFilter-module__pill"] {
   height: var(--sizes-3xl);
   padding: 0 var(--spacing-md);
-}
-
-.grid-filter.grid-filter [class*="SegmentedFilter-module__pill"] [class*="Text-module__text"] {
-  font-size: var(--typography-body-sm-fontSize);
-  line-height: var(--typography-body-sm-lineHeight);
 }
