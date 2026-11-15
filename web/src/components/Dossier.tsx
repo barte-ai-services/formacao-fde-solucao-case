@@ -1,46 +1,15 @@
 import { AiSourceBadge, Block, DataList, Panel } from "@barte-ai-services/barte-ui-kit";
 import { Alert, Text } from "barte-design-system";
 import type { JSX } from "react";
+import type { DossierField } from "../api/contract";
 import { divergenceLabel } from "../evidence/labels";
 
-/** De onde o Claude tirou cada evidência do dossiê. */
-export type DossierEvidenceSource = "invoice" | "purchase_order" | "registry" | "receipt" | "history";
-
-export type DossierEvidenceDto = {
-  key: string;
-  label: string;
-  value: string;
-  source: DossierEvidenceSource;
-};
-
-export type DossierDivergenceDto = {
-  classification: string;
-  whatDiverges: string;
-  evidence: DossierEvidenceDto[];
-};
-
-export type DossierUnavailableReason =
-  | "claude_failed"
-  | "number_mismatch"
-  | "invalid_shape"
-  | "pending";
-
-/** O campo `dossier` da proposta, como a API devolve (#68). */
-export type DossierDto =
-  | {
-      status: "ready";
-      summary: string;
-      divergences: DossierDivergenceDto[];
-      supplierHistory: string;
-      generatedAt: string;
-      model: string;
-    }
-  | {
-      status: "unavailable";
-      reason: DossierUnavailableReason;
-      notice: string;
-      generatedAt: string | null;
-    };
+/** #68: o dossiê pronto, como o domínio o define. */
+type ReadyDossier = Extract<DossierField, { status: "ready" }>;
+/** #68: as evidências de uma divergência do dossiê. */
+type DossierEvidenceList = ReadyDossier["divergences"][number]["evidence"];
+/** #68: de onde o Claude tirou cada evidência do dossiê. */
+type DossierEvidenceSource = DossierEvidenceList[number]["source"];
 
 export const DOSSIER_UNAVAILABLE_TITLE = "Não há dossiê do Claude para esta proposta.";
 export const DOSSIER_NOT_GENERATED =
@@ -62,7 +31,7 @@ function sourceLabel(source: string): string {
 
 export interface DossierProps {
   /** #68: `null` ou ausente: o dossiê ainda não foi gerado para esta proposta. */
-  dossier: DossierDto | null | undefined;
+  dossier: DossierField | null | undefined;
 }
 
 /**
@@ -82,7 +51,7 @@ export function Dossier({ dossier }: DossierProps): JSX.Element {
         {dossier.summary}
       </Text>
       {divergences.map((divergence, index) => {
-        const evidenceItems = Array.isArray(divergence?.evidence) ? divergence.evidence : [];
+        const evidenceItems: DossierEvidenceList = Array.isArray(divergence?.evidence) ? divergence.evidence : [];
         return (
           <Block
             key={`${divergence?.classification ?? ""}-${index}`}

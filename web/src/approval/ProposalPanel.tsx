@@ -7,6 +7,7 @@ import { Alert } from "barte-design-system";
 import { Block, DataList, DecisionForm, StatusBadge } from "@barte-ai-services/barte-ui-kit";
 import { ApiError } from "../api/client";
 import { approvalApi, type DecisionResultDto, type ProposalDetailDto } from "../api/approval";
+import { Dossier } from "../components/Dossier";
 import { EvidenceView } from "../evidence";
 import { ACTION_LABEL, ACTION_TONE, LEVEL_LABEL, LEVEL_TONE, type DockActionKind } from "./labels";
 
@@ -88,6 +89,7 @@ export function ProposalPanel({
           proposal.divergences.map((d, i) => <EvidenceView key={`${d.classification}-${i}`} divergence={d} />)
         )}
       </Block>
+      <Dossier dossier={proposal.dossier} />
       {decided ?? proposal.approval ? (
         <Alert
           variant="success"

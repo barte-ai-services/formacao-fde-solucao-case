@@ -3,7 +3,16 @@
  * (`api/src/http/approval.ts`). Dinheiro vem em centavos, com o texto já formatado pelo Worker.
  */
 import { apiGet, apiPost } from "./client";
-import type { ApprovalLevel, Classification, DivergenceDto, DockActionDto, ProposalState, TitleState, Unit } from "./contract";
+import type {
+  ApprovalLevel,
+  Classification,
+  DivergenceDto,
+  DockActionDto,
+  DossierField,
+  ProposalState,
+  TitleState,
+  Unit,
+} from "./contract";
 
 export interface MoneyDto {
   cents: number;
@@ -57,6 +66,8 @@ export interface ProposalDetailDto extends QueueItemDto {
   divergences: DivergenceDto[];
   title: { state: TitleState; amount: MoneyDto; dueOn: string };
   approval: ApprovalDto | null;
+  /** #68: o dossiê do Claude, já conferido pelo Worker; sem ele, o motivo e o aviso (#38/AC-4). */
+  dossier: DossierField;
 }
 
 export interface TodayDto {

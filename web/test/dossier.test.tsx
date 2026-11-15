@@ -1,8 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { Dossier, type DossierDto } from "../src/components/Dossier";
+import type { DossierField } from "../src/api/contract";
+import { Dossier } from "../src/components/Dossier";
 
-const READY: DossierDto = {
+const READY: DossierField = {
   status: "ready",
   summary: "A nota cobra 10 caixas e o recebimento contou 8.",
   divergences: [
@@ -52,7 +53,7 @@ describe("#38/AC-1 o dossiê pronto mostra divergência, evidência e histórico
       divergences: [
         { classification: "E9", whatDiverges: "?", evidence: [{ key: "x", label: "Campo", value: "1", source: "satelite" }] },
       ],
-    } as unknown as DossierDto; // #68: o fio pode trazer classificação e fonte que o tipo não conhece; o teste força esse valor.
+    } as unknown as DossierField; // #68: o fio pode trazer classificação e fonte que o tipo não conhece; o teste força esse valor.
     render(<Dossier dossier={unknownValues} />);
     expect(screen.getByText("E9")).toBeTruthy();
     expect(screen.getByText("satelite")).toBeTruthy();

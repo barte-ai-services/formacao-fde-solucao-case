@@ -117,6 +117,48 @@ describe("#63 proposta e decisão", () => {
   });
 });
 
+// #68: o dossiê do Claude na gaveta da proposta, entre a evidência e a decisão, como no wireframe.
+const READY_DOSSIER = {
+  status: "ready",
+  summary: "A mesma compra já foi cobrada na NF 77.",
+  divergences: [
+    {
+      classification: "E6",
+      whatDiverges: "A ordem já tem nota lançada.",
+      evidence: [{ key: "historico.notas_lancadas.quantidade", label: "Notas lançadas", value: "1", source: "history" }],
+    },
+  ],
+  supplierHistory: "Nenhuma duplicidade nos últimos 90 dias.",
+  generatedAt: "2026-11-15T12:00:00Z",
+  model: "claude-exemplo",
+};
+
+const PENDING_NOTICE =
+  "Não há dossiê para esta proposta: o dossiê ainda não foi gerado. Decida pelas divergências e evidências da conferência.";
+
+describe("#68 dossiê do Claude na gaveta da proposta", () => {
+  it("#38/AC-1 com o dossiê pronto, a gaveta mostra o Dossiê do Claude entre a evidência e a decisão", async () => {
+    respond = () => Response.json({ ...detail(), dossier: READY_DOSSIER });
+    renderAt(`/pagar/fila/${KEY}`);
+    const heading = await screen.findByText("Dossiê do Claude");
+    expect(screen.getByText(READY_DOSSIER.summary)).toBeTruthy();
+    const evidence = screen.getByText("Mesma ordem já lançada", { exact: false });
+    const decision = screen.getByText("Sua decisão");
+    expect(evidence.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(heading.compareDocumentPosition(decision) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("#38/AC-4 sem dossiê, a gaveta mostra o aviso e a decisão segue pela conferência", async () => {
+    respond = () =>
+      Response.json({ ...detail(), dossier: { status: "unavailable", reason: "pending", notice: PENDING_NOTICE, generatedAt: null } });
+    renderAt(`/pagar/fila/${KEY}`);
+    expect(await screen.findByText("Não há dossiê do Claude para esta proposta.")).toBeTruthy();
+    expect(screen.getByText(PENDING_NOTICE)).toBeTruthy();
+    expect(screen.queryByText("Dossiê do Claude")).toBeNull();
+    expect(screen.getByText("Sua decisão")).toBeTruthy();
+  });
+});
+
 describe("#63 lista do dia", () => {
   it("AC-13: mostra os títulos liberados do dia, com quem aprovou", async () => {
     respond = () =>
