@@ -1,10 +1,11 @@
 import { useState, type ReactNode } from "react";
-import { Drawer, Table } from "barte-design-system";
-import { InlineEmpty, Stat, StatGrid } from "@barte-ai-services/barte-ui-kit";
-import { approvalApi, type ProposalDetailDto, type QueueDto, type QueueItemDto } from "../api/approval";
-import { ProposalPanel } from "../approval/ProposalPanel";
+
+import { Stat, StatGrid } from "@barte-ai-services/barte-ui-kit";
+import { approvalApi, type QueueDto, type QueueItemDto } from "../api/approval";
+import { InvoiceDrawer } from "../approval/InvoiceDrawer";
 import { ACTION_LABEL, ACTION_TONE, LEVEL_LABEL, LEVEL_TONE, byQueueOrder, codeLabel } from "../approval/labels";
 import { GridBadge } from "../components/GridBadge";
+import { RowTable } from "../components/RowTable";
 import { GridFilter } from "../components/GridFilter";
 import { InvoiceCell } from "../components/InvoiceCell";
 import { EmptyState } from "../components/EmptyState";
@@ -63,11 +64,12 @@ export default function FilaDeAprovacao(_props: RouteProps) {
               { value: "mine", label: texts.fila.filterMine, count: mine.length },
             ]}
           />
-          <Table<QueueItemDto>
+          <RowTable<QueueItemDto>
             data={items}
             rowKey={(i) => i.invoiceAccessKey}
             size="md"
-            onRowClick={(i) => setOpen(i.invoiceAccessKey)}
+            onOpenRow={(i) => setOpen(i.invoiceAccessKey)}
+            rowLabel={(i) => texts.grid.openInvoice(i.number)}
             emptyText={texts.fila.tableEmpty}
             columns={[
               { key: "nota", title: texts.fila.columns.invoice, dataIndex: "number", render: (_, i) =>
@@ -140,8 +142,9 @@ export default function FilaDeAprovacao(_props: RouteProps) {
             ]}
           />
           {open !== null ? (
-            <ProposalDrawer
+            <InvoiceDrawer
               invoiceAccessKey={open}
+              title={texts.fila.drawerTitle}
               onClose={() => setOpen(null)}
               onDecided={retry}
             />
@@ -149,26 +152,5 @@ export default function FilaDeAprovacao(_props: RouteProps) {
         </>
       )}
     </Screen>
-  );
-}
-
-function ProposalDrawer({
-  invoiceAccessKey,
-  onClose,
-  onDecided,
-}: {
-  invoiceAccessKey: string;
-  onClose: () => void;
-  onDecided: () => void;
-}) {
-  const { state, data } = useLoad((signal): Promise<ProposalDetailDto> => approvalApi.proposal(invoiceAccessKey, signal));
-  return (
-    <Drawer isOpen title={texts.fila.drawerTitle(data ? data.number : null)} onClose={onClose} className="shell-connection-panel">
-      {state === "ready" && data ? (
-        <ProposalPanel proposal={data} onDecided={onDecided} />
-      ) : (
-        <InlineEmpty>{state === "error" ? texts.fila.drawerError : texts.fila.drawerLoading}</InlineEmpty>
-      )}
-    </Drawer>
   );
 }

@@ -101,3 +101,6 @@ table [class*="StatusBadge-module__label"] {
   margin: var(--spacing-md) 0 0;
   padding: 0 var(--spacing-xl);
 }
+
+/* #209 A linha da grid abre a nota: o foco do teclado aparece na linha toda, com o mesmo realce do passar o mouse. */
+.pagar-row-table tbody tr:focus-visible { outline: 2px solid var(--stroke-brand); outline-offset: -2px; background: var(--bg-secondary); }

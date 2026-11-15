@@ -231,3 +231,13 @@ describe("#203 a decisão na gaveta: opções, itens do receber parcial, justifi
     expect(screen.getByRole("radio", { name: /^Recusar/ })).toBeTruthy();
   });
 });
+
+describe("#209 AC-5: nota já decidida abre só para leitura", () => {
+  it("mostra a decisão registrada, sem as opções nem o Registrar", () => {
+    const approval = { approver: "c", approverLevel: "coordenacao", dockAction: { kind: "receber" }, justification: "ok", decidedOn: "2026-11-15" };
+    render(<ProposalPanel proposal={proposal({ kind: "receber" }, { state: "na_lista_do_dia", approval })} />);
+    expect(screen.queryByRole("radiogroup")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Registrar/ })).toBeNull();
+    expect(screen.getByText(/decis/i)).toBeTruthy();
+  });
+});

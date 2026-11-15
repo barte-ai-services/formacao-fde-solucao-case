@@ -35,6 +35,8 @@ describe("#140 pendingSince", () => {
 describe("#140 /devolucoes", () => {
   const respond = async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input);
+    // #209 A gaveta é a da nota: ela também pede a proposta, que estas notas não têm.
+    if (path.startsWith("/api/propostas/")) return Response.json({ error: "not_found" }, { status: 404 });
     if (init?.method === "POST") {
       return Response.json({ ...note, status: path.endsWith("/issue") ? "emitida" : "cancelada" });
     }
@@ -99,9 +101,13 @@ describe("#140 /devolucoes", () => {
 
   it("nota já decidida por outra pessoa mostra o aviso de conflito", async () => {
     fetchMock.mockImplementationOnce(async () => Response.json({ notes: [note] }));
-    // #211 A faixa de automação também chama a API: só o POST leva o 409.
-    fetchMock.mockImplementation(async (_input, init) =>
-      init?.method === "POST" ? Response.json({ error: "already_decided" }, { status: 409 }) : Response.json({ notes: [note] }),
+    // #211 A faixa de automação também chama a API, e a gaveta pede a proposta (#209): só o POST leva o 409.
+    fetchMock.mockImplementation(async (input, init) =>
+      String(input).startsWith("/api/propostas/")
+        ? Response.json({ error: "not_found" }, { status: 404 })
+        : init?.method === "POST"
+          ? Response.json({ error: "already_decided" }, { status: 409 })
+          : Response.json({ notes: [note] }),
     );
     renderRoute();
     fireEvent.click((await screen.findByText("NF 70633")).closest("tr")!);

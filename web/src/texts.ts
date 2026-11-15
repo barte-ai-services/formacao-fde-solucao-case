@@ -120,6 +120,11 @@ export const texts = {
     wms: "WMS · recebimento",
   } satisfies Record<EvidenceSource, string>,
 
+  grid: {
+    /** #209 O rótulo da linha da grid para leitor de tela. */
+    openInvoice: (number: string) => `Abrir a nota ${number}`,
+  },
+
   fila: {
     title: "Fila de aprovação",
     subtitle:

@@ -49,7 +49,10 @@ const NO_BALANCE: DuplicatesResponseDto = {
 };
 
 function serve(body: unknown, status = 200) {
-  const fetchMock = vi.fn(async () => Response.json(body, { status }));
+  // #209 A gaveta é a da nota: ela também pede a proposta, que a duplicada não tem.
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) =>
+    String(input).startsWith("/api/propostas/") ? Response.json({ error: "not_found" }, { status: 404 }) : Response.json(body, { status }),
+  );
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
 }

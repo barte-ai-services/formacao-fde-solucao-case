@@ -1,8 +1,11 @@
 import { useEffect, useState, type ReactElement } from "react";
-import { Alert, Select, Table, Text } from "barte-design-system";
+import { Alert, Select, Text } from "barte-design-system";
 import { dockApi, type DockBoardDto, type DockRowDto } from "../api/dock";
 import type { DockActionDto, QuantityDto } from "../api/contract";
 import { ACTION_LABEL, ACTION_TONE } from "../approval/labels";
+import { DataList } from "@barte-ai-services/barte-ui-kit";
+import { InvoiceDrawer } from "../approval/InvoiceDrawer";
+import { RowTable } from "../components/RowTable";
 import { EmptyState } from "../components/EmptyState";
 import { GridBadge } from "../components/GridBadge";
 import { InvoiceCell } from "../components/InvoiceCell";
@@ -105,6 +108,7 @@ export function ReceivingBoard({ title, subtitle, load, words, noun, emptyIn, wa
   useEffect(() => {
     if (data) setDestinations(data.destinations);
   }, [data]);
+  const [open, setOpen] = useState<DockRowDto | null>(null);
   const shown = data?.destination ?? destination;
   const rows = data?.rows ?? [];
   const awaiting = data?.awaiting ?? 0;
@@ -144,10 +148,12 @@ export function ReceivingBoard({ title, subtitle, load, words, noun, emptyIn, wa
               description={warning}
             />
           ) : null}
-          <Table<DockRowDto>
+          <RowTable<DockRowDto>
             data={rows}
             rowKey={(n) => n.invoiceAccessKey}
             size="md"
+            onOpenRow={(n) => setOpen(n)}
+            rowLabel={(n) => texts.grid.openInvoice(n.number)}
             emptyText={texts.recebimento.tableEmpty}
             columns={[
               { key: "nota", title: texts.recebimento.columns.invoice, dataIndex: "number", render: (_, n) => <InvoiceCell number={n.number} bottom={n.supplierId} /> },
@@ -189,6 +195,19 @@ export function ReceivingBoard({ title, subtitle, load, words, noun, emptyIn, wa
               },
             ]}
           />
+          {open !== null ? (
+            <InvoiceDrawer invoiceAccessKey={open.invoiceAccessKey} title={texts.fila.drawerTitle} onClose={() => setOpen(null)}>
+              <DataList
+                items={[
+                  {
+                    key: "acao",
+                    label: texts.recebimento.columns.whatToDo,
+                    value: open.status.kind === "aguardando_aprovacao" ? words.awaiting : instruction(open.status.action, words),
+                  },
+                ]}
+              />
+            </InvoiceDrawer>
+          ) : null}
         </>
       )}
     </Screen>

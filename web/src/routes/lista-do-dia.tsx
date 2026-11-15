@@ -1,6 +1,8 @@
-import { Table } from "barte-design-system";
+import { useState } from "react";
 import { Stat, StatGrid } from "@barte-ai-services/barte-ui-kit";
 import { approvalApi, type TodayDto } from "../api/approval";
+import { InvoiceDrawer } from "../approval/InvoiceDrawer";
+import { RowTable } from "../components/RowTable";
 import { ACTION_LABEL, ACTION_TONE, codeLabel } from "../approval/labels";
 import { AutomationIndicators } from "../components/AutomationIndicators";
 import { GridBadge } from "../components/GridBadge";
@@ -24,6 +26,7 @@ export default function ListaDoDia(_props: RouteProps) {
     (signal): Promise<TodayDto> => approvalApi.today(signal),
     (today) => today.items.length === 0,
   );
+  const [open, setOpen] = useState<string | null>(null);
   const items = data?.items ?? [];
   const byRule = items.filter((i) => i.approver === "regra").length;
   return (
@@ -51,10 +54,12 @@ export default function ListaDoDia(_props: RouteProps) {
             <Stat caption={texts.listaDoDia.statByRule.caption} value={byRule} context={texts.listaDoDia.statByRule.context} tone="positive" />
           </StatGrid>
           <AutomationIndicators />
-          <Table<Row>
+          <RowTable<Row>
             data={items}
             rowKey={(i) => i.invoiceAccessKey}
             size="md"
+            onOpenRow={(i) => setOpen(i.invoiceAccessKey)}
+            rowLabel={(i) => texts.grid.openInvoice(i.number)}
             emptyText={texts.listaDoDia.tableEmpty}
             columns={[
               { key: "nota", title: texts.listaDoDia.columns.invoice, dataIndex: "number", render: (_, i) => <InvoiceCell number={i.number} bottom={i.supplierId} /> },
@@ -83,6 +88,7 @@ export default function ListaDoDia(_props: RouteProps) {
               { key: "valor", title: texts.listaDoDia.columns.amount, dataIndex: "amount", align: "right", render: (_, i) => `${i.amount.text} de ${i.invoiceTotal.text}` },
             ]}
           />
+          {open !== null ? <InvoiceDrawer invoiceAccessKey={open} title={texts.fila.drawerTitle} onClose={() => setOpen(null)} /> : null}
         </>
       )}
     </Screen>

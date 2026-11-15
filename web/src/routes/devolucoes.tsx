@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Alert, Button, Drawer, Input, Table, Text } from "barte-design-system";
+import { Alert, Button, Input, Text } from "barte-design-system";
 import { DataList, formatCurrency } from "@barte-ai-services/barte-ui-kit";
 import { ApiError } from "../api/client";
 import { returnNotesApi, type ReturnNoteDto, type ReturnNoteStatusDto } from "../api/return-notes";
@@ -8,6 +8,8 @@ import { GridFilter } from "../components/GridFilter";
 import { InvoiceCell } from "../components/InvoiceCell";
 import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
+import { InvoiceDrawer } from "../approval/InvoiceDrawer";
+import { RowTable } from "../components/RowTable";
 import { useLoad } from "../components/useLoad";
 import type { RouteProps } from "./types";
 import { texts } from "../texts";
@@ -102,11 +104,12 @@ export default function ReturnNotes(_props: RouteProps) {
     >
       {() => (
         <>
-          <Table<ReturnNoteDto>
+          <RowTable<ReturnNoteDto>
             data={notes}
             rowKey={(n) => String(n.id)}
             size="md"
-            onRowClick={(n) => setOpenId(n.id)}
+            onOpenRow={(n) => setOpenId(n.id)}
+            rowLabel={(n) => texts.grid.openInvoice(n.invoiceNumber ?? "—")}
             emptyText={texts.devolucoes.tableEmpty}
             columns={[
               {
@@ -181,7 +184,7 @@ function NoteDrawer({ note, onClose, onDecided }: { note: ReturnNoteDto; onClose
   };
 
   return (
-    <Drawer isOpen title={texts.devolucoes.drawerTitle(note.invoiceNumber ?? "—")} onClose={onClose} className="shell-connection-panel">
+    <InvoiceDrawer invoiceAccessKey={note.invoiceAccessKey} title={() => texts.devolucoes.drawerTitle(note.invoiceNumber ?? "—")} onClose={onClose}>
       <div style={{ display: "grid", gap: "var(--spacing-xl)" }}>
         {failure ? <Alert variant="error" title={failure} /> : null}
         <DataList
@@ -223,6 +226,6 @@ function NoteDrawer({ note, onClose, onDecided }: { note: ReturnNoteDto; onClose
           </>
         ) : null}
       </div>
-    </Drawer>
+    </InvoiceDrawer>
   );
 }
