@@ -147,7 +147,7 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: .88em; }
       <div class="ar down">↕</div>
       <div class="outs r3" style="grid-column:3 / span 5">
         <div class="n cf"><div class="k">Tela</div><div class="logos"><svg class="logo" role="img" aria-label="Astro" style="color:var(--astro)"><use href="#i-astro"/></svg><svg class="logo" role="img" aria-label="React" style="color:var(--react)"><use href="#i-react"/></svg><svg class="logo" role="img" aria-label="Cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg></div><b>Aprovação</b><div class="s">Cloudflare Access na frente: entra com o e-mail.</div></div>
-        <div class="n sb"><div class="k">Dados</div><div class="logos"><svg class="logo" role="img" aria-label="Supabase" style="color:var(--supabase)"><use href="#i-supabase"/></svg></div><b>Supabase</b><div class="mini"><span>Banco</span><span>Storage</span><span>Papéis por e-mail</span></div><div class="region">São Paulo · dados fiscais no Brasil, exigência do cliente</div></div>
+        <div class="n sb"><div class="k">Dados</div><div class="logos"><svg class="logo" role="img" aria-label="Supabase" style="color:var(--supabase)"><use href="#i-supabase"/></svg></div><b>Supabase</b><div class="mini"><span>Banco</span><span>Storage</span></div><div class="region">São Paulo · dados fiscais no Brasil, exigência do cliente</div></div>
         <div class="n"><div class="k">Aviso</div><div class="logos"><svg class="logo" role="img" aria-label="Resend" style="color:var(--ink)"><use href="#i-resend"/></svg></div><b>E-mail a quem aprova</b><div class="s">O Worker avisa pelo Resend.</div></div>
       </div>
     </div>
@@ -168,7 +168,7 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: .88em; }
     <div class="pieces">
       <div class="pc"><div class="logos"><svg class="logo" role="img" aria-label="TypeScript" style="color:var(--ts)"><use href="#i-typescript"/></svg></div><div><b>Conectores</b><span class="t">SEFAZ, ERP, WMS e banco. Hoje, mocks da base do kit.</span></div></div>
       <div class="pc"><div class="logos"><svg class="logo" role="img" aria-label="TypeScript" style="color:var(--ts)"><use href="#i-typescript"/></svg><svg class="logo" role="img" aria-label="Hono" style="color:var(--hono)"><use href="#i-hono"/></svg></div><div><b>API e esteira</b><span class="t">Worker com Cron: confere, roda a cascata, chama os modelos.</span></div></div>
-      <div class="pc star"><div class="logos"><svg class="logo" role="img" aria-label="Cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg><svg class="logo" role="img" aria-label="Claude" style="color:var(--claude)"><use href="#i-claude"/></svg></div><div><b>Agente Confirmar ou alterar a ação</b><span class="t">Regra, Clef e pessoa.</span></div></div>
+      <div class="pc star"><div class="logos"><svg class="logo" role="img" aria-label="Cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg><svg class="logo" role="img" aria-label="Claude" style="color:var(--claude)"><use href="#i-claude"/></svg></div><div><b>Agente de aprovação</b><span class="t">Aprovar a proposta: regra, Clef e pessoa.</span></div></div>
       <div class="pc"><div class="logos"><svg class="logo" role="img" aria-label="Claude" style="color:var(--claude)"><use href="#i-claude"/></svg></div><div><b>Papéis do Claude</b><span class="t">Classificar, dossiê, recomendar, contar pela foto.</span></div></div>
       <div class="pc"><div class="logos"><svg class="logo" role="img" aria-label="Cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg></div><div><b>Clef</b><span class="t">Pelo binding do Workers AI, sem chave à parte.</span></div></div>
       <div class="pc"><div class="logos"><svg class="logo" role="img" aria-label="Cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg></div><div><b>Login</b><span class="t">Cloudflare Access: código por e-mail ou SSO. Grátis até 50 usuários.</span></div></div>
@@ -183,11 +183,11 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: .88em; }
   <section>
     <h2>O agente que a turma vai construir</h2>
     <div class="agent">
-      <div><span class="badge">Agente que iremos construir</span><h3>Confirmar ou alterar a ação</h3></div>
+      <div><span class="badge">Agente que iremos construir</span><h3>Agente de aprovação</h3><div class="foot" style="margin-top:6px">Aprovar a proposta, antes da doca. Aprovar com a contagem, depois.</div></div>
       <div class="casc">
         <div class="cs r"><div class="h"><svg class="logo" role="img" aria-label="TypeScript" style="color:var(--ts)"><use href="#i-typescript"/></svg><b>1 · Regra</b></div><span class="t">A conta fecha? Decide sem modelo.</span></div>
         <div class="ar">→</div>
-        <div class="cs c"><div class="h"><svg class="logo" role="img" aria-label="Cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg><b>2 · Clef</b></div><span class="t">Confirma com confiança de 0,98 ou mais. Abaixo, devolve.</span></div>
+        <div class="cs c"><div class="h"><svg class="logo" role="img" aria-label="Cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg><b>2 · Clef</b></div><span class="t">Aprova com confiança de 0,98 ou mais. Abaixo, devolve.</span></div>
         <div class="ar">→</div>
         <div class="cs p"><div class="h"><span class="initials" aria-hidden="true">Pe</span><b>3 · Pessoa</b></div><span class="t">Decide, com a recomendação do Claude.</span></div>
       </div>
