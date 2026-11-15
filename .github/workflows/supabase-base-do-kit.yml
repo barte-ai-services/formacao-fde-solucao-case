@@ -43,12 +43,13 @@ jobs:
         run: supabase link --project-ref "${{ vars.BARTE_ACADEMY_SUPABASE_PROJECT_ID }}"
 
       # Na CLI 3.x o db push é local por padrão: --remote aplica no projeto ligado, e --yes responde
-      # a confirmação das mudanças hospedadas (#52).
+      # a confirmação das mudanças hospedadas (#52). --include-all aplica também a migração cujo
+      # timestamp é anterior à última aplicada: com histórias em paralelo, os PRs entram fora de ordem.
       - name: Aplicar as migrações
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.BARTE_ACADEMY_SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.BARTE_ACADEMY_SUPABASE_DB_PASSWORD }}
-        run: supabase db push --remote --yes
+        run: supabase db push --remote --yes --include-all
 
       - name: Carregar a base do kit
         env:
