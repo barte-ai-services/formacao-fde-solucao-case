@@ -17,17 +17,17 @@ Mede as auditorias que o agente auditor gravou (`record_audit`, #153) contra o g
 
 ```bash
 python3 eval/auditor.py auditorias.jsonl                  # a rodada em JSON, na saída padrão
-python3 eval/auditor.py auditorias.jsonl --formato md     # o relatório legível, em português
+python3 eval/auditor.py auditorias.jsonl --format md     # o relatório legível, em português
 ```
 
-Opções para teste: `--gabarito <arquivo>` (padrão `eval/gabarito/gabarito.json`) e `--rodadas <pasta>` (padrão `eval/rodadas/`).
+Opções para teste: `--answer-key <arquivo>` (padrão `eval/gabarito/gabarito.json`) e `--runs-dir <pasta>` (padrão `eval/rodadas/`).
 
 ### Formato de entrada
 
 `auditorias.jsonl` tem uma linha por nota auditada, ligada ao gabarito por `invoice_access_key` == `chave`. Se a mesma chave aparecer mais de uma vez, vale a última linha. Campos:
 
 - `invoice_access_key`, `classification` (`MATCH`, `E1` a `E8` ou `NAO_CATALOGADA`, que nunca é acerto), `dock_action` (`receber`, `receber_parcial`, `recusar`), `routing` (`regra`, `analista`, `coordenacao`, `diretoria`, `bloqueio`), `justification`, `amount_at_risk` (`{"cents": int}` ou `null`), `model`, `audited_at`;
-- `rule`: a proposta da regra para a mesma nota, a baseline sem IA, com `classification`, `dock_action` e `routing`;
+- `rule` (obrigatório, um objeto): a proposta da regra para a mesma nota, a baseline sem IA, com `classification`, `dock_action` e `routing`;
 - `not_audited` (opcional): `{"reason": "..."}`; a nota conta como erro e entra em `errors[]` com o motivo;
 - `refusals` (opcional): lista de recusas do `record_audit`, cada uma com `refusal` igual a `routing_below_regua` ou `invalid_field`;
 - `prompt_version` (opcional).
@@ -36,7 +36,7 @@ Opções para teste: `--gabarito <arquivo>` (padrão `eval/gabarito/gabarito.jso
 
 Por rodada: `run_id` (data e hora UTC mais um hash curto do arquivo), `model` e `prompt_version` (o valor único, ou a lista ordenada se variarem; `null` se ausentes), `full_match_rate` (classificação, ação na doca e encaminhamento iguais ao gabarito, sobre todas as notas do gabarito), `by_field`, `by_exception` (`match` e `E1` a `E8`: total e acertos por campo e completo), `routing_below_regua`, `first_try_routing_rate`, `errors[]` e `vs_baseline` (por exceção e no total, o acerto do agente contra o da regra). Nota do gabarito sem linha conta como erro; chave fora do gabarito entra em `errors[]` e não muda o denominador.
 
-Sem nenhuma linha com `refusals` no arquivo, `routing_below_regua` e `first_try_routing_rate` saem `null` ("não medido" no Markdown), nunca 0. Com `refusals`, o primeiro conta as recusas `routing_below_regua` e o segundo é a parcela das linhas auditadas sem recusa.
+Sem nenhuma linha com `refusals` no arquivo, `routing_below_regua` e `first_try_routing_rate` saem `null` ("não medido" no Markdown), nunca 0. Com `refusals`, as duas contam só as notas auditadas do gabarito (linha com a chave no gabarito e sem `not_audited`); linha de chave fora do gabarito não entra em nenhuma. `routing_below_regua` conta as recusas `routing_below_regua` dessas notas, e `first_try_routing_rate` é a parcela delas sem nenhuma recusa `routing_below_regua`; uma recusa `invalid_field` não conta contra o encaminhamento de primeira.
 
 Cada rodada é gravada em `eval/rodadas/<run_id>.json` (a pasta não vai para o git). Quando há uma rodada anterior, a saída traz `vs_previous` com a diferença de `full_match_rate`, de `by_field` e do acerto completo por exceção.
 
@@ -44,4 +44,4 @@ Cada rodada é gravada em `eval/rodadas/<run_id>.json` (a pasta não vai para o 
 
 - `0`: medido, e toda duplicidade (E6) do gabarito foi classificada como E6;
 - `1`: alguma E6 do gabarito não foi classificada E6 (inclusive sem auditoria ou não auditada), qualquer que seja o resto;
-- `2`: uso ou entrada inválidos (arquivo ilegível, linha que não é JSON ou sem `invoice_access_key`).
+- `2`: uso ou entrada inválidos, sempre com uma mensagem fixa em português na saída de erro e sem eco do objeto: arquivo ilegível, linha que não é JSON ou sem `invoice_access_key`, `rule` ausente ou que não é objeto, `not_audited` que não é objeto com `reason` em texto, `refusals` que não é lista de objetos, gabarito que não é lista de notas com `chave`, `classificacao` (`match` ou `E1` a `E8`), `acao_doca` e `encaminhamento`, e arquivo de rodada anterior corrompido ou ilegível na pasta de rodadas. O código `1` fica reservado à E6 perdida; nenhuma entrada malformada sai por ele.
