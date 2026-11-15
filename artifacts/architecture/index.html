@@ -174,7 +174,7 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: .88em; }
         <div class="n clef"><div class="logos"><svg class="logo" role="img" aria-label="cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg></div><b>Clef</b><div class="s">Workers AI, pelo binding.</div></div>
       </div>
       <div class="ar down">↕</div>
-      <div class="n claude" style="grid-column:1;grid-row:3"><div class="k">Máquina do analista</div><div class="logos"><svg class="logo" role="img" aria-label="claude" style="color:var(--claude)"><use href="#i-claude"/></svg><svg class="logo" role="img" aria-label="modelcontextprotocol" style="color:var(--ink)"><use href="#i-modelcontextprotocol"/></svg></div><b>Claude Desktop</b><div class="s">Agente B, com MCP App e Skill. Fala só com o MCP, e o MCP chama a API no Worker.</div></div>
+      <div class="n claude" style="grid-column:1;grid-row:3"><div class="k">Máquina do analista · Claude Desktop</div><div class="logos"><svg class="logo" role="img" aria-label="claude" style="color:var(--claude)"><use href="#i-claude"/></svg><svg class="logo" role="img" aria-label="modelcontextprotocol" style="color:var(--ink)"><use href="#i-modelcontextprotocol"/></svg></div><b>Agente B no Claude Code</b><div class="s">Com MCP App e Skill. Fala só com o MCP, e o MCP chama a API no Worker.</div></div>
       <div class="outs r3" style="grid-column:3 / span 5">
         <div class="n cf"><div class="k">Telas</div><div class="logos"><svg class="logo" role="img" aria-label="astro" style="color:var(--astro)"><use href="#i-astro"/></svg><svg class="logo" role="img" aria-label="react" style="color:var(--react)"><use href="#i-react"/></svg><svg class="logo" role="img" aria-label="cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg></div><b>Aprovação, doca do CD e loja</b><div class="s">O recebimento na loja é separado da doca do CD. Cloudflare Access cobre o host inteiro.</div></div>
         <div class="n sb"><div class="k">Dados</div><div class="logos"><svg class="logo" role="img" aria-label="supabase" style="color:var(--supabase)"><use href="#i-supabase"/></svg></div><b>Supabase</b><div class="mini"><span>Banco</span><span>Storage</span><span>Fila de devolução</span></div><div class="region">São Paulo · dados fiscais no Brasil, exigência do cliente</div></div>
@@ -189,10 +189,10 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: .88em; }
     <div class="rt">
       <div class="n cf"><div class="k">1 · Worker</div><div class="logos"><svg class="logo" role="img" aria-label="cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg><svg class="logo" role="img" aria-label="typescript" style="color:var(--ts)"><use href="#i-typescript"/></svg><svg class="logo" role="img" aria-label="hono" style="color:var(--hono)"><use href="#i-hono"/></svg></div><b>A, C, D e E, com Cron</b>
         <span class="tag">Claude nos agentes C, D e E</span>
-        <ul><li>Cron, API e conferência.</li><li>Regra no código do domínio; Clef pelo binding do Workers AI.</li><li>Motor de decisão (A) sem Claude. Dossiê, auditor e tratativa (C, D, E) são módulos com um laço de tool use pela API do Claude, rodando no Cron.</li><li>As tools dos agentes são a própria API da solução.</li><li>A chave da API da Anthropic fica num secret do Worker (<code>BARTE_ACADEMY_ANTHROPIC_API_KEY</code>).</li></ul></div>
+        <ul><li>Cron, API e conferência.</li><li>Regra no código do domínio; Clef pelo binding do Workers AI.</li><li>Motor de decisão (A) sem Claude. Dossiê, auditor e tratativa (C, D, E) são módulos com um laço de tool use pela API do Claude, rodando no Cron.</li><li>As tools dos agentes são a própria API da solução.</li><li>API do Claude, com a chave da Anthropic num secret do Worker (<code>BARTE_ACADEMY_ANTHROPIC_API_KEY</code>).</li></ul></div>
       <div class="n claude"><div class="k">2 · Máquina do analista · Claude Desktop</div><div class="logos"><svg class="logo" role="img" aria-label="claude" style="color:var(--claude)"><use href="#i-claude"/></svg><svg class="logo" role="img" aria-label="modelcontextprotocol" style="color:var(--ink)"><use href="#i-modelcontextprotocol"/></svg></div><b>Agente B, com MCP, MCP App e Skill</b>
         <span class="tag">MCP · MCP App · Skill</span>
-        <ul><li>O agente B roda no Claude Code do analista: o mesmo laço do Agent SDK, com a assinatura dele.</li><li>O analista decide a fila e delega ao motor sem sair do Claude.</li><li>O MCP App mostra a fila, a proposta e o relatório na conversa.</li><li>A Skill orienta o Claude (agente B).</li><li>Fala só com o MCP, e o MCP chama a API no Worker: a mesma que os agentes usam como tools.</li></ul></div>
+        <ul><li>O agente B roda no Claude Code do analista, na máquina dele: o mesmo laço do Agent SDK, com a assinatura dele.</li><li>O analista decide a fila e delega ao motor sem sair do Claude.</li><li>O MCP App mostra a fila, a proposta e o relatório na conversa.</li><li>A Skill orienta o Claude (agente B).</li><li>Fala só com o MCP, e o MCP chama a API no Worker: a mesma que os agentes usam como tools.</li></ul></div>
     </div>
   </section>
 
@@ -241,6 +241,8 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: .88em; }
       <div class="gd"><span class="num">2</span>Diretoria e bloqueio nunca são aprovados por máquina.</div>
       <div class="gd"><span class="num">3</span>A régua é a fonte do encaminhamento: o nível só sobe, nunca desce.</div>
       <div class="gd"><span class="num">4</span>Só o Worker fala com o banco: RLS sem política, e o MCP chama a API.</div>
+      <div class="gd"><span class="num">5</span>E7: a regra liga a nota ao pagamento já feito, sem pessoa, como no BPMN.</div>
+      <div class="gd"><span class="num">6</span>A aprovação vale uma vez, por uma pessoa do nível certo ou pelo motor dentro dos critérios (confiança de 0,98, até R$ 20 mil, depois do modo sombra). Diretoria e bloqueio são sempre de uma pessoa.</div>
     </div>
   </section>
 
