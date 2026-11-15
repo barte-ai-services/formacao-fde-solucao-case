@@ -20,6 +20,8 @@ body { background: #f9f9f9; color: var(--ink); font: 16px "Inter", system-ui, sa
 #canvas { flex: 1; min-height: 0; position: relative; background: #fefefe; }
 #canvas .djs-label, #canvas text { font-family: "Inter", system-ui, sans-serif !important; }
 #canvas [data-element-id^="Lane_"] .djs-label, #canvas [data-element-id^="Part_"] .djs-label { display: none; }
+.opp { width: 270px; background: #fefefe; border: 2.5px solid #df285d; border-radius: 10px; padding: 10px 12px; font: 500 14px/1.4 "Inter", system-ui, sans-serif; color: #171717; box-shadow: 0 2px 0 #fbcad3; pointer-events: none; }
+.opp b { display: block; color: #df285d; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
 .lane-label { font: 700 15px "Inter", system-ui, sans-serif; text-transform: uppercase; letter-spacing: .06em; color: #404040; white-space: nowrap; pointer-events: none; }
 </style>
 
@@ -74,7 +76,23 @@ async function show(id) {
     label.textContent = lane.businessObject.name || "";
     overlays.add(lane.id, { position: { top: 10, left: 14 }, html: label });
   });
+  addNotes(overlays);
   fitHeight();
+}
+const NOTES = {
+  Task_Count: "Foto do pallet no ato da entrega. Um agente conta pela imagem e serve de contraponto à contagem do operador.",
+  Task_Confirm: "Num processo sem agente, essa decisão é sempre de uma pessoa. No processo agêntico, um agente decide quando a confiança passa do limite e o critério de confirmar ou alterar está claro. Abaixo disso, a pessoa decide."
+};
+function addNotes(overlays) {
+  const registry = viewer.get("elementRegistry");
+  Object.entries(NOTES).forEach(([id, text]) => {
+    if (!registry.get(id)) return;
+    const card = document.createElement("div");
+    card.className = "opp";
+    card.innerHTML = "<b>Oportunidade de agente</b>";
+    card.appendChild(document.createTextNode(text));
+    overlays.add(id, { position: { top: 86, left: -70 }, html: card });
+  });
 }
 document.addEventListener("click", (e) => {
   const b = e.target.closest("button");
