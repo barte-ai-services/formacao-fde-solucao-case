@@ -1,3 +1,4 @@
+import { routeDivergences } from '../../src/domain/approval-policy.js';
 import { describe, expect, it } from 'vitest';
 import type { RegistryCorrectionMessage, RegistryCorrectionOutbox } from '../../src/connectors/ports.js';
 import { supabaseConnectors } from '../../src/connectors/supabase-connectors.js';
@@ -465,6 +466,12 @@ describe('E4 — unidade de medida (plano #67, história #37)', () => {
     it('limites linhas 4 e 5, AC-4: R$ 20.000,00 exatos é analista; um centavo acima é coordenação', () => {
       expect(e4ApprovalLevel(Money.ofCents(2_000_000))).toBe('analista');
       expect(e4ApprovalLevel(Money.ofCents(2_000_001))).toBe('coordenacao');
+    });
+
+    it('#110 régua: o nível do E4 vem da routeDivergences; acima de R$ 100 mil é a linha 2, diretoria', () => {
+      const total = Money.ofCents(10_000_001);
+      expect(e4ApprovalLevel(total)).toBe(routeDivergences([{ classification: 'E4' }], total).level);
+      expect(e4ApprovalLevel(total)).toBe('diretoria');
     });
   });
 

@@ -1,3 +1,4 @@
+import { routeDivergences } from '../../src/domain/approval-policy.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   approvalLevelItemTrocado,
@@ -340,5 +341,11 @@ describe('#36 E2 item trocado', () => {
   it('#36/AC-3 regras 4 e 5: nota de R$ 20.000,01 vai à coordenação', () => {
     const nota = invoice({ supplierId: 'F02', ref: null, items: [], total: 20000.01 });
     expect(approvalLevelItemTrocado(nota)).toBe('coordenacao');
+  });
+
+  it('#110 régua: o nível do E2 vem da routeDivergences; acima de R$ 100 mil é a linha 2, diretoria', () => {
+    const nota = invoice({ supplierId: 'F02', ref: null, items: [], total: 100000.01 });
+    expect(approvalLevelItemTrocado(nota)).toBe(routeDivergences([{ classification: 'E2' }], nota.total).level);
+    expect(approvalLevelItemTrocado(nota)).toBe('diretoria');
   });
 });

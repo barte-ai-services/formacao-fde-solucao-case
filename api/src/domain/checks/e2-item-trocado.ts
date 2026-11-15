@@ -1,4 +1,5 @@
 import { AmountAtRisk } from '../amount-at-risk.js';
+import { routeDivergences } from '../approval-policy.js';
 import type { ApprovalLevel } from '../approval-level.js';
 import type { CheckContext, Product, PurchaseOrder, PurchaseOrderItem } from '../context.js';
 import { matchByDescription } from '../description-match.js';
@@ -6,12 +7,6 @@ import { Divergence } from '../divergence.js';
 import type { InvoiceItem, InvoiceView } from '../invoice.js';
 import { Money } from '../money.js';
 import type { Check } from './check.js';
-
-/**
- * Tabela de regras de aprovação, linhas 4 e 5 (docs/domain/README.md): E1 a E4 em nota de até
- * R$ 20 mil vão ao analista; acima disso, à coordenação. O limite é inclusivo.
- */
-const ANALYST_LIMIT = Money.ofCents(2_000_000);
 
 /** Um item da nota que veio no lugar de um item da ordem que não veio. */
 type Swap = {
@@ -141,5 +136,6 @@ export function amountAtRiskItemTrocado(invoice: InvoiceView, ctx: CheckContext)
 
 /** #36/AC-3, tabela de regras de aprovação linhas 4 e 5: até R$ 20 mil, analista; acima, coordenação. */
 export function approvalLevelItemTrocado(invoice: InvoiceView): ApprovalLevel { // ADR-002
-  return invoice.total.compare(ANALYST_LIMIT) <= 0 ? 'analista' : 'coordenacao'; // ADR-002
+  // #110: a régua (#63) é a fonte única do encaminhamento; não há limite de valor aqui.
+  return routeDivergences([{ classification: 'E2' }], invoice.total).level; // ADR-002
 }
