@@ -11,6 +11,7 @@ import {
 } from "@barte-ai-services/barte-ui-kit";
 import { apiGet } from "../api";
 import type { DuplicateDto, DuplicateReason, DuplicatesResponseDto, TitleState } from "../api/contract";
+import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
 import type { RouteProps } from "./types";
@@ -100,6 +101,13 @@ export default function NotasDuplicadas(_props: RouteProps) {
       loadingLabel={texts.duplicadas.loading}
       errorTitle={texts.duplicadas.error}
       emptyLabel={texts.duplicadas.empty}
+      empty={
+        <EmptyState
+          title={texts.emptyState.duplicadas.title}
+          description={texts.emptyState.duplicadas.description}
+          action={{ label: texts.emptyState.action, to: "/pagar/fila" }}
+        />
+      }
     >
       {() => (
         <>

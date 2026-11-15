@@ -11,6 +11,7 @@ import {
 } from "@barte-ai-services/barte-ui-kit";
 import { apiGet } from "../api";
 import type { Cents, DivergenceCode } from "../api/contract";
+import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
 import { divergenceLabel } from "../evidence/labels";
@@ -193,6 +194,13 @@ export default function BarredAmountRoute(_props: RouteProps): ReactElement {
       loadingLabel={texts.valorBarrado.loading}
       errorTitle={texts.valorBarrado.error}
       emptyLabel={texts.valorBarrado.empty}
+      empty={
+        <EmptyState
+          title={texts.emptyState.valorBarrado.title}
+          description={texts.emptyState.valorBarrado.description(data ? formatBrlShort(data.baselineCents) : "")}
+          action={{ label: texts.emptyState.action, to: "/pagar/fila" }}
+        />
+      }
     >
       {() => (data ? <BarredAmountView panel={data} /> : null)}
     </Screen>

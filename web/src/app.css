@@ -11,3 +11,7 @@
 /* #63 A proposta: os selos lado a lado e os blocos com o mesmo respiro da tela. */
 .pagar-proposal { display: grid; gap: var(--spacing-xl); padding: var(--spacing-lg); }
 .pagar-badges { display: flex; gap: var(--spacing-sm); flex-wrap: wrap; }
+
+/* #123 O estado vazio das telas: ilustração, título, explicação e ação, centrados. */
+.pagar-empty { display: grid; justify-items: center; gap: var(--spacing-md); padding: var(--spacing-3xl) var(--spacing-lg); text-align: center; }
+.pagar-empty-description { max-width: 48ch; color: var(--content-secondary); }

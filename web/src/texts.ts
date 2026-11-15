@@ -17,6 +17,25 @@ export const texts = {
     noteWord: (n: number) => (n === 1 ? "1 nota" : `${n} notas`),
   },
 
+  /** #123 O estado vazio das telas: título, explicação e a ação para a fila. */
+  emptyState: {
+    action: "Ver a fila de aprovação",
+    duplicadas: {
+      title: "Nenhuma nota duplicada neste mês",
+      description:
+        "Quando uma nota cobrar uma compra já cobrada, ela aparece aqui ao lado da original, com o título bloqueado.",
+    },
+    valorBarrado: {
+      title: "Nada barrado neste mês ainda",
+      description: (baseline: string) =>
+        `A linha de base é ${baseline} por mês. O valor barrado aparece aqui assim que a primeira proposta for aprovada.`,
+    },
+    recebimento: {
+      title: (noun: string) => `Nenhuma nota na ${noun} hoje`,
+      description: (empty: string) => `${empty} Quando houver, cada caminhão aparece aqui com a ação a tomar.`,
+    },
+  },
+
   app: {
     loading: "Abrindo o contas a pagar…",
     error: "Não consegui abrir o contas a pagar agora",

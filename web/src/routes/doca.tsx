@@ -4,6 +4,7 @@ import { StatusBadge } from "@barte-ai-services/barte-ui-kit";
 import { dockApi, type DockBoardDto, type DockRowDto } from "../api/dock";
 import type { DockActionDto, QuantityDto } from "../api/contract";
 import { ACTION_LABEL, ACTION_TONE } from "../approval/labels";
+import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
 import type { RouteProps } from "./types";
@@ -125,6 +126,13 @@ export function ReceivingBoard({ title, subtitle, load, words, noun, emptyIn, wa
       loadingLabel={texts.recebimento.loading(noun)}
       errorTitle={texts.recebimento.error(noun)}
       emptyLabel={emptyIn(shown)}
+      empty={
+        <EmptyState
+          title={texts.emptyState.recebimento.title(noun)}
+          description={texts.emptyState.recebimento.description(emptyIn(shown))}
+          action={{ label: texts.emptyState.action, to: "/pagar/fila" }}
+        />
+      }
     >
       {() => (
         <>
