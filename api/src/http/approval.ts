@@ -10,7 +10,7 @@ import { Quantity, type Unit } from '../domain/quantity.js';
 import type { Env } from '../env.js';
 import type { Identity } from './access.js';
 import type { CheckContext } from '../domain/index.js';
-import { dossierField } from '../dossier/proposal-field.js';
+import { dossierField, dossierReadFailed, type DossierField } from '../dossier/proposal-field.js';
 import { readDossier } from '../dossier/read-dossier.js';
 import type { DossierSource } from '../dossier/source.js';
 
@@ -125,10 +125,7 @@ async function proposalDetail(
 ): Promise<Response> {
   const file = await store.find(key);
   if (!file) return error(404, 'not_found');
-  // #68: o dossiê é conferido contra o banco na hora de mostrar; sem fonte, fica pendente.
-  const result = dossier
-    ? await readDossier({ invoiceAccessKey: key, invoice: file.invoice, ctx: await dossier.context(key), source: dossier.source })
-    : null;
+  const dossierView = await proposalDossier(key, file, dossier);
   return Response.json({
     ...summary(file, directory(identity.email)),
     justification: file.proposal.justification,
@@ -147,8 +144,23 @@ async function proposalDetail(
     })),
     title: { state: file.title.state, amount: money(file.title.amount), dueOn: file.title.dueOn },
     approval: file.approval,
-    dossier: dossierField(result),
+    dossier: dossierView,
   });
+}
+
+/**
+ * #68: o dossiê é conferido contra o banco na hora de mostrar; sem fonte, fica pendente. Um erro ao
+ * ler não derruba a proposta (#38/AC-4): vira `read_failed` e fica no log só com a chave e a mensagem.
+ */
+async function proposalDossier(key: string, file: CaseFile, dossier?: DossierDeps): Promise<DossierField> {
+  if (!dossier) return dossierField(null);
+  try {
+    const ctx = await dossier.context(key);
+    return dossierField(await readDossier({ invoiceAccessKey: key, invoice: file.invoice, ctx, source: dossier.source }));
+  } catch (e) {
+    console.error(`#68 dossiê da nota ${key} não lido: ${e instanceof Error ? e.message : String(e)}`);
+    return dossierReadFailed();
+  }
 }
 
 /** AC-7 a AC-11: aprovar ou alterar, com o nível de quem passou pelo Access. */

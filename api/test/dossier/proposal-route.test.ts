@@ -1,10 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { MemoryApprovalStore, type CaseFile } from '../../src/approval/store.js';
 import { SupabaseRest } from '../../src/connectors/supabase-rest.js';
 import { draftProposal, propose } from '../../src/domain/approval.js';
 import { ApprovalPolicy } from '../../src/domain/approval-policy.js';
 import { Title, type Invoice } from '../../src/domain/index.js';
-import { SupabaseDossierSource } from '../../src/dossier/source.js';
+import { SupabaseDossierSource, type DossierSource } from '../../src/dossier/source.js';
 import type { Env } from '../../src/env.js';
 import type { AccessVerifier } from '../../src/http/access.js';
 import { createWorker } from '../../src/index.js';
@@ -36,12 +36,14 @@ function caseFile(invoice: Invoice): CaseFile {
   return { invoice, proposal, title, route, approval, supplierBlocked: false };
 }
 
-async function detail(suggestions: Record<string, unknown>[]) {
+async function detail(suggestions: Record<string, unknown>[], failing?: DossierSource) {
   const invoice = checkedWith(kitInvoice('NF-008'), 'E4');
   const fake = new FakePostgrest({ claude_suggestions: suggestions });
-  const source = new SupabaseDossierSource(
-    new SupabaseRest({ url: 'https://fake.supabase.co', secretKey: 'sb_secret_fake', fetch: fake.fetch }),
-  );
+  const source =
+    failing ??
+    new SupabaseDossierSource(
+      new SupabaseRest({ url: 'https://fake.supabase.co', secretKey: 'sb_secret_fake', fetch: fake.fetch }),
+    );
   const worker = createWorker({
     verifier,
     approval: {
@@ -56,8 +58,8 @@ async function detail(suggestions: Record<string, unknown>[]) {
     ctx,
   );
   expect(res.status).toBe(200);
-  const body = (await res.json()) as { dossier: Record<string, unknown> };
-  return { invoice, dossier: body.dossier };
+  const body = (await res.json()) as { dossier: Record<string, unknown> } & Record<string, unknown>;
+  return { invoice, dossier: body.dossier, body };
 }
 
 describe('GET /api/propostas/:chave com o dossiê', () => {
@@ -99,5 +101,26 @@ describe('GET /api/propostas/:chave com o dossiê', () => {
       summary: `A nota cobra ${item.quantity.amount} ${item.quantity.unit} do item ${code}.`,
       model: 'claude-opus-5-5',
     });
+  });
+
+  it('#38/AC-4 se a leitura do dossiê falha, a proposta responde 200 com o dossiê indisponível e o resto intacto', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const failing: DossierSource = {
+      async find() {
+        throw new Error('relation "claude_suggestions" does not exist');
+      },
+    };
+    const { invoice, dossier, body } = await detail([], failing);
+    expect(dossier).toEqual({
+      status: 'unavailable',
+      reason: 'read_failed',
+      notice: 'Não há dossiê para esta proposta: não foi possível ler o dossiê agora. Decida pelas divergências e evidências da conferência.',
+      generatedAt: null,
+    });
+    expect(body).toMatchObject({ invoiceAccessKey: invoice.accessKey, classification: 'E4', level: 'analista' });
+    expect(body.divergences).toHaveLength(1);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining(invoice.accessKey));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('claude_suggestions'));
+    log.mockRestore();
   });
 });

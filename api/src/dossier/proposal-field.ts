@@ -1,4 +1,10 @@
-import { dossierNotice, type DossierField, type DossierResult } from '../domain/index.js';
+import {
+  dossierNotice,
+  dossierNoticeFor,
+  type DossierField,
+  type DossierFieldUnavailable,
+  type DossierResult,
+} from '../domain/index.js';
 
 // #68: o campo `dossier` que a API da proposta expõe em `GET /api/propostas/:chave`.
 
@@ -16,4 +22,9 @@ export function dossierField(result: DossierResult | null): DossierField {
     notice: dossierNotice(result) ?? '',
     generatedAt: result?.generatedAt ?? null,
   };
+}
+
+/** #68: o dossiê que o Worker não conseguiu ler agora (#38/AC-4: a proposta segue sem ele). */
+export function dossierReadFailed(): DossierFieldUnavailable {
+  return { status: 'unavailable', reason: 'read_failed', notice: dossierNoticeFor('read_failed'), generatedAt: null };
 }

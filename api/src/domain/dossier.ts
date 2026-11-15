@@ -309,15 +309,24 @@ export function verifyAndRender(
   });
 }
 
-/** #68: por que a tela não tem dossiê; `pending` é o dossiê que o job ainda não gerou. */
-export type DossierNoticeReason = DossierUnavailableReason | 'pending';
+/**
+ * #68: por que a tela não tem dossiê. `pending`: o job ainda não gerou. `read_failed`: o Worker não
+ * conseguiu ler o dossiê agora; a proposta segue sem ele (#38/AC-4).
+ */
+export type DossierNoticeReason = DossierUnavailableReason | 'pending' | 'read_failed';
 
 const REASON_TEXT: Readonly<Record<DossierNoticeReason, string>> = {
   claude_failed: 'o Claude não respondeu',
   number_mismatch: 'um número do texto do Claude não conferiu com o banco',
   invalid_shape: 'a resposta do Claude veio fora do formato',
   pending: 'o dossiê ainda não foi gerado',
+  read_failed: 'não foi possível ler o dossiê agora',
 };
+
+/** #68: o aviso da tela para um motivo de não haver dossiê. */
+export function dossierNoticeFor(reason: DossierNoticeReason): string {
+  return `Não há dossiê para esta proposta: ${REASON_TEXT[reason]}. Decida pelas divergências e evidências da conferência.`;
+}
 
 /** #68: o dossiê como o fio leva à tela, quando não há um pronto. */
 export type DossierFieldUnavailable = {
@@ -339,6 +348,5 @@ export type DossierField = Dossier | DossierFieldUnavailable;
  */
 export function dossierNotice(result: DossierResult | null): string | null {
   if (result?.status === 'ready') return null;
-  const reason: DossierNoticeReason = result?.reason ?? 'pending';
-  return `Não há dossiê para esta proposta: ${REASON_TEXT[reason]}. Decida pelas divergências e evidências da conferência.`;
+  return dossierNoticeFor(result?.reason ?? 'pending');
 }
