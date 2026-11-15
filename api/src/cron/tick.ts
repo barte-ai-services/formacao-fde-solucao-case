@@ -9,7 +9,7 @@ import { captureInvoices } from "./capture";
 import { findUnreconciledReceipts } from "./unreconciled-receipts";
 import { proposeChecked } from "../approval/propose-checked";
 import { SupabaseApprovalStore } from "../approval/supabase-store";
-import { publishDecidedDockActions } from "../dock/publish-decided";
+import { publishDecidedDockActions, publishDecidedStoreActions } from "../dock/publish-decided";
 import { lastDaysUtc, publishApprovedUnregistered } from "./publish-approved-e8";
 
 /** #66 A janela, em dias, das decisões que o Cron manda ao Cadastro; ver `lastDaysUtc`. */
@@ -38,9 +38,10 @@ export async function tick(controller: Pick<ScheduledController, "cron">, env: E
   const cadastroE8 = await publishApproved(rest, registryCorrections);
   // #43 AC-1 O que a regra aprovou agora (e o que falhou na hora da aprovação) vai para a doca.
   const dock = await publishDock(rest);
+  const storeActions = await publishStoreActions(rest);
   const duplicates = await blockDuplicateTitles(rest); // #31/AC-5: o título da E6 fica bloqueado já na detecção.
   console.log(
-    `cron: execução agendada (${controller.cron}); notas vistas ${result.seen}, novas ${result.inserted}, conferidas ${result.checked}, com erro ${result.failed}, propostas ${proposals.proposed}, aprovadas pela regra ${proposals.approvedByRule}, cadastro E8 ${cadastroE8}, ações publicadas na doca ${dock}, títulos duplicados bloqueados ${duplicates.blocked}, com falha ${duplicates.failed}; recebimentos sem nota [${unreconciled.noKey.join(", ")}], com chave sem nota [${unreconciled.keyWithoutInvoice.join(", ")}]`,
+    `cron: execução agendada (${controller.cron}); notas vistas ${result.seen}, novas ${result.inserted}, conferidas ${result.checked}, com erro ${result.failed}, propostas ${proposals.proposed}, aprovadas pela regra ${proposals.approvedByRule}, cadastro E8 ${cadastroE8}, ações publicadas na doca ${dock}, ações publicadas no app da loja ${storeActions}, títulos duplicados bloqueados ${duplicates.blocked}, com falha ${duplicates.failed}; recebimentos sem nota [${unreconciled.noKey.join(", ")}], com chave sem nota [${unreconciled.keyWithoutInvoice.join(", ")}]`,
   );
 }
 
@@ -88,6 +89,17 @@ async function publishDock(rest: SupabaseRest): Promise<number> {
   } catch (error) {
     const status = error instanceof SupabaseRestError ? `HTTP ${error.status}` : "falha na publicação";
     console.log(`cron: doca indisponível (${status}); a próxima rodada repete`);
+    return 0;
+  }
+}
+
+/** #135 As notas de loja: a ação aprovada vai para o app da loja. Falhou, o Cron repete na próxima rodada. */
+async function publishStoreActions(rest: SupabaseRest): Promise<number> {
+  try {
+    return (await publishDecidedStoreActions(rest)).published;
+  } catch (error) {
+    const status = error instanceof SupabaseRestError ? `HTTP ${error.status}` : "falha na publicação";
+    console.log(`cron: app da loja indisponível (${status}); a próxima rodada repete`);
     return 0;
   }
 }

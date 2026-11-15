@@ -22,7 +22,8 @@ export const NAVIGATION: NavGroup[] = [
     key: "recebimento",
     label: "Recebimento",
     items: [
-      { key: "doca", label: "Doca", href: "/doca", zone: ZONE, icon: "truck" },
+      { key: "doca", label: "Doca (CD)", href: "/doca", zone: ZONE, icon: "truck" },
+      { key: "loja", label: "Loja", href: "/recebimento/loja", zone: ZONE, icon: "store" },
       { key: "devolucoes", label: "Notas de devolução", href: "/devolucoes", zone: ZONE, icon: "receipt" },
     ],
   },

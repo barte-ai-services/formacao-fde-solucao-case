@@ -61,6 +61,7 @@ describe('#56 reconferir', () => {
     expect(DOMAIN_TABLES.map(([t]) => t)).toEqual([
       'invoices',
       'outbox_dock_actions',
+      'outbox_store_actions',
       'outbox_registry_corrections',
       'outbox_return_notes',
       'approvals',

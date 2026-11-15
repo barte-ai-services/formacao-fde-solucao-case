@@ -12,13 +12,26 @@ function qty(q: QuantityDto): string {
   return `${q.amount} ${q.unit}`;
 }
 
+/** #135 O que cada lugar diz ao operador: a doca do CD fala de caminhão; o app da loja, de nota. */
+export interface ReceivingWording {
+  receive: string;
+  refuse: string;
+  awaiting: string;
+}
+
+const DOCK_WORDING: ReceivingWording = {
+  receive: "Descarregue tudo",
+  refuse: "Devolva o caminhão inteiro",
+  awaiting: "Não descarregue ainda",
+};
+
 /** #43 AC-2: o que o operador faz no receber parcial, a partir das linhas a segurar ou devolver. */
-function instruction(action: DockActionDto): string {
+function instruction(action: DockActionDto, words: ReceivingWording): string {
   switch (action.kind) {
     case "receber":
-      return "Descarregue tudo";
+      return words.receive;
     case "recusar":
-      return "Devolva o caminhão inteiro";
+      return words.refuse;
     case "receber_parcial": {
       const { lines } = action;
       const of = (d: "segurar" | "devolver") =>
@@ -49,11 +62,37 @@ function Two({ top, bottom }: { top: React.ReactNode; bottom: React.ReactNode })
   );
 }
 
+/** #135 O que muda entre a doca do CD e o recebimento na loja. */
+export interface ReceivingBoardProps {
+  title: string;
+  subtitle: string;
+  load: (destination: string | null, signal: AbortSignal) => Promise<DockBoardDto>;
+  words: ReceivingWording;
+  noun: string; // "doca" ou "loja": o lugar, nas mensagens de carga e de erro
+  emptyIn: (shown: string | null) => string;
+  warning: string;
+}
+
 /** /doca: as notas do dia num destino e o que fazer com cada caminhão (#43 AC-3, AC-4). */
 export default function Doca(_props: RouteProps) {
+  return (
+    <ReceivingBoard
+      title="Doca"
+      subtitle="As notas que chegam hoje neste destino e o que fazer com cada caminhão. Nada é descarregado antes da decisão."
+      load={(destination, signal) => dockApi.board(destination, signal)}
+      words={DOCK_WORDING}
+      noun="doca"
+      emptyIn={(shown) => `Nenhuma nota com entrega prevista hoje ${shown ? `na ${shown}` : "neste destino"}.`}
+      warning="Segure o caminhão: a ação aparece aqui assim que a pessoa decidir."
+    />
+  );
+}
+
+/** #135 O quadro de recebimento, o mesmo para a doca do CD e para a loja; cada um passa o seu texto e a sua leitura. */
+export function ReceivingBoard({ title, subtitle, load, words, noun, emptyIn, warning }: ReceivingBoardProps) {
   const [destination, setDestination] = useState<string | null>(null);
   const { state, data, retry } = useLoad(
-    (signal): Promise<DockBoardDto> => dockApi.board(destination, signal),
+    (signal): Promise<DockBoardDto> => load(destination, signal),
     (board) => board.rows.length === 0,
   );
   // #72 Trocar o destino carrega de novo: as duas mudanças entram no mesmo render, e o `useLoad` lê a carga nova.
@@ -71,8 +110,8 @@ export default function Doca(_props: RouteProps) {
   const awaiting = data?.awaiting ?? 0;
   return (
     <Screen
-      title="Doca"
-      subtitle="As notas que chegam hoje neste destino e o que fazer com cada caminhão. Nada é descarregado antes da decisão."
+      title={title}
+      subtitle={subtitle}
       actions={
         destinations.length > 0 ? (
           <Select
@@ -85,9 +124,9 @@ export default function Doca(_props: RouteProps) {
       }
       state={state}
       onRetry={retry}
-      loadingLabel="Carregando as notas da doca…"
-      errorTitle="Não consegui ler as notas desta doca agora"
-      emptyLabel={`Nenhuma nota com entrega prevista hoje ${shown ? `na ${shown}` : "neste destino"}.`}
+      loadingLabel={`Carregando as notas da ${noun}…`}
+      errorTitle={`Não consegui ler as notas desta ${noun} agora`}
+      emptyLabel={emptyIn(shown)}
     >
       {() => (
         <>
@@ -95,7 +134,7 @@ export default function Doca(_props: RouteProps) {
             <Alert
               variant="warning"
               title={`${awaiting} ${awaiting === 1 ? "nota aguarda" : "notas aguardam"} aprovação.`}
-              description="Segure o caminhão: a ação aparece aqui assim que a pessoa decidir."
+              description={warning}
             />
           ) : null}
           <Table<DockRowDto>
@@ -128,7 +167,7 @@ export default function Doca(_props: RouteProps) {
                           Aguardando aprovação
                         </StatusBadge>
                       }
-                      bottom="Não descarregue ainda"
+                      bottom={words.awaiting}
                     />
                   ) : (
                     <Two
@@ -137,7 +176,7 @@ export default function Doca(_props: RouteProps) {
                           {ACTION_LABEL[n.status.action.kind]}
                         </StatusBadge>
                       }
-                      bottom={instruction(n.status.action)}
+                      bottom={instruction(n.status.action, words)}
                     />
                   ),
               },

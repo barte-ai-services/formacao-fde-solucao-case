@@ -28,6 +28,9 @@ export interface PayablesPort {
   listPostedInvoices(): Promise<PostedInvoice[]>;
 }
 
+/** #135 App da loja: a ação no recebimento da nota de loja (mock de saída). */
+export type StoreActionOutbox = Outbox<StoreActionMessage>;
+
 /** #59 ERP Cadastro: fornecedores e produtos. */
 export interface RegistryPort {
   listSuppliers(): Promise<Supplier[]>;
@@ -56,6 +59,13 @@ export interface Outbox<T> {
 
 export type DockActionMessage = {
   readonly invoiceAccessKey: string;
+  readonly action: DockAction;
+};
+
+/** #135 A ação no recebimento da nota de loja: vai para o app da loja, não para o WMS. */
+export type StoreActionMessage = {
+  readonly invoiceAccessKey: string;
+  readonly store: string;
   readonly action: DockAction;
 };
 

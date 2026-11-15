@@ -30,6 +30,12 @@ export interface DockBoardDto {
 }
 
 export const dockApi = {
+  /** #135 O recebimento na loja: mesmo formato, lido de `/api/recebimento-loja?loja=LJ-…`. */
+  storeBoard(store: string | null, signal?: AbortSignal): Promise<DockBoardDto> {
+    const query = store ? `?loja=${encodeURIComponent(store)}` : "";
+    return apiGet<DockBoardDto>(`/api/recebimento-loja${query}`, { signal });
+  },
+
   /** #72 Sem destino, a API abre no primeiro destino do dia; sem data, usa hoje. */
   board(destination: string | null, signal?: AbortSignal): Promise<DockBoardDto> {
     const query = destination ? `?destino=${encodeURIComponent(destination)}` : "";

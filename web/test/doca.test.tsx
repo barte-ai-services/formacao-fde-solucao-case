@@ -8,7 +8,7 @@ import { fallbackContext } from "../src/shell/context";
 const board = {
   destination: "CD-03",
   date: "2026-11-11",
-  destinations: ["CD-03", "LJ-012"],
+  destinations: ["CD-03", "CD-04"], // #135 a doca é só do CD
   awaiting: 1,
   rows: [
     {

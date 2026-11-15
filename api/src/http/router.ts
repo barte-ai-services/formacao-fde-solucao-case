@@ -26,11 +26,13 @@ const publicRoutes: Record<string, Record<string, PublicHandler>> = {
  */
 function protectedRoutes(deps: RouterDeps): Record<string, Record<string, ProtectedHandler>> {
   const dock = dockHandler(deps.dock);
+  const storeReceiving = dockHandler(deps.dock, "app_loja");
   const duplicates = deps.duplicates ?? defaultDuplicates;
   return {
     "/me": { GET: me },
     "/api/valor-barrado": { GET: barredAmount },
     "/api/doca": { GET: (_identity, request, env) => dock(request, env) },
+    "/api/recebimento-loja": { GET: (_identity, request, env) => storeReceiving(request, env) },
     "/api/duplicates": { GET: (_identity, _request, env) => listDuplicates(duplicates(env)) },
   };
 }

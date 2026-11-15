@@ -6,6 +6,7 @@ import Devolucoes from "./devolucoes";
 import Doca from "./doca";
 import NotasDuplicadas from "./duplicadas";
 import FilaDeAprovacao from "./fila";
+import Recebimento from "./recebimento-loja";
 import ListaDoDia from "./lista-do-dia";
 import Proposta from "./proposta";
 import ValorBarrado from "./valor-barrado";
@@ -23,6 +24,7 @@ export const ROUTES: readonly RouteDefinition[] = [
   { path: "/pagar/valor-barrado", component: ValorBarrado },
   { path: "/doca", component: Doca },
   { path: "/devolucoes", component: Devolucoes },
+  { path: "/recebimento/loja", component: Recebimento },
 ];
 
 /** Caminhos que só levam a outro. */

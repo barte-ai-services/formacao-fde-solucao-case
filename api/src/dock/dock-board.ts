@@ -1,6 +1,7 @@
 // A doca de um destino num dia: as notas e a ação de cada uma (#72, #43 AC-1 a AC-4). Função pura.
 import type { DockActionMessage, Published } from '../connectors/ports.js';
 import type { DockAction, PartialLine, Unit } from '../domain/index.js';
+import { receivingPlace, type ReceivingPlace } from './receiving-place.js';
 
 /** #72 O que a doca precisa saber da nota. */
 export type DockInvoice = {
@@ -60,6 +61,8 @@ export type DockBoard = {
 export type DockBoardInput = {
   readonly invoices: readonly DockInvoice[];
   readonly published: readonly Published<DockActionMessage>[];
+  /** #135 A doca do CD ou o app da loja: só os destinos deste lugar entram. Padrão: a doca do CD. */
+  readonly place?: ReceivingPlace;
   /** Nulo: o primeiro destino do dia (#72). */
   readonly destination: string | null;
   readonly date: string;
@@ -99,8 +102,8 @@ function statusOf(published: Published<DockActionMessage> | undefined): DockStat
 const byNumber = (a: DockInvoice, b: DockInvoice) => a.number.localeCompare(b.number, 'pt-BR', { numeric: true });
 
 /** #43 AC-4: as notas do dia do destino (ou do primeiro destino do dia), ordenadas pelo número, com a ação de cada uma. */
-export function dockBoard({ invoices, published, destination: requested, date }: DockBoardInput): DockBoard {
-  const ofDay = invoices.filter((i) => i.issuedOn === date);
+export function dockBoard({ invoices, published, destination: requested, date, place = 'doca_cd' }: DockBoardInput): DockBoard {
+  const ofDay = invoices.filter((i) => i.issuedOn === date && receivingPlace(i.store) === place);
   const destinations = [...new Set(ofDay.map((i) => i.store))].sort();
   const destination = requested ?? destinations[0] ?? null;
   const latest = latestByInvoice(published);

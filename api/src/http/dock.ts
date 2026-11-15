@@ -8,6 +8,7 @@
 import { SupabaseRest, SupabaseRestError } from "../connectors/supabase-rest";
 import { dockBoard } from "../dock/dock-board";
 import { supabaseDockSource } from "../dock/dock-source";
+import { receivingPlace, type ReceivingPlace } from "../dock/receiving-place";
 import type { Env } from "../env";
 
 export interface DockDeps {
@@ -55,24 +56,28 @@ function logFailure(error: unknown): null {
 
 const invalid = () => Response.json({ error: "invalid_query" }, { status: 400 });
 
-export function dockHandler(deps: DockDeps = {}) {
+/**
+ * #135 O mesmo handler serve a doca do CD (`destino`, `/api/doca`) e o recebimento na loja (`loja`,
+ * `/api/recebimento-loja`). Cada um recusa, com 400, o destino do outro lugar.
+ */
+export function dockHandler(deps: DockDeps = {}, place: ReceivingPlace = "doca_cd") {
   const supabase = deps.supabase ?? supabaseFromEnv;
   const today = deps.today ?? (() => todayInSaoPaulo());
 
   return async (request: Request, env: Env): Promise<Response> => {
     const params = new URL(request.url).searchParams;
     const date = params.get("data") ?? today();
-    const requested = params.get("destino");
+    const requested = params.get(place === "app_loja" ? "loja" : "destino");
     if (!isCalendarDate(date)) return invalid();
-    if (requested !== null && !DESTINATION.test(requested)) return invalid();
+    if (requested !== null && (!DESTINATION.test(requested) || receivingPlace(requested) !== place)) return invalid();
 
     const rest = supabase(env);
     if (!rest) return Response.json({ error: "supabase_not_configured" }, { status: 503 });
 
     const source = supabaseDockSource(rest);
-    const loaded = await Promise.all([source.invoicesOn(date), source.published()]).catch(logFailure);
+    const loaded = await Promise.all([source.invoicesOn(date), place === "app_loja" ? source.publishedToStores() : source.published()]).catch(logFailure);
     if (!loaded) return Response.json({ error: "supabase_unavailable" }, { status: 502 });
     const [invoices, published] = loaded;
-    return Response.json(dockBoard({ invoices, published, destination: requested, date }));
+    return Response.json(dockBoard({ invoices, published, destination: requested, date, place }));
   };
 }

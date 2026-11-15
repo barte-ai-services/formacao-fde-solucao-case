@@ -13,9 +13,11 @@ import type { CheckContext } from '../domain/index.js';
 import { dossierField, dossierReadFailed, type DossierField } from '../dossier/proposal-field.js';
 import { readDossier } from '../dossier/read-dossier.js';
 import type { DossierSource } from '../dossier/source.js';
-import type { DockActionOutbox } from '../connectors/ports.js';
+import type { DockActionOutbox, StoreActionOutbox } from '../connectors/ports.js';
 import { SupabaseRestError } from '../connectors/supabase-rest.js';
 import { publishApprovedDockAction } from '../dock/publish-approved-dock-action.js';
+import { publishApprovedStoreAction } from '../dock/publish-approved-store-action.js';
+import { receivingPlace } from '../dock/receiving-place.js';
 
 export interface ApprovalDeps {
   store: ApprovalStore;
@@ -28,6 +30,8 @@ export interface ApprovalDeps {
    * a decisão. Sem ela, a decisão fica só gravada e a varredura do Cron publica depois.
    */
   dockOutbox?: DockActionOutbox;
+  /** #135 A caixa de saída do app da loja: a ação da nota de loja (`LJ-*`) vai para ela, não para o WMS. */
+  storeOutbox?: StoreActionOutbox;
 }
 
 /** #68: a fonte do dossiê e o contexto da nota, para conferir os números contra o banco. */
@@ -208,7 +212,7 @@ async function decide(
       paymentBlocked: file.supplierBlocked,
     });
     await store.saveDecision({ ...file, approval });
-    await publishDecision(deps.dockOutbox, key, file.proposal);
+    await publishDecision(deps, key, file);
     return Response.json({ approval, title: { state: file.title.state, amount: money(file.title.amount) } });
   } catch (e) {
     if (e instanceof NotAllowedToApproveError) return error(403, 'nivel_insuficiente', e.message);
@@ -225,10 +229,15 @@ async function decide(
  * decisão continua valendo (já está gravada): o log leva só a chave e o status HTTP, e a varredura do Cron
  * (`publishDecidedDockActions`) publica na próxima rodada.
  */
-async function publishDecision(outbox: DockActionOutbox | undefined, key: string, proposal: CaseFile['proposal']): Promise<void> {
-  if (!outbox) return;
+async function publishDecision(deps: ApprovalDeps, key: string, file: CaseFile): Promise<void> {
+  const event = { type: 'proposta_aprovada', invoiceAccessKey: key, proposal: file.proposal } as const;
   try {
-    await publishApprovedDockAction({ type: 'proposta_aprovada', invoiceAccessKey: key, proposal }, outbox);
+    // #135 O lugar sai do destino: loja no app da loja, CD no WMS.
+    if (receivingPlace(file.invoice.store) === 'app_loja') {
+      if (deps.storeOutbox) await publishApprovedStoreAction(event, file.invoice.store, deps.storeOutbox);
+    } else if (deps.dockOutbox) {
+      await publishApprovedDockAction(event, deps.dockOutbox);
+    }
   } catch (e) {
     // #43 Só campos nomeados no log: a mensagem do erro pode trazer o corpo da resposta do PostgREST.
     const status = e instanceof SupabaseRestError ? ` (HTTP ${e.status})` : '';

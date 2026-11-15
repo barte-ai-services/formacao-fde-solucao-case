@@ -6,7 +6,7 @@ import type { DockActionMessage, DockActionOutbox } from './ports.js';
 import type { SupabaseRest } from './supabase-rest.js';
 
 type EncodedLine = { sku: string; amount: number; unit: 'UN' | 'CX'; disposition: PartialLine['disposition'] };
-type EncodedAction = { kind: DockAction['kind']; lines?: EncodedLine[] };
+export type EncodedAction = { kind: DockAction['kind']; lines?: EncodedLine[] };
 
 const isEncodedLine = shaped<EncodedLine>({
   sku: isString,
@@ -15,13 +15,12 @@ const isEncodedLine = shaped<EncodedLine>({
   disposition: oneOf('segurar', 'devolver'),
 } satisfies Shape<EncodedLine>);
 
-const isEncodedAction = shaped<EncodedAction>({
+export const isEncodedAction = shaped<EncodedAction>({
   kind: oneOf('receber', 'receber_parcial', 'recusar'),
   lines: optional(arrayOf(isEncodedLine)),
 } satisfies Shape<EncodedAction>);
 
-function encode(message: DockActionMessage): EncodedAction {
-  const { action } = message;
+export function encodeAction(action: DockAction): EncodedAction {
   if (action.kind !== 'receber_parcial') return { kind: action.kind };
   return {
     kind: action.kind,
@@ -34,9 +33,8 @@ function encode(message: DockActionMessage): EncodedAction {
   };
 }
 
-function decode(invoiceAccessKey: string, p: EncodedAction): DockActionMessage {
-  const action =
-    p.kind === 'receber'
+export function decodeAction(p: EncodedAction): DockAction {
+  return p.kind === 'receber'
       ? DockAction.receive()
       : p.kind === 'recusar'
         ? DockAction.refuse()
@@ -47,8 +45,10 @@ function decode(invoiceAccessKey: string, p: EncodedAction): DockActionMessage {
               disposition: l.disposition,
             })),
           );
-  return { invoiceAccessKey, action };
 }
+
+const encode = (message: DockActionMessage): EncodedAction => encodeAction(message.action);
+const decode = (invoiceAccessKey: string, p: EncodedAction): DockActionMessage => ({ invoiceAccessKey, action: decodeAction(p) });
 
 export function wmsDockActionOutbox(rest: SupabaseRest): DockActionOutbox {
   return new SupabaseOutbox(rest, 'outbox_dock_actions', { encode, isEncoded: isEncodedAction, decode });

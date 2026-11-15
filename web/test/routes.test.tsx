@@ -15,6 +15,7 @@ const EXPECTED: Record<string, { path: string; title: string; empty: string }> =
   "/pagar/valor-barrado": { path: "/pagar/valor-barrado", title: "Valor barrado", empty: "Nada barrado neste mês ainda" },
   "/doca": { path: "/doca", title: "Doca", empty: "Nenhuma nota com entrega prevista hoje" },
   "/devolucoes": { path: "/devolucoes", title: "Notas de devolução", empty: "Nenhuma devolução pendente de emissão" },
+  "/recebimento/loja": { path: "/recebimento/loja", title: "Recebimento na loja", empty: "Nenhuma nota com entrega prevista hoje" },
 };
 
 function renderAt(path: string) {
@@ -27,7 +28,7 @@ function emptyApi(input: RequestInfo | URL): Promise<Response> {
   const path = String(input);
   if (path.startsWith("/api/propostas/")) return Promise.resolve(Response.json({ error: "not_found" }, { status: 404 }));
   if (path === "/api/fila") return Promise.resolve(Response.json({ approver: { email: null, level: null }, items: [] }));
-  if (path.startsWith("/api/doca")) return Promise.resolve(Response.json({ destination: null, date: "2026-11-15", destinations: [], awaiting: 0, rows: [] }));
+  if (path.startsWith("/api/doca") || path.startsWith("/api/recebimento-loja")) return Promise.resolve(Response.json({ destination: null, date: "2026-11-15", destinations: [], awaiting: 0, rows: [] }));
   if (path === "/api/return-notes") return Promise.resolve(Response.json({ notes: [] }));
   if (path === "/api/duplicates") return Promise.resolve(Response.json({ duplicates: [], count: 0 }));
   if (path === "/api/hoje") return Promise.resolve(Response.json({ day: "2026-11-15", items: [], total: { cents: 0 } }));
@@ -49,7 +50,7 @@ describe("#60/AC-1 cada rota abre na moldura do Shell com o estado vazio", () =>
       renderAt(expected.path);
       // A moldura de verdade: a navegação do contas a pagar está lá.
       expect(screen.getAllByText("Fila de aprovação").length).toBeGreaterThan(0);
-      expect(screen.getAllByText("Doca").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Doca (CD)").length).toBeGreaterThan(0);
       expect(screen.getByRole("heading", { name: expected.title })).toBeTruthy();
       expect(await screen.findByText(new RegExp(expected.empty))).toBeTruthy();
     });

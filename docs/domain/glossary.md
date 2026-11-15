@@ -61,7 +61,8 @@ O briefing pede exatamente isto: anotar os "termos que cada cargo usa com sentid
 |---|---|---|---|
 | **Recebimento** (`Receipt`) **[2ª]** | O registro do que chegou a um destino, item a item. | "O CD recebe com doca agendada em planilha; a loja recebe a qualquer hora pelo app"; coluna "Recebido" do Anexo 4; campo `canal` (`doca_cd`, `app_loja`) | Aceito: **recebido**. Proibido: "conferência" para o recebimento |
 | **Doca** (`Dock`) | O lugar do CD onde o caminhão é recebido, com hora agendada. | "O CD recebe com doca agendada em planilha"; "Agenda de doca dos CDs" | Proibido: "doca" para a loja (ver [ambiguidades](#ambiguidades-resolvidas)) |
-| **Ação na doca** (`DockAction`) | O que fazer com a mercadoria: receber, receber parcial ou recusar. | "a doca recebe, recebe parcial ou recusa, e a divergência vira recusa ou nota de devolução no ERP" | Proibido: "pagamento parcial" para receber parcial |
+| **Ação no recebimento** (`DockAction`) | O que fazer com a mercadoria da nota: receber, receber parcial ou recusar. O lugar sai do destino: a **doca do CD** (`CD-*`, via WMS, `outbox_dock_actions`) ou o **app da loja** (`LJ-*`, `outbox_store_actions`). | "a doca recebe, recebe parcial ou recusa, e a divergência vira recusa ou nota de devolução no ERP" (CD); "a loja recebe a qualquer hora pelo app" | Proibido: "pagamento parcial" para receber parcial |
+| **Ação na doca** | A ação no recebimento quando o destino é um CD. | "a doca recebe, recebe parcial ou recusa" | Só para `CD-*`. Proibido: "ação na doca" para a loja; para ela, **ação no recebimento na loja** |
 | **Aceite** (`Acceptance`) | Aceitar a mercadoria e a nota. Para o jurídico, aceita o pedido. | "O jurídico diz que aceitar a nota é aceitar o pedido" | Proibido: "recebimento" para o aceite |
 | **Nota de devolução** (`ReturnNote`) | Documento que devolve ao fornecedor a diferença cobrada e não recebida ou não pedida. | "emitir nota de devolução"; "a divergência vira recusa ou nota de devolução no ERP" | Estados na fila do fiscal (#140): `pendente`, `emitida` (com o número da NF-e de devolução) e `cancelada` (com justificativa). |
 
@@ -98,7 +99,7 @@ O briefing pede exatamente isto: anotar os "termos que cada cargo usa com sentid
 | 5 | **Divergência × exceção** | "Divergência vira ordem complementar"; "Anexo 4 · Exceções" | **Divergência** é o fato encontrado numa nota. **Exceção** é o tipo catalogado. Uma nota tem divergências, e cada uma é de um tipo |
 | 6 | **Nível × encaminhamento × alçada** | `niveis` e `encaminhamento` na base do kit; "alçadas" no dossiê | **Nível** é o degrau dos limites de aprovação. **Encaminhamento** é o nível para onde a proposta foi. **Alçada** é sinônimo de limites de aprovação; o nível de uma pessoa é o do **aprovador** |
 | 7 | **Recebimento × conferência × aceite** | "o time cruza ordem, nota e recebido à mão"; "Quando a gente olha a nota, a mercadoria já entrou"; "aceitar a nota é aceitar o pedido" | **Recebimento** registra o que chegou. **Conferência** confronta a nota com a ordem e o recebido. **Aceite** é o ato jurídico, e vem depois da decisão |
-| 8 | **Doca × loja** | "O CD recebe com doca agendada em planilha; a loja recebe a qualquer hora pelo app" | **Doca** é só do CD. A loja recebe pelo app, sem doca. A "ação na doca" vale para o CD; para a loja, ver a [pergunta 3](#perguntas-em-aberto) |
+| 8 | **Doca × loja** | "O CD recebe com doca agendada em planilha; a loja recebe a qualquer hora pelo app" | **Doca** é só do CD. A loja recebe pelo app, sem doca. A "ação na doca" vale só para o CD. A loja tem a sua **ação no recebimento**, publicada para o app da loja ([pergunta 3](#perguntas-em-aberto), respondida na #135) |
 | 9 | **Pagamento fora do fluxo × pagamento** | "Compras emergenciais das lojas são pagas fora do fluxo e aparecem depois"; `nota_chave: null` em `pagamentos.json` | Os dois são **pagamento**. O fora do fluxo é o que vem antes da nota e sem título, e por isso a nota tardia não pode gerar um segundo |
 | 10 | **Proposta** | "a lista do dia, com cerca de 400 propostas"; briefing: "400 propostas de pagamento"; a tool `registrar_proposta` | **Proposta de pagamento** é item da lista do dia, fora do domínio. **Proposta**, sem complemento, é a do agente sobre a nota |
 | 11 | **Saldo** | "O saldo é conferido às 8h e muda ao longo do dia" | No dossiê, saldo é o **caixa**. O que falta cobrar de uma ordem é sempre **saldo da ordem**, nunca "saldo" sozinho |
@@ -117,8 +118,11 @@ O dossiê não decide estas questões.
    ser cobrada por várias notas?
 2. **O nome "proposta".** No dossiê, proposta é a de pagamento. Basta qualificar (proposta de
    pagamento × proposta), ou o termo do modelo deve virar **proposta de ação**?
-3. **Ação na loja.** A loja não tem doca nem agenda. A "ação na doca" vale para a nota de loja, ou a
-   loja só recebe a proposta e a divergência continua indo pelo app?
+3. **Ação na loja.** *Respondida (#135).* A loja não tem doca nem agenda, mas a ação vale para ela:
+   o conceito geral é a **ação no recebimento** (receber, receber parcial, recusar), e o lugar sai do
+   destino. Nota de CD (`CD-*`): a ação vai para o WMS e aparece na tela da doca. Nota de loja
+   (`LJ-*`): vai para o app da loja (`outbox_store_actions`) e aparece em "Recebimento na loja",
+   filtrada pela loja. Nenhum texto chama de doca o recebimento da loja.
 4. **O degrau de R$ 20 mil.** O dossiê dá R$ 5 mil e R$ 100 mil; R$ 20 mil só aparece nos limites
    de aprovação da base do kit. É o limite validado com a Já Chegou?
 5. **Valor em risco × P1.** O P1 é "pago sem mercadoria correspondente, menos o recuperado". O valor

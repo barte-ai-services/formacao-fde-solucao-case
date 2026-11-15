@@ -6,7 +6,7 @@ import { supabaseConnectors } from '../../src/connectors/supabase-connectors.js'
 import { SupabaseRest } from '../../src/connectors/supabase-rest.js';
 import { wmsDockActionOutbox } from '../../src/connectors/wms-dock-action.js';
 import { captureInvoices } from '../../src/cron/capture.js';
-import { publishDecidedDockActions } from '../../src/dock/publish-decided.js';
+import { publishDecidedDockActions, publishDecidedStoreActions } from '../../src/dock/publish-decided.js';
 import type { Env } from '../../src/env.js';
 import type { AccessVerifier } from '../../src/http/access.js';
 import { createWorker } from '../../src/index.js';
@@ -52,10 +52,12 @@ async function proposed(dockOutbox?: (rest: SupabaseRest) => DockActionOutbox) {
       ctx,
     );
   const dockRow = async (invoice: { accessKey: string; store: string; issuedOn: string }): Promise<Row> => {
-    const res = await call(`/api/doca?destino=${invoice.store}&data=${invoice.issuedOn}`);
+    // #135 Nota de loja aparece no recebimento na loja; nota de CD, na doca.
+    const path = invoice.store.startsWith('LJ-') ? `/api/recebimento-loja?loja=${invoice.store}` : `/api/doca?destino=${invoice.store}`;
+    const res = await call(`${path}&data=${invoice.issuedOn}`);
     const body = (await res.json()) as { rows: Row[] };
     const row = body.rows.find((r) => r.invoiceAccessKey === invoice.accessKey);
-    if (!row) throw new Error(`nota ${invoice.accessKey} fora da doca`);
+    if (!row) throw new Error(`nota ${invoice.accessKey} fora do recebimento`);
     return row;
   };
   return { fake, rest, call, dockRow };
@@ -105,8 +107,10 @@ describe('#43 AC-1 o que a regra aprova sem pessoa também chega à doca', () =>
     const { rest, dockRow } = await proposed();
     expect((await dockRow(NF036)).status.kind).toBe('aguardando_aprovacao');
 
+    // #135 O Cron roda as duas varreduras: a de CD (WMS) e a de loja (app da loja).
     const first = await publishDecidedDockActions(rest);
-    expect(first.published).toBeGreaterThan(0);
+    const second = await publishDecidedStoreActions(rest);
+    expect(first.published + second.published).toBeGreaterThan(0);
     expect((await dockRow(NF036)).status.kind).toBe('acao');
   });
 

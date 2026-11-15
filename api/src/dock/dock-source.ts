@@ -2,6 +2,7 @@
 import { arrayOf, isNumber, isString, nullable, oneOf, parseRows, shaped, type Shape } from '../connectors/guards.js';
 import type { DockActionMessage, Published } from '../connectors/ports.js';
 import type { SupabaseRest } from '../connectors/supabase-rest.js';
+import { appStoreActionOutbox } from '../connectors/store-action.js';
 import { wmsDockActionOutbox } from '../connectors/wms-dock-action.js';
 import type { DockInvoice, DockInvoiceItem } from './dock-board.js';
 
@@ -13,6 +14,8 @@ export interface DockSource {
    * conector ainda não filtra pelas chaves do dia; o filtro fica para um ajuste no conector.
    */
   published(): Promise<Published<DockActionMessage>[]>;
+  /** #135 As ações publicadas na caixa de saída do app da loja, em ordem de id. */
+  publishedToStores(): Promise<Published<DockActionMessage>[]>;
 }
 
 type ItemRow = { sku: string | null; description: string; quantity: { amount: number; unit: 'UN' | 'CX' } };
@@ -50,6 +53,7 @@ const toItem = (i: ItemRow): DockInvoiceItem => ({
 
 export function supabaseDockSource(rest: SupabaseRest): DockSource {
   const outbox = wmsDockActionOutbox(rest);
+  const storeOutbox = appStoreActionOutbox(rest);
   return {
     async invoicesOn(date) {
       const rows = await rest.select('invoices', { select: COLUMNS, filters: { issued_on: `eq.${date}` }, order: 'access_key' });
@@ -63,5 +67,6 @@ export function supabaseDockSource(rest: SupabaseRest): DockSource {
       }));
     },
     published: () => outbox.list(),
+    publishedToStores: () => storeOutbox.list(),
   };
 }

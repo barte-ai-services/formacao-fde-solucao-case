@@ -143,7 +143,7 @@ describe('GET /api/doca (#72)', () => {
 
     const body = (await (await get('/api/doca')).json()) as Body;
 
-    const destinations = [...new Set(kitNotes().filter((n) => n.data_emissao === '2026-11-11').map((n) => n.destino))].sort();
+    const destinations = [...new Set(kitNotes().filter((n) => n.data_emissao === '2026-11-11').map((n) => n.destino).filter((d) => d.startsWith('CD-')))].sort(); // #135 a doca é só do CD
     expect(body.date).toBe('2026-11-11');
     expect(body.destination).toBe(destinations[0]);
     expect(body.destinations).toEqual(destinations);

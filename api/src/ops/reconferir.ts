@@ -14,6 +14,7 @@ import type { Env } from '../env.js';
 export const DOMAIN_TABLES: readonly (readonly [table: string, column: string])[] = Object.freeze([
   ['invoices', 'access_key'],
   ['outbox_dock_actions', 'id'],
+  ['outbox_store_actions', 'id'],
   ['outbox_registry_corrections', 'id'],
   ['outbox_return_notes', 'id'],
   ['approvals', 'id'],

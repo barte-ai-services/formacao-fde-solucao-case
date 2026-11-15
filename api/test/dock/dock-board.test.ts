@@ -36,7 +36,7 @@ describe('dockBoard: a doca de um destino num dia (#72)', () => {
     expect(board.rows.map((r) => r.invoiceAccessKey)).toEqual([first, second, third]);
     expect(board.rows.map((r) => r.number)).toEqual(cd03.map((n) => String(n.numero)));
     expect(board.destinations).toEqual(
-      [...new Set(kitNotes().filter((n) => n.data_emissao === DATE).map((n) => n.destino))].sort(),
+      [...new Set(kitNotes().filter((n) => n.data_emissao === DATE && n.destino.startsWith('CD-')).map((n) => n.destino))].sort(),
     );
   });
 
