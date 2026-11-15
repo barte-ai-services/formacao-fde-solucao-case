@@ -1,0 +1,149 @@
+// Cliente mínimo do PostgREST do Supabase, com fetch puro (#59, AC-1). Nunca registra a chave.
+
+export type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
+
+export type SupabaseRestConfig = {
+  readonly url: string;
+  readonly secretKey: string;
+  readonly fetch?: FetchFn;
+  /** #59 Linhas por página no select. */
+  readonly pageSize?: number;
+};
+
+export type Row = Record<string, unknown>;
+
+/** #59 Filtros no formato do PostgREST: { chave: 'eq.X' }. */
+export type Filters = Readonly<Record<string, string>>;
+
+export type SelectOptions = {
+  readonly select?: string;
+  readonly order?: string;
+  readonly filters?: Filters;
+};
+
+export type InsertOptions = {
+  /** #59 Colunas da restrição única que decide a duplicada. */
+  readonly onConflict?: string;
+  /** #59 true: a duplicada é ignorada (resolution=ignore-duplicates). */
+  readonly ignoreDuplicates?: boolean;
+};
+
+export type RestOperation = 'select' | 'insert' | 'upsert' | 'update' | 'delete' | 'network';
+
+/** #59 Falha do PostgREST. A mensagem diz a operação, a tabela e o status; nunca a chave. */
+export class SupabaseRestError extends Error {
+  constructor(
+    readonly operation: RestOperation,
+    readonly table: string,
+    readonly status: number,
+    readonly detail: string,
+  ) {
+    super(`supabase-rest: ${operation} em ${table} falhou (HTTP ${status}) ${detail}`.trim());
+    this.name = 'SupabaseRestError';
+  }
+}
+
+const DEFAULT_PAGE_SIZE = 1000;
+const MAX_DETAIL = 300;
+
+export class SupabaseRest {
+  private readonly base: string;
+  private readonly secretKey: string;
+  private readonly doFetch: FetchFn;
+  private readonly pageSize: number;
+
+  constructor(config: SupabaseRestConfig) {
+    this.base = config.url.replace(/\/+$/, '') + '/rest/v1/';
+    this.secretKey = config.secretKey;
+    this.doFetch = config.fetch ?? ((input, init) => fetch(input, init));
+    this.pageSize = config.pageSize ?? DEFAULT_PAGE_SIZE;
+  }
+
+  /** #59 Lê a tabela inteira, paginando pelo cabeçalho Range. */
+  async select<T = Row>(table: string, options: SelectOptions = {}): Promise<T[]> {
+    const params = new URLSearchParams({ select: options.select ?? '*' });
+    if (options.order) params.set('order', options.order);
+    for (const [column, expr] of Object.entries(options.filters ?? {})) params.append(column, expr);
+    const rows: T[] = [];
+    for (let start = 0; ; start += this.pageSize) {
+      const page = await this.request<T[]>('select', table, 'GET', params, undefined, {
+        'Range-Unit': 'items',
+        Range: `${start}-${start + this.pageSize - 1}`,
+      });
+      rows.push(...page);
+      if (page.length < this.pageSize) return rows;
+    }
+  }
+
+  /**
+   * #59 Insere e devolve só as linhas que entraram de fato. Com ignoreDuplicates (o padrão), a linha
+   * que bate na restrição de onConflict é ignorada sem erro.
+   */
+  async insert<T = Row>(table: string, rows: readonly Row[], options: InsertOptions = {}): Promise<T[]> {
+    if (rows.length === 0) return [];
+    const params = new URLSearchParams();
+    if (options.onConflict) params.set('on_conflict', options.onConflict);
+    const prefer = ['return=representation'];
+    if (options.ignoreDuplicates ?? true) prefer.push('resolution=ignore-duplicates');
+    return this.request<T[]>('insert', table, 'POST', params, rows, { Prefer: prefer.join(',') });
+  }
+
+  /** #59 Insere ou atualiza pela restrição de onConflict (resolution=merge-duplicates). */
+  async upsert<T = Row>(table: string, rows: readonly Row[], onConflict: string): Promise<T[]> {
+    if (rows.length === 0) return [];
+    const params = new URLSearchParams({ on_conflict: onConflict });
+    return this.request<T[]>('upsert', table, 'POST', params, rows, {
+      Prefer: 'return=representation,resolution=merge-duplicates',
+    });
+  }
+
+  /** #59 Atualiza as linhas que passam nos filtros. Exige ao menos um filtro. */
+  async update<T = Row>(table: string, filters: Filters, patch: Row): Promise<T[]> {
+    const params = this.requireFilters('update', table, filters);
+    return this.request<T[]>('update', table, 'PATCH', params, patch, { Prefer: 'return=representation' });
+  }
+
+  /** #59 Apaga as linhas que passam nos filtros. Exige ao menos um filtro. */
+  async delete(table: string, filters: Filters): Promise<void> {
+    const params = this.requireFilters('delete', table, filters);
+    await this.request<unknown>('delete', table, 'DELETE', params, undefined, { Prefer: 'return=minimal' });
+  }
+
+  private requireFilters(operation: RestOperation, table: string, filters: Filters): URLSearchParams {
+    const entries = Object.entries(filters);
+    if (entries.length === 0) {
+      throw new SupabaseRestError(operation, table, 0, 'sem filtro: recusado para não atingir a tabela inteira');
+    }
+    return new URLSearchParams(entries);
+  }
+
+  private async request<T>(
+    operation: RestOperation,
+    table: string,
+    method: string,
+    params: URLSearchParams,
+    body: unknown,
+    extra: Record<string, string>,
+  ): Promise<T> {
+    const headers: Record<string, string> = { apikey: this.secretKey, 'Content-Type': 'application/json', ...extra };
+    // #59 Chave nova (sb_...) vai só no apikey; a legada (JWT) também vai no Authorization.
+    if (!this.secretKey.startsWith('sb_')) headers.Authorization = `Bearer ${this.secretKey}`;
+    const query = params.toString();
+    const url = `${this.base}${table}${query ? `?${query}` : ''}`;
+    let response: Response;
+    try {
+      response = await this.doFetch(url, {
+        method,
+        headers,
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+    } catch {
+      throw new SupabaseRestError('network', table, 0, 'falha de rede');
+    }
+    const text = await response.text();
+    if (!response.ok) {
+      throw new SupabaseRestError(operation, table, response.status, text.slice(0, MAX_DETAIL));
+    }
+    return (text ? JSON.parse(text) : []) as T;
+  }
+}

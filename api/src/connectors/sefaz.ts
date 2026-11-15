@@ -1,0 +1,38 @@
+// Conector SEFAZ: as notas da base do kit (kit_notas, kit_nota_itens) viram Invoice a conferir (#59).
+import { Invoice } from '../domain/index.js';
+import { groupBy, money, quantity, type KitNota, type KitNotaItem } from './kit-rows.js';
+import type { SefazPort } from './ports.js';
+import type { SupabaseRest } from './supabase-rest.js';
+
+export class SefazConnector implements SefazPort {
+  constructor(private readonly rest: SupabaseRest) {}
+
+  async listIssuedInvoices(): Promise<Invoice[]> {
+    const [notas, itens] = await Promise.all([
+      this.rest.select<KitNota>('kit_notas', { order: 'chave' }),
+      this.rest.select<KitNotaItem>('kit_nota_itens', { order: 'chave,codigo_fornecedor' }),
+    ]);
+    const itemsByKey = groupBy(itens, (i) => i.chave);
+    return notas.map((n) =>
+      Invoice.receive({
+        accessKey: n.chave,
+        number: String(n.numero),
+        series: String(n.serie),
+        supplierId: n.fornecedor_id,
+        store: n.destino,
+        issuedOn: n.data_emissao,
+        purchaseOrderRef: n.pedido_referenciado,
+        entryChannel: n.canal_entrada,
+        items: (itemsByKey.get(n.chave) ?? []).map((i) => ({
+          supplierCode: i.codigo_fornecedor,
+          sku: i.sku,
+          description: i.descricao,
+          quantity: quantity(i.quantidade, i.unidade),
+          unitPrice: money(i.preco_unitario),
+          total: money(i.valor),
+        })),
+        total: money(n.valor_total),
+      }),
+    );
+  }
+}

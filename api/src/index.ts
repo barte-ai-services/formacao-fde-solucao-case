@@ -6,7 +6,7 @@ export default {
   async fetch(request: Request, _env: Env, _ctx: ExecutionContext): Promise<Response> {
     return route(request);
   },
-  async scheduled(controller: ScheduledController, _env: Env, _ctx: ExecutionContext): Promise<void> {
-    tick(controller);
+  async scheduled(controller: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
+    await tick(controller, env);
   },
 } satisfies ExportedHandler<Env>;
