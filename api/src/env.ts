@@ -10,7 +10,7 @@ export interface Env {
    */
   ACCESS_AUD?: string;
   /**
-   * Domínio do time do Zero Trust, como `barte-academy.cloudflareaccess.com` (#54). A esteira passa
+   * Domínio do time do Zero Trust, como `long-frost-f16b.cloudflareaccess.com` (#54). A esteira passa
    * com `wrangler deploy --var`. Aceita `https://` na frente e barra no fim. Vazio: o Worker fecha.
    */
   ACCESS_TEAM_DOMAIN?: string;

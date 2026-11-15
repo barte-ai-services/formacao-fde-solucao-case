@@ -18,7 +18,7 @@ Os segredos ficam no `api/.dev.vars`, que o git ignora, um por linha:
 BARTE_ACADEMY_SUPABASE_SECRET_KEY=...
 BARTE_ACADEMY_CLAUDE_CODE_OAUTH_TOKEN=...
 ACCESS_AUD=...
-ACCESS_TEAM_DOMAIN=barte-academy.cloudflareaccess.com
+ACCESS_TEAM_DOMAIN=long-frost-f16b.cloudflareaccess.com
 ```
 
 ## O Claude no Worker (#171)
@@ -72,17 +72,36 @@ Localmente, ficam no `.dev.vars`; sem elas, só o `/health` responde 200.
 
 ### Provisionar
 
-Uma vez por conta, no painel da Cloudflare: abra o Zero Trust, crie o time `barte-academy` e
-escolha o plano Free. Depois, na raiz do repositório:
+O time do Zero Trust é `long-frost-f16b.cloudflareaccess.com` (variável do repositório
+`BARTE_ACADEMY_ACCESS_TEAM_DOMAIN`). A aplicação do Access que o Worker usa já existe, e o AUD dela está em
+`BARTE_ACADEMY_ACCESS_AUD`. O script `scripts/cloudflare_access.py` a atualiza e nunca cria outra: acha a
+aplicação pelo AUD, não pelo nome, e um AUD que não bate com nenhuma aplicação é erro, sem gravar nada.
+
+O PUT preserva o nome, o domínio e o AUD da aplicação, e o que ela já tem: os provedores de login (o código por
+e-mail entra se faltar), a duração da sessão e o redirecionamento automático. Só a política é reescrita: libera a
+`barte.com` e cada e-mail de `BARTE_ACADEMY_ACCESS_ALLOWED_EMAILS`, e as outras políticas da aplicação saem.
+Execução real sem e-mails é recusada. Rodar de novo deixa o mesmo estado.
+
+**Pelo workflow** (o caminho normal):
+
+1. Em Settings, Secrets and variables, Actions, confira os secrets `BARTE_ACADEMY_CLOUDFLARE_API_TOKEN` (com
+   permissão de Access: Apps and Policies) e `BARTE_ACADEMY_CLOUDFLARE_ACCOUNT_ID`, e as variáveis
+   `BARTE_ACADEMY_ACCESS_AUD` e `BARTE_ACADEMY_ACCESS_ALLOWED_EMAILS` (e-mails separados por vírgula ou espaço).
+2. Na aba Actions, rode `Provisiona o Cloudflare Access` (`.github/workflows/cloudflare-access.yml`) na `main`,
+   com `dry_run` marcado. O log mostra a chamada que enviaria, com os e-mails mascarados e a contagem deles.
+3. Rode de novo com `dry_run` desmarcado para gravar.
+
+O workflow não imprime o token nem os e-mails. Para criar uma aplicação nova, o que só se faz de propósito, rode à
+mão com `--create` e `BARTE_ACADEMY_ACCESS_APP_DOMAIN` com o domínio dela; o script imprime o `ACCESS_AUD=...`
+novo, que vai para a variável do repositório.
+
+**À mão**, na raiz do repositório:
 
 ```bash
 export BARTE_ACADEMY_CLOUDFLARE_API_TOKEN=...   # com permissão de Access: Apps and Policies
 export BARTE_ACADEMY_CLOUDFLARE_ACCOUNT_ID=...
-export BARTE_ACADEMY_ACCESS_ALLOWED_EMAILS="aluno1@gmail.com, aluno2@gmail.com"
+export BARTE_ACADEMY_ACCESS_AUD=...
+export BARTE_ACADEMY_ACCESS_ALLOWED_EMAILS="aluno1@example.com, aluno2@example.com"
 python3 scripts/cloudflare_access.py --dry-run   # mostra o que enviaria
 python3 scripts/cloudflare_access.py
 ```
-
-O script garante o login por código no e-mail e a aplicação `formacao-fde-solucao-case`, com a
-política que libera a `barte.com` e os alunos listados. Rodar de novo atualiza, não duplica. No fim,
-imprime `ACCESS_AUD=...` e `ACCESS_TEAM_DOMAIN=...`: são os valores das variáveis do repositório.
