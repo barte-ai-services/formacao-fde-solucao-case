@@ -80,7 +80,6 @@ class Flow:
     name: str = ""
     exit: str = "right"
     entry: str = "left"
-    offset: int = 0
     tone: str = "default"
     id: str = ""
 
@@ -143,7 +142,7 @@ def waypoints(f: Flow, lay: Layout) -> list[Point]:
         return [start, (end[0], sy), end]
     if abs(sy - end[1]) < 1:
         return [start, end]
-    bend = tgt[0] - BEND_GAP - f.offset
+    bend = tgt[0] - BEND_GAP
     return [start, (bend, sy), (bend, end[1]), end]
 
 

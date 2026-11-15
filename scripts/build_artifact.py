@@ -14,8 +14,8 @@ def build() -> str:
     page = (FOLDER / "template.html").read_text(encoding="utf-8")
     replacements = {
         "__DIAGRAM_CSS__": (FOLDER / "diagram-js.css").read_text(encoding="utf-8"),
-        "__XML_ATUAL__": (ROOT / "docs" / "processo" / "processo-atual.bpmn").read_text(encoding="utf-8"),
-        "__XML_ALVO__": (ROOT / "docs" / "processo" / "processo-alvo.bpmn").read_text(encoding="utf-8"),
+        "__XML_CURRENT__": (ROOT / "docs" / "processo" / "processo-atual.bpmn").read_text(encoding="utf-8"),
+        "__XML_TARGET__": (ROOT / "docs" / "processo" / "processo-alvo.bpmn").read_text(encoding="utf-8"),
     }
     for marker, content in replacements.items():
         page = page.replace(marker, content)

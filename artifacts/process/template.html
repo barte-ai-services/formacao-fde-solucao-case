@@ -20,8 +20,8 @@ body { background: var(--bg); color: var(--fg); font: 14px system-ui, sans-serif
 </style>
 
 <div class="bar">
-  <button type="button" data-show="alvo" aria-pressed="true">Processo-alvo</button>
-  <button type="button" data-show="atual" aria-pressed="false">Processo atual</button>
+  <button type="button" data-show="target" aria-pressed="true">Processo-alvo</button>
+  <button type="button" data-show="current" aria-pressed="false">Processo atual</button>
   <span class="gap"></span>
   <div class="legend" aria-label="Legenda das cores">
     <span><i style="background:#E6F1FB;border-color:#185FA5"></i>Sistema</span>
@@ -37,8 +37,8 @@ body { background: var(--bg); color: var(--fg); font: 14px system-ui, sans-serif
 </div>
 <div id="canvas"></div>
 
-<script type="text/plain" id="xml-atual">__XML_ATUAL__</script>
-<script type="text/plain" id="xml-alvo">__XML_ALVO__</script>
+<script type="text/plain" id="xml-current">__XML_CURRENT__</script>
+<script type="text/plain" id="xml-target">__XML_TARGET__</script>
 <script src="https://unpkg.com/bpmn-js@17.11.1/dist/bpmn-navigated-viewer.production.min.js"></script>
 <script>
 const viewer = new BpmnJS({ container: "#canvas" });
@@ -55,5 +55,5 @@ document.addEventListener("click", (e) => {
   if (b.dataset.zoom) canvas.zoom(canvas.zoom() * Number(b.dataset.zoom));
   if ("fit" in b.dataset) canvas.zoom("fit-viewport");
 });
-show("alvo");
+show("target");
 </script>

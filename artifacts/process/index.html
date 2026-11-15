@@ -1015,8 +1015,8 @@ body { background: var(--bg); color: var(--fg); font: 14px system-ui, sans-serif
 </style>
 
 <div class="bar">
-  <button type="button" data-show="alvo" aria-pressed="true">Processo-alvo</button>
-  <button type="button" data-show="atual" aria-pressed="false">Processo atual</button>
+  <button type="button" data-show="target" aria-pressed="true">Processo-alvo</button>
+  <button type="button" data-show="current" aria-pressed="false">Processo atual</button>
   <span class="gap"></span>
   <div class="legend" aria-label="Legenda das cores">
     <span><i style="background:#E6F1FB;border-color:#185FA5"></i>Sistema</span>
@@ -1032,7 +1032,7 @@ body { background: var(--bg); color: var(--fg); font: 14px system-ui, sans-serif
 </div>
 <div id="canvas"></div>
 
-<script type="text/plain" id="xml-atual"><?xml version="1.0" encoding="UTF-8"?>
+<script type="text/plain" id="xml-current"><?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0" id="Defs_AccountsPayable_Current" targetNamespace="https://barte.ai/formacao-fde/ja-chegou">
   <bpmn:collaboration id="Collab_AccountsPayable_Current">
     <bpmn:participant id="Part_AccountsPayable_Current" name="Já Chegou · contas a pagar hoje" processRef="AccountsPayable_Current" />
@@ -1293,7 +1293,7 @@ body { background: var(--bg); color: var(--fg); font: 14px system-ui, sans-serif
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>
 </script>
-<script type="text/plain" id="xml-alvo"><?xml version="1.0" encoding="UTF-8"?>
+<script type="text/plain" id="xml-target"><?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0" id="Defs_AccountsPayable_Target" targetNamespace="https://barte.ai/formacao-fde/ja-chegou">
   <bpmn:collaboration id="Collab_AccountsPayable_Target">
     <bpmn:participant id="Part_AccountsPayable_Target" name="Já Chegou · contas a pagar com o agente" processRef="AccountsPayable_Target" />
@@ -1709,5 +1709,5 @@ document.addEventListener("click", (e) => {
   if (b.dataset.zoom) canvas.zoom(canvas.zoom() * Number(b.dataset.zoom));
   if ("fit" in b.dataset) canvas.zoom("fit-viewport");
 });
-show("alvo");
+show("target");
 </script>

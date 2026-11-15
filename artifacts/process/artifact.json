@@ -1,6 +1,6 @@
 {
   "pages": {
-    "processo": {
+    "process": {
       "file": "index.html",
       "title": "Processo do contas a pagar",
       "home": "team",
@@ -10,5 +10,5 @@
       "capabilities": {}
     }
   },
-  "publishOrder": ["processo"]
+  "publishOrder": ["process"]
 }
