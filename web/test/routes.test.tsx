@@ -26,6 +26,7 @@ function emptyApi(input: RequestInfo | URL): Promise<Response> {
   const path = String(input);
   if (path.startsWith("/api/propostas/")) return Promise.resolve(Response.json({ error: "not_found" }, { status: 404 }));
   if (path === "/api/fila") return Promise.resolve(Response.json({ approver: { email: null, level: null }, items: [] }));
+  if (path.startsWith("/api/doca")) return Promise.resolve(Response.json({ destination: null, date: "2026-11-15", destinations: [], awaiting: 0, rows: [] }));
   if (path === "/api/hoje") return Promise.resolve(Response.json({ day: "2026-11-15", items: [], total: { cents: 0 } }));
   return Promise.resolve(Response.json({ error: "not_found" }, { status: 404 }));
 }
