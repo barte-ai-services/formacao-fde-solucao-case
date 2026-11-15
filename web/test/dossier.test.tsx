@@ -2,32 +2,32 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { Dossier, type DossierDto } from "../src/components/Dossier";
 
-const PRONTO: DossierDto = {
-  status: "pronto",
-  resumo: "A nota cobra 10 caixas e o recebimento contou 8.",
-  divergencias: [
+const READY: DossierDto = {
+  status: "ready",
+  summary: "A nota cobra 10 caixas e o recebimento contou 8.",
+  divergences: [
     {
-      classificacao: "E3",
-      oQueDiverge: "Faltam 2 caixas do item da ordem.",
-      evidencias: [
-        { chave: "qtd_nota", rotulo: "Quantidade na nota", valor: "10 caixas", fonte: "nota" },
-        { chave: "qtd_recebida", rotulo: "Quantidade recebida", valor: "8 caixas", fonte: "recebimento" },
+      classification: "E3",
+      whatDiverges: "Faltam 2 caixas do item da ordem.",
+      evidence: [
+        { key: "qtd_nota", label: "Quantidade na nota", value: "10 caixas", source: "invoice" },
+        { key: "qtd_recebida", label: "Quantidade recebida", value: "8 caixas", source: "receipt" },
       ],
     },
   ],
-  historicoFornecedor: "Duas faltas parecidas nos últimos 90 dias.",
-  geradoEm: "2026-11-15T12:00:00Z",
-  modelo: "claude-exemplo",
+  supplierHistory: "Duas faltas parecidas nos últimos 90 dias.",
+  generatedAt: "2026-11-15T12:00:00Z",
+  model: "claude-exemplo",
 };
 
-const AVISO_PADRAO = "O dossiê ainda não foi gerado. Decida pelas divergências e evidências da conferência.";
+const DEFAULT_NOTICE = "O dossiê ainda não foi gerado. Decida pelas divergências e evidências da conferência.";
 
 describe("#38/AC-1 o dossiê pronto mostra divergência, evidência e histórico", () => {
   it("#38/AC-1 mostra o resumo, a divergência com as evidências e o histórico do fornecedor", () => {
-    render(<Dossier dossier={PRONTO} />);
+    render(<Dossier dossier={READY} />);
     expect(screen.getByText("Dossiê do Claude")).toBeTruthy();
     expect(screen.getByText("Claude")).toBeTruthy();
-    expect(screen.getByText(PRONTO.resumo)).toBeTruthy();
+    expect(screen.getByText(READY.summary)).toBeTruthy();
     expect(screen.getByText("E3 · Quantidade menor")).toBeTruthy();
     expect(screen.getByText("Faltam 2 caixas do item da ordem.")).toBeTruthy();
     expect(screen.getByText("Quantidade na nota")).toBeTruthy();
@@ -41,19 +41,20 @@ describe("#38/AC-1 o dossiê pronto mostra divergência, evidência e histórico
   });
 
   it("#38/AC-1 deixa claro que o Claude explica e quem decide é a regra ou a pessoa", () => {
-    render(<Dossier dossier={PRONTO} />);
+    render(<Dossier dossier={READY} />);
     expect(screen.getByText(/quem decide é a regra ou você/)).toBeTruthy();
     expect(screen.getByText(/a ação, o nível e o valor vêm da regra/i)).toBeTruthy();
   });
 
   it("classificação e fonte que a tela não conhece aparecem como vieram", () => {
-    const estranho = {
-      ...PRONTO,
-      divergencias: [
-        { classificacao: "E9", oQueDiverge: "?", evidencias: [{ chave: "x", rotulo: "Campo", valor: "1", fonte: "satelite" }] },
+    // #68: o fio pode trazer classificação e fonte que o tipo não conhece; o teste força esse valor.
+    const unknownValues = {
+      ...READY,
+      divergences: [
+        { classification: "E9", whatDiverges: "?", evidence: [{ key: "x", label: "Campo", value: "1", source: "satelite" }] },
       ],
     } as unknown as DossierDto;
-    render(<Dossier dossier={estranho} />);
+    render(<Dossier dossier={unknownValues} />);
     expect(screen.getByText("E9")).toBeTruthy();
     expect(screen.getByText("satelite")).toBeTruthy();
   });
@@ -64,10 +65,10 @@ describe("#38/AC-4 sem dossiê, a gaveta avisa e a decisão segue pela conferên
     render(
       <Dossier
         dossier={{
-          status: "indisponivel",
-          motivo: "claude_falhou",
-          aviso: "O Claude não respondeu. Decida pelas divergências e evidências da conferência.",
-          geradoEm: null,
+          status: "unavailable",
+          reason: "claude_failed",
+          notice: "O Claude não respondeu. Decida pelas divergências e evidências da conferência.",
+          generatedAt: null,
         }}
       />,
     );
@@ -79,11 +80,11 @@ describe("#38/AC-4 sem dossiê, a gaveta avisa e a decisão segue pela conferên
   it("#38/AC-4 dossiê que ainda não foi gerado (null) mostra o aviso padrão", () => {
     render(<Dossier dossier={null} />);
     expect(screen.getByText("Não há dossiê do Claude para esta proposta.")).toBeTruthy();
-    expect(screen.getByText(AVISO_PADRAO)).toBeTruthy();
+    expect(screen.getByText(DEFAULT_NOTICE)).toBeTruthy();
   });
 
   it("#38/AC-4 dossiê ausente (undefined) mostra o mesmo aviso padrão", () => {
     render(<Dossier dossier={undefined} />);
-    expect(screen.getByText(AVISO_PADRAO)).toBeTruthy();
+    expect(screen.getByText(DEFAULT_NOTICE)).toBeTruthy();
   });
 });
