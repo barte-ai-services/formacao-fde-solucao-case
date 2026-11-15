@@ -47,7 +47,7 @@ export const texts = {
       },
       emitida: { // ADR-002
         title: "Nenhuma devolução emitida",
-        description: "As emitidas aparecem com o número da NF-e.",
+        description: "As emitidas aparecem com o número da NF-e de devolução.",
       },
       cancelada: { // ADR-002
         title: "Nenhuma devolução cancelada",
@@ -191,13 +191,13 @@ export const texts = {
   /** #125: o painel do pagamento errado evitado, na linguagem do glossário e do CFO. */
   valorBarrado: {
     title: "Pagamento errado evitado",
-    subtitle: "Evitado no mês, contra a perda de R$ 543 mil por mês.",
+    subtitle: "O que deixou de ser pago errado neste mês.",
     loading: "Somando o pagamento errado evitado…",
     error: "Não consegui somar o pagamento errado evitado agora",
     empty: "Nada evitado neste mês ainda.",
     statAvoided: {
       caption: (month: string) => `Evitado em ${month}`,
-      context: (share: string) => `${share} da perda mensal, em propostas aprovadas`,
+      context: (share: string) => `${share} da perda mensal, em propostas aprovadas que recusam ou recebem parcial`,
     },
     statLoss: {
       caption: "Perda mensal hoje",
@@ -274,7 +274,7 @@ export const texts = {
 
   devolucoes: {
     title: "Notas de devolução",
-    subtitle: "Devoluções para o fiscal emitir. Marque como emitida com o número da NF-e.",
+    subtitle: "Devoluções para o fiscal emitir e marcar como emitidas com o número da NF-e de devolução.",
     loading: "Carregando as notas de devolução…",
     error: "Não consegui ler as notas de devolução agora",
     emptyPending:
@@ -360,7 +360,7 @@ export const texts = {
     decidedDescription: (action: string, title: string) => `Ação final: ${action}. O título está ${title}.`,
     form: {
       title: "Sua decisão",
-      description: "Escolha o que fazer com a carga. Trocar a proposta pede justificativa.",
+      description: "Escolha o que fazer com a carga. Trocar a proposta pede justificativa. A decisão vale uma vez.",
       note: "Justificativa",
       submit: "Registrar a decisão",
       proposed: "Proposta do sistema",
