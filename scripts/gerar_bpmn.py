@@ -113,9 +113,11 @@ def waypoints(f: Flow, lay: Layout) -> list[tuple[float, float]]:
     return [start, (bend, sy), (bend, ty), (tx, ty)]
 
 
-def flow_label(points: list[tuple[float, float]], down: bool) -> tuple[float, float]:
-    if down:
-        return points[0][0] + 6, points[0][1] + 44
+def label_below(points: list[tuple[float, float]]) -> tuple[float, float]:
+    return points[0][0] + 6, points[0][1] + 44
+
+
+def label_beside(points: list[tuple[float, float]]) -> tuple[float, float]:
     if len(points) == 2:
         return points[0][0] + 6, points[0][1] - 22
     return points[1][0] - 86, points[-1][1] - 22
@@ -157,7 +159,8 @@ def semantic_xml(p: Process) -> list[str]:
     return out
 
 
-def shape(element: str, x: float, y: float, w: float, h: float, extra: str = "") -> list[str]:
+def shape(element: str, box: tuple[float, float, float, float], extra: str = "") -> list[str]:
+    x, y, w, h = box
     return [
         f'      <bpmndi:BPMNShape id="{element}_di" bpmnElement="{element}"{extra}>',
         f'        <dc:Bounds x="{x:.0f}" y="{y:.0f}" width="{w:.0f}" height="{h:.0f}" />',
@@ -166,13 +169,13 @@ def shape(element: str, x: float, y: float, w: float, h: float, extra: str = "")
 
 
 def node_shapes(p: Process, lay: Layout) -> list[str]:
-    out = shape(f"Part_{p.id}", POOL_X, POOL_Y, lay.pool_w, lay.pool_h, ' isHorizontal="true"')
+    out = shape(f"Part_{p.id}", (POOL_X, POOL_Y, lay.pool_w, lay.pool_h), ' isHorizontal="true"')
     for lane_id, _, _ in p.lanes:
         top, height = lay.lane_top[lane_id]
-        out += shape(lane_id, POOL_X + LANE_LABEL_W, top, lay.pool_w - LANE_LABEL_W, height, ' isHorizontal="true"')
+        out += shape(lane_id, (POOL_X + LANE_LABEL_W, top, lay.pool_w - LANE_LABEL_W, height), ' isHorizontal="true"')
     for n in p.nodes:
         x, y, w, h = lay.box[n.id]
-        lines = shape(n.id, x, y, w, h)
+        lines = shape(n.id, lay.box[n.id])
         if n.kind in EXTERNAL_LABEL:
             label = f'        <bpmndi:BPMNLabel><dc:Bounds x="{x + w / 2 - 50:.0f}" y="{y + h + 6:.0f}" width="100" height="27" /></bpmndi:BPMNLabel>'
             lines.insert(2, label)
@@ -187,7 +190,7 @@ def flow_edges(p: Process, lay: Layout) -> list[str]:
         out.append(f'      <bpmndi:BPMNEdge id="{f.id}_di" bpmnElement="{f.id}">')
         out += [f'        <di:waypoint x="{x:.0f}" y="{y:.0f}" />' for x, y in points]
         if f.name:
-            lx, ly = flow_label(points, f.down)
+            lx, ly = label_below(points) if f.down else label_beside(points)
             out.append(f'        <bpmndi:BPMNLabel><dc:Bounds x="{lx:.0f}" y="{ly:.0f}" width="80" height="18" /></bpmndi:BPMNLabel>')
         out.append("      </bpmndi:BPMNEdge>")
     return out
@@ -200,7 +203,7 @@ def note_shapes(p: Process, lay: Layout) -> list[str]:
         x, y, w, _ = lay.box[note.node]
         n = nodes[note.node]
         nx, ny = x + w / 2 + 8, lay.lane_top[n.lane][0] + n.row * ROW_H + 4
-        out += shape(f"Note_{i}", nx, ny, NOTE_W, NOTE_H)
+        out += shape(f"Note_{i}", (nx, ny, NOTE_W, NOTE_H))
         out += [
             f'      <bpmndi:BPMNEdge id="Assoc_{i}_di" bpmnElement="Assoc_{i}">',
             f'        <di:waypoint x="{x + w / 2:.0f}" y="{y:.0f}" />',

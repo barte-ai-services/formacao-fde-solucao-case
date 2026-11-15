@@ -22,6 +22,15 @@ def local(tag: str) -> str:
     return tag.replace(BPMN, "")
 
 
+def dangling_ends(process: ET.Element, nodes: set[str]) -> list[str]:
+    return [
+        f"{flow.get('id')}: {end} {flow.get(end)} não é um elemento do processo"
+        for flow in process.iter(f"{BPMN}sequenceFlow")
+        for end in ("sourceRef", "targetRef")
+        if flow.get(end) not in nodes
+    ]
+
+
 def check(path: Path) -> list[str]:
     root = ET.parse(path).getroot()
     errors = []
@@ -29,10 +38,7 @@ def check(path: Path) -> list[str]:
         nodes = {el.get("id") for el in process.iter() if local(el.tag) in FLOW_NODES}
         if not nodes:
             errors.append(f"{process.get('id')}: processo sem nenhum elemento")
-        for flow in process.iter(f"{BPMN}sequenceFlow"):
-            for end in ("sourceRef", "targetRef"):
-                if flow.get(end) not in nodes:
-                    errors.append(f"{flow.get('id')}: {end} {flow.get(end)} não é um elemento do processo")
+        errors += dangling_ends(process, nodes)
     drawn = {el.get("bpmnElement") for el in root.iter() if el.get("bpmnElement")}
     for el in root.iter():
         if el.tag.startswith(BPMN) and local(el.tag) in NEEDS_SHAPE and el.get("id") not in drawn:

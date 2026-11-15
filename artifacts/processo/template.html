@@ -1,122 +1,47 @@
 <title>Processo do contas a pagar</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* layout: uma coluna de leitura; cada diagrama ganha a largura toda numa prancha clara com zoom */
-:root {
-  --bg: #f6f7f5; --fg: #1d2420; --muted: #5d6a63; --line: #d5dbd6;
-  --card: #ffffff; --accent: #1f6f5c; --loss: #b4372f; --loss-bg: #fbeceb;
-  --sans: "IBM Plex Sans", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, monospace;
-}
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #131816; --fg: #e4ebe7; --muted: #9aa8a1; --line: #2c3632;
-  --card: #1b211e; --accent: #6cc3a8; --loss: #f0938b; --loss-bg: #3a1f1d; color-scheme: dark } }
-:root[data-theme="dark"] {
-  --bg: #131816; --fg: #e4ebe7; --muted: #9aa8a1; --line: #2c3632;
-  --card: #1b211e; --accent: #6cc3a8; --loss: #f0938b; --loss-bg: #3a1f1d; color-scheme: dark }
+:root { --bg: #ffffff; --fg: #1d2420; --line: #c9d0cb; --accent: #1f6f5c; }
 __DIAGRAM_CSS__
-body { background: var(--bg); color: var(--fg); font: 16px/1.6 var(--sans); }
-.wrap { max-width: 1180px; margin: 0 auto; padding-block: 40px 64px;
-  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
-  display: grid; gap: 48px; }
-header { display: grid; gap: 12px; }
-.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
-h1 { font-size: clamp(28px, 4vw, 40px); line-height: 1.15; margin: 0; font-weight: 600; text-wrap: balance; }
-h2 { font-size: 22px; margin: 0; font-weight: 600; text-wrap: balance; }
-p { margin: 0; max-width: 68ch; }
-.lead { color: var(--muted); font-size: 18px; }
-.loss { display: inline-flex; gap: 8px; align-items: baseline; background: var(--loss-bg); color: var(--loss);
-  border-radius: 6px; padding: 4px 10px; font: 500 14px var(--mono); font-variant-numeric: tabular-nums; }
-section { display: grid; gap: 16px; min-width: 0; }
-.board { position: relative; background: #ffffff; border: 1px solid var(--line); border-radius: 10px; height: 560px; overflow: hidden; }
-.board .canvas { position: absolute; inset: 0; }
-.tools { position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; z-index: 2; }
-.tools button { font: 500 13px var(--sans); background: #ffffff; color: #1d2420; border: 1px solid #c9d0cb; border-radius: 6px;
-  padding: 6px 10px; cursor: pointer; }
-.tools button:hover { border-color: #1f6f5c; }
-.tools button:focus-visible { outline: 2px solid #1f6f5c; outline-offset: 2px; }
-.hint { font-size: 13px; color: var(--muted); }
-.error { color: var(--loss); font-size: 14px; }
-.table-wrap { overflow-x: auto; }
-table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 15px; }
-th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--line); }
-th { font: 500 12px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-td:first-child { font-weight: 500; }
-ol { margin: 0; padding-left: 20px; display: grid; gap: 8px; max-width: 72ch; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font: 14px system-ui, sans-serif; display: flex; flex-direction: column;
+  padding-left: max(0px, env(safe-area-inset-left, 0px)); padding-right: max(0px, env(safe-area-inset-right, 0px)); }
+.bar { display: flex; gap: 6px; padding: 10px max(16px, env(safe-area-inset-left, 0px)); flex-wrap: wrap; }
+.bar button { font: 500 14px system-ui, sans-serif; background: #fff; color: var(--fg); border: 1px solid var(--line);
+  border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+.bar button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.bar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bar .gap { flex: 1; }
+#canvas { flex: 1; min-height: 0; position: relative; }
 </style>
 
-<div class="wrap">
-  <header>
-    <span class="eyebrow">Já Chegou · contas a pagar · BPMN 2.0</span>
-    <h1>Da nota emitida ao título pago</h1>
-    <p class="lead">O processo de hoje e o processo-alvo. O alvo leva a conferência para antes da doca, para atacar o pagar errado.</p>
-    <span class="loss">Pagar errado · R$ 543 mil por mês · nada recuperado</span>
-  </header>
-
-  <section aria-labelledby="t-atual">
-    <h2 id="t-atual">Hoje: o pagamento não espera a conferência</h2>
-    <p>Depois que o fornecedor emite a nota, dois caminhos correm em paralelo, sem se falar. A mercadoria entra na doca sem ninguém ter olhado a nota e é conferida à mão até 14 dias depois. Enquanto isso, a nota já entrou na lista do dia, o CFO aprova item a item e o banco paga.</p>
-    <div class="board"><div class="tools"><button type="button" data-fit="atual">Ajustar</button><button type="button" data-zoom="atual" data-step="1.2">+</button><button type="button" data-zoom="atual" data-step="0.8">−</button></div><div class="canvas" id="atual"></div></div>
-    <p class="hint">Arraste para mover e use a roda do mouse ou os botões para dar zoom.</p>
-  </section>
-
-  <section aria-labelledby="t-alvo">
-    <h2 id="t-alvo">Alvo: conferir quando a nota é emitida</h2>
-    <p>A nota é conferida assim que chega da SEFAZ, antes do caminhão. O que bate passa direto, e a pessoa entra só na exceção, pela régua de alçadas. O título só vai para a lista do dia depois de conferido.</p>
-    <div class="board"><div class="tools"><button type="button" data-fit="alvo">Ajustar</button><button type="button" data-zoom="alvo" data-step="1.2">+</button><button type="button" data-zoom="alvo" data-step="0.8">−</button></div><div class="canvas" id="alvo"></div></div>
-  </section>
-
-  <section aria-labelledby="t-escolhas">
-    <h2 id="t-escolhas">As escolhas do processo-alvo</h2>
-    <div class="table-wrap"><table>
-      <thead><tr><th>Escolha</th><th>Onde aparece</th><th>Causa que ataca</th></tr></thead>
-      <tbody>
-        <tr><td>Conferir quando a nota é emitida</td><td>O evento "Nota emitida na SEFAZ" dispara o agente</td><td>O momento: hoje a conferência vem depois do aceite</td></tr>
-        <tr><td>Duplicidade primeiro, bloqueada na hora</td><td>"Duplicada?" leva direto a "Bloquear o título duplicado", sem esperar caminhão</td><td>A exceção mais cara: paga a nota inteira de novo</td></tr>
-        <tr><td>O que já foi pago não paga de novo</td><td>"Já paga fora do fluxo?" vincula a nota ao pagamento feito e fecha</td><td>A compra emergencial da loja paga outra vez quando a nota chega</td></tr>
-        <tr><td>O que bate passa direto</td><td>O ramo "regra" de "Quem decide?" pula o aprovador</td><td>O meio: conferência manual não escala com 11,4 mil notas por mês</td></tr>
-        <tr><td>A pessoa só na exceção, pela régua</td><td>"Confirmar ou alterar a ação", na raia do aprovador da alçada</td><td>O mandato: a decisão vai a quem tem alçada, e o CFO deixa de aprovar tudo</td></tr>
-        <tr><td>O título só vai para a lista conferido</td><td>Contas a pagar libera, devolve a diferença ou bloqueia depois da decisão na doca</td><td>Nada é pago antes de o recebido bater</td></tr>
-      </tbody>
-    </table></div>
-  </section>
-
-  <section aria-labelledby="t-tempos">
-    <h2 id="t-tempos">Dois momentos de conferência</h2>
-    <ol>
-      <li><strong>Antes da doca, só com documentos.</strong> Duplicidade, nota sem pedido, pago fora do fluxo, item sem cadastro, item trocado e unidade de medida. A doca recebe a ação proposta antes do caminhão.</li>
-      <li><strong>Na doca, com o caminhão parado e antes do aceite.</strong> Falta física e quantidade menor só aparecem na contagem. O agente concilia e a doca decide: receber, receber parcial com nota de devolução, ou recusar com o título bloqueado. Para o jurídico, aceitar a nota é aceitar o pedido, por isso a decisão vem antes.</li>
-    </ol>
-    <p class="hint">Fora do alvo por enquanto: as lojas (9,5 mil notas por mês, divergência por WhatsApp). O CD vem primeiro, com 64% do valor.</p>
-  </section>
+<div class="bar">
+  <button type="button" data-show="alvo" aria-pressed="true">Processo-alvo</button>
+  <button type="button" data-show="atual" aria-pressed="false">Processo atual</button>
+  <span class="gap"></span>
+  <button type="button" data-zoom="1.2" aria-label="Aproximar">+</button>
+  <button type="button" data-zoom="0.8" aria-label="Afastar">−</button>
+  <button type="button" data-fit>Ajustar</button>
 </div>
+<div id="canvas"></div>
 
 <script type="text/plain" id="xml-atual">__XML_ATUAL__</script>
 <script type="text/plain" id="xml-alvo">__XML_ALVO__</script>
 <script src="https://unpkg.com/bpmn-js@17.11.1/dist/bpmn-navigated-viewer.production.min.js"></script>
 <script>
-const viewers = {};
+const viewer = new BpmnJS({ container: "#canvas" });
 async function show(id) {
-  const box = document.getElementById(id);
-  try {
-    const viewer = new BpmnJS({ container: box });
-    await viewer.importXML(document.getElementById("xml-" + id).textContent.trim());
-    viewer.get("canvas").zoom("fit-viewport");
-    viewers[id] = viewer;
-  } catch (err) {
-    box.innerHTML = '<p class="error" style="padding:16px">O diagrama não carregou: ' + err.message + "</p>";
-  }
+  document.querySelectorAll("[data-show]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.show === id)));
+  await viewer.importXML(document.getElementById("xml-" + id).textContent.trim());
+  viewer.get("canvas").zoom("fit-viewport");
 }
 document.addEventListener("click", (e) => {
   const b = e.target.closest("button");
   if (!b) return;
-  const fit = b.dataset.fit, zoomId = b.dataset.zoom;
-  if (fit && viewers[fit]) viewers[fit].get("canvas").zoom("fit-viewport");
-  if (zoomId && viewers[zoomId]) {
-    const canvas = viewers[zoomId].get("canvas");
-    canvas.zoom(canvas.zoom() * Number(b.dataset.step));
-  }
+  const canvas = viewer.get("canvas");
+  if (b.dataset.show) show(b.dataset.show);
+  if (b.dataset.zoom) canvas.zoom(canvas.zoom() * Number(b.dataset.zoom));
+  if ("fit" in b.dataset) canvas.zoom("fit-viewport");
 });
-if (window.BpmnJS) { show("atual"); show("alvo"); }
-else document.querySelectorAll(".canvas").forEach((c) => c.innerHTML = '<p class="error" style="padding:16px">O visualizador de BPMN não carregou.</p>');
+show("alvo");
 </script>
