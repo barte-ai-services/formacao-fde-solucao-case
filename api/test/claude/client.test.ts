@@ -210,4 +210,32 @@ describe('runClaudeRound: o Cron falha fechado (#171)', () => {
     expect(round.ran).toBe(true);
     expect(lines.join('\n')).not.toContain('tok-secreto-oauth');
   });
+
+  it('um Claude lento não segura a rodada: passado o prazo, para e deixa o resto', async () => {
+    let now = new Date('2026-11-15T12:00:00Z').getTime();
+    const asked: string[] = [];
+    const { runTasks } = await import('../../src/claude/runner.js');
+    const db = { select: async () => [], upsert: async () => [] };
+    const slow = {
+      name: 'lenta',
+      pending: async () => ({ requests: ['a', 'b', 'c'].map((key) => ({ key, input: key })), dropped: 0 }),
+      run: async (input: unknown) => {
+        asked.push(String(input));
+        now += 60_000; // cada pergunta leva 1 min
+        return { r: 1 };
+      },
+    };
+    const lines: string[] = [];
+    await runTasks({ db, ask: async () => ({}) as never, tasks: [slow], log: (l) => lines.push(l), now: () => new Date(now), deadline: now + 90_000 });
+    expect(asked).toEqual(['a', 'b']);
+    expect(lines[0]).toContain('orçamento da rodada esgotado');
+  });
+
+  it('o erro do Supabase gravado leva só operação, tabela e status, sem o corpo', async () => {
+    const { storedError } = await import('../../src/claude/runner.js');
+    const { SupabaseRestError } = await import('../../src/connectors/supabase-rest.js');
+    const text = storedError(new SupabaseRestError('select', 'kit_notas', 500, 'corpo-com-dado'));
+    expect(text).toContain('HTTP 500');
+    expect(text).not.toContain('corpo-com-dado');
+  });
 });

@@ -82,6 +82,8 @@ export class ClaudeError extends Error {
 export type ClaudeEnv = {
   readonly BARTE_ACADEMY_ANTHROPIC_API_KEY?: string;
   readonly BARTE_ACADEMY_CLAUDE_CODE_OAUTH_TOKEN?: string;
+  /** #171 Não é do cliente: só entra na lista de redação da rodada, como no executor antigo. */
+  readonly BARTE_ACADEMY_SUPABASE_SECRET_KEY?: string;
 };
 
 /** #171 A chave da API tem prioridade (plano B); sem nenhuma das duas, undefined: o Cron pula e a regra decide. */

@@ -9,8 +9,11 @@ import { restDb } from './db.js';
 import { runTasks, type RunResult } from './runner.js';
 import { tasksFor } from './tasks/index.js';
 
-/** #171 Pedidos por tarefa a cada rodada de 15 minutos: cabe no prazo do Cron, o resto fica para a próxima. */
-export const CRON_LIMIT = 20;
+/** #171 Pedidos por tarefa a cada rodada de 15 minutos; também cabe nos 50 subrequests do plano gratuito. O resto fica para a próxima. */
+export const CRON_LIMIT = 10;
+
+/** #171 Orçamento da rodada: o Claude é periférico e a captura é o caminho crítico, então a rodada para cedo. */
+export const ROUND_BUDGET_MS = 2 * 60_000;
 
 export type ClaudeRound = { readonly ran: boolean; readonly failedTasks: string[]; readonly failures: number };
 
@@ -26,7 +29,7 @@ export async function runClaudeRound(
     return { ran: false, failedTasks: [], failures: 0 };
   }
   const client = new ClaudeClient({ credentials, fetch: options.fetch });
-  const secrets = [credentials.kind === 'api-key' ? credentials.apiKey : credentials.token];
+  const secrets = [credentials.kind === 'api-key' ? credentials.apiKey : credentials.token, env.BARTE_ACADEMY_SUPABASE_SECRET_KEY ?? ''];
   let result: RunResult = { failedTasks: [] };
   try {
     result = await runTasks({
@@ -35,6 +38,7 @@ export async function runClaudeRound(
       tasks: tasksFor(rest),
       log: (line) => log(`cron: ${line}`),
       limit: CRON_LIMIT,
+      deadline: Date.now() + ROUND_BUDGET_MS,
       secrets,
     });
   } catch {

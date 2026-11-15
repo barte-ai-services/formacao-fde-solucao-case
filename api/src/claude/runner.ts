@@ -28,6 +28,8 @@ export type RunOptions = {
   readonly secrets?: readonly string[];
   /** #66 Relógio injetável, para a espera entre tentativas ser testável. */
   readonly now?: () => Date;
+  /** #171 Prazo da rodada (epoch em milissegundos): passado o prazo, o laço para e o resto fica para a próxima. */
+  readonly deadline?: number;
 };
 
 export type RunResult = { readonly failedTasks: string[] };
@@ -55,7 +57,8 @@ const isStoredSuggestion = shaped<StoredSuggestion>({
 export function storedError(error: unknown, secrets: readonly string[] = []): string {
   const name = error instanceof Error && /^\w{1,64}$/.test(error.name) ? error.name : 'Error';
   if (!(error instanceof ClaudeError || error instanceof SupabaseRestError)) return `${name}: erro inesperado`;
-  let message = error.message;
+  // #171 Do Supabase fica só a operação, a tabela e o status: o detalhe pode trazer o corpo da resposta.
+  let message = error instanceof SupabaseRestError ? `${error.operation} em ${error.table} falhou (HTTP ${error.status})` : error.message;
   for (const secret of secrets) if (secret) message = message.split(secret).join('[redigido]');
   return `${name}: ${message.slice(0, MAX_ERROR)}`;
 }
@@ -134,11 +137,12 @@ function summaryLine(
   name: string,
   pending: number,
   counts: Counts,
-  extra: { waiting: number; dropped: number; stopped: boolean },
+  extra: { waiting: number; dropped: number; stopped: boolean; outOfBudget: boolean },
 ): string {
   const parts = [`tarefa ${name}: ${pending} pendentes, ok ${counts.ok}, erro ${counts.failed}`];
   if (counts.firstError !== undefined) parts.push(`primeiro erro: ${counts.firstError}`);
   if (extra.stopped) parts.push('rodada interrompida: a regra decide sozinha');
+  if (extra.outOfBudget) parts.push('orçamento da rodada esgotado: o resto fica para a próxima');
   if (extra.waiting > 0) parts.push(`em espera ${extra.waiting}`);
   if (extra.dropped > 0) parts.push(`linhas descartadas ${extra.dropped}`);
   return parts.join(', ');
@@ -154,11 +158,16 @@ async function runTask(task: ClaudeTask<unknown, unknown>, options: RunOptions):
   const plan = planQueue(pending, existing, now, options.limit ?? MAX_PER_RUN);
   const counts: Counts = { ok: 0, failed: 0, firstError: undefined };
   let stopped = false;
+  let outOfBudget = false;
   for (const request of plan.queue) {
+    if (options.deadline !== undefined && (options.now ?? (() => new Date()))().getTime() >= options.deadline) {
+      outOfBudget = true;
+      break;
+    }
     stopped = await runOne(task, request, options, existing.byKey.get(request.key), counts);
     if (stopped) break;
   }
-  const extra = { waiting: plan.waiting, dropped: dropped + existing.dropped, stopped };
+  const extra = { waiting: plan.waiting, dropped: dropped + existing.dropped, stopped, outOfBudget };
   const line = summaryLine(task.name, pending.length, counts, extra);
   // #66 Todas as chamadas falharem é a tarefa falhar: fica contado e logado, com o token vencido ou sem cota.
   return { line, failed: counts.ok === 0 && counts.failed > 0, stopped };
