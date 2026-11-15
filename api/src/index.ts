@@ -8,6 +8,7 @@ import { SupabaseRest } from "./connectors/supabase-rest";
 import { supabaseConnectors } from "./connectors/supabase-connectors";
 import { loadDossierContext } from "./dossier/context";
 import { SupabaseDossierSource } from "./dossier/source";
+import { wmsDockActionOutbox } from "./connectors/wms-dock-action";
 
 /** Monta o Worker com as dependências dadas. Os testes injetam um verificador sem rede (#54). */
 export function createWorker(deps: RouterDeps) {
@@ -31,6 +32,8 @@ function approvalDeps(env: Env) {
   const { captureDeps } = supabaseConnectors(rest);
   return {
     store: new SupabaseApprovalStore(rest),
+    // #43 AC-1: aprovar ou alterar publica a ação na doca para o WMS.
+    dockOutbox: wmsDockActionOutbox(rest),
     // #68: o dossiê que o job do Claude gravou, conferido contra o contexto da nota.
     dossier: {
       source: new SupabaseDossierSource(rest),

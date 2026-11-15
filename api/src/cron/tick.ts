@@ -8,6 +8,7 @@ import { captureInvoices } from "./capture";
 import { findUnreconciledReceipts } from "./unreconciled-receipts";
 import { proposeChecked } from "../approval/propose-checked";
 import { SupabaseApprovalStore } from "../approval/supabase-store";
+import { publishDecidedDockActions } from "../dock/publish-decided";
 import { lastDaysUtc, publishApprovedUnregistered } from "./publish-approved-e8";
 
 /** #66 A janela, em dias, das decisões que o Cron manda ao Cadastro; ver `lastDaysUtc`. */
@@ -34,8 +35,10 @@ export async function tick(controller: Pick<ScheduledController, "cron">, env: E
     wms: captureDeps.wms,
   });
   const cadastroE8 = await publishApproved(rest, registryCorrections);
+  // #43 AC-1 O que a regra aprovou agora (e o que falhou na hora da aprovação) vai para a doca.
+  const dock = await publishDock(rest);
   console.log(
-    `cron: execução agendada (${controller.cron}); notas vistas ${result.seen}, novas ${result.inserted}, conferidas ${result.checked}, com erro ${result.failed}, propostas ${proposals.proposed}, aprovadas pela regra ${proposals.approvedByRule}, cadastro E8 ${cadastroE8}; recebimentos sem nota [${unreconciled.noKey.join(", ")}], com chave sem nota [${unreconciled.keyWithoutInvoice.join(", ")}]`,
+    `cron: execução agendada (${controller.cron}); notas vistas ${result.seen}, novas ${result.inserted}, conferidas ${result.checked}, com erro ${result.failed}, propostas ${proposals.proposed}, aprovadas pela regra ${proposals.approvedByRule}, cadastro E8 ${cadastroE8}, ações publicadas na doca ${dock}; recebimentos sem nota [${unreconciled.noKey.join(", ")}], com chave sem nota [${unreconciled.keyWithoutInvoice.join(", ")}]`,
   );
 }
 
@@ -68,6 +71,21 @@ async function publishApproved(
   } catch (error) {
     const status = error instanceof SupabaseRestError ? `HTTP ${error.status}` : "falha na publicação";
     console.log(`cron: cadastro E8 indisponível (${status}); a próxima rodada repete`);
+    return 0;
+  }
+}
+
+/**
+ * #43 AC-1 Publica na caixa de saída do WMS a ação das propostas decididas que ainda não chegou à doca.
+ * Se falha, registra uma linha sem dado sensível e a rodada segue: a varredura é idempotente e a
+ * próxima rodada repete.
+ */
+async function publishDock(rest: SupabaseRest): Promise<number> {
+  try {
+    return (await publishDecidedDockActions(rest)).published;
+  } catch (error) {
+    const status = error instanceof SupabaseRestError ? `HTTP ${error.status}` : "falha na publicação";
+    console.log(`cron: doca indisponível (${status}); a próxima rodada repete`);
     return 0;
   }
 }
