@@ -2,6 +2,7 @@ import { Table } from "barte-design-system";
 import { Stat, StatGrid, StatusBadge } from "@barte-ai-services/barte-ui-kit";
 import { approvalApi, type TodayDto } from "../api/approval";
 import { ACTION_LABEL, ACTION_TONE } from "../approval/labels";
+import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
 import type { RouteProps } from "./types";
@@ -31,6 +32,13 @@ export default function ListaDoDia(_props: RouteProps) {
       loadingLabel={texts.listaDoDia.loading}
       errorTitle={texts.listaDoDia.error}
       emptyLabel={texts.listaDoDia.empty}
+      empty={
+        <EmptyState
+          title={texts.emptyState.listaDoDia.title}
+          description={texts.emptyState.listaDoDia.description}
+          action={{ label: texts.emptyState.action, to: "/pagar/fila" }}
+        />
+      }
     >
       {() => (
         <>

@@ -4,6 +4,7 @@ import { InlineEmpty, SegmentedFilter, Stat, StatGrid, StatusBadge } from "@bart
 import { approvalApi, type ProposalDetailDto, type QueueDto, type QueueItemDto } from "../api/approval";
 import { ProposalPanel } from "../approval/ProposalPanel";
 import { ACTION_LABEL, ACTION_TONE, LEVEL_LABEL, LEVEL_TONE, byQueueOrder } from "../approval/labels";
+import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
 import type { RouteProps } from "./types";
@@ -41,6 +42,7 @@ export default function FilaDeAprovacao(_props: RouteProps) {
       loadingLabel={texts.fila.loading}
       errorTitle={texts.fila.error}
       emptyLabel={texts.fila.empty}
+      empty={<EmptyState title={texts.emptyState.fila.title} description={texts.emptyState.fila.description} />}
     >
       {() => (
         <>

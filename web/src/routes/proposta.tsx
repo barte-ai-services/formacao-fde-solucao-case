@@ -1,6 +1,7 @@
 import { ApiError } from "../api/client";
 import { approvalApi, type ProposalDetailDto } from "../api/approval";
 import { ProposalPanel } from "../approval/ProposalPanel";
+import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
 import type { RouteProps } from "./types";
@@ -33,6 +34,13 @@ export default function Proposta({ params }: RouteProps) {
       loadingLabel={texts.proposta.loading}
       errorTitle={texts.proposta.error}
       emptyLabel={texts.proposta.empty}
+      empty={
+        <EmptyState
+          title={texts.emptyState.proposta.title}
+          description={texts.emptyState.proposta.description}
+          action={{ label: texts.emptyState.action, to: "/pagar/fila" }}
+        />
+      }
     >
       {() => (data ? <ProposalPanel proposal={data} /> : null)}
     </Screen>

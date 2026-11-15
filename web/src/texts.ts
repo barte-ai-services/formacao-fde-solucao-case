@@ -30,6 +30,32 @@ export const texts = {
       description: (baseline: string) =>
         `A perda mensal hoje é ${baseline}. O valor evitado aparece aqui assim que a primeira proposta for aprovada.`,
     },
+    fila: {
+      title: "Nenhuma proposta espera a sua decisão",
+      description: "As propostas novas aparecem aqui assim que o agente conferir a nota.",
+    },
+    listaDoDia: {
+      title: "Nenhum título para pagar hoje",
+      description: "Eles aparecem aqui quando a regra ou uma pessoa aprova a proposta.",
+    },
+    proposta: {
+      title: "Esta nota ainda não tem proposta",
+      description: "A proposta aparece aqui assim que o agente conferir a nota.",
+    },
+    devolucoes: {
+      pendente: {
+        title: "Nenhuma devolução pendente de emissão",
+        description: "Quando uma nota for recusada ou recebida em parte, a devolução aparece aqui para o fiscal emitir.",
+      },
+      emitida: {
+        title: "Nenhuma devolução emitida",
+        description: "As devoluções aparecem aqui depois que o fiscal informa o número da NF-e de devolução.",
+      },
+      cancelada: {
+        title: "Nenhuma devolução cancelada",
+        description: "As devoluções canceladas aparecem aqui, com o motivo do cancelamento.",
+      },
+    },
     recebimento: {
       title: (noun: string) => `Nenhuma nota na ${noun} hoje`,
       description: (empty: string) => `${empty} Quando houver, cada caminhão aparece aqui com a ação a tomar.`,
