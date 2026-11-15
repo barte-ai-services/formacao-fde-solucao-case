@@ -1,193 +1,193 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Defs_ContasAPagar_Atual" targetNamespace="https://barte.ai/formacao-fde/ja-chegou">
-  <bpmn:collaboration id="Collab_ContasAPagar_Atual">
-    <bpmn:participant id="Part_ContasAPagar_Atual" name="Já Chegou: contas a pagar hoje" processRef="ContasAPagar_Atual" />
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Defs_AccountsPayable_Current" targetNamespace="https://barte.ai/formacao-fde/ja-chegou">
+  <bpmn:collaboration id="Collab_AccountsPayable_Current">
+    <bpmn:participant id="Part_AccountsPayable_Current" name="Já Chegou: contas a pagar hoje" processRef="AccountsPayable_Current" />
   </bpmn:collaboration>
-  <bpmn:process id="ContasAPagar_Atual" name="Contas a pagar da Já Chegou: processo atual" isExecutable="false">
-    <bpmn:laneSet id="LaneSet_ContasAPagar_Atual">
-      <bpmn:lane id="L_Compras" name="Compras">
-        <bpmn:flowNodeRef>A_Inicio</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>A_Pedido</bpmn:flowNodeRef>
+  <bpmn:process id="AccountsPayable_Current" name="Contas a pagar da Já Chegou: processo atual" isExecutable="false">
+    <bpmn:laneSet id="LaneSet_AccountsPayable_Current">
+      <bpmn:lane id="Lane_Purchasing" name="Compras">
+        <bpmn:flowNodeRef>Start_NeedToBuy</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_IssueOrder</bpmn:flowNodeRef>
       </bpmn:lane>
-      <bpmn:lane id="L_Fornecedor" name="Fornecedor">
-        <bpmn:flowNodeRef>A_Nota</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>A_Divide</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>A_Entrega</bpmn:flowNodeRef>
+      <bpmn:lane id="Lane_Supplier" name="Fornecedor">
+        <bpmn:flowNodeRef>Task_IssueInvoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Split</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Deliver</bpmn:flowNodeRef>
       </bpmn:lane>
-      <bpmn:lane id="L_Doca" name="Doca (CD e lojas)">
-        <bpmn:flowNodeRef>A_Recebe</bpmn:flowNodeRef>
+      <bpmn:lane id="Lane_Dock" name="Doca (CD e lojas)">
+        <bpmn:flowNodeRef>Task_Receive</bpmn:flowNodeRef>
       </bpmn:lane>
-      <bpmn:lane id="L_Conferencia" name="Contas a pagar: conferência">
-        <bpmn:flowNodeRef>A_Confere</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>A_Diverge</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>A_Complementar</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>A_Conciliada</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>A_Provisao</bpmn:flowNodeRef>
+      <bpmn:lane id="Lane_Matching" name="Contas a pagar: conferência">
+        <bpmn:flowNodeRef>Task_MatchByHand</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Differs</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Matched</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Supplement</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Provisioned</bpmn:flowNodeRef>
       </bpmn:lane>
-      <bpmn:lane id="L_Lista" name="Contas a pagar: lista do dia">
-        <bpmn:flowNodeRef>A_Lista</bpmn:flowNodeRef>
+      <bpmn:lane id="Lane_DailyList" name="Contas a pagar: lista do dia">
+        <bpmn:flowNodeRef>Task_BuildList</bpmn:flowNodeRef>
       </bpmn:lane>
-      <bpmn:lane id="L_CFO" name="CFO">
-        <bpmn:flowNodeRef>A_Aprova</bpmn:flowNodeRef>
+      <bpmn:lane id="Lane_CFO" name="CFO">
+        <bpmn:flowNodeRef>Task_ApproveAll</bpmn:flowNodeRef>
       </bpmn:lane>
-      <bpmn:lane id="L_Banco" name="Banco">
-        <bpmn:flowNodeRef>A_Paga</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>A_Pago</bpmn:flowNodeRef>
+      <bpmn:lane id="Lane_Bank" name="Banco">
+        <bpmn:flowNodeRef>Task_PayOneByOne</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Paid</bpmn:flowNodeRef>
       </bpmn:lane>
     </bpmn:laneSet>
-    <bpmn:startEvent id="A_Inicio" name="Precisa comprar">
+    <bpmn:startEvent id="Start_NeedToBuy" name="Precisa comprar">
       <bpmn:outgoing>Flow_1</bpmn:outgoing>
     </bpmn:startEvent>
-    <bpmn:task id="A_Pedido" name="Emitir o pedido no ERP">
+    <bpmn:task id="Task_IssueOrder" name="Emitir o pedido no ERP">
       <bpmn:incoming>Flow_1</bpmn:incoming>
       <bpmn:outgoing>Flow_2</bpmn:outgoing>
     </bpmn:task>
-    <bpmn:task id="A_Nota" name="Emitir a nota antes de entregar">
+    <bpmn:task id="Task_IssueInvoice" name="Emitir a nota antes de entregar">
       <bpmn:incoming>Flow_2</bpmn:incoming>
       <bpmn:outgoing>Flow_3</bpmn:outgoing>
     </bpmn:task>
-    <bpmn:parallelGateway id="A_Divide" name="">
+    <bpmn:parallelGateway id="Gateway_Split" name="">
       <bpmn:incoming>Flow_3</bpmn:incoming>
       <bpmn:outgoing>Flow_4</bpmn:outgoing>
       <bpmn:outgoing>Flow_5</bpmn:outgoing>
     </bpmn:parallelGateway>
-    <bpmn:task id="A_Entrega" name="Entregar a mercadoria">
+    <bpmn:task id="Task_Deliver" name="Entregar a mercadoria">
       <bpmn:incoming>Flow_4</bpmn:incoming>
       <bpmn:outgoing>Flow_6</bpmn:outgoing>
     </bpmn:task>
-    <bpmn:task id="A_Recebe" name="Receber a mercadoria">
+    <bpmn:task id="Task_Receive" name="Receber a mercadoria">
       <bpmn:incoming>Flow_6</bpmn:incoming>
       <bpmn:outgoing>Flow_7</bpmn:outgoing>
     </bpmn:task>
-    <bpmn:task id="A_Confere" name="Conferir nota, pedido e recebido à mão">
+    <bpmn:task id="Task_MatchByHand" name="Conferir nota, pedido e recebido à mão">
       <bpmn:incoming>Flow_7</bpmn:incoming>
       <bpmn:outgoing>Flow_8</bpmn:outgoing>
     </bpmn:task>
-    <bpmn:exclusiveGateway id="A_Diverge" name="Diverge?">
+    <bpmn:exclusiveGateway id="Gateway_Differs" name="Diverge?">
       <bpmn:incoming>Flow_8</bpmn:incoming>
       <bpmn:outgoing>Flow_9</bpmn:outgoing>
       <bpmn:outgoing>Flow_10</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:task id="A_Complementar" name="Abrir ordem complementar ou provisionar">
+    <bpmn:endEvent id="End_Matched" name="Nota conciliada">
+      <bpmn:incoming>Flow_9</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:task id="Task_Supplement" name="Abrir ordem complementar ou provisionar">
       <bpmn:incoming>Flow_10</bpmn:incoming>
       <bpmn:outgoing>Flow_11</bpmn:outgoing>
     </bpmn:task>
-    <bpmn:endEvent id="A_Conciliada" name="Nota conciliada">
-      <bpmn:incoming>Flow_9</bpmn:incoming>
-    </bpmn:endEvent>
-    <bpmn:endEvent id="A_Provisao" name="Mês fecha com provisão">
+    <bpmn:endEvent id="End_Provisioned" name="Mês fecha com provisão">
       <bpmn:incoming>Flow_11</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:task id="A_Lista" name="Montar a lista do dia (ERP, e-mail, WhatsApp)">
+    <bpmn:task id="Task_BuildList" name="Montar a lista do dia (ERP, e-mail, WhatsApp)">
       <bpmn:incoming>Flow_5</bpmn:incoming>
       <bpmn:outgoing>Flow_12</bpmn:outgoing>
     </bpmn:task>
-    <bpmn:userTask id="A_Aprova" name="Aprovar item a item, das 16h às 18h">
+    <bpmn:userTask id="Task_ApproveAll" name="Aprovar item a item, das 16h às 18h">
       <bpmn:incoming>Flow_12</bpmn:incoming>
       <bpmn:outgoing>Flow_13</bpmn:outgoing>
     </bpmn:userTask>
-    <bpmn:task id="A_Paga" name="Pagar um boleto por vez">
+    <bpmn:task id="Task_PayOneByOne" name="Pagar um boleto por vez">
       <bpmn:incoming>Flow_13</bpmn:incoming>
       <bpmn:outgoing>Flow_14</bpmn:outgoing>
     </bpmn:task>
-    <bpmn:endEvent id="A_Pago" name="Pago, conferido ou não">
+    <bpmn:endEvent id="End_Paid" name="Pago, conferido ou não">
       <bpmn:incoming>Flow_14</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:sequenceFlow id="Flow_1" sourceRef="A_Inicio" targetRef="A_Pedido" />
-    <bpmn:sequenceFlow id="Flow_2" sourceRef="A_Pedido" targetRef="A_Nota" />
-    <bpmn:sequenceFlow id="Flow_3" sourceRef="A_Nota" targetRef="A_Divide" />
-    <bpmn:sequenceFlow id="Flow_4" sourceRef="A_Divide" targetRef="A_Entrega" />
-    <bpmn:sequenceFlow id="Flow_5" sourceRef="A_Divide" targetRef="A_Lista" />
-    <bpmn:sequenceFlow id="Flow_6" sourceRef="A_Entrega" targetRef="A_Recebe" />
-    <bpmn:sequenceFlow id="Flow_7" sourceRef="A_Recebe" targetRef="A_Confere" />
-    <bpmn:sequenceFlow id="Flow_8" sourceRef="A_Confere" targetRef="A_Diverge" />
-    <bpmn:sequenceFlow id="Flow_9" name="não" sourceRef="A_Diverge" targetRef="A_Conciliada" />
-    <bpmn:sequenceFlow id="Flow_10" name="sim" sourceRef="A_Diverge" targetRef="A_Complementar" />
-    <bpmn:sequenceFlow id="Flow_11" sourceRef="A_Complementar" targetRef="A_Provisao" />
-    <bpmn:sequenceFlow id="Flow_12" sourceRef="A_Lista" targetRef="A_Aprova" />
-    <bpmn:sequenceFlow id="Flow_13" sourceRef="A_Aprova" targetRef="A_Paga" />
-    <bpmn:sequenceFlow id="Flow_14" sourceRef="A_Paga" targetRef="A_Pago" />
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_NeedToBuy" targetRef="Task_IssueOrder" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_IssueOrder" targetRef="Task_IssueInvoice" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Task_IssueInvoice" targetRef="Gateway_Split" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Gateway_Split" targetRef="Task_Deliver" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Gateway_Split" targetRef="Task_BuildList" />
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="Task_Deliver" targetRef="Task_Receive" />
+    <bpmn:sequenceFlow id="Flow_7" sourceRef="Task_Receive" targetRef="Task_MatchByHand" />
+    <bpmn:sequenceFlow id="Flow_8" sourceRef="Task_MatchByHand" targetRef="Gateway_Differs" />
+    <bpmn:sequenceFlow id="Flow_9" name="não" sourceRef="Gateway_Differs" targetRef="End_Matched" />
+    <bpmn:sequenceFlow id="Flow_10" name="sim" sourceRef="Gateway_Differs" targetRef="Task_Supplement" />
+    <bpmn:sequenceFlow id="Flow_11" sourceRef="Task_Supplement" targetRef="End_Provisioned" />
+    <bpmn:sequenceFlow id="Flow_12" sourceRef="Task_BuildList" targetRef="Task_ApproveAll" />
+    <bpmn:sequenceFlow id="Flow_13" sourceRef="Task_ApproveAll" targetRef="Task_PayOneByOne" />
+    <bpmn:sequenceFlow id="Flow_14" sourceRef="Task_PayOneByOne" targetRef="End_Paid" />
     <bpmn:textAnnotation id="Note_1"><bpmn:text>Ninguém olhou a nota antes. Entra mesmo divergente, por pressão comercial.</bpmn:text></bpmn:textAnnotation>
-    <bpmn:association id="Assoc_1" sourceRef="A_Recebe" targetRef="Note_1" />
+    <bpmn:association id="Assoc_1" sourceRef="Task_Receive" targetRef="Note_1" />
     <bpmn:textAnnotation id="Note_2"><bpmn:text>Até 14 dias no CD. Só 0,7% das notas casam sozinhas.</bpmn:text></bpmn:textAnnotation>
-    <bpmn:association id="Assoc_2" sourceRef="A_Confere" targetRef="Note_2" />
+    <bpmn:association id="Assoc_2" sourceRef="Task_MatchByHand" targetRef="Note_2" />
     <bpmn:textAnnotation id="Note_3"><bpmn:text>Pagar errado: R$ 543 mil por mês sem mercadoria, nada recuperado.</bpmn:text></bpmn:textAnnotation>
-    <bpmn:association id="Assoc_3" sourceRef="A_Paga" targetRef="Note_3" />
+    <bpmn:association id="Assoc_3" sourceRef="Task_PayOneByOne" targetRef="Note_3" />
   </bpmn:process>
-  <bpmndi:BPMNDiagram id="Diagram_ContasAPagar_Atual">
-    <bpmndi:BPMNPlane id="Plane_ContasAPagar_Atual" bpmnElement="Collab_ContasAPagar_Atual">
-      <bpmndi:BPMNShape id="Part_ContasAPagar_Atual_di" bpmnElement="Part_ContasAPagar_Atual" isHorizontal="true">
+  <bpmndi:BPMNDiagram id="Diagram_AccountsPayable_Current">
+    <bpmndi:BPMNPlane id="Plane_AccountsPayable_Current" bpmnElement="Collab_AccountsPayable_Current">
+      <bpmndi:BPMNShape id="Part_AccountsPayable_Current_di" bpmnElement="Part_AccountsPayable_Current" isHorizontal="true">
         <dc:Bounds x="100" y="80" width="1670" height="1200" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="L_Compras_di" bpmnElement="L_Compras" isHorizontal="true">
+      <bpmndi:BPMNShape id="Lane_Purchasing_di" bpmnElement="Lane_Purchasing" isHorizontal="true">
         <dc:Bounds x="130" y="80" width="1640" height="150" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="L_Fornecedor_di" bpmnElement="L_Fornecedor" isHorizontal="true">
+      <bpmndi:BPMNShape id="Lane_Supplier_di" bpmnElement="Lane_Supplier" isHorizontal="true">
         <dc:Bounds x="130" y="230" width="1640" height="150" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="L_Doca_di" bpmnElement="L_Doca" isHorizontal="true">
+      <bpmndi:BPMNShape id="Lane_Dock_di" bpmnElement="Lane_Dock" isHorizontal="true">
         <dc:Bounds x="130" y="380" width="1640" height="150" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="L_Conferencia_di" bpmnElement="L_Conferencia" isHorizontal="true">
+      <bpmndi:BPMNShape id="Lane_Matching_di" bpmnElement="Lane_Matching" isHorizontal="true">
         <dc:Bounds x="130" y="530" width="1640" height="300" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="L_Lista_di" bpmnElement="L_Lista" isHorizontal="true">
+      <bpmndi:BPMNShape id="Lane_DailyList_di" bpmnElement="Lane_DailyList" isHorizontal="true">
         <dc:Bounds x="130" y="830" width="1640" height="150" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="L_CFO_di" bpmnElement="L_CFO" isHorizontal="true">
+      <bpmndi:BPMNShape id="Lane_CFO_di" bpmnElement="Lane_CFO" isHorizontal="true">
         <dc:Bounds x="130" y="980" width="1640" height="150" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="L_Banco_di" bpmnElement="L_Banco" isHorizontal="true">
+      <bpmndi:BPMNShape id="Lane_Bank_di" bpmnElement="Lane_Bank" isHorizontal="true">
         <dc:Bounds x="130" y="1130" width="1640" height="150" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="A_Inicio_di" bpmnElement="A_Inicio">
+      <bpmndi:BPMNShape id="Start_NeedToBuy_di" bpmnElement="Start_NeedToBuy">
         <dc:Bounds x="232" y="162" width="36" height="36" />
         <bpmndi:BPMNLabel><dc:Bounds x="200" y="204" width="100" height="27" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="A_Pedido_di" bpmnElement="A_Pedido">
+      <bpmndi:BPMNShape id="Task_IssueOrder_di" bpmnElement="Task_IssueOrder">
         <dc:Bounds x="350" y="145" width="120" height="70" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="A_Nota_di" bpmnElement="A_Nota">
+      <bpmndi:BPMNShape id="Task_IssueInvoice_di" bpmnElement="Task_IssueInvoice">
         <dc:Bounds x="510" y="295" width="120" height="70" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="A_Divide_di" bpmnElement="A_Divide">
+      <bpmndi:BPMNShape id="Gateway_Split_di" bpmnElement="Gateway_Split">
         <dc:Bounds x="705" y="305" width="50" height="50" />
         <bpmndi:BPMNLabel><dc:Bounds x="680" y="361" width="100" height="27" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="A_Entrega_di" bpmnElement="A_Entrega">
+      <bpmndi:BPMNShape id="Task_Deliver_di" bpmnElement="Task_Deliver">
         <dc:Bounds x="830" y="295" width="120" height="70" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="A_Recebe_di" bpmnElement="A_Recebe">
+      <bpmndi:BPMNShape id="Task_Receive_di" bpmnElement="Task_Receive">
         <dc:Bounds x="990" y="445" width="120" height="70" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="A_Confere_di" bpmnElement="A_Confere">
+      <bpmndi:BPMNShape id="Task_MatchByHand_di" bpmnElement="Task_MatchByHand">
         <dc:Bounds x="1150" y="595" width="120" height="70" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="A_Diverge_di" bpmnElement="A_Diverge">
+      <bpmndi:BPMNShape id="Gateway_Differs_di" bpmnElement="Gateway_Differs">
         <dc:Bounds x="1345" y="605" width="50" height="50" />
         <bpmndi:BPMNLabel><dc:Bounds x="1320" y="661" width="100" height="27" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="A_Complementar_di" bpmnElement="A_Complementar">
-        <dc:Bounds x="1470" y="745" width="120" height="70" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="A_Conciliada_di" bpmnElement="A_Conciliada">
+      <bpmndi:BPMNShape id="End_Matched_di" bpmnElement="End_Matched">
         <dc:Bounds x="1512" y="612" width="36" height="36" />
         <bpmndi:BPMNLabel><dc:Bounds x="1480" y="654" width="100" height="27" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="A_Provisao_di" bpmnElement="A_Provisao">
+      <bpmndi:BPMNShape id="Task_Supplement_di" bpmnElement="Task_Supplement">
+        <dc:Bounds x="1470" y="745" width="120" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Provisioned_di" bpmnElement="End_Provisioned">
         <dc:Bounds x="1672" y="762" width="36" height="36" />
         <bpmndi:BPMNLabel><dc:Bounds x="1640" y="804" width="100" height="27" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="A_Lista_di" bpmnElement="A_Lista">
+      <bpmndi:BPMNShape id="Task_BuildList_di" bpmnElement="Task_BuildList">
         <dc:Bounds x="830" y="895" width="120" height="70" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="A_Aprova_di" bpmnElement="A_Aprova">
+      <bpmndi:BPMNShape id="Task_ApproveAll_di" bpmnElement="Task_ApproveAll">
         <dc:Bounds x="990" y="1045" width="120" height="70" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="A_Paga_di" bpmnElement="A_Paga">
+      <bpmndi:BPMNShape id="Task_PayOneByOne_di" bpmnElement="Task_PayOneByOne">
         <dc:Bounds x="1150" y="1195" width="120" height="70" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="A_Pago_di" bpmnElement="A_Pago">
+      <bpmndi:BPMNShape id="End_Paid_di" bpmnElement="End_Paid">
         <dc:Bounds x="1352" y="1212" width="36" height="36" />
         <bpmndi:BPMNLabel><dc:Bounds x="1320" y="1254" width="100" height="27" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
