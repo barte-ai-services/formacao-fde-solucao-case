@@ -1032,7 +1032,7 @@ body { background: #f9f9f9; color: var(--ink); font: 16px "Inter", system-ui, sa
     <span><i style="background:#fff0db;border-color:#e68619"></i>Pessoa</span>
     <span><i style="background:#d2fff1;border-color:#12805c"></i>Segue para pagar</span>
     <span><i style="background:#f7e0e0;border-color:#c62828"></i>Bloqueio ou perda</span>
-    <span><i style="background:#fefefe;border-color:#df285d;border-width:4px"></i>Onde um agente pode entrar</span>
+    <span><i style="background:#fefefe;border-color:#df285d;border-width:4px"></i>Agente do grupo no case</span>
   </div>
   <span class="gap"></span>
   <button type="button" data-zoom="1.2" aria-label="Aproximar">+</button>
@@ -1801,11 +1801,12 @@ async function show(id) {
   fitHeight();
 }
 const CANDIDATES = {
-  Task_Classify: { kind: "Agente LLM", text: "Casar item com o cadastro e achar a ordem provável", pos: { top: -100, left: 12 } },
-  Task_ProposeAction: { kind: "Agente LLM", text: "Escrever o dossiê da exceção para quem aprova", pos: { top: -100, left: 26 } },
-  Task_Confirm: { kind: "Agente Clef + LLM", text: "Confirmar antes da doca com confiança calibrada; recomendar a alteração" },
-  Task_ConfirmCount: { kind: "Agente Clef + LLM", text: "Confirmar com a contagem no banco: falta física e quantidade menor" },
-  Task_Count: { kind: "Agente LLM com visão", text: "Contar o pallet pela foto, como contraponto ao operador" }
+  Task_Classify: { kind: "Grupo 4 · Agente auditor", text: "Audita a nota em paralelo à regra: classifica, decide o recebimento, define o aprovador e alerta quando discorda", pos: { top: -112, left: 12 } },
+  Task_ProposeAction: { kind: "Grupo 3 · Dossiê pelo Claude", text: "Escreve o dossiê da exceção para quem aprova, com os números do banco", pos: { top: -100, left: 26 } },
+  Task_Confirm: { kind: "Grupo 1 · Motor de decisão  ·  Grupo 2 · MCP App", text: "Regra → Clef → pessoa, com confiança calibrada; a pessoa decide e delega de dentro do Claude" },
+  Task_ConfirmCount: { kind: "Grupo 1 · Motor de decisão", text: "Confirma com a contagem no banco: falta física e quantidade menor" },
+  Task_AskReturnNote: { kind: "Grupo 5 · Tratativa com o fornecedor", text: "Escreve o pedido da nota de devolução; a pessoa revisa e envia; lê a resposta", pos: { top: 86, left: -70 } },
+  Task_AskCancel: { kind: "Grupo 5 · Tratativa com o fornecedor", text: "Pede o cancelamento da nota recusada e cobra quem não responde", pos: { top: 86, left: -70 } }
 };
 function addNotes(overlays) {
   const registry = viewer.get("elementRegistry");
