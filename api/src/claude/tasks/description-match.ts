@@ -1,14 +1,14 @@
 /**
  * Tarefa description-match (#66): sugere, para o item da nota sem cadastro, qual descrição de
  * produto do fornecedor é o mesmo item. É só sugestão: a regra determinística do Worker
- * (api/src/domain, #66) confirma, e sem sugestão a regra decide sozinha (fail-closed).
+ * (api/src/domain) confirma, e sem sugestão a regra decide sozinha (fail-closed).
  */
-import { createHash } from 'node:crypto';
-import type { Ask } from '../claude.ts';
-import type { Db } from '../supabase.ts';
-import { isRecord, partitionRows } from '../guards.ts';
-import { isKitNota, isKitNotaItem, isKitProduto, type KitNota, type KitNotaItem, type KitProduto } from '../kit-rows.ts';
-import type { ClaudeTask, PendingRequest } from '../task.ts';
+import { descriptionMatchKey } from '../../connectors/claude-suggestions.js';
+import type { Ask } from '../client.js';
+import type { Db } from '../db.js';
+import { isRecord, partitionRows } from '../guards.js';
+import { isKitNota, isKitNotaItem, isKitProduto, type KitNota, type KitNotaItem, type KitProduto } from '../kit-rows.js';
+import type { ClaudeTask, PendingRequest } from '../task.js';
 
 export type DescriptionMatchInput = { readonly description: string; readonly candidates: readonly string[] };
 export type DescriptionMatchOutput = { readonly match: string | null };
@@ -21,25 +21,15 @@ export function sortCandidates(candidates: Iterable<string>): string[] {
 }
 
 /**
- * #66 A chave do pedido: sha256 hex de `descrição + "\n" + candidatos ordenados unidos por "\n"`.
- * O Worker (#66, api/src/domain) calcula a mesma chave para achar a sugestão; como a função ordena
- * os candidatos por conta própria, a ordem de entrada não muda a chave. Não deduplica, como o Worker:
- * o vetor fixo de test/description-match.test.ts é o mesmo de api/test/connectors/claude-suggestions.test.ts.
- */
-export function descriptionMatchKey(description: string, candidates: readonly string[]): string {
-  return createHash('sha256').update(`${description}\n${sortCandidates(candidates).join('\n')}`).digest('hex');
-}
-
-/**
  * #66 Um pedido por item sem sku cujo código não é de produto do fornecedor da nota, com as
  * descrições dos produtos desse fornecedor como candidatos. Fornecedor sem produto é pulado;
  * a mesma entrada em várias notas vira um pedido só.
  */
-export function buildRequests(
+export async function buildRequests(
   invoices: readonly KitNota[],
   items: readonly KitNotaItem[],
   products: readonly KitProduto[],
-): PendingRequest<DescriptionMatchInput>[] {
+): Promise<PendingRequest<DescriptionMatchInput>[]> {
   const supplierByInvoice = new Map(invoices.map((n) => [n.chave, n.fornecedor_id]));
   const codes = new Set(products.map((p) => `${p.fornecedor_id}\u0000${p.codigo_fornecedor}`));
   const descriptions = new Map<string, string[]>();
@@ -56,7 +46,8 @@ export function buildRequests(
     if (codes.has(`${supplier}\u0000${item.codigo_fornecedor}`)) continue;
     const candidates = sortCandidates(descriptions.get(supplier) ?? []);
     if (candidates.length === 0) continue;
-    const key = descriptionMatchKey(item.descricao, candidates);
+    // #66 A chave é a do Worker (connectors/claude-suggestions.ts): quem lê a sugestão calcula a mesma.
+    const key = await descriptionMatchKey(item.descricao, candidates);
     if (!requests.has(key)) requests.set(key, { key, input: { description: item.descricao, candidates } });
   }
   return [...requests.values()];
@@ -123,7 +114,7 @@ export const descriptionMatch: ClaudeTask<DescriptionMatchInput, DescriptionMatc
     const items = partitionRows(rawItems, isKitNotaItem);
     const products = partitionRows(rawProducts, isKitProduto);
     return {
-      requests: buildRequests(invoices.valid, items.valid, products.valid),
+      requests: await buildRequests(invoices.valid, items.valid, products.valid),
       dropped: invoices.dropped + items.dropped + products.dropped,
     };
   },

@@ -27,7 +27,7 @@ export type Prediction = {
   readonly claudeFailure: 'error' | null;
 };
 
-/** #65: a pergunta ao Claude, no formato do `askClaude` do executor da #66. */
+/** #65: a pergunta ao Claude, no formato do `Ask` de src/claude/client.ts (#171). */
 export type AskJson = (input: { system: string; prompt: string; schema: Record<string, unknown> }) => Promise<unknown>;
 
 const PREDICTIONS = env.EVAL_PREDICOES ?? 'eval-out/e5-predicoes.json';
@@ -35,7 +35,7 @@ const PREDICTIONS = env.EVAL_PREDICOES ?? 'eval-out/e5-predicoes.json';
 const ruleOnly = (invoice: InvoiceView, ctx: CheckContext): string | null =>
   candidateOrders(invoice, ctx).find((o) => confirmProbableOrder(invoice, o, ctx).confirmed)?.id ?? null;
 
-// #65: o Claude não roda no Worker nem neste processo; a predição recebe o `ask` do executor da #66 e
+// #65: o Claude não roda neste processo; a predição recebe o `ask` do cliente do Claude (#171) e
 // #65 fica pulada até aquele PR entrar e passar o `askClaude` para cá.
 const ask = null as AskJson | null;
 

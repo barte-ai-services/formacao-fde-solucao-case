@@ -19,7 +19,7 @@ export type ProposeDeps = {
   readonly registry: RegistryPort;
   /** #56: a contagem do WMS, para o E1 e o E3 conciliarem a nota. Sem ela, não há linha a segurar. */
   readonly wms?: WmsCountPort;
-  /** #65: as sugestões de ordem provável do executor da #66. Sem elas, a regra decide sozinha. */
+  /** #65: as sugestões de ordem provável da rodada do Claude (#171). Sem elas, a regra decide sozinha. */
   readonly suggestions?: ProbableOrderSuggestions;
   readonly now?: () => Date;
 };

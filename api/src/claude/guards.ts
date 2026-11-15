@@ -1,5 +1,5 @@
 /**
- * Validação na borda do executor do Claude (#66): toda linha do PostgREST e todo JSON do kit entram
+ * Validação na borda do Claude no Worker (#66): toda linha do PostgREST e todo JSON do kit entram
  * como unknown e só viram tipo depois de passar por um guard. Segue api/src/connectors/guards.ts,
  * sem importar de api/ (#66).
  */

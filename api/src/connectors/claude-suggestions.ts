@@ -1,5 +1,5 @@
-// #66 Sugestões do Claude gravadas pelo job claude-enrich (GitHub Actions) na tabela claude_suggestions.
-// O Worker não chama o Claude: só lê o que o job gravou, e a regra confirma (description-match.ts).
+// #66 Sugestões do Claude na tabela claude_suggestions. O Cron as grava (api/src/claude, #171); aqui o Worker
+// lê o que ficou gravado, e a regra confirma (description-match.ts).
 import type { DescriptionSuggester } from '../domain/description-match.js';
 import { isString, nullable, parseRows, shaped, type Shape } from './guards.js';
 import type { SupabaseRest } from './supabase-rest.js';
@@ -22,7 +22,7 @@ const isRow = shaped<DescriptionSuggestionRow>({
 /**
  * #66 A chave de um pedido de casamento: sha256 hex de `descrição + "\n" + candidatos ordenados`,
  * com os candidatos ordenados por localeCompare em pt-BR, para não depender da ordem do cadastro.
- * É a mesma chave de jobs/claude/src/tasks/description-match.ts (#66); mudar aqui é mudar lá.
+ * É a chave que src/claude/tasks/description-match.ts usa para gravar: ela importa esta função.
  */
 export async function descriptionMatchKey(description: string, candidates: readonly string[]): Promise<string> {
   const sorted = [...candidates].sort((a, b) => a.localeCompare(b, 'pt-BR'));
@@ -41,7 +41,7 @@ export async function listDescriptionSuggestions(rest: SupabaseRest): Promise<De
 }
 
 /**
- * #66 O sugestor que responde com o que o job gravou: o índice do candidato escolhido, na ordem
+ * #66 O sugestor que responde com o que a rodada gravou: o índice do candidato escolhido, na ordem
  * original dos candidatos. Sem linha para a chave, ou com um match que não é um dos candidatos, null.
  */
 export function storedDescriptionSuggester(rows: readonly DescriptionSuggestionRow[]): DescriptionSuggester {

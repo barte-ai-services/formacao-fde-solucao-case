@@ -183,7 +183,7 @@ h2::before{display:none !important}
         <div class="host"><svg class="logo" role="img" aria-label="cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg>Cloudflare Worker, com Cron a cada 15 min</div></div>
       <div class="ar" style="grid-column:6;grid-row:1">→</div>
       <div class="models" style="grid-column:7;grid-row:1">
-        <div class="n claude"><div class="logos"><svg class="logo" role="img" aria-label="claude" style="color:var(--claude)"><use href="#i-claude"/></svg></div><b>Claude</b><div class="s">Chamado pelo Worker nos agentes C, D e E, pela API do Claude, num laço de tool use. A chave fica num secret do Worker.</div></div>
+        <div class="n claude"><div class="logos"><svg class="logo" role="img" aria-label="claude" style="color:var(--claude)"><use href="#i-claude"/></svg></div><b>Claude</b><div class="s">Chamado pelo Worker, pela Messages API, num laço de tool use. Autentica com o setup token do Claude Code (<code>Authorization: Bearer</code> + <code>anthropic-beta: oauth-2025-04-20</code>), num secret do Worker. Plano B: chave da API (<code>x-api-key</code>), só trocando o secret.</div></div>
         <div class="n clef"><div class="logos"><svg class="logo" role="img" aria-label="cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg></div><b>Clef</b><div class="s">Workers AI, pelo binding.</div></div>
       </div>
       <div class="ar down">↕</div>
@@ -262,7 +262,7 @@ h2::before{display:none !important}
   <section>
     <h2>O que mudou desde o desenho original</h2>
     <div class="chg">
-      <div class="pc"><div><b>Executor ainda no GitHub Actions</b><span class="t">Pendente: o executor que está na main (<code>claude-enrich.yml</code>, PR #109) ainda roda no GitHub Actions e vai migrar para o Worker.</span> <small>#171</small></div></div>
+      <div class="pc"><div><b>Claude dentro do Worker</b><span class="t">O executor saiu do GitHub Actions (<code>claude-enrich.yml</code> removido): o Cron do Worker chama a Messages API com o setup token do Claude Code, que é uso da assinatura fora do Claude Code e pode ser limitado ou bloqueado. Plano B: a chave da API (<code>BARTE_ACADEMY_ANTHROPIC_API_KEY</code>), sem mudar o código, só o secret. O Cron falha fechado: sem credencial ou com 429/401, a regra decide sozinha.</span> <small>#171</small></div></div>
       <div class="pc"><div><b>Access no host inteiro</b><span class="t">Até o <code>/health</code> passa pelo login.</span> <small>#76</small></div></div>
       <div class="pc"><div><b>Loja separada da doca</b><span class="t">O recebimento na loja tem a ação própria, no app da loja.</span> <small>#135</small></div></div>
       <div class="pc"><div><b>Fila de devolução</b><span class="t">Notas de devolução pendentes de emissão no portal.</span> <small>#140</small></div></div>

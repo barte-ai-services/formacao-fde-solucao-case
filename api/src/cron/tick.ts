@@ -1,5 +1,6 @@
 import { listDescriptionSuggestions, storedDescriptionSuggester } from "../connectors/claude-suggestions";
 import { blockDuplicateTitles } from "../connectors/duplicate-settler";
+import { runClaudeRound } from "../claude/cron";
 import { supabaseConnectors } from "../connectors/supabase-connectors";
 import { SupabaseRest, SupabaseRestError } from "../connectors/supabase-rest";
 import type { RegistryCorrectionOutbox } from "../connectors/ports";
@@ -34,6 +35,8 @@ export async function tick(controller: Pick<ScheduledController, "cron">, env: E
   }
   const rest = new SupabaseRest({ url, secretKey });
   const { captureDeps, registryCorrections } = supabaseConnectors(rest);
+  // #171 Primeiro o Claude grava as sugestões novas, depois a captura as lê. Falha fechada: a regra decide sozinha.
+  await runClaudeRound(rest, env);
   const descriptions = await storedSuggestions(rest);
   const result = await captureInvoices(descriptions ? { ...captureDeps, descriptions } : captureDeps);
   const unreconciled = await findUnreconciledReceipts(captureDeps);
@@ -62,7 +65,7 @@ export async function tick(controller: Pick<ScheduledController, "cron">, env: E
 }
 
 /**
- * #66 As sugestões de casamento por descrição que o job claude-enrich gravou. Se a leitura falha,
+ * #66 As sugestões de casamento por descrição que a rodada do Claude (api/src/claude) gravou. Se a leitura falha,
  * registra uma linha (só o status, sem dado sensível) e a regra decide sozinha.
  */
 async function storedSuggestions(rest: SupabaseRest): Promise<DescriptionSuggester | undefined> {

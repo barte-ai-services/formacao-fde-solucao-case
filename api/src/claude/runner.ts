@@ -1,14 +1,13 @@
 /**
- * Executor do Claude (#66): roda no GitHub Actions, de 5 em 5 minutos, porque o Worker não tem
- * como chamar o Claude (só há o token de setup do Claude Code). Para cada tarefa registrada, lê o
- * que está pendente, pergunta ao Claude e grava a sugestão em claude_suggestions. O Worker só lê (#66).
+ * O laço das tarefas do Claude (#66, #171): roda no Cron do Worker. Para cada tarefa registrada, lê o
+ * que está pendente, pergunta ao Claude e grava a sugestão em claude_suggestions. A regra
+ * determinística confirma depois e, sem sugestão, decide sozinha (fail-closed).
  */
-import { pathToFileURL } from 'node:url';
-import { askClaude, ClaudeError, DEFAULT_MODEL, type Ask } from './claude.ts';
-import { isInteger, isString, isTimestamp, partitionRows, shaped, type Shape } from './guards.ts';
-import { SupabaseClient, SupabaseError, type Db, type Row } from './supabase.ts';
-import type { ClaudeTask, PendingRequest } from './task.ts';
-import { TASKS } from './tasks/index.ts';
+import { ClaudeError, DEFAULT_MODEL, type Ask } from './client.js';
+import { isInteger, isString, isTimestamp, partitionRows, shaped, type Shape } from './guards.js';
+import { SupabaseRestError } from '../connectors/supabase-rest.js';
+import type { Db, Row } from './db.js';
+import type { ClaudeTask, PendingRequest } from './task.js';
 
 const TABLE = 'claude_suggestions';
 /** #66 Teto de pedidos por tarefa a cada rodada; o resto fica para a próxima. */
@@ -49,13 +48,13 @@ const isStoredSuggestion = shaped<StoredSuggestion>({
 } satisfies Shape<StoredSuggestion>);
 
 /**
- * #66 O que vai para a coluna error e para o log. Só os erros que o executor mesmo escreve
- * (ClaudeError e SupabaseError) levam a mensagem, truncada e sem segredo; qualquer outro, como os
+ * #66 O que vai para a coluna error e para o log. Só os erros que o Worker mesmo escreve
+ * (ClaudeError e SupabaseRestError) levam a mensagem, truncada e sem segredo; qualquer outro, como os
  * do SDK e do processo do Claude Code, leva só o nome da classe, porque o texto deles não é nosso.
  */
 export function storedError(error: unknown, secrets: readonly string[] = []): string {
   const name = error instanceof Error && /^\w{1,64}$/.test(error.name) ? error.name : 'Error';
-  if (!(error instanceof ClaudeError || error instanceof SupabaseError)) return `${name}: erro inesperado`;
+  if (!(error instanceof ClaudeError || error instanceof SupabaseRestError)) return `${name}: erro inesperado`;
   let message = error.message;
   for (const secret of secrets) if (secret) message = message.split(secret).join('[redigido]');
   return `${name}: ${message.slice(0, MAX_ERROR)}`;
@@ -105,7 +104,7 @@ async function runOne(
   options: RunOptions,
   previous: StoredSuggestion | undefined,
   counts: Counts,
-): Promise<void> {
+): Promise<boolean> {
   const attempts = previous?.attempts ?? 0;
   let row: Row;
   try {
@@ -114,9 +113,12 @@ async function runOne(
     counts.ok += 1;
   } catch (error) {
     const message = storedError(error, options.secrets);
-    row = { output: null, status: 'error', error: message, attempts: attempts + 1 };
     counts.failed += 1;
     counts.firstError ??= message;
+    // #171 Limite de uso ou credencial recusada vale para a rodada toda: não gasta tentativa de nenhuma
+    // chave nem grava linha de erro, e interrompe. A regra decide sozinha e a próxima rodada repete.
+    if (error instanceof ClaudeError && error.isGlobal) return true;
+    row = { output: null, status: 'error', error: message, attempts: attempts + 1 };
   }
   const updatedAt = (options.now ?? (() => new Date()))().toISOString();
   // #66 A linha nova entra com ignore-duplicates; a que estava em erro é refeita com merge-duplicates.
@@ -125,17 +127,24 @@ async function runOne(
     [{ task: task.name, input_key: request.key, input: request.input, model: DEFAULT_MODEL, updated_at: updatedAt, ...row }],
     { onConflict: 'task,input_key', resolution: previous === undefined ? 'ignore' : 'merge' },
   );
+  return false;
 }
 
-function summaryLine(name: string, pending: number, counts: Counts, extra: { waiting: number; dropped: number }): string {
+function summaryLine(
+  name: string,
+  pending: number,
+  counts: Counts,
+  extra: { waiting: number; dropped: number; stopped: boolean },
+): string {
   const parts = [`tarefa ${name}: ${pending} pendentes, ok ${counts.ok}, erro ${counts.failed}`];
   if (counts.firstError !== undefined) parts.push(`primeiro erro: ${counts.firstError}`);
+  if (extra.stopped) parts.push('rodada interrompida: a regra decide sozinha');
   if (extra.waiting > 0) parts.push(`em espera ${extra.waiting}`);
   if (extra.dropped > 0) parts.push(`linhas descartadas ${extra.dropped}`);
   return parts.join(', ');
 }
 
-type TaskOutcome = { readonly line: string; readonly failed: boolean };
+type TaskOutcome = { readonly line: string; readonly failed: boolean; readonly stopped: boolean };
 
 async function runTask(task: ClaudeTask<unknown, unknown>, options: RunOptions): Promise<TaskOutcome> {
   const existing = await existingSuggestions(options.db, task.name);
@@ -144,10 +153,15 @@ async function runTask(task: ClaudeTask<unknown, unknown>, options: RunOptions):
   const now = (options.now ?? (() => new Date()))();
   const plan = planQueue(pending, existing, now, options.limit ?? MAX_PER_RUN);
   const counts: Counts = { ok: 0, failed: 0, firstError: undefined };
-  for (const request of plan.queue) await runOne(task, request, options, existing.byKey.get(request.key), counts);
-  const line = summaryLine(task.name, pending.length, counts, { waiting: plan.waiting, dropped: dropped + existing.dropped });
-  // #66 Todas as chamadas falharem é a tarefa falhar: o workflow não pode ficar verde com o token vencido.
-  return { line, failed: counts.ok === 0 && counts.failed > 0 };
+  let stopped = false;
+  for (const request of plan.queue) {
+    stopped = await runOne(task, request, options, existing.byKey.get(request.key), counts);
+    if (stopped) break;
+  }
+  const extra = { waiting: plan.waiting, dropped: dropped + existing.dropped, stopped };
+  const line = summaryLine(task.name, pending.length, counts, extra);
+  // #66 Todas as chamadas falharem é a tarefa falhar: fica contado e logado, com o token vencido ou sem cota.
+  return { line, failed: counts.ok === 0 && counts.failed > 0, stopped };
 }
 
 /** #66 Roda as tarefas em sequência. A falha de uma tarefa inteira é registrada e não para as outras. */
@@ -158,59 +172,12 @@ export async function runTasks(options: RunOptions): Promise<RunResult> {
       const outcome = await runTask(task, options);
       options.log(outcome.line);
       if (outcome.failed) failedTasks.push(task.name);
+      // #171 Sem cota ou sem credencial, as outras tarefas só repetiriam a falha.
+      if (outcome.stopped) break;
     } catch (error) {
       failedTasks.push(task.name);
       options.log(`tarefa ${task.name}: falhou (${storedError(error, options.secrets)})`);
     }
   }
   return { failedTasks };
-}
-
-export type Config = {
-  readonly supabaseUrl: string;
-  readonly supabaseSecretKey: string;
-  readonly tasks: string[];
-};
-
-/** #66 Lê o ambiente. A falta de variável nomeia a variável, nunca mostra um valor. */
-export function readConfig(env: Record<string, string | undefined>): Config {
-  const required = (name: string): string => {
-    const value = env[name]?.trim();
-    if (!value) throw new Error(`variável de ambiente ausente: ${name}`);
-    return value;
-  };
-  return {
-    supabaseUrl: required('BARTE_ACADEMY_SUPABASE_URL'),
-    supabaseSecretKey: required('BARTE_ACADEMY_SUPABASE_SECRET_KEY'),
-    tasks: (env.CLAUDE_TASKS ?? '')
-      .split(',')
-      .map((name) => name.trim())
-      .filter(Boolean),
-  };
-}
-
-/** #66 Sem nomes, todas as tarefas; nome desconhecido é erro para não rodar nada pela metade. */
-export function selectTasks(names: readonly string[]): ClaudeTask<unknown, unknown>[] {
-  if (names.length === 0) return [...TASKS];
-  return names.map((name) => {
-    const task = TASKS.find((t) => t.name === name);
-    if (!task) throw new Error(`tarefa desconhecida: ${name} (conhecidas: ${TASKS.map((t) => t.name).join(', ')})`);
-    return task;
-  });
-}
-
-async function main(): Promise<void> {
-  const config = readConfig(process.env);
-  const tasks = selectTasks(config.tasks);
-  const db = new SupabaseClient({ url: config.supabaseUrl, secretKey: config.supabaseSecretKey });
-  const secrets = [config.supabaseSecretKey, process.env.CLAUDE_CODE_OAUTH_TOKEN ?? ''];
-  const result = await runTasks({ db, ask: askClaude, tasks, log: (line) => console.log(line), secrets });
-  if (result.failedTasks.length > 0) process.exitCode = 1;
-}
-
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch((error: unknown) => {
-    console.error(`executor do Claude: ${error instanceof Error ? error.message : 'falha'}`);
-    process.exitCode = 1;
-  });
 }

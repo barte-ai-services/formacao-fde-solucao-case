@@ -8,7 +8,7 @@
  */
 
 /**
- * Porta para quem sugere o casamento: em produção, as sugestões gravadas pelo job claude-enrich (#66).
+ * Porta para quem sugere o casamento: em produção, as sugestões gravadas pela rodada do Claude no Cron (#171).
  * Devolve o índice do candidato ou null.
  */
 export interface DescriptionSuggester {

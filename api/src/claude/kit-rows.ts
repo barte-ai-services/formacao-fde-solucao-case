@@ -1,9 +1,9 @@
 /**
- * Linhas do kit que o executor do Claude lê (#66): os tipos espelham as colunas das tabelas kit_*
+ * Linhas do kit que o Claude no Worker lê (#66): os tipos espelham as colunas das tabelas kit_*
  * e mantêm os nomes em português da fonte (docs/adr/ADR-001-kit-base-names.md), cada linha marcada.
  * Cada tipo tem o guard que o estreita a partir de unknown (#66).
  */
-import { arrayOf, isString, nullable, shaped, type Guard, type Shape } from './guards.ts';
+import { arrayOf, isString, nullable, shaped, type Guard, type Shape } from './guards.js';
 
 export type KitNota = {
   readonly chave: string; // ADR-001
