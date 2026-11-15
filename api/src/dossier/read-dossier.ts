@@ -12,7 +12,11 @@ export type ReadDossierInput = {
   readonly invoiceAccessKey: string;
   /** #68: a nota conferida, com as divergências que a proposta encaminhou. */
   readonly invoice: InvoiceView;
-  readonly ctx: CheckContext;
+  /**
+   * #68: carrega o contexto da nota. Só é chamado quando há sugestão `ok`: sem linha ou com erro,
+   * as tabelas do contexto não são lidas, e uma falha delas não troca `pending` por `read_failed`.
+   */
+  readonly loadContext: () => Promise<CheckContext>;
   readonly source: DossierSource;
 };
 
@@ -31,7 +35,8 @@ export async function readDossier(input: ReadDossierInput): Promise<DossierResul
   if (suggestion.status === 'erro') {
     return { status: 'unavailable', reason: 'claude_failed', generatedAt: suggestion.generatedAt };
   }
-  const catalog = buildFactCatalog(input.invoice, input.ctx);
+  const ctx = await input.loadContext();
+  const catalog = buildFactCatalog(input.invoice, ctx);
   return verifyAndRender(suggestion.output, catalog, input.invoice.divergences, {
     generatedAt: suggestion.generatedAt,
     model: suggestion.model ?? UNKNOWN_MODEL,

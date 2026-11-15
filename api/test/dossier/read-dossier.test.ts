@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { AmountAtRisk, DockAction, Money, Proposal } from '../../src/domain/index.js';
+import { describe, expect, it, vi } from 'vitest';
+import { AmountAtRisk, DockAction, Money, Proposal, type CheckContext } from '../../src/domain/index.js';
 import { SupabaseRest } from '../../src/connectors/supabase-rest.js';
 import { readDossier } from '../../src/dossier/read-dossier.js';
 import { SupabaseDossierSource } from '../../src/dossier/source.js';
@@ -24,14 +24,15 @@ const row = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-const read = async (rows: Record<string, unknown>[]) => {
+const read = async (rows: Record<string, unknown>[], loadContext?: () => Promise<CheckContext>) => {
   const { invoice, ctx, tables } = await kitCase();
   const fake = new FakePostgrest({ claude_suggestions: rows });
   const source = new SupabaseDossierSource(
     new SupabaseRest({ url: 'https://fake.supabase.co', secretKey: 'sb_secret_fake', fetch: fake.fetch }),
   );
-  const result = await readDossier({ invoiceAccessKey: KIT_ACCESS_KEY, invoice, ctx, source });
-  return { result, tables, fake, invoice };
+  const load = vi.fn(loadContext ?? (async () => ctx));
+  const result = await readDossier({ invoiceAccessKey: KIT_ACCESS_KEY, invoice, loadContext: load, source });
+  return { result, tables, fake, invoice, load };
 };
 
 const reais = (v: unknown) => `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
@@ -118,6 +119,27 @@ describe('readDossier, com a NF-004 da base do kit', () => {
       reason: 'pending',
       notice: expect.stringContaining('o dossiê ainda não foi gerado'),
     });
+  });
+
+  it('#68 sem sugestão gravada, o contexto da nota não é carregado', async () => {
+    const { result, load } = await read([], async () => {
+      throw new Error('não deveria ler o contexto');
+    });
+    expect(result).toBeNull();
+    expect(load).not.toHaveBeenCalled();
+  });
+
+  it('#68 sugestão com erro também não carrega o contexto', async () => {
+    const { result, load } = await read([row({ status: 'erro', output: null, model: null, error: 'timeout' })]);
+    expect(result).toMatchObject({ reason: 'claude_failed' });
+    expect(load).not.toHaveBeenCalled();
+  });
+
+  it('#68 sugestão ok com erro ao carregar o contexto propaga o erro', async () => {
+    const failing = read([row()], async () => {
+      throw new Error('kit_recebimentos indisponível');
+    });
+    await expect(failing).rejects.toThrow('kit_recebimentos indisponível');
   });
 
   it('saída ok sem o model gravado ainda confere e marca o model como desconhecido', async () => {

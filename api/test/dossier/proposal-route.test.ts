@@ -3,7 +3,7 @@ import { MemoryApprovalStore, type CaseFile } from '../../src/approval/store.js'
 import { SupabaseRest } from '../../src/connectors/supabase-rest.js';
 import { draftProposal, propose } from '../../src/domain/approval.js';
 import { ApprovalPolicy } from '../../src/domain/approval-policy.js';
-import { Title, type Invoice } from '../../src/domain/index.js';
+import { Title, type CheckContext, type Invoice } from '../../src/domain/index.js';
 import { SupabaseDossierSource, type DossierSource } from '../../src/dossier/source.js';
 import type { Env } from '../../src/env.js';
 import type { AccessVerifier } from '../../src/http/access.js';
@@ -36,7 +36,11 @@ function caseFile(invoice: Invoice): CaseFile {
   return { invoice, proposal, title, route, approval, supplierBlocked: false };
 }
 
-async function detail(suggestions: Record<string, unknown>[], failing?: DossierSource) {
+async function detail(
+  suggestions: Record<string, unknown>[],
+  failing?: DossierSource,
+  context: () => Promise<CheckContext> = async () => emptyContext(),
+) {
   const invoice = checkedWith(kitInvoice('NF-008'), 'E4');
   const fake = new FakePostgrest({ claude_suggestions: suggestions });
   const source =
@@ -49,7 +53,7 @@ async function detail(suggestions: Record<string, unknown>[], failing?: DossierS
     approval: {
       store: new MemoryApprovalStore([caseFile(invoice)]),
       today: () => TODAY,
-      dossier: { source, context: async () => emptyContext() },
+      dossier: { source, context },
     },
   });
   const res = await worker.fetch(
@@ -62,6 +66,27 @@ async function detail(suggestions: Record<string, unknown>[], failing?: DossierS
   return { invoice, dossier: body.dossier, body };
 }
 
+/** #68: uma linha `ok` em claude_suggestions para a nota, com um dossiê que confere. */
+function okSuggestion(invoice: Invoice): Record<string, unknown> {
+  const code = invoice.items[0]!.supplierCode;
+  return {
+    task: 'dossier',
+    input_key: invoice.accessKey,
+    input: {},
+    output: {
+      summary: `A nota cobra {{nota.item[${code}].quantidade}} do item ${code}.`,
+      divergences: [
+        { classification: 'E4', what_diverges: 'Unidade diferente da ordem.', evidence: [`nota.item[${code}].quantidade`] },
+      ],
+      supplier_history: 'Sem histórico.',
+    },
+    status: 'ok',
+    model: 'claude-opus-5-5',
+    error: null,
+    generated_at: '2026-11-15T12:00:00.000Z',
+  };
+}
+
 describe('GET /api/propostas/:chave com o dossiê', () => {
   it('#38/AC-4 sem linha em claude_suggestions, o dossiê vem unavailable/pending com o aviso', async () => {
     const { dossier } = await detail([]);
@@ -71,6 +96,28 @@ describe('GET /api/propostas/:chave com o dossiê', () => {
       notice: expect.stringContaining('o dossiê ainda não foi gerado'),
       generatedAt: null,
     });
+  });
+
+  it('#68 sem linha em claude_suggestions, o contexto não é carregado e o dossiê fica pending', async () => {
+    const context = vi.fn(async (): Promise<CheckContext> => {
+      throw new Error('kit_recebimentos indisponível');
+    });
+    const { dossier } = await detail([], undefined, context);
+    expect(dossier).toMatchObject({ status: 'unavailable', reason: 'pending' });
+    expect(context).not.toHaveBeenCalled();
+  });
+
+  it('#68 linha ok com erro ao carregar o contexto dá read_failed', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const invoice = checkedWith(kitInvoice('NF-008'), 'E4');
+    const context = vi.fn(async (): Promise<CheckContext> => {
+      throw new Error('kit_recebimentos indisponível');
+    });
+    const { dossier } = await detail([okSuggestion(invoice)], undefined, context);
+    expect(dossier).toMatchObject({ status: 'unavailable', reason: 'read_failed', generatedAt: null });
+    expect(context).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('kit_recebimentos indisponível'));
+    log.mockRestore();
   });
 
   it('#38/AC-1 com a sugestão ok, o dossiê vem ready, renderizado com os valores do banco', async () => {

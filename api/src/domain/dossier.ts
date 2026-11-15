@@ -245,6 +245,25 @@ function parseRaw(raw: unknown): RawDossier | null {
 const MARKER = /\{\{([^{}]+)\}\}/g;
 const EDGE_PUNCTUATION = /^[("'“‘[]+|[)"'”’\].,;:!?]+$/g;
 
+/**
+ * #68: numerais por extenso que o texto do Claude não pode ter fora de um marcador, comparados em
+ * minúsculas e sem acento. `um`/`uma` ficam de fora porque também são artigo; um número escrito
+ * assim ainda passa pela conferência (limitação conhecida, #68).
+ */
+const SPELLED_NUMBERS: ReadonlySet<string> = new Set([
+  'dois', 'duas', 'tres', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove', 'dez',
+  'onze', 'doze', 'treze', 'catorze', 'quatorze', 'quinze', 'dezesseis', 'dezessete', 'dezoito', 'dezenove',
+  'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa',
+  'cem', 'cento', 'duzentos', 'duzentas', 'trezentos', 'trezentas', 'quatrocentos', 'quatrocentas',
+  'quinhentos', 'quinhentas', 'seiscentos', 'seiscentas', 'setecentos', 'setecentas',
+  'oitocentos', 'oitocentas', 'novecentos', 'novecentas',
+  'mil', 'milhao', 'milhoes', 'bilhao', 'bilhoes',
+  'dezena', 'dezenas', 'duzia', 'duzias', 'centena', 'centenas', 'metade', 'dobro', 'triplo',
+]);
+
+/** #68: o token em minúsculas e sem acento, para comparar com os numerais por extenso. */
+const folded = (token: string): string => token.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+
 /** #68: o texto confere quando todo marcador está no catálogo e nenhum número sobra fora dos marcadores. */
 function textChecks(text: string, catalog: FactCatalog, allowed: ReadonlySet<string>): boolean {
   for (const m of text.matchAll(MARKER)) {
@@ -253,7 +272,9 @@ function textChecks(text: string, catalog: FactCatalog, allowed: ReadonlySet<str
   const rest = text.replace(MARKER, ' ');
   for (const token of rest.split(/[\s/]+/)) {
     const bare = token.replace(EDGE_PUNCTUATION, '');
-    if (/\d/.test(bare) && !allowed.has(bare)) return false;
+    // #68: \p{N} pega também dígitos fora do ASCII (como `１５`), que o `\d` deixava passar.
+    if (/\p{N}/u.test(bare) && !allowed.has(bare)) return false;
+    if (SPELLED_NUMBERS.has(folded(bare))) return false;
   }
   return true;
 }

@@ -34,7 +34,8 @@ export function buildDossierPrompt(catalog: FactCatalog, divergences: readonly D
   const prompt = [
     'Escreva o dossiê desta proposta a partir dos dados abaixo.',
     '<dados>',
-    JSON.stringify(data, null, 2),
+    // #68: `<` escapado, para que uma descrição com `</dados>` não feche o bloco de dados.
+    JSON.stringify(data, null, 2).replace(/</g, '\\u003c'),
     '</dados>',
   ].join('\n');
   return { system: SYSTEM, prompt };

@@ -151,12 +151,19 @@ async function proposalDetail(
 /**
  * #68: o dossiê é conferido contra o banco na hora de mostrar; sem fonte, fica pendente. Um erro ao
  * ler não derruba a proposta (#38/AC-4): vira `read_failed` e fica no log só com a chave e a mensagem.
+ * O contexto da nota só é carregado quando há sugestão `ok`; sem linha, fica `pending` sem lê-lo.
  */
 async function proposalDossier(key: string, file: CaseFile, dossier?: DossierDeps): Promise<DossierField> {
   if (!dossier) return dossierField(null);
   try {
-    const ctx = await dossier.context(key);
-    return dossierField(await readDossier({ invoiceAccessKey: key, invoice: file.invoice, ctx, source: dossier.source }));
+    return dossierField(
+      await readDossier({
+        invoiceAccessKey: key,
+        invoice: file.invoice,
+        loadContext: () => dossier.context(key),
+        source: dossier.source,
+      }),
+    );
   } catch (e) {
     console.error(`#68 dossiê da nota ${key} não lido: ${e instanceof Error ? e.message : String(e)}`);
     return dossierReadFailed();

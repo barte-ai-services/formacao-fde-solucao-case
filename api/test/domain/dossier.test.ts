@@ -126,6 +126,22 @@ describe('verifyAndRender', () => {
     });
   });
 
+  it('#38/AC-2 número por extenso fora de marcador torna o dossiê indisponível', () => {
+    // #68: comparado em minúsculas e sem acento; `um`/`uma` ficam fora da lista por serem artigo.
+    expect(render(withText('supplier_history', 'Faltaram quinze caixas.'))).toMatchObject({
+      status: 'unavailable',
+      reason: 'number_mismatch',
+    });
+    expect(render(withText('summary', 'Chegaram Três caixas a menos.'))).toMatchObject({ reason: 'number_mismatch' });
+  });
+
+  it('#38/AC-2 dígito fora do ASCII fora de marcador torna o dossiê indisponível', () => {
+    expect(render(withText('supplier_history', 'Faltaram １５ caixas.'))).toMatchObject({
+      status: 'unavailable',
+      reason: 'number_mismatch',
+    });
+  });
+
   it('#38/AC-2 número curto que só existe como identificador também precisa de marcador', () => {
     expect(render(withText('summary', 'Faltaram 1234 caixas.'))).toMatchObject({ reason: 'number_mismatch' });
   });
