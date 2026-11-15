@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Select, Table, Text } from "barte-design-system";
 import { StatusBadge } from "@barte-ai-services/barte-ui-kit";
 import { dockApi, type DockBoardDto, type DockRowDto } from "../api/dock";
@@ -14,15 +14,26 @@ function qty(q: QuantityDto): string {
 
 /** #43 AC-2: o que o operador faz no receber parcial, a partir das linhas a segurar ou devolver. */
 function instruction(action: DockActionDto): string {
-  if (action.kind !== "receber_parcial") return action.kind === "recusar" ? "Devolva o caminhão inteiro" : "Descarregue tudo";
-  const { lines } = action;
-  const of = (d: "segurar" | "devolver") =>
-    lines.filter((l) => l.disposition === d).map((l) => `${qty(l.quantity)} de ${l.sku}`);
-  const hold = of("segurar");
-  const back = of("devolver");
-  return [hold.length ? `Segure ${hold.join(", ")}` : "", back.length ? `Devolva ${back.join(", ")}` : ""]
-    .filter(Boolean)
-    .join("; ");
+  switch (action.kind) {
+    case "receber":
+      return "Descarregue tudo";
+    case "recusar":
+      return "Devolva o caminhão inteiro";
+    case "receber_parcial": {
+      const { lines } = action;
+      const of = (d: "segurar" | "devolver") =>
+        lines.filter((l) => l.disposition === d).map((l) => `${qty(l.quantity)} de ${l.sku}`);
+      const hold = of("segurar");
+      const back = of("devolver");
+      return [hold.length ? `Segure ${hold.join(", ")}` : "", back.length ? `Devolva ${back.join(", ")}` : ""]
+        .filter(Boolean)
+        .join("; ");
+    }
+    default: {
+      const unreachable: never = action;
+      return unreachable;
+    }
+  }
 }
 
 function Two({ top, bottom }: { top: React.ReactNode; bottom: React.ReactNode }) {
@@ -50,6 +61,11 @@ export default function Doca(_props: RouteProps) {
     setDestination(value);
     retry();
   };
+  // #72 A lista de destinos fica guardada entre as cargas: o seletor não some enquanto carrega nem depois de um erro.
+  const [destinations, setDestinations] = useState<string[]>([]);
+  useEffect(() => {
+    if (data) setDestinations(data.destinations);
+  }, [data]);
   const shown = data?.destination ?? destination;
   const rows = data?.rows ?? [];
   const awaiting = data?.awaiting ?? 0;
@@ -58,12 +74,12 @@ export default function Doca(_props: RouteProps) {
       title="Doca"
       subtitle="As notas que chegam hoje neste destino e o que fazer com cada caminhão. Nada é descarregado antes da decisão."
       actions={
-        data && data.destinations.length > 0 ? (
+        destinations.length > 0 ? (
           <Select
             size="sm"
-            value={shown ?? undefined}
+            value={destination ?? data?.destination ?? undefined}
             onChange={choose}
-            options={data.destinations.map((d) => ({ value: d, label: d }))}
+            options={destinations.map((d) => ({ value: d, label: d }))}
           />
         ) : undefined
       }
