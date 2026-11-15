@@ -11,7 +11,12 @@ import { SupabaseDossierSource } from "./dossier/source";
 import { wmsDockActionOutbox } from "./connectors/wms-dock-action";
 
 /** Monta o Worker com as dependências dadas. Os testes injetam um verificador sem rede (#54). */
-export function createWorker(deps: RouterDeps) {
+export interface Worker {
+  fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response>;
+  scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void>;
+}
+
+export function createWorker(deps: RouterDeps): Worker {
   return {
     async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
       return route(request, env, deps);
@@ -19,7 +24,7 @@ export function createWorker(deps: RouterDeps) {
     async scheduled(controller: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
       await tick(controller, env);
     },
-  } satisfies ExportedHandler<Env>;
+  };
 }
 
 // O verificador vive no escopo do módulo, então o cache das chaves do Access dura o isolate.

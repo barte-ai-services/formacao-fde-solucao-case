@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { createAccessVerifier, type FetchJwks } from "../src/http/access";
-import { createWorker } from "../src/index";
-import type { Env } from "../src/env";
+import { createAccessVerifier, type FetchJwks } from "../../src/http/access";
+import { createWorker } from "../../src/index";
+import type { Env } from "../../src/env";
 
 const TEAM = "barte-academy.cloudflareaccess.com";
 const ISS = `https://${TEAM}`;

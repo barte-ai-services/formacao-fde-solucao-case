@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import worker from "../src/index";
-import type { Env } from "../src/env";
+import worker from "../../src/index";
+import type { Env } from "../../src/env";
 
 const env: Env = {};
 const ctx = {
