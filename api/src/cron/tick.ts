@@ -1,4 +1,5 @@
 import { listDescriptionSuggestions, storedDescriptionSuggester } from "../connectors/claude-suggestions";
+import { blockDuplicateTitles } from "../connectors/duplicate-settler";
 import { supabaseConnectors } from "../connectors/supabase-connectors";
 import { SupabaseRest, SupabaseRestError } from "../connectors/supabase-rest";
 import type { RegistryCorrectionOutbox } from "../connectors/ports";
@@ -37,8 +38,9 @@ export async function tick(controller: Pick<ScheduledController, "cron">, env: E
   const cadastroE8 = await publishApproved(rest, registryCorrections);
   // #43 AC-1 O que a regra aprovou agora (e o que falhou na hora da aprovação) vai para a doca.
   const dock = await publishDock(rest);
+  const duplicates = await blockDuplicateTitles(rest); // #31/AC-5: o título da E6 fica bloqueado já na detecção.
   console.log(
-    `cron: execução agendada (${controller.cron}); notas vistas ${result.seen}, novas ${result.inserted}, conferidas ${result.checked}, com erro ${result.failed}, propostas ${proposals.proposed}, aprovadas pela regra ${proposals.approvedByRule}, cadastro E8 ${cadastroE8}, ações publicadas na doca ${dock}; recebimentos sem nota [${unreconciled.noKey.join(", ")}], com chave sem nota [${unreconciled.keyWithoutInvoice.join(", ")}]`,
+    `cron: execução agendada (${controller.cron}); notas vistas ${result.seen}, novas ${result.inserted}, conferidas ${result.checked}, com erro ${result.failed}, propostas ${proposals.proposed}, aprovadas pela regra ${proposals.approvedByRule}, cadastro E8 ${cadastroE8}, ações publicadas na doca ${dock}, títulos duplicados bloqueados ${duplicates.blocked}, com falha ${duplicates.failed}; recebimentos sem nota [${unreconciled.noKey.join(", ")}], com chave sem nota [${unreconciled.keyWithoutInvoice.join(", ")}]`,
   );
 }
 

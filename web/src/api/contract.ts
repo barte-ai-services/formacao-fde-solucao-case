@@ -119,3 +119,46 @@ export interface TitleDto {
   amountCents: Cents;
   state: TitleState;
 }
+
+/**
+ * Os dois motivos de uma duplicidade (E6). O domínio tem o mesmo tipo (`DuplicateReason`, em
+ * `checks/e6-duplicidade.ts`), mas o índice dele não o exporta; por isso a união fica aqui.
+ */
+export type DuplicateReason = "titulo_lancado" | "ordem_sem_saldo"; // ADR-002
+
+/** A nota duplicada: a que chegou e teve o título bloqueado. */
+export interface DuplicateInvoiceDto {
+  accessKey: string;
+  number: string;
+  supplierId: string;
+  issuedOn: string;
+  totalCents: Cents;
+  /** O total já formatado em reais pelo Worker, ex. "R$ 1.209,60". */
+  total: string;
+}
+
+/** O título original que a nota duplicada cobra de novo. */
+export interface OriginalInvoiceDto {
+  accessKey: string;
+  number: string;
+  /** A situação do título original, ex. `lançada` ou `paga`. O fio pode trazer outra. */
+  status: string;
+}
+
+/** Uma duplicidade: a nota nova, a original (nula quando só a ordem não tem saldo) e o valor barrado. */
+export interface DuplicateDto {
+  duplicate: DuplicateInvoiceDto;
+  original: OriginalInvoiceDto | null;
+  reason: DuplicateReason;
+  /** O estado real do título da nota duplicada no contas a pagar; nulo quando ainda não há título. */
+  titleState: TitleState | null;
+  blockedAmountCents: Cents;
+  /** O valor barrado já formatado em reais. */
+  blockedAmount: string;
+}
+
+/** `GET /api/duplicates`. */
+export interface DuplicatesResponseDto {
+  duplicates: DuplicateDto[];
+  count: number;
+}

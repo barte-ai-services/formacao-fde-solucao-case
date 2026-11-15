@@ -27,6 +27,7 @@ function emptyApi(input: RequestInfo | URL): Promise<Response> {
   if (path.startsWith("/api/propostas/")) return Promise.resolve(Response.json({ error: "not_found" }, { status: 404 }));
   if (path === "/api/fila") return Promise.resolve(Response.json({ approver: { email: null, level: null }, items: [] }));
   if (path.startsWith("/api/doca")) return Promise.resolve(Response.json({ destination: null, date: "2026-11-15", destinations: [], awaiting: 0, rows: [] }));
+  if (path === "/api/duplicates") return Promise.resolve(Response.json({ duplicates: [], count: 0 }));
   if (path === "/api/hoje") return Promise.resolve(Response.json({ day: "2026-11-15", items: [], total: { cents: 0 } }));
   if (path === "/api/valor-barrado") return Promise.resolve(Response.json({ month: "2026-11", baselineCents: 54300000, barred: { totalCents: 0, byException: [] }, ifApprovedAsProposed: { totalCents: 0, byException: [] }, daily: [] }));
   return Promise.resolve(Response.json({ error: "not_found" }, { status: 404 }));

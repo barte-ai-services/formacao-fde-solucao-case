@@ -1,8 +1,12 @@
+import { SupabaseDuplicatesReader } from "../connectors/duplicates-reader";
+import { ErpPayablesConnector } from "../connectors/erp-payables";
+import { SupabaseRest } from "../connectors/supabase-rest";
 import type { Env } from "../env";
 import { authenticate, type AccessVerifier, type Identity } from "./access";
 import { MemoryApprovalStore } from "../approval/store";
 import { approvalRoutes, type ApprovalDeps } from "./approval";
 import { dockHandler, type DockDeps } from "./dock";
+import { listDuplicates, noDuplicates, type DuplicatesReader } from "./duplicates";
 import { health } from "./health";
 import { me } from "./me";
 import { barredAmount } from "./barred-amount";
@@ -17,14 +21,16 @@ const publicRoutes: Record<string, Record<string, PublicHandler>> = {
 
 /**
  * Rotas que exigem um JWT válido do Cloudflare Access (#54). A doca lê o Supabase pelas dependências
- * injetadas (#72).
+ * injetadas (#72); as duplicidades também (#31/AC-6).
  */
 function protectedRoutes(deps: RouterDeps): Record<string, Record<string, ProtectedHandler>> {
   const dock = dockHandler(deps.dock);
+  const duplicates = deps.duplicates ?? defaultDuplicates;
   return {
     "/me": { GET: me },
     "/api/valor-barrado": { GET: barredAmount },
     "/api/doca": { GET: (_identity, request, env) => dock(request, env) },
+    "/api/duplicates": { GET: (_identity, _request, env) => listDuplicates(duplicates(env)) },
   };
 }
 
@@ -37,6 +43,17 @@ export interface RouterDeps {
   approval?: ApprovalDeps | ((env: Env) => ApprovalDeps);
   /** Opcional: sem ele, a doca monta o Supabase do Env (#72). */
   dock?: DockDeps;
+  /** Leitura das duplicidades (#31/AC-6). Padrão: o Supabase, se o env tem as credenciais. */
+  duplicates?: (env: Env) => DuplicatesReader;
+}
+
+/** #31/AC-6: com as credenciais do Supabase, lê o banco; sem elas, a lista vazia. */
+function defaultDuplicates(env: Env): DuplicatesReader {
+  const url = env.BARTE_ACADEMY_SUPABASE_URL;
+  const secretKey = env.BARTE_ACADEMY_SUPABASE_SECRET_KEY;
+  if (!url || !secretKey) return noDuplicates;
+  const rest = new SupabaseRest({ url, secretKey });
+  return new SupabaseDuplicatesReader(rest, new ErpPayablesConnector(rest));
 }
 
 /**
