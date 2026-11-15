@@ -192,6 +192,24 @@ describe('GET /api/doca (#72)', () => {
     });
   }
 
+  it('#211 falha ao ler as decisões não derruba a doca: 200 com decidedBy nulo e o erro no log', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const fake = new FakePostgrest({ invoices: kitInvoiceRows() });
+    const flaky = (async (input: string, init?: RequestInit) =>
+      input.includes('/proposals') ? new Response('boom', { status: 500 }) : fake.fetch(input, init)) as typeof fake.fetch;
+    const rest = new SupabaseRest({ url: 'https://supabase.test', secretKey: 'sb_teste', fetch: flaky });
+    const worker = createWorker({ verifier, dock: { supabase: () => rest, today: () => '2026-11-11' } });
+    const get = (path: string) =>
+      worker.fetch(new Request(`https://worker.test${path}`, { headers: { 'Cf-Access-Jwt-Assertion': 'token' } }), { ...ACCESS, ...SUPABASE }, ctx);
+    const response = await get('/api/doca?destino=CD-03');
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { rows: { decidedBy: unknown }[] };
+    expect(body.rows.length).toBeGreaterThan(0);
+    expect(body.rows.every((r) => r.decidedBy === null)).toBe(true);
+    expect(log).toHaveBeenCalled();
+    log.mockRestore();
+  });
+
   it('#43/AC-4 sem credenciais do Supabase responde 503', async () => {
     const { get } = setup();
     const response = await get('/api/doca?destino=CD-03', ACCESS);

@@ -1,6 +1,6 @@
 // A doca de um destino num dia: as notas e a ação de cada uma (#72, #43 AC-1 a AC-4). Função pura.
 import type { DockActionMessage, Published } from '../connectors/ports.js';
-import type { DockAction, PartialLine, Unit } from '../domain/index.js';
+import type { ApprovalLevel, DockAction, PartialLine, Unit } from '../domain/index.js';
 import { receivingPlace, type ReceivingPlace } from './receiving-place.js';
 
 /** #72 O que a doca precisa saber da nota. */
@@ -46,7 +46,7 @@ export type DockStatus =
 export type DockDecidedBy = { readonly actor: 'rule' | 'person'; readonly actor_name: string };
 
 /** #211 A decisão registrada da nota: quem aprovou e em que nível (`regra` é a régua). */
-export type DockDecision = { readonly approver: string; readonly approverLevel: string };
+export type DockDecision = { readonly approver: string; readonly approverLevel: ApprovalLevel };
 
 export type DockRow = {
   readonly invoiceAccessKey: string;

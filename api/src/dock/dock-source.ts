@@ -4,6 +4,7 @@ import type { DockActionMessage, Published } from '../connectors/ports.js';
 import type { SupabaseRest } from '../connectors/supabase-rest.js';
 import { appStoreActionOutbox } from '../connectors/store-action.js';
 import { wmsDockActionOutbox } from '../connectors/wms-dock-action.js';
+import { APPROVAL_LEVELS, type ApprovalLevel } from '../domain/approval-level.js';
 import type { DockDecision, DockInvoice, DockInvoiceItem } from './dock-board.js';
 
 export interface DockSource {
@@ -22,9 +23,9 @@ export interface DockSource {
 
 const ACCESS_KEY = /^[A-Za-z0-9-]+$/;
 type ProposalRow = { id: number; invoice_access_key: string };
-type ApprovalRow = { proposal_id: number; approver: string; approver_level: string };
+type ApprovalRow = { proposal_id: number; approver: string; approver_level: ApprovalLevel };
 const isProposalRow = shaped<ProposalRow>({ id: isNumber, invoice_access_key: isString } satisfies Shape<ProposalRow>);
-const isApprovalRow = shaped<ApprovalRow>({ proposal_id: isNumber, approver: isString, approver_level: isString } satisfies Shape<ApprovalRow>);
+const isApprovalRow = shaped<ApprovalRow>({ proposal_id: isNumber, approver: isString, approver_level: oneOf(...APPROVAL_LEVELS) } satisfies Shape<ApprovalRow>);
 
 type ItemRow = { sku: string | null; description: string; quantity: { amount: number; unit: 'UN' | 'CX' } };
 type InvoiceRow = {

@@ -54,7 +54,7 @@ describe("#211 coluna Decidido por", () => {
   it.each([
     ["doca", <Doca {...params} />],
     ["loja", <RecebimentoNaLoja {...params} />],
-  ])("%s: a regra, a pessoa pelo e-mail e, sem decisão, o traço", async (_n, screenEl) => {
+  ])("%s: a regra, a pessoa pelo e-mail e, esperando aprovação, Aguardando pessoa", async (_n, screenEl) => {
     const row = (n: string, decidedBy: unknown, kind = "acao") => ({
       invoiceAccessKey: `k${n}`, number: n, supplierId: "F", items: [{ sku: "S", description: "Feijão", quantity: { amount: 3, unit: "UN" } }],
       status: kind === "acao" ? { kind, action: { kind: "receber" }, publishedAt: "2026-11-11T09:00:00Z" } : { kind, instrucao: "x" },
