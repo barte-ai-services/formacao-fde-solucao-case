@@ -45,6 +45,11 @@ h2::before { content: ""; width: 8px; height: 30px; background: var(--brand); }
 .c-pessoa { border-color: var(--orange); color: var(--orange-d); background: var(--orange-l); }
 .c-no { border-color: var(--line-2); color: var(--ink-3); background: #fefefe; font-weight: 600; }
 .node.hot { border: 3px solid var(--brand); }
+.node.star { background: var(--black); border: 4px solid var(--brand); box-shadow: 0 0 0 6px #fbcad3; }
+.node.star .n { color: #fefefe; font-size: 24px; }
+.node.star .prem { color: #e5e5e5; border-left-color: var(--brand); }
+.node.star .prem b { color: #fbcad3; }
+.badge { display: block; width: max-content; background: var(--brand); color: #fefefe; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; border-radius: 6px; padding: 3px 10px; margin-bottom: 8px; }
 .no-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
 .no { background: var(--card); border: 2px solid var(--line-2); border-radius: 12px; padding: 14px 18px; }
 .no b { display: block; font-size: 20px; }
@@ -88,7 +93,7 @@ h2::before { content: ""; width: 8px; height: 30px; background: var(--brand); }
       <div class="node"><div class="n">Conciliar contagem, nota e pedido</div><div class="chips"><span class="chip c-regra">Regra</span></div><div class="prem"><b>Por quê</b>É conta na mesma unidade.</div></div>
     </div>
     <div class="lane" style="margin-top:22px"><h3>Aprovador da alçada</h3>
-      <div class="node hot"><div class="n">Confirmar ou alterar a ação</div><div class="chips"><span class="chip c-clef">Clef</span><span class="chip c-llm">LLM</span><span class="chip c-pessoa">Pessoa</span></div><div class="prem"><b>Premissa a validar</b>Proposta, a validar com o CFO: o Clef confirma falta física, quantidade menor e unidade de medida até R$ 20 mil, com confiança de 0,98, depois de 4 semanas em modo sombra. LLM recomenda a alteração com o porquê, e a pessoa decide. Diretoria e bloqueio: sempre pessoa.</div></div>
+      <div class="node star"><div class="n"><span class="badge">Agente da aula de amanhã</span>Confirmar ou alterar a ação</div><div class="chips"><span class="chip c-clef">Clef</span><span class="chip c-llm">LLM</span><span class="chip c-pessoa">Pessoa</span></div><div class="prem"><b>Premissa a validar</b>Proposta, a validar com o CFO: o Clef confirma falta física, quantidade menor e unidade de medida até R$ 20 mil, com confiança de 0,98, depois de 4 semanas em modo sombra. LLM recomenda a alteração com o porquê, e a pessoa decide. Diretoria e bloqueio: sempre pessoa.</div></div>
     </div>
     <div class="lane" style="margin-top:22px"><h3>Doca</h3>
       <div class="node"><div class="n">Planejar o recebimento</div><div class="chips"><span class="chip c-pessoa">Pessoa</span></div><div class="prem"><b>Por quê</b>Equipe e agenda da doca. A proposta só chega antes.</div></div>
