@@ -110,148 +110,148 @@
   </bpmn:process>
   <bpmndi:BPMNDiagram id="Diagram_AccountsPayable_Current">
     <bpmndi:BPMNPlane id="Plane_AccountsPayable_Current" bpmnElement="Collab_AccountsPayable_Current">
-      <bpmndi:BPMNShape id="Part_AccountsPayable_Current_di" bpmnElement="Part_AccountsPayable_Current" isHorizontal="true" color:background-color="#FFFFFF" color:border-color="#444441">
+      <bpmndi:BPMNShape id="Part_AccountsPayable_Current_di" bpmnElement="Part_AccountsPayable_Current" isHorizontal="true" color:background-color="#fefefe" color:border-color="#171717">
         <dc:Bounds x="60" y="60" width="1760" height="1200" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Purchasing_di" bpmnElement="Lane_Purchasing" isHorizontal="true" color:background-color="#FFF9F0" color:border-color="#5F5E5A">
+      <bpmndi:BPMNShape id="Lane_Purchasing_di" bpmnElement="Lane_Purchasing" isHorizontal="true" color:background-color="#fffaf3" color:border-color="#a3a3a3">
         <dc:Bounds x="90" y="60" width="1730" height="150" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Supplier_di" bpmnElement="Lane_Supplier" isHorizontal="true" color:background-color="#F8F7F3" color:border-color="#5F5E5A">
+      <bpmndi:BPMNShape id="Lane_Supplier_di" bpmnElement="Lane_Supplier" isHorizontal="true" color:background-color="#fbfbfb" color:border-color="#a3a3a3">
         <dc:Bounds x="90" y="210" width="1730" height="150" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Dock_di" bpmnElement="Lane_Dock" isHorizontal="true" color:background-color="#FFF9F0" color:border-color="#5F5E5A">
+      <bpmndi:BPMNShape id="Lane_Dock_di" bpmnElement="Lane_Dock" isHorizontal="true" color:background-color="#fffaf3" color:border-color="#a3a3a3">
         <dc:Bounds x="90" y="360" width="1730" height="150" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Matching_di" bpmnElement="Lane_Matching" isHorizontal="true" color:background-color="#FFF9F0" color:border-color="#5F5E5A">
+      <bpmndi:BPMNShape id="Lane_Matching_di" bpmnElement="Lane_Matching" isHorizontal="true" color:background-color="#fffaf3" color:border-color="#a3a3a3">
         <dc:Bounds x="90" y="510" width="1730" height="300" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_DailyList_di" bpmnElement="Lane_DailyList" isHorizontal="true" color:background-color="#FFF9F0" color:border-color="#5F5E5A">
+      <bpmndi:BPMNShape id="Lane_DailyList_di" bpmnElement="Lane_DailyList" isHorizontal="true" color:background-color="#fffaf3" color:border-color="#a3a3a3">
         <dc:Bounds x="90" y="810" width="1730" height="150" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_CFO_di" bpmnElement="Lane_CFO" isHorizontal="true" color:background-color="#FFF9F0" color:border-color="#5F5E5A">
+      <bpmndi:BPMNShape id="Lane_CFO_di" bpmnElement="Lane_CFO" isHorizontal="true" color:background-color="#fffaf3" color:border-color="#a3a3a3">
         <dc:Bounds x="90" y="960" width="1730" height="150" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Bank_di" bpmnElement="Lane_Bank" isHorizontal="true" color:background-color="#F4F8FD" color:border-color="#5F5E5A">
+      <bpmndi:BPMNShape id="Lane_Bank_di" bpmnElement="Lane_Bank" isHorizontal="true" color:background-color="#f4fbfe" color:border-color="#a3a3a3">
         <dc:Bounds x="90" y="1110" width="1730" height="150" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Start_NeedToBuy_di" bpmnElement="Start_NeedToBuy" color:background-color="#F1EFE8" color:border-color="#5F5E5A">
+      <bpmndi:BPMNShape id="Start_NeedToBuy_di" bpmnElement="Start_NeedToBuy" color:background-color="#f9f9f9" color:border-color="#737373">
         <dc:Bounds x="185" y="125" width="40" height="40" />
         <bpmndi:BPMNLabel><dc:Bounds x="145" y="171" width="120" height="28" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_IssueOrder_di" bpmnElement="Task_IssueOrder" color:background-color="#FAEEDA" color:border-color="#854F0B">
+      <bpmndi:BPMNShape id="Task_IssueOrder_di" bpmnElement="Task_IssueOrder" color:background-color="#fff0db" color:border-color="#e68619">
         <dc:Bounds x="310" y="107" width="130" height="76" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_IssueInvoice_di" bpmnElement="Task_IssueInvoice" color:background-color="#F1EFE8" color:border-color="#5F5E5A">
+      <bpmndi:BPMNShape id="Task_IssueInvoice_di" bpmnElement="Task_IssueInvoice" color:background-color="#f9f9f9" color:border-color="#737373">
         <dc:Bounds x="480" y="257" width="130" height="76" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_Split_di" bpmnElement="Gateway_Split" color:background-color="#FFFFFF" color:border-color="#444441">
+      <bpmndi:BPMNShape id="Gateway_Split_di" bpmnElement="Gateway_Split" color:background-color="#fefefe" color:border-color="#404040">
         <dc:Bounds x="689" y="269" width="52" height="52" />
         <bpmndi:BPMNLabel><dc:Bounds x="721" y="239" width="120" height="28" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_Deliver_di" bpmnElement="Task_Deliver" color:background-color="#F1EFE8" color:border-color="#5F5E5A">
+      <bpmndi:BPMNShape id="Task_Deliver_di" bpmnElement="Task_Deliver" color:background-color="#f9f9f9" color:border-color="#737373">
         <dc:Bounds x="820" y="257" width="130" height="76" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_Receive_di" bpmnElement="Task_Receive" color:background-color="#FCEBEB" color:border-color="#A32D2D">
+      <bpmndi:BPMNShape id="Task_Receive_di" bpmnElement="Task_Receive" color:background-color="#f7e0e0" color:border-color="#c62828">
         <dc:Bounds x="990" y="407" width="130" height="76" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_MatchByHand_di" bpmnElement="Task_MatchByHand" color:background-color="#FAEEDA" color:border-color="#854F0B">
+      <bpmndi:BPMNShape id="Task_MatchByHand_di" bpmnElement="Task_MatchByHand" color:background-color="#fff0db" color:border-color="#e68619">
         <dc:Bounds x="1160" y="557" width="130" height="76" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_Differs_di" bpmnElement="Gateway_Differs" color:background-color="#FFFFFF" color:border-color="#444441">
+      <bpmndi:BPMNShape id="Gateway_Differs_di" bpmnElement="Gateway_Differs" color:background-color="#fefefe" color:border-color="#404040">
         <dc:Bounds x="1369" y="569" width="52" height="52" />
         <bpmndi:BPMNLabel><dc:Bounds x="1401" y="539" width="120" height="28" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="End_Matched_di" bpmnElement="End_Matched" color:background-color="#EAF3DE" color:border-color="#3B6D11">
+      <bpmndi:BPMNShape id="End_Matched_di" bpmnElement="End_Matched" color:background-color="#d2fff1" color:border-color="#12805c">
         <dc:Bounds x="1545" y="575" width="40" height="40" />
         <bpmndi:BPMNLabel><dc:Bounds x="1505" y="621" width="120" height="28" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_Supplement_di" bpmnElement="Task_Supplement" color:background-color="#FCEBEB" color:border-color="#A32D2D">
+      <bpmndi:BPMNShape id="Task_Supplement_di" bpmnElement="Task_Supplement" color:background-color="#f7e0e0" color:border-color="#c62828">
         <dc:Bounds x="1500" y="707" width="130" height="76" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="End_Provisioned_di" bpmnElement="End_Provisioned" color:background-color="#FCEBEB" color:border-color="#A32D2D">
+      <bpmndi:BPMNShape id="End_Provisioned_di" bpmnElement="End_Provisioned" color:background-color="#f7e0e0" color:border-color="#c62828">
         <dc:Bounds x="1715" y="725" width="40" height="40" />
         <bpmndi:BPMNLabel><dc:Bounds x="1675" y="771" width="120" height="28" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_BuildList_di" bpmnElement="Task_BuildList" color:background-color="#FAEEDA" color:border-color="#854F0B">
+      <bpmndi:BPMNShape id="Task_BuildList_di" bpmnElement="Task_BuildList" color:background-color="#fff0db" color:border-color="#e68619">
         <dc:Bounds x="820" y="857" width="130" height="76" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_ApproveAll_di" bpmnElement="Task_ApproveAll" color:background-color="#FAEEDA" color:border-color="#854F0B">
+      <bpmndi:BPMNShape id="Task_ApproveAll_di" bpmnElement="Task_ApproveAll" color:background-color="#fff0db" color:border-color="#e68619">
         <dc:Bounds x="990" y="1007" width="130" height="76" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_PayOneByOne_di" bpmnElement="Task_PayOneByOne" color:background-color="#FCEBEB" color:border-color="#A32D2D">
+      <bpmndi:BPMNShape id="Task_PayOneByOne_di" bpmnElement="Task_PayOneByOne" color:background-color="#f7e0e0" color:border-color="#c62828">
         <dc:Bounds x="1160" y="1157" width="130" height="76" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="End_Paid_di" bpmnElement="End_Paid" color:background-color="#FCEBEB" color:border-color="#A32D2D">
+      <bpmndi:BPMNShape id="End_Paid_di" bpmnElement="End_Paid" color:background-color="#f7e0e0" color:border-color="#c62828">
         <dc:Bounds x="1375" y="1175" width="40" height="40" />
         <bpmndi:BPMNLabel><dc:Bounds x="1335" y="1221" width="120" height="28" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="Flow_1_di" bpmnElement="Flow_1" color:border-color="#5F5E5A">
+      <bpmndi:BPMNEdge id="Flow_1_di" bpmnElement="Flow_1" color:border-color="#404040">
         <di:waypoint x="225" y="145" />
         <di:waypoint x="310" y="145" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_2_di" bpmnElement="Flow_2" color:border-color="#5F5E5A">
+      <bpmndi:BPMNEdge id="Flow_2_di" bpmnElement="Flow_2" color:border-color="#404040">
         <di:waypoint x="440" y="145" />
         <di:waypoint x="460" y="145" />
         <di:waypoint x="460" y="295" />
         <di:waypoint x="480" y="295" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_3_di" bpmnElement="Flow_3" color:border-color="#5F5E5A">
+      <bpmndi:BPMNEdge id="Flow_3_di" bpmnElement="Flow_3" color:border-color="#404040">
         <di:waypoint x="610" y="295" />
         <di:waypoint x="689" y="295" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_4_di" bpmnElement="Flow_4" color:border-color="#5F5E5A">
+      <bpmndi:BPMNEdge id="Flow_4_di" bpmnElement="Flow_4" color:border-color="#404040">
         <di:waypoint x="741" y="295" />
         <di:waypoint x="820" y="295" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_5_di" bpmnElement="Flow_5" color:border-color="#5F5E5A">
+      <bpmndi:BPMNEdge id="Flow_5_di" bpmnElement="Flow_5" color:border-color="#404040">
         <di:waypoint x="715" y="321" />
         <di:waypoint x="715" y="895" />
         <di:waypoint x="820" y="895" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_6_di" bpmnElement="Flow_6" color:border-color="#5F5E5A">
+      <bpmndi:BPMNEdge id="Flow_6_di" bpmnElement="Flow_6" color:border-color="#404040">
         <di:waypoint x="950" y="295" />
         <di:waypoint x="970" y="295" />
         <di:waypoint x="970" y="445" />
         <di:waypoint x="990" y="445" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_7_di" bpmnElement="Flow_7" color:border-color="#5F5E5A">
+      <bpmndi:BPMNEdge id="Flow_7_di" bpmnElement="Flow_7" color:border-color="#404040">
         <di:waypoint x="1120" y="445" />
         <di:waypoint x="1140" y="445" />
         <di:waypoint x="1140" y="595" />
         <di:waypoint x="1160" y="595" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_8_di" bpmnElement="Flow_8" color:border-color="#5F5E5A">
+      <bpmndi:BPMNEdge id="Flow_8_di" bpmnElement="Flow_8" color:border-color="#404040">
         <di:waypoint x="1290" y="595" />
         <di:waypoint x="1369" y="595" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_9_di" bpmnElement="Flow_9" color:border-color="#3B6D11">
+      <bpmndi:BPMNEdge id="Flow_9_di" bpmnElement="Flow_9" color:border-color="#12805c">
         <di:waypoint x="1421" y="595" />
         <di:waypoint x="1545" y="595" />
         <bpmndi:BPMNLabel><dc:Bounds x="1429" y="573" width="80" height="18" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_10_di" bpmnElement="Flow_10" color:border-color="#A32D2D">
+      <bpmndi:BPMNEdge id="Flow_10_di" bpmnElement="Flow_10" color:border-color="#c62828">
         <di:waypoint x="1395" y="621" />
         <di:waypoint x="1395" y="745" />
         <di:waypoint x="1500" y="745" />
         <bpmndi:BPMNLabel><dc:Bounds x="1401" y="629" width="80" height="18" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_11_di" bpmnElement="Flow_11" color:border-color="#A32D2D">
+      <bpmndi:BPMNEdge id="Flow_11_di" bpmnElement="Flow_11" color:border-color="#c62828">
         <di:waypoint x="1630" y="745" />
         <di:waypoint x="1715" y="745" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_12_di" bpmnElement="Flow_12" color:border-color="#5F5E5A">
+      <bpmndi:BPMNEdge id="Flow_12_di" bpmnElement="Flow_12" color:border-color="#404040">
         <di:waypoint x="950" y="895" />
         <di:waypoint x="970" y="895" />
         <di:waypoint x="970" y="1045" />
         <di:waypoint x="990" y="1045" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_13_di" bpmnElement="Flow_13" color:border-color="#5F5E5A">
+      <bpmndi:BPMNEdge id="Flow_13_di" bpmnElement="Flow_13" color:border-color="#404040">
         <di:waypoint x="1120" y="1045" />
         <di:waypoint x="1140" y="1045" />
         <di:waypoint x="1140" y="1195" />
         <di:waypoint x="1160" y="1195" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_14_di" bpmnElement="Flow_14" color:border-color="#A32D2D">
+      <bpmndi:BPMNEdge id="Flow_14_di" bpmnElement="Flow_14" color:border-color="#c62828">
         <di:waypoint x="1290" y="1195" />
         <di:waypoint x="1375" y="1195" />
       </bpmndi:BPMNEdge>

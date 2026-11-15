@@ -29,18 +29,18 @@ GATEWAYS = {"exclusiveGateway", "parallelGateway"}
 EVENTS = {"startEvent", "endEvent", "intermediateCatchEvent"}
 
 TONES = {
-    "system": ("#E6F1FB", "#185FA5"),
-    "agent": ("#EEEDFE", "#534AB7"),
-    "person": ("#FAEEDA", "#854F0B"),
-    "ok": ("#EAF3DE", "#3B6D11"),
-    "block": ("#FCEBEB", "#A32D2D"),
-    "neutral": ("#F1EFE8", "#5F5E5A"),
-    "gateway": ("#FFFFFF", "#444441"),
+    "system": ("#e1f7ff", "#00749e"),
+    "agent": ("#fdf0f4", "#df285d"),
+    "person": ("#fff0db", "#e68619"),
+    "ok": ("#d2fff1", "#12805c"),
+    "block": ("#f7e0e0", "#c62828"),
+    "neutral": ("#f9f9f9", "#737373"),
+    "gateway": ("#fefefe", "#404040"),
 }
 LANE_TINTS = {
-    "system": "#F4F8FD", "agent": "#F6F5FE", "person": "#FFF9F0", "neutral": "#F8F7F3", "block": "#FDF6F6",
+    "system": "#f4fbfe", "agent": "#fef8fa", "person": "#fffaf3", "neutral": "#fbfbfb", "block": "#fdf6f6",
 }
-FLOW_COLORS = {"default": "#5F5E5A", "block": "#A32D2D", "ok": "#3B6D11"}
+FLOW_COLORS = {"default": "#404040", "block": "#c62828", "ok": "#12805c"}
 NAMESPACES = (
     'xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" '
     'xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" '
@@ -219,9 +219,9 @@ def external_label(n: Node, box: Box) -> Box | None:
 
 
 def node_shapes(p: Process, lay: Layout) -> list[str]:
-    out = shape(f"Part_{p.id}", lay.pool, ' isHorizontal="true"' + colors("#FFFFFF", "#444441"))
+    out = shape(f"Part_{p.id}", lay.pool, ' isHorizontal="true"' + colors("#fefefe", "#171717"))
     for lane in p.lanes:
-        out += shape(lane.id, lay.lane_box[lane.id], ' isHorizontal="true"' + colors(LANE_TINTS[lane.tone], "#5F5E5A"))
+        out += shape(lane.id, lay.lane_box[lane.id], ' isHorizontal="true"' + colors(LANE_TINTS[lane.tone], "#a3a3a3"))
     for n in p.nodes:
         tone = "gateway" if n.kind in GATEWAYS else n.tone
         out += shape(n.id, lay.box[n.id], colors(*TONES[tone]), external_label(n, lay.box[n.id]))

@@ -1,22 +1,26 @@
 <title>Processo do contas a pagar</title>
 <meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <style>
-:root { --bg: #f4f6f4; --fg: #1d2420; --line: #c9d0cb; --accent: #1f6f5c; }
+:root { color-scheme: light; --black: #030202; --brand: #df285d; --ink: #171717; --line: #d4d4d4; }
 __DIAGRAM_CSS__
 html, body { height: 100%; }
-body { background: var(--bg); color: var(--fg); font: 14px system-ui, sans-serif; display: flex; flex-direction: column;
-  padding-left: max(0px, env(safe-area-inset-left, 0px)); padding-right: max(0px, env(safe-area-inset-right, 0px)); }
-.bar { display: flex; gap: 6px; padding: 10px max(16px, env(safe-area-inset-left, 0px)); flex-wrap: wrap; }
-.bar button { font: 500 14px system-ui, sans-serif; background: #fff; color: var(--fg); border: 1px solid var(--line);
-  border-radius: 6px; padding: 6px 12px; cursor: pointer; }
-.bar button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
-.bar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+body { background: #f9f9f9; color: var(--ink); font: 16px "Inter", system-ui, sans-serif; display: flex; flex-direction: column; }
+.bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: var(--black); border-bottom: 5px solid var(--brand);
+  padding: 14px max(20px, env(safe-area-inset-right, 0px)) 14px max(20px, env(safe-area-inset-left, 0px)); }
+.bar button { font: 600 16px "Inter", system-ui, sans-serif; background: transparent; color: #fefefe; border: 2px solid #404040;
+  border-radius: 8px; padding: 8px 16px; cursor: pointer; }
+.bar button:hover { border-color: var(--brand); }
+.bar button[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); }
+.bar button:focus-visible { outline: 3px solid #fbcad3; outline-offset: 2px; }
 .bar .gap { flex: 1; }
-.legend { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; font-size: 13px; color: #444441; }
-.legend span { display: inline-flex; align-items: center; gap: 6px; }
-.legend i { width: 14px; height: 14px; border-radius: 3px; border: 1.5px solid; display: inline-block; }
-#canvas { background: #ffffff; border-top: 1px solid var(--line); }
-#canvas { flex: 1; min-height: 0; position: relative; }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; font-size: 15px; font-weight: 500; color: #fefefe; }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.legend i { width: 18px; height: 18px; border-radius: 4px; border: 2.5px solid; display: inline-block; }
+#canvas { flex: 1; min-height: 0; position: relative; background: #fefefe; }
+#canvas .djs-label, #canvas text { font-family: "Inter", system-ui, sans-serif !important; }
+#canvas [data-element-id^="Lane_"] .djs-label, #canvas [data-element-id^="Part_"] .djs-label { display: none; }
+.lane-label { font: 700 15px "Inter", system-ui, sans-serif; text-transform: uppercase; letter-spacing: .06em; color: #404040; white-space: nowrap; pointer-events: none; }
 </style>
 
 <div class="bar">
@@ -24,16 +28,17 @@ body { background: var(--bg); color: var(--fg); font: 14px system-ui, sans-serif
   <button type="button" data-show="current" aria-pressed="false">Processo atual</button>
   <span class="gap"></span>
   <div class="legend" aria-label="Legenda das cores">
-    <span><i style="background:#E6F1FB;border-color:#185FA5"></i>Sistema</span>
-    <span><i style="background:#EEEDFE;border-color:#534AB7"></i>Agente</span>
-    <span><i style="background:#FAEEDA;border-color:#854F0B"></i>Pessoa</span>
-    <span><i style="background:#EAF3DE;border-color:#3B6D11"></i>Segue para pagar</span>
-    <span><i style="background:#FCEBEB;border-color:#A32D2D"></i>Bloqueio ou perda</span>
+    <span><i style="background:#e1f7ff;border-color:#00749e"></i>Sistema</span>
+    <span><i style="background:#fdf0f4;border-color:#df285d"></i>Agente</span>
+    <span><i style="background:#fff0db;border-color:#e68619"></i>Pessoa</span>
+    <span><i style="background:#d2fff1;border-color:#12805c"></i>Segue para pagar</span>
+    <span><i style="background:#f7e0e0;border-color:#c62828"></i>Bloqueio ou perda</span>
   </div>
   <span class="gap"></span>
   <button type="button" data-zoom="1.2" aria-label="Aproximar">+</button>
   <button type="button" data-zoom="0.8" aria-label="Afastar">−</button>
   <button type="button" data-fit>Ajustar</button>
+  <button type="button" data-all>Ver tudo</button>
 </div>
 <div id="canvas"></div>
 
@@ -41,11 +46,35 @@ body { background: var(--bg); color: var(--fg); font: 14px system-ui, sans-serif
 <script type="text/plain" id="xml-target">__XML_TARGET__</script>
 <script src="https://unpkg.com/bpmn-js@17.11.1/dist/bpmn-navigated-viewer.production.min.js"></script>
 <script>
-const viewer = new BpmnJS({ container: "#canvas" });
+const viewer = new BpmnJS({
+  container: "#canvas",
+  textRenderer: {
+    defaultStyle: { fontFamily: "Inter, system-ui, sans-serif", fontSize: 15, fontWeight: 500 },
+    externalStyle: { fontFamily: "Inter, system-ui, sans-serif", fontSize: 14 }
+  }
+});
+function fitHeight() {
+  const canvas = viewer.get("canvas");
+  canvas.zoom("fit-viewport");
+  const box = canvas.viewbox();
+  const outer = box.outer;
+  const inner = box.inner;
+  const scale = Math.min(1.1, (outer.height - 24) / inner.height);
+  canvas.zoom(scale, { x: inner.x, y: inner.y + inner.height / 2 });
+  const vb = canvas.viewbox();
+  canvas.viewbox({ x: inner.x - 10, y: inner.y - 10, width: vb.width, height: vb.height });
+}
 async function show(id) {
   document.querySelectorAll("[data-show]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.show === id)));
   await viewer.importXML(document.getElementById("xml-" + id).textContent.trim());
-  viewer.get("canvas").zoom("fit-viewport");
+  const overlays = viewer.get("overlays");
+  viewer.get("elementRegistry").filter((e) => e.type === "bpmn:Lane").forEach((lane) => {
+    const label = document.createElement("div");
+    label.className = "lane-label";
+    label.textContent = lane.businessObject.name || "";
+    overlays.add(lane.id, { position: { top: 10, left: 14 }, html: label });
+  });
+  fitHeight();
 }
 document.addEventListener("click", (e) => {
   const b = e.target.closest("button");
@@ -53,7 +82,8 @@ document.addEventListener("click", (e) => {
   const canvas = viewer.get("canvas");
   if (b.dataset.show) show(b.dataset.show);
   if (b.dataset.zoom) canvas.zoom(canvas.zoom() * Number(b.dataset.zoom));
-  if ("fit" in b.dataset) canvas.zoom("fit-viewport");
+  if ("fit" in b.dataset) fitHeight();
+  if ("all" in b.dataset) canvas.zoom("fit-viewport");
 });
 show("target");
 </script>
