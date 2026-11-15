@@ -104,11 +104,12 @@ class Layout:
 def layout(p: Process) -> Layout:
     cols = max(n.col for n in p.nodes) + 1
     width = LANE_LABEL_W + 30 + cols * COL_W
-    lane_box, y = {}, POOL_Y
+    lane_box: dict[str, Box] = {}
+    y: float = POOL_Y
     for lane in p.lanes:
         lane_box[lane.id] = (POOL_X + LANE_LABEL_W, y, width - LANE_LABEL_W, lane.rows * ROW_H)
         y += lane.rows * ROW_H
-    box = {}
+    box: dict[str, Box] = {}
     for n in p.nodes:
         w, h = SIZES[n.kind]
         cx = POOL_X + LANE_LABEL_W + 30 + n.col * COL_W + COL_W / 2
@@ -159,8 +160,8 @@ def label_beside(points: list[Point]) -> Point:
 
 
 def semantic_xml(p: Process) -> list[str]:
-    incoming = {n.id: [] for n in p.nodes}
-    outgoing = {n.id: [] for n in p.nodes}
+    incoming: dict[str, list[str]] = {n.id: [] for n in p.nodes}
+    outgoing: dict[str, list[str]] = {n.id: [] for n in p.nodes}
     for i, f in enumerate(p.flows):
         f.id = f"Flow_{i + 1}"
         outgoing[f.source].append(f.id)

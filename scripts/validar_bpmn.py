@@ -35,7 +35,7 @@ def check(path: Path) -> list[str]:
     root = ET.parse(path).getroot()
     errors = []
     for process in root.iter(f"{BPMN}process"):
-        nodes = {el.get("id") for el in process.iter() if local(el.tag) in FLOW_NODES}
+        nodes = {el.get("id", "") for el in process.iter() if local(el.tag) in FLOW_NODES}
         if not nodes:
             errors.append(f"{process.get('id')}: processo sem nenhum elemento")
         errors += dangling_ends(process, nodes)
