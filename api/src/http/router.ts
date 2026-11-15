@@ -2,6 +2,7 @@ import type { Env } from "../env";
 import { authenticate, type AccessVerifier, type Identity } from "./access";
 import { MemoryApprovalStore } from "../approval/store";
 import { approvalRoutes, type ApprovalDeps } from "./approval";
+import { dockHandler, type DockDeps } from "./dock";
 import { health } from "./health";
 import { me } from "./me";
 import { barredAmount } from "./barred-amount";
@@ -14,11 +15,18 @@ const publicRoutes: Record<string, Record<string, PublicHandler>> = {
   "/health": { GET: health },
 };
 
-/** Rotas que exigem um JWT válido do Cloudflare Access (#54). */
-const protectedRoutes: Record<string, Record<string, ProtectedHandler>> = {
-  "/me": { GET: me },
-  "/api/valor-barrado": { GET: barredAmount },
-};
+/**
+ * Rotas que exigem um JWT válido do Cloudflare Access (#54). A doca lê o Supabase pelas dependências
+ * injetadas (#72).
+ */
+function protectedRoutes(deps: RouterDeps): Record<string, Record<string, ProtectedHandler>> {
+  const dock = dockHandler(deps.dock);
+  return {
+    "/me": { GET: me },
+    "/api/valor-barrado": { GET: barredAmount },
+    "/api/doca": { GET: (_identity, request, env) => dock(request, env) },
+  };
+}
 
 export interface RouterDeps {
   verifier: AccessVerifier;
@@ -27,6 +35,8 @@ export interface RouterDeps {
    * credenciais do Supabase só chegam ali). Sem ela, uma loja vazia em memória.
    */
   approval?: ApprovalDeps | ((env: Env) => ApprovalDeps);
+  /** Opcional: sem ele, a doca monta o Supabase do Env (#72). */
+  dock?: DockDeps;
 }
 
 /**
@@ -53,7 +63,7 @@ export async function route(request: Request, env: Env, deps: RouterDeps): Promi
   );
   if (approval) return approval;
 
-  const methods = own(protectedRoutes, pathname);
+  const methods = own(protectedRoutes(deps), pathname);
   if (methods) return dispatch(request, methods, (handler) => handler(auth.identity, request, env));
   if (env.ASSETS && isScreenRequest(request.method, pathname)) return env.ASSETS.fetch(request);
   return Response.json({ error: "not_found" }, { status: 404 });
