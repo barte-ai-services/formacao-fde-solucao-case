@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AccessVerifier } from '../../src/http/access.js';
 import { SupabaseRest } from '../../src/connectors/supabase-rest.js';
 import { wmsDockActionOutbox } from '../../src/connectors/wms-dock-action.js';
+import type { DockActionView } from '../../src/dock/dock-board.js';
 import { DockAction, Quantity } from '../../src/domain/index.js';
+import type { PartialLine, Unit } from '../../src/domain/index.js';
 import type { Env } from '../../src/env.js';
 import { createWorker } from '../../src/index.js';
 import { FakePostgrest } from '../support/fake-postgrest.js';
@@ -40,7 +42,61 @@ type Body = {
   rows: { invoiceAccessKey: string; status: { kind: string; action?: { kind: string; lines?: unknown[] } } }[];
 };
 
+// #72 Espelho do `DockActionDto` de `web/src/api/contract.ts`: o tsconfig da API não enxerga `web/`,
+// então o formato é repetido aqui com os mesmos tipos do domínio. Se a tela ou a API mudar o fio,
+// este espelho e o teste abaixo param de bater.
+type QuantityDto = { amount: number; unit: Unit };
+type PartialLineDto = { sku: string; quantity: QuantityDto; disposition: PartialLine['disposition'] };
+type DockActionDto = { kind: 'receber' | 'recusar' } | { kind: 'receber_parcial'; lines: PartialLineDto[] };
+
+// Checagem de tipo: a ação que a doca serializa cabe no `DockActionDto`, e o contrário também.
+type Mutable<T> = { -readonly [K in keyof T]: T[K] extends readonly (infer U)[] ? Mutable<U>[] : T[K] extends object ? Mutable<T[K]> : T[K] };
+type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+const viewIsDto: Same<Mutable<DockActionView>, DockActionDto> = true;
+
+const UNITS: readonly unknown[] = ['UN', 'CX'] satisfies Unit[];
+const DISPOSITIONS: readonly unknown[] = ['segurar', 'devolver'] satisfies PartialLine['disposition'][];
+
+/** Checagem estrutural do JSON: o valor tem exatamente o formato de um `DockActionDto`. */
+function isDockActionDto(value: unknown): value is DockActionDto {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as Record<string, unknown>;
+  if (v.kind === 'receber' || v.kind === 'recusar') return Object.keys(v).length === 1;
+  if (v.kind !== 'receber_parcial' || !Array.isArray(v.lines) || Object.keys(v).length !== 2) return false;
+  return v.lines.every((line: unknown) => {
+    if (typeof line !== 'object' || line === null) return false;
+    const l = line as Record<string, unknown>;
+    const q = l.quantity as Record<string, unknown> | null;
+    return (
+      Object.keys(l).sort().join() === 'disposition,quantity,sku' &&
+      typeof l.sku === 'string' &&
+      DISPOSITIONS.includes(l.disposition) &&
+      typeof q === 'object' &&
+      q !== null &&
+      Object.keys(q).sort().join() === 'amount,unit' &&
+      typeof q.amount === 'number' &&
+      UNITS.includes(q.unit)
+    );
+  });
+}
+
 describe('GET /api/doca (#72)', () => {
+  it('#43/AC-2 a ação de um receber parcial no JSON tem o formato do DockActionDto da tela', async () => {
+    expect(viewIsDto).toBe(true);
+    const { rest, get } = setup();
+    const [, b] = cd03;
+    await wmsDockActionOutbox(rest).publish({
+      invoiceAccessKey: b?.chave ?? '',
+      action: DockAction.partial([{ sku: 'SKU-1025', quantity: Quantity.of(32, 'CX'), disposition: 'segurar' }]),
+    });
+
+    const body = (await (await get('/api/doca?destino=CD-03&data=2026-11-11')).json()) as Body;
+    const action: unknown = body.rows[1]?.status.action;
+
+    expect(isDockActionDto(action)).toBe(true);
+    expect(isDockActionDto({ kind: 'receber_parcial', lines: [{ sku: 'SKU-1025', quantity: 32, unit: 'CX', disposition: 'segurar' }] })).toBe(false);
+  });
+
   it('#43/AC-4 devolve as notas do dia do destino com a ação de cada uma, os destinos e as aguardando', async () => {
     const { rest, get } = setup();
     const [a, b] = cd03;
@@ -66,8 +122,8 @@ describe('GET /api/doca (#72)', () => {
     expect(body.rows[1]?.status.action).toEqual({
       kind: 'receber_parcial',
       lines: [
-        { sku: 'SKU-1025', quantity: 32, unit: 'CX', disposition: 'segurar' },
-        { sku: 'SKU-1024', quantity: 12, unit: 'UN', disposition: 'devolver' },
+        { sku: 'SKU-1025', quantity: { amount: 32, unit: 'CX' }, disposition: 'segurar' },
+        { sku: 'SKU-1024', quantity: { amount: 12, unit: 'UN' }, disposition: 'devolver' },
       ],
     });
     // #43/AC-3 a nota sem decisão aguarda; não diz receber.

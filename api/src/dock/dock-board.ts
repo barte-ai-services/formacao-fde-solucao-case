@@ -12,19 +12,23 @@ export type DockInvoice = {
   readonly items: readonly DockInvoiceItem[];
 };
 
+/** #72 A quantidade no fio: o mesmo formato do `QuantityDto` da tela (`web/src/api/contract.ts`). */
+export type DockQuantity = { readonly amount: number; readonly unit: Unit };
+
 export type DockInvoiceItem = {
   readonly sku: string | null;
   readonly description: string;
-  readonly quantity: { readonly amount: number; readonly unit: Unit };
+  readonly quantity: DockQuantity;
 };
 
+/** #72 Uma linha do receber parcial no fio: o formato do `PartialLineDto` da tela. */
 export type DockLine = {
   readonly sku: string;
-  readonly quantity: number;
-  readonly unit: Unit;
+  readonly quantity: DockQuantity;
   readonly disposition: PartialLine['disposition'];
 };
 
+/** #72 A ação no fio: o formato do `DockActionDto` da tela. */
 export type DockActionView =
   | { readonly kind: 'receber' }
   | { readonly kind: 'receber_parcial'; readonly lines: readonly DockLine[] }
@@ -41,7 +45,7 @@ export type DockRow = {
   readonly invoiceAccessKey: string;
   readonly number: string;
   readonly supplierId: string;
-  readonly items: readonly { sku: string | null; description: string; quantity: number; unit: Unit }[];
+  readonly items: readonly DockInvoiceItem[];
   readonly status: DockStatus;
 };
 
@@ -67,8 +71,7 @@ function view(action: DockAction): DockActionView {
     kind: action.kind,
     lines: action.lines.map((l) => ({
       sku: l.sku,
-      quantity: l.quantity.amount,
-      unit: l.quantity.unit,
+      quantity: { amount: l.quantity.amount, unit: l.quantity.unit },
       disposition: l.disposition,
     })),
   };
@@ -111,8 +114,7 @@ export function dockBoard({ invoices, published, destination: requested, date }:
       items: i.items.map((item) => ({
         sku: item.sku,
         description: item.description,
-        quantity: item.quantity.amount,
-        unit: item.quantity.unit,
+        quantity: { amount: item.quantity.amount, unit: item.quantity.unit },
       })),
       status: statusOf(latest.get(i.accessKey)),
     }));

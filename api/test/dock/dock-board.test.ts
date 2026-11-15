@@ -65,8 +65,8 @@ describe('dockBoard: a doca de um destino num dia (#72)', () => {
       action: {
         kind: 'receber_parcial',
         lines: [
-          { sku: 'SKU-1025', quantity: 32, unit: 'CX', disposition: 'segurar' },
-          { sku: 'SKU-1026', quantity: 64, unit: 'UN', disposition: 'devolver' },
+          { sku: 'SKU-1025', quantity: { amount: 32, unit: 'CX' }, disposition: 'segurar' },
+          { sku: 'SKU-1026', quantity: { amount: 64, unit: 'UN' }, disposition: 'devolver' },
         ],
       },
     });
@@ -119,7 +119,7 @@ describe('dockBoard: a doca de um destino num dia (#72)', () => {
     const note = cd03[0];
     expect(board.rows[0]).toMatchObject({
       supplierId: note?.fornecedor_id,
-      items: note?.itens.map((i) => ({ sku: i.sku, description: i.descricao, quantity: i.quantidade, unit: i.unidade })),
+      items: note?.itens.map((i) => ({ sku: i.sku, description: i.descricao, quantity: { amount: i.quantidade, unit: i.unidade } })),
     });
   });
 });
