@@ -1,68 +1,67 @@
 import { Block, DataList, Panel, ReconciliationDiff, type ComparisonField } from "@barte-ai-services/barte-ui-kit";
+import type { Unit } from "../api/contract";
 import { GenericEvidence } from "./GenericEvidence";
 import { divergenceLabel } from "./labels";
 import { registerEvidence, type EvidenceProps } from "./registry";
 
-type Unidade = "UN" | "CX";
-
-interface Lado {
-  quantidade: number;
-  unidade: Unidade;
-  preco: string;
+interface Side {
+  quantity: number;
+  unit: Unit;
+  price: string;
 }
 
 /** #37: o que a evidência da E4 diz de um SKU, já lido do fio. */
-interface ConversaoDoSku {
+interface SkuConversion {
   sku: string;
-  ordem: string;
-  nota: Lado;
-  pedido: Lado;
-  fator: number;
+  order: string;
+  invoice: Side;
+  ordered: Side;
+  factor: number;
 }
 
 /**
  * #37: os três textos que `api/src/domain/checks/e4-unidade-de-medida.ts` escreve por SKU. O preço
  * vem do `Money.toString()` do domínio e só é mostrado, nunca recalculado.
  */
-const PRECO = String.raw`-?R\$ \d{1,3}(?:\.\d{3})*,\d{2}`;
-const NA_NOTA = new RegExp(String.raw`^Item (\S+) na nota: (\d+) (UN|CX) a (${PRECO})$`);
-const NA_ORDEM = new RegExp(String.raw`^Item (\S+) na ordem: (\d+) (UN|CX) a (${PRECO})$`);
-const NO_CADASTRO = /^Produto (\S+): fator de caixa (\d+); nota (\d+) UN, ordem (\d+) UN$/;
+const PRICE = String.raw`-?R\$ \d{1,3}(?:\.\d{3})*,\d{2}`;
+const ON_INVOICE = new RegExp(String.raw`^Item (\S+) na nota: (\d+) (UN|CX) a (${PRICE})$`);
+const ON_ORDER = new RegExp(String.raw`^Item (\S+) na ordem: (\d+) (UN|CX) a (${PRICE})$`);
+const IN_REGISTRY = /^Produto (\S+): fator de caixa (\d+); nota (\d+) UN, ordem (\d+) UN$/;
 
 /** #37: um campo de texto de um registro do fio, que pode trazer qualquer coisa. */
-function texto(item: unknown, campo: "source" | "reference" | "description"): string {
-  if (typeof item !== "object" || item === null || !Object.hasOwn(item, campo)) return "";
-  const valor: unknown = Reflect.get(item, campo);
-  return typeof valor === "string" ? valor : "";
+function textField(item: unknown, field: "source" | "reference" | "description"): string {
+  if (typeof item !== "object" || item === null || !Object.hasOwn(item, field)) return "";
+  const value: unknown = Reflect.get(item, field);
+  return typeof value === "string" ? value : "";
 }
 
-function inteiro(digitos: string | undefined): number | undefined {
-  if (digitos === undefined) return undefined;
-  const n = Number(digitos);
+function parseInteger(digits: string | undefined): number | undefined {
+  if (digits === undefined) return undefined;
+  const n = Number(digits);
   return Number.isSafeInteger(n) ? n : undefined;
 }
 
-function unidade(sigla: string | undefined): Unidade | undefined {
-  return sigla === "UN" || sigla === "CX" ? sigla : undefined;
+function parseUnit(code: string | undefined): Unit | undefined {
+  return code === "UN" || code === "CX" ? code : undefined;
 }
 
-function lado(m: RegExpExecArray): Lado | undefined {
-  const quantidade = inteiro(m[2]);
-  const u = unidade(m[3]);
-  const preco = m[4];
-  return quantidade === undefined || u === undefined || preco === undefined ? undefined : { quantidade, unidade: u, preco };
+function parseSide(m: RegExpExecArray): Side | undefined {
+  const quantity = parseInteger(m[2]);
+  const unit = parseUnit(m[3]);
+  const price = m[4];
+  return quantity === undefined || unit === undefined || price === undefined ? undefined : { quantity, unit, price };
 }
 
 /** #37: a quantidade em UN, pela conta com o fator do cadastro. */
-function emUnidades(l: Lado, fator: number): number {
-  return l.unidade === "CX" ? l.quantidade * fator : l.quantidade;
+function toUnits(side: Side, factor: number): number {
+  return side.unit === "CX" ? side.quantity * factor : side.quantity;
 }
 
-interface Parcial {
-  nota?: Lado;
-  pedido?: Lado;
-  ordem?: string;
-  cadastro?: { fator: number; notaUn: number; ordemUn: number };
+interface PartialConversion {
+  invoice?: Side;
+  ordered?: Side;
+  order?: string;
+  registry?: { factor: number; invoiceUnits: number; orderUnits: number };
 }
 
 /**
@@ -70,108 +69,108 @@ interface Parcial {
  * leia, SKU sem as três, unidades iguais ou fator que não fecha com as quantidades do cadastro
  * devolvem `undefined`, e a tela cai no genérico em vez de mostrar uma conta pela metade.
  */
-function lerConversoes(evidence: unknown): ConversaoDoSku[] | undefined {
+function parseConversions(evidence: unknown): SkuConversion[] | undefined {
   if (!Array.isArray(evidence) || evidence.length === 0) return undefined;
-  const registros: readonly unknown[] = evidence;
-  const porSku = new Map<string, Parcial>();
-  const doSku = (sku: string | undefined): Parcial | undefined => {
+  const records: readonly unknown[] = evidence;
+  const bySku = new Map<string, PartialConversion>();
+  const forSku = (sku: string | undefined): PartialConversion | undefined => {
     if (sku === undefined) return undefined;
-    const atual = porSku.get(sku) ?? {};
-    porSku.set(sku, atual);
-    return atual;
+    const current = bySku.get(sku) ?? {};
+    bySku.set(sku, current);
+    return current;
   };
-  for (const item of registros) {
-    const source = texto(item, "source");
-    const description = texto(item, "description");
-    const reference = texto(item, "reference");
-    const nota = source === "sefaz" ? NA_NOTA.exec(description) : null;
-    const ordem = source === "erp_compras" ? NA_ORDEM.exec(description) : null;
-    const cadastro = source === "erp_cadastro" ? NO_CADASTRO.exec(description) : null;
-    if (nota !== null) {
-      const parcial = doSku(nota[1]);
-      const l = lado(nota);
-      if (parcial === undefined || l === undefined || parcial.nota !== undefined) return undefined;
-      parcial.nota = l;
-    } else if (ordem !== null) {
-      const parcial = doSku(ordem[1]);
-      const l = lado(ordem);
-      if (parcial === undefined || l === undefined || parcial.pedido !== undefined || reference === "") return undefined;
-      parcial.pedido = l;
-      parcial.ordem = reference;
-    } else if (cadastro !== null) {
-      const parcial = doSku(cadastro[1]);
-      const fator = inteiro(cadastro[2]);
-      const notaUn = inteiro(cadastro[3]);
-      const ordemUn = inteiro(cadastro[4]);
+  for (const item of records) {
+    const source = textField(item, "source");
+    const description = textField(item, "description");
+    const reference = textField(item, "reference");
+    const invoiceMatch = source === "sefaz" ? ON_INVOICE.exec(description) : null;
+    const orderMatch = source === "erp_compras" ? ON_ORDER.exec(description) : null;
+    const registryMatch = source === "erp_cadastro" ? IN_REGISTRY.exec(description) : null;
+    if (invoiceMatch !== null) {
+      const partial = forSku(invoiceMatch[1]);
+      const side = parseSide(invoiceMatch);
+      if (partial === undefined || side === undefined || partial.invoice !== undefined) return undefined;
+      partial.invoice = side;
+    } else if (orderMatch !== null) {
+      const partial = forSku(orderMatch[1]);
+      const side = parseSide(orderMatch);
+      if (partial === undefined || side === undefined || partial.ordered !== undefined || reference === "") return undefined;
+      partial.ordered = side;
+      partial.order = reference;
+    } else if (registryMatch !== null) {
+      const partial = forSku(registryMatch[1]);
+      const factor = parseInteger(registryMatch[2]);
+      const invoiceUnits = parseInteger(registryMatch[3]);
+      const orderUnits = parseInteger(registryMatch[4]);
       if (
-        parcial === undefined ||
-        fator === undefined ||
-        notaUn === undefined ||
-        ordemUn === undefined ||
-        parcial.cadastro !== undefined
+        partial === undefined ||
+        factor === undefined ||
+        invoiceUnits === undefined ||
+        orderUnits === undefined ||
+        partial.registry !== undefined
       ) {
         return undefined;
       }
-      parcial.cadastro = { fator, notaUn, ordemUn };
+      partial.registry = { factor, invoiceUnits, orderUnits };
     } else {
       return undefined;
     }
   }
-  const conversoes: ConversaoDoSku[] = [];
-  for (const [sku, { nota, pedido, ordem, cadastro }] of porSku) {
-    if (nota === undefined || pedido === undefined || ordem === undefined || cadastro === undefined) return undefined;
-    if (nota.unidade === pedido.unidade || cadastro.fator <= 0) return undefined;
-    if (emUnidades(nota, cadastro.fator) !== cadastro.notaUn) return undefined;
-    if (emUnidades(pedido, cadastro.fator) !== cadastro.ordemUn) return undefined;
-    conversoes.push({ sku, ordem, nota, pedido, fator: cadastro.fator });
+  const conversions: SkuConversion[] = [];
+  for (const [sku, { invoice, ordered, order, registry }] of bySku) {
+    if (invoice === undefined || ordered === undefined || order === undefined || registry === undefined) return undefined;
+    if (invoice.unit === ordered.unit || registry.factor <= 0) return undefined;
+    if (toUnits(invoice, registry.factor) !== registry.invoiceUnits) return undefined;
+    if (toUnits(ordered, registry.factor) !== registry.orderUnits) return undefined;
+    conversions.push({ sku, order, invoice, ordered, factor: registry.factor });
   }
-  return conversoes;
+  return conversions;
 }
 
-function quantidade(l: Lado): string {
-  return `${l.quantidade} ${l.unidade}`;
+function formatQuantity(side: Side): string {
+  return `${side.quantity} ${side.unit}`;
 }
 
 /** #37: o lado em CX mostra a conta; o lado em UN, a quantidade como veio. */
-function convertido(l: Lado, fator: number): string {
-  return l.unidade === "CX" ? `${quantidade(l)} × fator ${fator} = ${emUnidades(l, fator)} UN` : quantidade(l);
+function converted(side: Side, factor: number): string {
+  return side.unit === "CX" ? `${formatQuantity(side)} × fator ${factor} = ${toUnits(side, factor)} UN` : formatQuantity(side);
 }
 
-function campos(c: ConversaoDoSku): ComparisonField[] {
-  const bate = emUnidades(c.nota, c.fator) === emUnidades(c.pedido, c.fator);
+function fields(c: SkuConversion): ComparisonField[] {
+  const matches = toUnits(c.invoice, c.factor) === toUnits(c.ordered, c.factor);
   return [
     {
       label: "Quantidade",
-      a: quantidade(c.nota),
-      b: quantidade(c.pedido),
+      a: formatQuantity(c.invoice),
+      b: formatQuantity(c.ordered),
       state: "not-comparable",
       note: "unidades diferentes; a comparação é depois da conversão",
     },
     {
       label: "Convertido",
-      a: convertido(c.nota, c.fator),
-      b: convertido(c.pedido, c.fator),
-      state: bate ? "match" : "divergent",
+      a: converted(c.invoice, c.factor),
+      b: converted(c.ordered, c.factor),
+      state: matches ? "match" : "divergent",
     },
     {
       label: "Preço",
-      a: `${c.nota.preco} por ${c.nota.unidade}`,
-      b: `${c.pedido.preco} por ${c.pedido.unidade}`,
+      a: `${c.invoice.price} por ${c.invoice.unit}`,
+      b: `${c.ordered.price} por ${c.ordered.unit}`,
       state: "not-comparable",
-      note: `preço por ${c.nota.unidade} contra preço por ${c.pedido.unidade}`,
+      note: `preço por ${c.invoice.unit} contra preço por ${c.ordered.unit}`,
     },
   ];
 }
 
 /** #37: o fator que as quantidades da nota e da ordem sugerem, ao lado do que o cadastro tem. */
-function fatorACorrigir(c: ConversaoDoSku): string {
-  const caixas = c.nota.unidade === "CX" ? c.nota : c.pedido;
-  const unidades = c.nota.unidade === "CX" ? c.pedido : c.nota;
-  const observado =
-    caixas.quantidade > 0 && unidades.quantidade % caixas.quantidade === 0
-      ? `1 CX = ${unidades.quantidade / caixas.quantidade} UN`
-      : `${quantidade(caixas)} para ${quantidade(unidades)}, não fecha em caixa inteira`;
-  return `Cadastro: 1 CX = ${c.fator} UN · observado: ${observado}`;
+function factorToFix(c: SkuConversion): string {
+  const boxes = c.invoice.unit === "CX" ? c.invoice : c.ordered;
+  const units = c.invoice.unit === "CX" ? c.ordered : c.invoice;
+  const observed =
+    boxes.quantity > 0 && units.quantity % boxes.quantity === 0
+      ? `1 CX = ${units.quantity / boxes.quantity} UN`
+      : `${formatQuantity(boxes)} para ${formatQuantity(units)}, não fecha em caixa inteira`;
+  return `Cadastro: 1 CX = ${c.factor} UN · observado: ${observed}`;
 }
 
 /**
@@ -180,32 +179,33 @@ function fatorACorrigir(c: ConversaoDoSku): string {
  * cai no genérico.
  */
 export function UnidadeDeMedidaEvidence({ divergence }: EvidenceProps) {
-  const conversoes = lerConversoes(divergence.evidence);
-  if (conversoes === undefined || conversoes.length === 0) return <GenericEvidence divergence={divergence} />;
-  const ordens = [...new Set(conversoes.map((c) => c.ordem))].join(", ");
+  const conversions = parseConversions(divergence.evidence);
+  if (conversions === undefined || conversions.length === 0) return <GenericEvidence divergence={divergence} />;
+  const orders = [...new Set(conversions.map((c) => c.order))].join(", ");
   return (
     <Panel
       title={divergenceLabel(String(divergence.classification))}
-      description={`Ordem ${ordens} e cadastro do produto`}
+      description={`Evidência: Ordem ${orders} e cadastro do produto`}
       size="sm"
       padding="md"
     >
-      {conversoes.map((c) => (
+      {conversions.map((c) => (
         <ReconciliationDiff
           key={c.sku}
           ariaLabel={`Conversão do ${c.sku}`}
           fieldLabel={c.sku}
           columns={["Nota fiscal", "Ordem de compra"]}
-          fields={campos(c)}
+          fields={fields(c)}
           showSummary={false}
           variant="grid"
         />
       ))}
+      {/* #37: fica mesmo quando o fator confere, porque o domínio (#88) publica a correção de toda E4 aprovada. */}
       <Block title="Fator a corrigir no Cadastro" size="overline" headingLevel={4}>
         <DataList
           divided
           aria-label="Fator a corrigir no Cadastro"
-          items={conversoes.map((c) => ({ key: c.sku, label: c.sku, value: fatorACorrigir(c), emphasis: true }))}
+          items={conversions.map((c) => ({ key: c.sku, label: c.sku, value: factorToFix(c), emphasis: true }))}
         />
       </Block>
     </Panel>

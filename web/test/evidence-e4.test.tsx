@@ -9,28 +9,28 @@ import { clearEvidenceRegistry, registerEvidence } from "../src/evidence/registr
 function e4Evidence(opts: {
   sku: string;
   order: string;
-  nota: [number, "UN" | "CX", string];
-  ordem: [number, "UN" | "CX", string];
-  fator: number;
-  notaUn: number;
-  ordemUn: number;
+  invoice: [number, "UN" | "CX", string];
+  ordered: [number, "UN" | "CX", string];
+  factor: number;
+  invoiceUnits: number;
+  orderUnits: number;
 }): EvidenceDto[] {
-  const { sku, order, nota, ordem, fator, notaUn, ordemUn } = opts;
+  const { sku, order, invoice, ordered, factor, invoiceUnits, orderUnits } = opts;
   return [
     {
       source: "sefaz",
       reference: "35261100000000000000550010000000081000000008",
-      description: `Item ${sku} na nota: ${nota[0]} ${nota[1]} a ${nota[2]}`,
+      description: `Item ${sku} na nota: ${invoice[0]} ${invoice[1]} a ${invoice[2]}`,
     },
     {
       source: "erp_compras",
       reference: order,
-      description: `Item ${sku} na ordem: ${ordem[0]} ${ordem[1]} a ${ordem[2]}`,
+      description: `Item ${sku} na ordem: ${ordered[0]} ${ordered[1]} a ${ordered[2]}`,
     },
     {
       source: "erp_cadastro",
       reference: sku,
-      description: `Produto ${sku}: fator de caixa ${fator}; nota ${notaUn} UN, ordem ${ordemUn} UN`,
+      description: `Produto ${sku}: fator de caixa ${factor}; nota ${invoiceUnits} UN, ordem ${orderUnits} UN`,
     },
   ];
 }
@@ -41,25 +41,25 @@ const NF_008: DivergenceDto = {
   evidence: e4Evidence({
     sku: "SKU-1025",
     order: "OC-2026-42673",
-    nota: [232, "CX", "R$ 18,76"],
-    ordem: [928, "UN", "R$ 4,69"],
-    fator: 4,
-    notaUn: 928,
-    ordemUn: 928,
+    invoice: [232, "CX", "R$ 18,76"],
+    ordered: [928, "UN", "R$ 4,69"],
+    factor: 4,
+    invoiceUnits: 928,
+    orderUnits: 928,
   }),
 };
 
-const NAO_BATE: DivergenceDto = {
+const MISMATCH: DivergenceDto = {
   classification: "E4",
   skus: ["SKU-77"],
   evidence: e4Evidence({
     sku: "SKU-77",
     order: "OC-4512",
-    nota: [10, "CX", "R$ 20,00"],
-    ordem: [48, "UN", "R$ 5,00"],
-    fator: 4,
-    notaUn: 40,
-    ordemUn: 48,
+    invoice: [10, "CX", "R$ 20,00"],
+    ordered: [48, "UN", "R$ 5,00"],
+    factor: 4,
+    invoiceUnits: 40,
+    orderUnits: 48,
   }),
 };
 
@@ -84,14 +84,14 @@ describe("#37 evidência da E4: a conversão e o fator a corrigir", () => {
   it("#37/AC-1 a NF-008 mostra 232 CX, 928 UN e a conversão 232 CX × fator 4 = 928 UN batendo", () => {
     renderE4(NF_008);
 
-    const quantidade = rowOf("SKU-1025", "Quantidade");
-    expect(within(quantidade).getByText("232 CX")).toBeTruthy();
-    expect(within(quantidade).getByText("928 UN")).toBeTruthy();
+    const quantityRow = rowOf("SKU-1025", "Quantidade");
+    expect(within(quantityRow).getByText("232 CX")).toBeTruthy();
+    expect(within(quantityRow).getByText("928 UN")).toBeTruthy();
 
-    const convertido = rowOf("SKU-1025", "Convertido");
-    expect(within(convertido).getByText("232 CX × fator 4 = 928 UN")).toBeTruthy();
-    expect(within(convertido).getByText("confere")).toBeTruthy();
-    expect(screen.getByText(/OC-2026-42673/)).toBeTruthy();
+    const convertedRow = rowOf("SKU-1025", "Convertido");
+    expect(within(convertedRow).getByText("232 CX × fator 4 = 928 UN")).toBeTruthy();
+    expect(within(convertedRow).getByText("confere")).toBeTruthy();
+    expect(screen.getByText("Evidência: Ordem OC-2026-42673 e cadastro do produto")).toBeTruthy();
   });
 
   it("#37/AC-2 a conversão vem antes de qualquer comparação, e nada fala em diferença de preço", () => {
@@ -102,66 +102,66 @@ describe("#37 evidência da E4: a conversão e o fator a corrigir", () => {
       .getAllByRole("row")
       .filter((row) => within(row).queryByRole("rowheader") !== null);
     const judged = rows.filter((row) => /confere|divergente/.test(row.textContent ?? ""));
-    const primeira = judged[0];
-    if (primeira === undefined) throw new Error("nenhuma linha julgada");
-    expect(within(primeira).getByRole("rowheader").textContent).toBe("Convertido");
+    const firstJudged = judged[0];
+    if (firstJudged === undefined) throw new Error("nenhuma linha julgada");
+    expect(within(firstJudged).getByRole("rowheader").textContent).toBe("Convertido");
 
-    const preco = rowOf("SKU-1025", "Preço");
-    expect(within(preco).getByText("R$ 18,76 por CX")).toBeTruthy();
-    expect(within(preco).getByText("R$ 4,69 por UN")).toBeTruthy();
-    expect(within(preco).getByText("não comparável")).toBeTruthy();
+    const priceRow = rowOf("SKU-1025", "Preço");
+    expect(within(priceRow).getByText("R$ 18,76 por CX")).toBeTruthy();
+    expect(within(priceRow).getByText("R$ 4,69 por UN")).toBeTruthy();
+    expect(within(priceRow).getByText("não comparável")).toBeTruthy();
     expect(container.textContent ?? "").not.toMatch(/diferen[cç]a de pre[cç]o/i);
   });
 
   it("#37/AC-5 mostra o fator a corrigir no Cadastro, o do cadastro e o observado", () => {
     const { container } = renderE4(NF_008);
 
-    const fator = container.querySelector<HTMLElement>('[aria-label="Fator a corrigir no Cadastro"]');
-    if (fator === null) throw new Error("sem a lista do fator a corrigir");
-    expect(within(fator).getByText("SKU-1025")).toBeTruthy();
-    expect(within(fator).getByText("Cadastro: 1 CX = 4 UN · observado: 1 CX = 4 UN")).toBeTruthy();
+    const factorList = container.querySelector<HTMLElement>('[aria-label="Fator a corrigir no Cadastro"]');
+    if (factorList === null) throw new Error("sem a lista do fator a corrigir");
+    expect(within(factorList).getByText("SKU-1025")).toBeTruthy();
+    expect(within(factorList).getByText("Cadastro: 1 CX = 4 UN · observado: 1 CX = 4 UN")).toBeTruthy();
   });
 
   it("#37/AC-2 convertido que não bate com a ordem aparece divergente", () => {
-    renderE4(NAO_BATE);
+    renderE4(MISMATCH);
 
-    const convertido = rowOf("SKU-77", "Convertido");
-    expect(within(convertido).getByText("10 CX × fator 4 = 40 UN")).toBeTruthy();
-    expect(within(convertido).getByText("48 UN")).toBeTruthy();
-    expect(within(convertido).getByText("divergente")).toBeTruthy();
+    const convertedRow = rowOf("SKU-77", "Convertido");
+    expect(within(convertedRow).getByText("10 CX × fator 4 = 40 UN")).toBeTruthy();
+    expect(within(convertedRow).getByText("48 UN")).toBeTruthy();
+    expect(within(convertedRow).getByText("divergente")).toBeTruthy();
     expect(
       screen.getByText("Cadastro: 1 CX = 4 UN · observado: 10 CX para 48 UN, não fecha em caixa inteira"),
     ).toBeTruthy();
   });
 
   it("#37/AC-2 a ordem em CX e a nota em UN também convertem, do lado da ordem", () => {
-    const invertida: DivergenceDto = {
+    const inverted: DivergenceDto = {
       classification: "E4",
       skus: ["SKU-9"],
       evidence: e4Evidence({
         sku: "SKU-9",
         order: "OC-9",
-        nota: [48, "UN", "R$ 5,00"],
-        ordem: [12, "CX", "R$ 20,00"],
-        fator: 4,
-        notaUn: 48,
-        ordemUn: 48,
+        invoice: [48, "UN", "R$ 5,00"],
+        ordered: [12, "CX", "R$ 20,00"],
+        factor: 4,
+        invoiceUnits: 48,
+        orderUnits: 48,
       }),
     };
-    renderE4(invertida);
-    const convertido = rowOf("SKU-9", "Convertido");
-    expect(within(convertido).getByText("48 UN")).toBeTruthy();
-    expect(within(convertido).getByText("12 CX × fator 4 = 48 UN")).toBeTruthy();
-    expect(within(convertido).getByText("confere")).toBeTruthy();
+    renderE4(inverted);
+    const convertedRow = rowOf("SKU-9", "Convertido");
+    expect(within(convertedRow).getByText("48 UN")).toBeTruthy();
+    expect(within(convertedRow).getByText("12 CX × fator 4 = 48 UN")).toBeTruthy();
+    expect(within(convertedRow).getByText("confere")).toBeTruthy();
   });
 
   it("#37/AC-2 descrições que não parseiam, ou lista vazia, caem no genérico sem quebrar", () => {
-    const estranha: DivergenceDto = {
+    const unparseable: DivergenceDto = {
       classification: "E4",
       skus: ["SKU-1"],
       evidence: [{ source: "sefaz", reference: "CHAVE-1", description: "Caixa contra unidade, sem número" }],
     };
-    renderE4(estranha);
+    renderE4(unparseable);
     expect(screen.queryByRole("table")).toBeNull();
     expect(screen.getByText("CHAVE-1")).toBeTruthy();
     expect(screen.getByText(/Caixa contra unidade, sem número/)).toBeTruthy();
@@ -169,8 +169,54 @@ describe("#37 evidência da E4: a conversão e o fator a corrigir", () => {
     renderE4({ classification: "E4", skus: [], evidence: [] });
     expect(screen.getByText("Nenhuma evidência veio com esta divergência.")).toBeTruthy();
 
-    const semCadastro: DivergenceDto = { ...NF_008, evidence: NF_008.evidence.slice(0, 2) };
-    renderE4(semCadastro);
+    const withoutRegistry: DivergenceDto = { ...NF_008, evidence: NF_008.evidence.slice(0, 2) };
+    renderE4(withoutRegistry);
     expect(screen.queryByRole("table")).toBeNull();
+  });
+
+  it("#37/AC-2 evidência repetida para o mesmo SKU cai no genérico", () => {
+    const [invoiceRecord] = NF_008.evidence;
+    if (invoiceRecord === undefined) throw new Error("NF-008 sem a evidência da nota");
+    renderE4({ ...NF_008, evidence: [...NF_008.evidence, invoiceRecord] });
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.getAllByText(/Item SKU-1025 na nota: 232 CX a R\$ 18,76/)).toHaveLength(2);
+  });
+
+  it("#37/AC-2 nota e ordem na mesma unidade caem no genérico", () => {
+    const sameUnit: DivergenceDto = {
+      classification: "E4",
+      skus: ["SKU-5"],
+      evidence: e4Evidence({
+        sku: "SKU-5",
+        order: "OC-5",
+        invoice: [48, "UN", "R$ 5,00"],
+        ordered: [48, "UN", "R$ 5,00"],
+        factor: 4,
+        invoiceUnits: 48,
+        orderUnits: 48,
+      }),
+    };
+    renderE4(sameUnit);
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.getByText(/Item SKU-5 na ordem: 48 UN a R\$ 5,00/)).toBeTruthy();
+  });
+
+  it("#37/AC-2 conta qtd × fator que não fecha com as quantidades em UN do cadastro cai no genérico", () => {
+    const registryMismatch: DivergenceDto = {
+      classification: "E4",
+      skus: ["SKU-6"],
+      evidence: e4Evidence({
+        sku: "SKU-6",
+        order: "OC-6",
+        invoice: [10, "CX", "R$ 20,00"],
+        ordered: [40, "UN", "R$ 5,00"],
+        factor: 4,
+        invoiceUnits: 36,
+        orderUnits: 40,
+      }),
+    };
+    renderE4(registryMismatch);
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.getByText(/Produto SKU-6: fator de caixa 4; nota 36 UN, ordem 40 UN/)).toBeTruthy();
   });
 });
