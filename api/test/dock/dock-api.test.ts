@@ -43,16 +43,20 @@ type Body = {
 };
 
 // #72 Espelho do `DockActionDto` de `web/src/api/contract.ts`: o tsconfig da API não enxerga `web/`,
-// então o formato é repetido aqui com os mesmos tipos do domínio. Se a tela ou a API mudar o fio,
-// este espelho e o teste abaixo param de bater.
+// então o formato é repetido aqui com os mesmos tipos do domínio. Este espelho guarda a API: se a
+// doca mudar o fio, o typecheck e o teste abaixo quebram. Uma mudança só no `contract.ts` não é vista aqui.
 type QuantityDto = { amount: number; unit: Unit };
 type PartialLineDto = { sku: string; quantity: QuantityDto; disposition: PartialLine['disposition'] };
 type DockActionDto = { kind: 'receber' | 'recusar' } | { kind: 'receber_parcial'; lines: PartialLineDto[] };
 
-// Checagem de tipo: a ação que a doca serializa cabe no `DockActionDto`, e o contrário também.
+// Checagem de tipo, feita pelo `tsc` no `make check`: a ação que a doca serializa é exatamente o
+// `DockActionDto`, nos dois sentidos da atribuição. Limite conhecido: um campo opcional a mais de um
+// dos lados passa; a igualdade estrita não serve porque o domínio separa `receber` e `recusar` em dois
+// membros da união, e o contrato junta os dois num só.
 type Mutable<T> = { -readonly [K in keyof T]: T[K] extends readonly (infer U)[] ? Mutable<U>[] : T[K] extends object ? Mutable<T[K]> : T[K] };
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 const viewIsDto: Same<Mutable<DockActionView>, DockActionDto> = true;
+void viewIsDto;
 
 const UNITS: readonly unknown[] = ['UN', 'CX'] satisfies Unit[];
 const DISPOSITIONS: readonly unknown[] = ['segurar', 'devolver'] satisfies PartialLine['disposition'][];
@@ -82,7 +86,6 @@ function isDockActionDto(value: unknown): value is DockActionDto {
 
 describe('GET /api/doca (#72)', () => {
   it('#43/AC-2 a ação de um receber parcial no JSON tem o formato do DockActionDto da tela', async () => {
-    expect(viewIsDto).toBe(true);
     const { rest, get } = setup();
     const [, b] = cd03;
     await wmsDockActionOutbox(rest).publish({

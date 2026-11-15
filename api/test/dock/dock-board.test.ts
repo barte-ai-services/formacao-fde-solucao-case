@@ -117,9 +117,9 @@ describe('dockBoard: a doca de um destino num dia (#72)', () => {
   it('a linha leva fornecedor e itens da nota', () => {
     const board = dockBoard({ invoices, published: [], destination: 'CD-03', date: DATE });
     const note = cd03[0];
-    expect(board.rows[0]).toMatchObject({
-      supplierId: note?.fornecedor_id,
-      items: note?.itens.map((i) => ({ sku: i.sku, description: i.descricao, quantity: { amount: i.quantidade, unit: i.unidade } })),
-    });
+    expect(board.rows[0]?.supplierId).toBe(note?.fornecedor_id);
+    expect(board.rows[0]?.items).toEqual(
+      note?.itens.map((i) => ({ sku: i.sku, description: i.descricao, quantity: { amount: i.quantidade, unit: i.unidade } })),
+    );
   });
 });
