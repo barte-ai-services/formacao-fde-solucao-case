@@ -2,7 +2,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <style>
-/* layout: faixa preta da Barte; o diagrama da solução de ponta a ponta com os logos da stack; a lista do que compõe a entrega; o agente que a turma vai construir */
+/* layout: faixa preta da Barte; o diagrama da solução de ponta a ponta com os logos da stack; a lista do que compõe a entrega; os três runtimes, o MCP, os cinco agentes do case e o pipeline */
 :root {
   color-scheme: light;
   --brand: #df285d; --brand-soft: #fdf0f4; --brand-l: #fbcad3; --brand-d: #a3163f;
@@ -103,6 +103,38 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: .88em; }
   .pieces { grid-template-columns: 1fr; }
   body { font-size: 16px; }
 }
+
+/* três runtimes, MCP, agentes, pipeline */
+.rt { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.rt .n b { font-size: 21px; }
+.rt ul, .ag ul { margin: 0; padding-left: 18px; font-size: 15.5px; color: var(--ink-2); display: grid; gap: 3px; }
+.n.gh { border-color: var(--ink); }
+.n.mcp { border-color: var(--ink); }
+.tag { display: inline-block; font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; border-radius: 6px; padding: 2px 8px; background: var(--black); color: #fff; width: fit-content; }
+.tag.no { background: var(--orange-l); color: var(--orange-d); border: 1.5px dashed var(--orange); }
+.src { display: grid; grid-template-columns: 1fr 36px 1.2fr 36px 1fr; align-items: stretch; background: var(--card); border: 1px solid var(--line-2); border-radius: 18px; padding: 24px; }
+.src .ar { font-size: 26px; }
+.tools { display: grid; gap: 6px; }
+.tools span { border: 1.5px solid var(--line-2); border-radius: 7px; padding: 4px 8px; font-size: 14.5px; font-weight: 600; background: #fff; }
+.tools .w { border-color: var(--brand); background: var(--brand-soft); }
+.ags { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; }
+.ag { background: var(--card); border: 2px solid var(--line-2); border-radius: 14px; padding: 16px 18px; display: grid; gap: 8px; align-content: start; }
+.ag .h { display: flex; align-items: center; gap: 12px; }
+.ag .h b { font-size: 21px; line-height: 1.2; }
+.ag .l { flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--brand); color: #fff; font-weight: 700; display: grid; place-items: center; }
+.ag dl { margin: 0; display: grid; grid-template-columns: 76px 1fr; gap: 4px 10px; font-size: 15.5px; }
+.ag dt { color: var(--ink-3); font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; padding-top: 2px; }
+.ag dd { margin: 0; color: var(--ink-2); }
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; counter-reset: st; }
+.st { background: var(--card); border: 2px solid var(--black); border-radius: 12px; padding: 12px 14px; font-size: 16px; font-weight: 600; position: relative; display: grid; gap: 4px; align-content: start; }
+.st small { font-size: 13.5px; font-weight: 500; color: var(--ink-3); }
+.st.par { border-color: var(--brand); background: var(--brand-soft); }
+.st.back { border-style: dashed; }
+.chg { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.chg .pc { grid-template-columns: 1fr; gap: 4px; align-items: start; }
+.chg .pc small { color: var(--ink-3); font-weight: 600; font-size: 14px; }
+.guards.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 1000px) { .rt, .src, .guards.four { grid-template-columns: 1fr; } .src .ar { transform: rotate(90deg); height: 30px; } }
 </style>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -119,8 +151,8 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: .88em; }
 </svg>
 
 <div class="top"><div class="in">
-  <div class="eyebrow">Já Chegou · arquitetura de solução</div>
-  <h1>A solução que entregamos</h1>
+  <div class="eyebrow">Já Chegou · arquitetura de referência</div>
+  <h1>A solução e os cinco agentes do case</h1>
   <p class="q">Contra o pagar errado: R$ 543 mil por mês pagos sem a mercadoria.</p>
 </div></div>
 
@@ -130,66 +162,98 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: .88em; }
     <div class="flow">
       <div class="n dash" style="grid-column:1;grid-row:1"><div class="k">Fontes</div><div class="logos"><span class="initials" aria-hidden="true">Kit</span></div><b>Base do kit</b><div class="s">Simula os sistemas da Já Chegou.</div></div>
       <div class="ar" style="grid-column:2;grid-row:1">→</div>
-      <div class="n cf" style="grid-column:3;grid-row:1"><div class="k">Conectores</div><div class="logos"><svg class="logo" role="img" aria-label="TypeScript" style="color:var(--ts)"><use href="#i-typescript"/></svg></div><b>Um por sistema</b>
+      <div class="n cf" style="grid-column:3;grid-row:1"><div class="k">Conectores</div><div class="logos"><svg class="logo" role="img" aria-label="typescript" style="color:var(--ts)"><use href="#i-typescript"/></svg></div><b>Um por sistema</b>
         <div class="conn"><div>SEFAZ<span class="mock">mock · base do kit</span></div><div>ERP<span class="mock">mock · base do kit</span></div><div>WMS<span class="mock">mock · base do kit</span></div><div>Banco<span class="mock">mock · base do kit</span></div></div>
         <div class="s">Trocar o mock pela fonte real muda só o conector.</div></div>
       <div class="ar" style="grid-column:4;grid-row:1">→</div>
-      <div class="n ts" style="grid-column:5;grid-row:1"><div class="k">API e esteira</div><div class="logos"><svg class="logo" role="img" aria-label="TypeScript" style="color:var(--ts)"><use href="#i-typescript"/></svg><svg class="logo" role="img" aria-label="Hono" style="color:var(--hono)"><use href="#i-hono"/></svg></div><b>Worker em TypeScript</b>
+      <div class="n ts" style="grid-column:5;grid-row:1"><div class="k">API e esteira</div><div class="logos"><svg class="logo" role="img" aria-label="typescript" style="color:var(--ts)"><use href="#i-typescript"/></svg><svg class="logo" role="img" aria-label="hono" style="color:var(--hono)"><use href="#i-hono"/></svg></div><b>Worker em TypeScript</b>
         <div class="ctx"><span class="core">Conferência · Nota, Proposta, Aprovação</span><span>Compras</span><span>Cadastro</span><span>Recebimento</span><span>Contas a pagar</span><span>Pagamentos</span></div>
-        <div class="host"><svg class="logo" role="img" aria-label="Cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg>Cloudflare Worker, com Cron</div></div>
+        <div class="host"><svg class="logo" role="img" aria-label="cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg>Cloudflare Worker, com Cron a cada 15 min</div></div>
       <div class="ar" style="grid-column:6;grid-row:1">→</div>
       <div class="models" style="grid-column:7;grid-row:1">
-        <div class="n claude"><div class="logos"><svg class="logo" role="img" aria-label="Claude" style="color:var(--claude)"><use href="#i-claude"/></svg></div><b>Claude</b><div class="s">SDK da Anthropic. Saída estruturada.</div></div>
-        <div class="n clef"><div class="logos"><svg class="logo" role="img" aria-label="Cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg></div><b>Clef</b><div class="s">Workers AI, pelo binding.</div></div>
+        <div class="n gh"><div class="logos"><svg class="logo" role="img" aria-label="github" style="color:var(--ink)"><use href="#i-github"/></svg><svg class="logo" role="img" aria-label="claude" style="color:var(--claude)"><use href="#i-claude"/></svg></div><b>Executor do Claude</b><div class="s">GitHub Actions com o Agent SDK e o setup token. Fora do Worker.</div></div>
+        <div class="n clef"><div class="logos"><svg class="logo" role="img" aria-label="cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg></div><b>Clef</b><div class="s">Workers AI, pelo binding.</div></div>
       </div>
       <div class="ar down">↕</div>
       <div class="outs r3" style="grid-column:3 / span 5">
-        <div class="n cf"><div class="k">Tela</div><div class="logos"><svg class="logo" role="img" aria-label="Astro" style="color:var(--astro)"><use href="#i-astro"/></svg><svg class="logo" role="img" aria-label="React" style="color:var(--react)"><use href="#i-react"/></svg><svg class="logo" role="img" aria-label="Cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg></div><b>Aprovação</b><div class="s">Cloudflare Access na frente: entra com o e-mail.</div></div>
-        <div class="n sb"><div class="k">Dados</div><div class="logos"><svg class="logo" role="img" aria-label="Supabase" style="color:var(--supabase)"><use href="#i-supabase"/></svg></div><b>Supabase</b><div class="mini"><span>Banco</span><span>Storage</span></div><div class="region">São Paulo · dados fiscais no Brasil, exigência do cliente</div></div>
-        <div class="n"><div class="k">Aviso</div><div class="logos"><svg class="logo" role="img" aria-label="Resend" style="color:var(--ink)"><use href="#i-resend"/></svg></div><b>E-mail a quem aprova</b><div class="s">O Worker avisa pelo Resend.</div></div>
+        <div class="n cf"><div class="k">Telas</div><div class="logos"><svg class="logo" role="img" aria-label="astro" style="color:var(--astro)"><use href="#i-astro"/></svg><svg class="logo" role="img" aria-label="react" style="color:var(--react)"><use href="#i-react"/></svg><svg class="logo" role="img" aria-label="cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg></div><b>Aprovação, doca do CD e loja</b><div class="s">O recebimento na loja é separado da doca do CD. Cloudflare Access cobre o host inteiro.</div></div>
+        <div class="n sb"><div class="k">Dados</div><div class="logos"><svg class="logo" role="img" aria-label="supabase" style="color:var(--supabase)"><use href="#i-supabase"/></svg></div><b>Supabase</b><div class="mini"><span>Banco</span><span>Storage</span><span>Fila de devolução</span></div><div class="region">São Paulo · dados fiscais no Brasil, exigência do cliente</div></div>
+        <div class="n"><div class="k">Aviso</div><div class="logos"><svg class="logo" role="img" aria-label="resend" style="color:var(--ink)"><use href="#i-resend"/></svg></div><b>E-mail a quem aprova</b><div class="s">O Worker avisa pelo Resend.</div></div>
       </div>
     </div>
-    <div class="ship"><svg class="logo" role="img" aria-label="GitHub" style="color:var(--ink)"><use href="#i-github"/></svg><span><b>GitHub Actions</b> publica os Workers e aplica as migrações.</span></div>
+    <div class="ship"><svg class="logo" role="img" aria-label="github" style="color:var(--ink)"><use href="#i-github"/></svg><span><b>GitHub Actions</b> também publica os Workers e aplica as migrações.</span></div>
   </section>
 
   <section>
-    <h2>Só o Worker fala com o banco</h2>
-    <div class="guards">
-      <div class="gd"><span class="num">1</span>RLS ligado, sem nenhuma política: a chave pública não lê nada.</div>
-      <div class="gd"><span class="num">2</span>O navegador nunca fala direto com o Supabase.</div>
-      <div class="gd"><span class="num">3</span>O MCP chama a API, nunca o banco.</div>
+    <h2>Três runtimes</h2>
+    <div class="rt">
+      <div class="n cf"><div class="k">1 · Worker</div><div class="logos"><svg class="logo" role="img" aria-label="cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg><svg class="logo" role="img" aria-label="typescript" style="color:var(--ts)"><use href="#i-typescript"/></svg><svg class="logo" role="img" aria-label="hono" style="color:var(--hono)"><use href="#i-hono"/></svg></div><b>Regra e Clef, sem Claude</b>
+        <span class="tag no">Sem Claude</span>
+        <ul><li>Cron, API e conferência.</li><li>Regra no código do domínio; Clef pelo binding do Workers AI.</li><li>Roda o motor de decisão (agente A).</li></ul></div>
+      <div class="n gh"><div class="k">2 · Executor</div><div class="logos"><svg class="logo" role="img" aria-label="github" style="color:var(--ink)"><use href="#i-github"/></svg><svg class="logo" role="img" aria-label="claude" style="color:var(--claude)"><use href="#i-claude"/></svg></div><b>GitHub Actions com o Agent SDK</b>
+        <span class="tag">Agent SDK</span>
+        <ul><li>Autentica pelo setup token. Não há chave da API da Anthropic.</li><li>Lê e grava no MCP por um service token do Access.</li><li>Roda os agentes C, D e E, cada um com suas Skills.</li></ul></div>
+      <div class="n claude"><div class="k">3 · Claude do analista</div><div class="logos"><svg class="logo" role="img" aria-label="claude" style="color:var(--claude)"><use href="#i-claude"/></svg><svg class="logo" role="img" aria-label="modelcontextprotocol" style="color:var(--ink)"><use href="#i-modelcontextprotocol"/></svg></div><b>MCP, MCP App e Skill</b>
+        <span class="tag">MCP · MCP App · Skill</span>
+        <ul><li>O analista decide a fila e delega ao motor sem sair do Claude.</li><li>O MCP App mostra a fila, a proposta e o relatório na conversa.</li><li>A Skill orienta o Claude (agente B).</li></ul></div>
     </div>
   </section>
 
   <section>
-    <h2>O que compõe a entrega</h2>
-    <div class="pieces">
-      <div class="pc"><div class="logos"><svg class="logo" role="img" aria-label="TypeScript" style="color:var(--ts)"><use href="#i-typescript"/></svg></div><div><b>Conectores</b><span class="t">SEFAZ, ERP, WMS e banco. Hoje, mocks da base do kit.</span></div></div>
-      <div class="pc"><div class="logos"><svg class="logo" role="img" aria-label="TypeScript" style="color:var(--ts)"><use href="#i-typescript"/></svg><svg class="logo" role="img" aria-label="Hono" style="color:var(--hono)"><use href="#i-hono"/></svg></div><div><b>API e esteira</b><span class="t">Worker com Cron: confere, roda a cascata, chama os modelos.</span></div></div>
-      <div class="pc star"><div class="logos"><svg class="logo" role="img" aria-label="Cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg><svg class="logo" role="img" aria-label="Claude" style="color:var(--claude)"><use href="#i-claude"/></svg></div><div><b>Agente de aprovação</b><span class="t">Aprovar a proposta: regra, Clef e pessoa.</span></div></div>
-      <div class="pc"><div class="logos"><svg class="logo" role="img" aria-label="Claude" style="color:var(--claude)"><use href="#i-claude"/></svg></div><div><b>Papéis do Claude</b><span class="t">Classificar, dossiê, recomendar, contar pela foto.</span></div></div>
-      <div class="pc"><div class="logos"><svg class="logo" role="img" aria-label="Cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg></div><div><b>Clef</b><span class="t">Pelo binding do Workers AI, sem chave à parte.</span></div></div>
-      <div class="pc"><div class="logos"><svg class="logo" role="img" aria-label="Cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg></div><div><b>Login</b><span class="t">Cloudflare Access: código por e-mail ou SSO. Grátis até 50 usuários.</span></div></div>
-      <div class="pc"><div class="logos"><svg class="logo" role="img" aria-label="Supabase" style="color:var(--supabase)"><use href="#i-supabase"/></svg></div><div><b>Banco e arquivos</b><span class="t">Em São Paulo. As regras ficam no código do domínio.</span></div></div>
-      <div class="pc"><div class="logos"><svg class="logo" role="img" aria-label="Astro" style="color:var(--astro)"><use href="#i-astro"/></svg><svg class="logo" role="img" aria-label="React" style="color:var(--react)"><use href="#i-react"/></svg></div><div><b>Tela de aprovação</b><span class="t">Nota ao lado da ordem; aprovar ou alterar.</span></div></div>
-      <div class="pc"><div class="logos"><svg class="logo" role="img" aria-label="Resend" style="color:var(--ink)"><use href="#i-resend"/></svg></div><div><b>Aviso por e-mail</b><span class="t">Quem decide recebe o link.</span></div></div>
-      <div class="pc"><div class="logos"><svg class="logo" role="img" aria-label="GitHub" style="color:var(--ink)"><use href="#i-github"/></svg></div><div><b>Esteira de entrega</b><span class="t">Publica os Workers e aplica as migrações.</span></div></div>
-      <div class="pc opt"><div class="logos"><svg class="logo" role="img" aria-label="MCP" style="color:var(--ink)"><use href="#i-modelcontextprotocol"/></svg><svg class="logo" role="img" aria-label="TypeScript" style="color:var(--ts)"><use href="#i-typescript"/></svg></div><div><b>Servidor MCP de leitura</b><span class="t">Opcional, num Worker. Chama a API.</span></div></div>
+    <h2>O MCP é a fonte única</h2>
+    <div class="src">
+      <div class="n"><div class="k">Quem lê</div><div class="logos"><svg class="logo" role="img" aria-label="claude" style="color:var(--claude)"><use href="#i-claude"/></svg><svg class="logo" role="img" aria-label="github" style="color:var(--ink)"><use href="#i-github"/></svg></div><b>Agentes e analista</b><div class="s">Executor (C, D, E) e Claude do analista (B). Ninguém lê o banco, nem arquivo do kit.</div></div>
+      <div class="ar">→</div>
+      <div class="n mcp"><div class="k">MCP · atrás do Access</div><div class="logos"><svg class="logo" role="img" aria-label="modelcontextprotocol" style="color:var(--ink)"><use href="#i-modelcontextprotocol"/></svg><svg class="logo" role="img" aria-label="typescript" style="color:var(--ts)"><use href="#i-typescript"/></svg><svg class="logo" role="img" aria-label="cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg></div><b><code>formacao-fde-solucao-case-mcp</code></b>
+        <div class="tools"><span>Leitura: fila, proposta, evidência, histórico, critérios</span><span class="w">Escrita por papel: decisão e delegação (analista)</span><span class="w">Escrita por papel: só opinião e alerta (auditor)</span><span class="w">Escrita por papel: dossiê e pedido ao fornecedor</span></div>
+        <div class="s">O job do executor entra por um service token do Access; o analista, pela identidade dele.</div></div>
+      <div class="ar">→</div>
+      <div class="n cf"><div class="k">API</div><div class="logos"><svg class="logo" role="img" aria-label="hono" style="color:var(--hono)"><use href="#i-hono"/></svg><svg class="logo" role="img" aria-label="supabase" style="color:var(--supabase)"><use href="#i-supabase"/></svg></div><b>Worker e Supabase</b><div class="s">O MCP chama a API, nunca o banco. O auditor não aprova nem muda o nível.</div></div>
     </div>
   </section>
 
   <section>
-    <h2>O agente que a turma vai construir</h2>
-    <div class="agent">
-      <div><span class="badge">Agente que iremos construir</span><h3>Agente de aprovação</h3><div class="foot" style="margin-top:6px">Aprovar a proposta, antes da doca. Aprovar com a contagem, depois.</div></div>
-      <div class="casc">
-        <div class="cs r"><div class="h"><svg class="logo" role="img" aria-label="TypeScript" style="color:var(--ts)"><use href="#i-typescript"/></svg><b>1 · Regra</b></div><span class="t">A conta fecha? Decide sem modelo.</span></div>
-        <div class="ar">→</div>
-        <div class="cs c"><div class="h"><svg class="logo" role="img" aria-label="Cloudflare" style="color:var(--cloudflare)"><use href="#i-cloudflare"/></svg><b>2 · Clef</b></div><span class="t">Aprova com confiança de 0,98 ou mais. Abaixo de 0,98, encaminha para uma pessoa decisora.</span></div>
-        <div class="ar">→</div>
-        <div class="cs p"><div class="h"><span class="initials" aria-hidden="true">Pe</span><b>3 · Pessoa</b></div><span class="t">Decide, com a recomendação do Claude.</span></div>
-      </div>
-      <div class="foot"><b>Nunca chega ao Clef:</b> duplicidade, fornecedor bloqueado, nota acima de R$ 100 mil, pedido de alterar.</div>
+    <h2>Os cinco agentes do case</h2>
+    <div class="ags">
+      <div class="ag"><div class="h"><span class="l">A</span><b>Motor de decisão</b></div><dl><dt>Runtime</dt><dd>Worker, sem Claude</dd><dt>Formato</dt><dd>Módulo no Worker: regra → Clef → pessoa. Modo sombra, depois aprova dentro dos critérios.</dd><dt>Fonte</dt><dd>Dados da proposta e base de critérios (#139). Saída gravada no banco.</dd></dl></div>
+      <div class="ag"><div class="h"><span class="l">B</span><b>Decisão no Claude</b></div><dl><dt>Runtime</dt><dd>Claude do analista</dd><dt>Formato</dt><dd>MCP, MCP App e Skill</dd><dt>Fonte</dt><dd>O MCP <code>formacao-fde-solucao-case-mcp</code>.</dd></dl></div>
+      <div class="ag"><div class="h"><span class="l">C</span><b>Dossiê</b></div><dl><dt>Runtime</dt><dd>Executor do GitHub Actions</dd><dt>Formato</dt><dd>Agent SDK com Skill. Rodada agendada e pedido na gaveta.</dd><dt>Fonte</dt><dd>O MCP. Todo número vem do catálogo de fatos.</dd></dl></div>
+      <div class="ag"><div class="h"><span class="l">D</span><b>Auditor de notas</b></div><dl><dt>Runtime</dt><dd>Executor do GitHub Actions</dd><dt>Formato</dt><dd>Agent SDK com o subagente <code>auditor-de-notas</code> e as 3 skills do domingo. Roda em paralelo à regra; só sobe o nível, nunca desce.</dd><dt>Fonte</dt><dd>O MCP, no lugar dos arquivos do kit.</dd></dl></div>
+      <div class="ag"><div class="h"><span class="l">E</span><b>Tratativa com o fornecedor</b></div><dl><dt>Runtime</dt><dd>Executor do GitHub Actions</dd><dt>Formato</dt><dd>Agent SDK com Skills: escrever o pedido e ler a resposta. Uma pessoa revisa e envia.</dd><dt>Fonte</dt><dd>O MCP, com caixa de saída e caixa de entrada <span class="mock">mock</span> no banco.</dd></dl></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>O pipeline</h2>
+    <div class="steps">
+      <div class="st">1 · Captura<small>Cron, SEFAZ</small></div>
+      <div class="st">2 · Regra<small>confere e classifica</small></div>
+      <div class="st">3 · Proposta<small>nível pela régua</small></div>
+      <div class="st par">4 · Motor (A) e auditor (D)<small>em paralelo</small></div>
+      <div class="st">5 · Dossiê (C)<small>para quem decide</small></div>
+      <div class="st">6 · Decisão<small>no Claude (B) ou na web</small></div>
+      <div class="st">7 · Pedido ao fornecedor (E)<small>uma pessoa envia</small></div>
+      <div class="st back">8 · Base de critérios<small>o raciocínio volta (#139)</small></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Regras que valem para todos</h2>
+    <div class="guards four">
+      <div class="gd"><span class="num">1</span>Nenhum número vem do texto do modelo: vem do banco.</div>
+      <div class="gd"><span class="num">2</span>Diretoria e bloqueio nunca são aprovados por máquina.</div>
+      <div class="gd"><span class="num">3</span>A régua é a fonte do encaminhamento: o nível só sobe, nunca desce.</div>
+      <div class="gd"><span class="num">4</span>Só o Worker fala com o banco: RLS sem política, e o MCP chama a API.</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>O que mudou desde o desenho original</h2>
+    <div class="chg">
+      <div class="pc"><div><b>Claude fora do Worker</b><span class="t">Roda no executor do GitHub Actions, com o Agent SDK e o setup token.</span> <small>#76</small></div></div>
+      <div class="pc"><div><b>Access no host inteiro</b><span class="t">Até o <code>/health</code> passa pelo login.</span> <small>#76</small></div></div>
+      <div class="pc"><div><b>Loja separada da doca</b><span class="t">O recebimento na loja tem a ação própria, no app da loja.</span> <small>#135</small></div></div>
+      <div class="pc"><div><b>Fila de devolução</b><span class="t">Notas de devolução pendentes de emissão no portal.</span> <small>#140</small></div></div>
     </div>
   </section>
 
