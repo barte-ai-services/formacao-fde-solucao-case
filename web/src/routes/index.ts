@@ -2,6 +2,7 @@
  * A tabela das rotas: um caminho, um arquivo. Cada história preenche o arquivo da sua rota e não
  * precisa tocar nesta tabela, a não ser para criar uma rota nova.
  */
+import Devolucoes from "./devolucoes";
 import Doca from "./doca";
 import NotasDuplicadas from "./duplicadas";
 import FilaDeAprovacao from "./fila";
@@ -21,6 +22,7 @@ export const ROUTES: readonly RouteDefinition[] = [
   { path: "/pagar/duplicadas", component: NotasDuplicadas },
   { path: "/pagar/valor-barrado", component: ValorBarrado },
   { path: "/doca", component: Doca },
+  { path: "/devolucoes", component: Devolucoes },
 ];
 
 /** Caminhos que só levam a outro. */

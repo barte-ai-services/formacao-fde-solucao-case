@@ -5,11 +5,12 @@ import type { Env } from "../env";
 import { authenticate, type AccessVerifier, type Identity } from "./access";
 import { MemoryApprovalStore } from "../approval/store";
 import { approvalRoutes, type ApprovalDeps } from "./approval";
-import { dockHandler, type DockDeps } from "./dock";
+import { dockHandler, supabaseFromEnv, type DockDeps } from "./dock";
 import { listDuplicates, noDuplicates, type DuplicatesReader } from "./duplicates";
 import { health } from "./health";
 import { me } from "./me";
 import { barredAmount } from "./barred-amount";
+import { returnNoteRoutes, type ReturnNotesDeps } from "./return-notes";
 
 type PublicHandler = () => Response;
 type ProtectedHandler = (identity: Identity, request: Request, env: Env) => Response | Promise<Response>;
@@ -43,6 +44,8 @@ export interface RouterDeps {
   approval?: ApprovalDeps | ((env: Env) => ApprovalDeps);
   /** Opcional: sem ele, a doca monta o Supabase do Env (#72). */
   dock?: DockDeps;
+  /** #140 A fila de notas de devolução. Padrão: o Supabase do Env. */
+  returnNotes?: ReturnNotesDeps;
   /** Leitura das duplicidades (#31/AC-6). Padrão: o Supabase, se o env tem as credenciais. */
   duplicates?: (env: Env) => DuplicatesReader;
 }
@@ -79,6 +82,9 @@ export async function route(request: Request, env: Env, deps: RouterDeps): Promi
       : (deps.approval ?? { store: new MemoryApprovalStore() }),
   );
   if (approval) return approval;
+
+  const returnNotes = await returnNoteRoutes(request, auth.identity, env, deps.returnNotes ?? {}, supabaseFromEnv);
+  if (returnNotes) return returnNotes;
 
   const methods = own(protectedRoutes(deps), pathname);
   if (methods) return dispatch(request, methods, (handler) => handler(auth.identity, request, env));

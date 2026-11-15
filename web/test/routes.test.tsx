@@ -14,6 +14,7 @@ const EXPECTED: Record<string, { path: string; title: string; empty: string }> =
   "/pagar/duplicadas": { path: "/pagar/duplicadas", title: "Notas duplicadas", empty: "Nenhuma nota duplicada neste mês" },
   "/pagar/valor-barrado": { path: "/pagar/valor-barrado", title: "Valor barrado", empty: "Nada barrado neste mês ainda" },
   "/doca": { path: "/doca", title: "Doca", empty: "Nenhuma nota com entrega prevista hoje" },
+  "/devolucoes": { path: "/devolucoes", title: "Notas de devolução", empty: "Nenhuma devolução pendente de emissão" },
 };
 
 function renderAt(path: string) {
@@ -27,6 +28,7 @@ function emptyApi(input: RequestInfo | URL): Promise<Response> {
   if (path.startsWith("/api/propostas/")) return Promise.resolve(Response.json({ error: "not_found" }, { status: 404 }));
   if (path === "/api/fila") return Promise.resolve(Response.json({ approver: { email: null, level: null }, items: [] }));
   if (path.startsWith("/api/doca")) return Promise.resolve(Response.json({ destination: null, date: "2026-11-15", destinations: [], awaiting: 0, rows: [] }));
+  if (path === "/api/notas-devolucao") return Promise.resolve(Response.json({ notes: [] }));
   if (path === "/api/duplicates") return Promise.resolve(Response.json({ duplicates: [], count: 0 }));
   if (path === "/api/hoje") return Promise.resolve(Response.json({ day: "2026-11-15", items: [], total: { cents: 0 } }));
   if (path === "/api/valor-barrado") return Promise.resolve(Response.json({ month: "2026-11", baselineCents: 54300000, barred: { totalCents: 0, byException: [] }, ifApprovedAsProposed: { totalCents: 0, byException: [] }, daily: [] }));

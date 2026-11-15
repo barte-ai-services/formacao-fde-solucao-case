@@ -91,6 +91,20 @@ export class FakePostgrest {
 
   private defaults(table: string): Row {
     const now = new Date().toISOString();
+    // #140 A fila de devolução: o estado inicial e as colunas que a migração deixa nulas.
+    if (table === 'outbox_return_notes') {
+      return {
+        id: this.nextId++,
+        published_at: now,
+        status: 'pendente',
+        nfe_number: null,
+        emitted_by: null,
+        emitted_at: null,
+        cancel_justification: null,
+        cancelled_by: null,
+        cancelled_at: null,
+      };
+    }
     if (table.startsWith('outbox_')) return { id: this.nextId++, published_at: now };
     if (table === 'invoices') return { captured_at: now, classification: null, checked_at: null };
     // #63 As colunas com default da migração do domínio e da aprovação.

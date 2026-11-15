@@ -21,7 +21,10 @@ export const NAVIGATION: NavGroup[] = [
   {
     key: "recebimento",
     label: "Recebimento",
-    items: [{ key: "doca", label: "Doca", href: "/doca", zone: ZONE, icon: "truck" }],
+    items: [
+      { key: "doca", label: "Doca", href: "/doca", zone: ZONE, icon: "truck" },
+      { key: "devolucoes", label: "Notas de devolução", href: "/devolucoes", zone: ZONE, icon: "receipt" },
+    ],
   },
 ];
 
