@@ -12,14 +12,14 @@ import {
 } from '../connectors/guards.js';
 import type { SupabaseRest } from '../connectors/supabase-rest.js';
 
-export const RETURN_NOTE_STATUSES = ['pendente', 'emitida', 'cancelada'] as const;
+export const RETURN_NOTE_STATUSES = ['pendente', 'emitida', 'cancelada'] as const; // ADR-002
 export type ReturnNoteStatus = (typeof RETURN_NOTE_STATUSES)[number];
 
 export type ReturnNoteLineView = {
   supplierCode: string;
   description: string;
   quantity: { amount: number; unit: 'UN' | 'CX' };
-  /** Centavos: quantidade devolvida vezes o preço da linha na nota; null se a nota não tem a linha. */
+  /** #140 Centavos: quantidade devolvida vezes o preço da linha na nota; null se a nota não tem a linha. */
   valueCents: number | null;
 };
 
@@ -33,7 +33,7 @@ export type ReturnNoteView = {
   lines: ReturnNoteLineView[];
   valueCents: number | null;
   publishedAt: string;
-  /** Segundos desde que entrou na fila, até a emissão ou o cancelamento; null se a data não se lê. */
+  /** #140 Segundos desde que entrou na fila, até a emissão ou o cancelamento; null se a data não se lê. */
   pendingSeconds: number | null;
   emitted: { number: string; by: string; at: string } | null;
   cancelled: { justification: string; by: string; at: string } | null;
@@ -149,9 +149,9 @@ export function supabaseReturnNoteQueue(rest: SupabaseRest): ReturnNoteQueue {
     return rows.map((row) => toView(row, invoices.find((i) => i.access_key === row.invoice_access_key), now));
   }
 
-  /** O PATCH só pega a linha ainda pendente: duas pessoas na mesma nota, só uma vence. */
+  /** #140 O PATCH só pega a linha ainda pendente: duas pessoas na mesma nota, só uma vence. */
   async function transition(id: number, patch: Record<string, unknown>, now: Date): Promise<TransitionResult> {
-    const changed = parseRows(await rest.update(TABLE, { id: `eq.${id}`, status: 'eq.pendente' }, patch), isRow, TABLE);
+    const changed = parseRows(await rest.update(TABLE, { id: `eq.${id}`, status: 'eq.pendente' }, patch), isRow, TABLE); // ADR-002
     const [row] = changed;
     if (row) return { kind: 'ok', note: (await withInvoices([row], now))[0]! };
     const exists = await rest.select(TABLE, { select: 'id', filters: { id: `eq.${id}` } });

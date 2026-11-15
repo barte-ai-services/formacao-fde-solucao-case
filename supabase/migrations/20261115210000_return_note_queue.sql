@@ -3,7 +3,7 @@
 -- #140 As linhas que já estão na caixa entram como pendentes. RLS segue ligado e sem política (AC-6 do #59).
 
 alter table public.outbox_return_notes
-  add column status text not null default 'pendente',
+  add column status text not null default 'pendente', -- ADR-002
   add column nfe_number text,
   add column emitted_by text,
   add column emitted_at timestamptz,
@@ -12,7 +12,7 @@ alter table public.outbox_return_notes
   add column cancelled_at timestamptz;
 
 alter table public.outbox_return_notes
-  add constraint outbox_return_notes_status_check check (status in ('pendente', 'emitida', 'cancelada')),
+  add constraint outbox_return_notes_status_check check (status in ('pendente', 'emitida', 'cancelada')), -- ADR-002
   add constraint outbox_return_notes_emitida_check check (
     (status = 'emitida') = (nfe_number is not null and emitted_by is not null and emitted_at is not null)
   ),

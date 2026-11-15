@@ -9,7 +9,7 @@ O contrato do domínio do contas a pagar (#59) é a base que 9 planos (#62 a #73
 
 ## Decision
 
-Os arquivos e as funções de verificação (`api/src/domain/checks/e*-*.ts`, `nao-catalogada.ts`, `check*`), os literais de estado e de tipo que espelham o modelo e o glossário (estados de `Invoice`, `Proposal` e `Title`, `ApprovalLevel`, `DockAction` com `kind` e `disposition`, `EvidenceSource`, `PurchaseOrder.status`) e os nomes de teste escritos como frase seguem a língua do modelo, em português. Cada linha que declara um desses nomes leva `// ADR-002`. O detector de linguagem dos bastidores roda com `--exclude 'api/src/domain/checks/*'` e `--exclude 'api/test/domain/*'`. Todo o resto (classes, métodos, campos) segue em inglês.
+Os arquivos e as funções de verificação (`api/src/domain/checks/e*-*.ts`, `nao-catalogada.ts`, `check*`), os literais de estado e de tipo que espelham o modelo e o glossário (estados de `Invoice`, `Proposal` e `Title`, `ApprovalLevel`, `DockAction` com `kind` e `disposition`, `EvidenceSource`, `PurchaseOrder.status`, `ReturnNote` com `pendente`, `emitida` e `cancelada`, #140) e os nomes de teste escritos como frase seguem a língua do modelo, em português. Cada linha que declara um desses nomes leva `// ADR-002`. O detector de linguagem dos bastidores roda com `--exclude 'api/src/domain/checks/*'` e `--exclude 'api/test/domain/*'`. Todo o resto (classes, métodos, campos) segue em inglês.
 
 ## Consequences
 

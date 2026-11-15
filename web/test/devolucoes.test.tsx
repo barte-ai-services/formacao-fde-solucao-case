@@ -36,7 +36,7 @@ describe("#140 /devolucoes", () => {
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input);
     if (init?.method === "POST") {
-      return Response.json({ ...note, status: path.endsWith("/emitir") ? "emitida" : "cancelada" });
+      return Response.json({ ...note, status: path.endsWith("/issue") ? "emitida" : "cancelada" });
     }
     return Response.json({ notes: [note] });
   });
@@ -54,7 +54,7 @@ describe("#140 /devolucoes", () => {
   it("AC-2 mostra nota de origem, fornecedor, itens e quantidades, valor, motivo e há quanto tempo", async () => {
     renderRoute();
     const row = (await screen.findByText("NF 70633")).closest("tr")!;
-    expect(String(fetchMock.mock.calls[0]![0])).toBe("/api/notas-devolucao");
+    expect(String(fetchMock.mock.calls[0]![0])).toBe("/api/return-notes");
     expect(within(row).getByText("F05")).toBeTruthy();
     expect(within(row).getByText("20 UN de Feijão carioca 1 kg")).toBeTruthy();
     expect(within(row).getByText(/R\$\s*125,00/)).toBeTruthy();
@@ -74,7 +74,7 @@ describe("#140 /devolucoes", () => {
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(([, init]) => init?.method === "POST")!;
-      expect(String(post[0])).toBe("/api/notas-devolucao/7/emitir");
+      expect(String(post[0])).toBe("/api/return-notes/7/issue");
       expect(JSON.parse(String(post[1]!.body))).toEqual({ nfeNumber: "123456" });
     });
   });
@@ -90,14 +90,14 @@ describe("#140 /devolucoes", () => {
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(([, init]) => init?.method === "POST")!;
-      expect(String(post[0])).toBe("/api/notas-devolucao/7/cancelar");
+      expect(String(post[0])).toBe("/api/return-notes/7/cancel");
       expect(JSON.parse(String(post[1]!.body))).toEqual({ justification: "Crédito do fornecedor" });
     });
   });
 
   it("nota já decidida por outra pessoa mostra o aviso de conflito", async () => {
     fetchMock.mockImplementationOnce(async () => Response.json({ notes: [note] }));
-    fetchMock.mockImplementationOnce(async () => Response.json({ error: "ja_decidida" }, { status: 409 }));
+    fetchMock.mockImplementationOnce(async () => Response.json({ error: "already_decided" }, { status: 409 }));
     renderRoute();
     fireEvent.click((await screen.findByText("NF 70633")).closest("tr")!);
     fireEvent.change(await screen.findByLabelText("Número da NF-e de devolução"), { target: { value: "9" } });

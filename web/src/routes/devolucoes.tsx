@@ -57,7 +57,7 @@ function Two({ top, bottom }: { top: ReactNode; bottom: ReactNode }) {
 }
 
 /** /devolucoes: a fila de notas de devolução que o fiscal emite no ERP e marca como emitidas (#140). */
-export default function NotasDeDevolucao(_props: RouteProps) {
+export default function ReturnNotes(_props: RouteProps) {
   const [status, setStatus] = useState<ReturnNoteStatusDto>("pendente");
   const [openId, setOpenId] = useState<number | null>(null);
   const { state, data, retry } = useLoad(
@@ -162,7 +162,7 @@ function NoteDrawer({ note, onClose, onDecided }: { note: ReturnNoteDto; onClose
     }
   }
   const emit = () => {
-    if (!/^\d+$/.test(nfe.trim())) return setNfeError("Informe o número da NF-e de devolução.");
+    if (!/^\d{1,9}$/.test(nfe.trim())) return setNfeError("Informe o número da NF-e de devolução.");
     setNfeError(null);
     void run(() => returnNotesApi.emit(note.id, nfe.trim()));
   };

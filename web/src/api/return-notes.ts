@@ -1,8 +1,8 @@
-// #140 A fila de notas de devolução no fio: `GET /api/notas-devolucao` e as duas ações.
+// #140 A fila de notas de devolução no fio: `GET /api/return-notes` e as duas ações.
 import { apiGet, apiPost } from "./client";
 import type { Cents, QuantityDto } from "./contract";
 
-export type ReturnNoteStatusDto = "pendente" | "emitida" | "cancelada";
+export type ReturnNoteStatusDto = "pendente" | "emitida" | "cancelada"; // ADR-002
 
 export interface ReturnNoteLineDto {
   supplierCode: string;
@@ -26,13 +26,13 @@ export interface ReturnNoteDto {
   cancelled: { justification: string; by: string; at: string } | null;
 }
 
-const path = (id: number, action: string) => `/api/notas-devolucao/${id}/${action}`;
+const path = (id: number, action: string) => `/api/return-notes/${id}/${action}`;
 
 export const returnNotesApi = {
   list(status: ReturnNoteStatusDto, signal?: AbortSignal): Promise<{ notes: ReturnNoteDto[] }> {
-    const query = status === "pendente" ? "" : `?estado=${status}`;
-    return apiGet(`/api/notas-devolucao${query}`, { signal });
+    const query = status === "pendente" ? "" : `?status=${status}`;
+    return apiGet(`/api/return-notes${query}`, { signal });
   },
-  emit: (id: number, nfeNumber: string) => apiPost<ReturnNoteDto>(path(id, "emitir"), { nfeNumber }),
-  cancel: (id: number, justification: string) => apiPost<ReturnNoteDto>(path(id, "cancelar"), { justification }),
+  emit: (id: number, nfeNumber: string) => apiPost<ReturnNoteDto>(path(id, "issue"), { nfeNumber }),
+  cancel: (id: number, justification: string) => apiPost<ReturnNoteDto>(path(id, "cancel"), { justification }),
 };

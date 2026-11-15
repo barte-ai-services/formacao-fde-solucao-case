@@ -63,7 +63,7 @@ O briefing pede exatamente isto: anotar os "termos que cada cargo usa com sentid
 | **Doca** (`Dock`) | O lugar do CD onde o caminhão é recebido, com hora agendada. | "O CD recebe com doca agendada em planilha"; "Agenda de doca dos CDs" | Proibido: "doca" para a loja (ver [ambiguidades](#ambiguidades-resolvidas)) |
 | **Ação na doca** (`DockAction`) | O que fazer com a mercadoria: receber, receber parcial ou recusar. | "a doca recebe, recebe parcial ou recusa, e a divergência vira recusa ou nota de devolução no ERP" | Proibido: "pagamento parcial" para receber parcial |
 | **Aceite** (`Acceptance`) | Aceitar a mercadoria e a nota. Para o jurídico, aceita o pedido. | "O jurídico diz que aceitar a nota é aceitar o pedido" | Proibido: "recebimento" para o aceite |
-| **Nota de devolução** (`ReturnNote`) | Documento que devolve ao fornecedor a diferença cobrada e não recebida ou não pedida. | "emitir nota de devolução"; "a divergência vira recusa ou nota de devolução no ERP" | |
+| **Nota de devolução** (`ReturnNote`) | Documento que devolve ao fornecedor a diferença cobrada e não recebida ou não pedida. | "emitir nota de devolução"; "a divergência vira recusa ou nota de devolução no ERP" | Estados na fila do fiscal (#140): `pendente`, `emitida` (com o número da NF-e de devolução) e `cancelada` (com justificativa). |
 
 ## O pagamento
 

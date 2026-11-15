@@ -65,13 +65,13 @@ type Listed = {
   cancelled: { justification: string; by: string; at: string } | null;
 };
 
-describe('#140 GET /api/notas-devolucao', () => {
+describe('#140 GET /api/return-notes', () => {
   it('AC-1/AC-2 lista a devolução pendente com nota de origem, fornecedor, itens, valor, motivo e há quanto tempo', async () => {
     const { fake, call, outbox } = setup();
     await publishNote(outbox);
     (fake.rows('outbox_return_notes')[0] as Record<string, unknown>).published_at = '2026-11-15T12:30:00Z';
 
-    const response = await call('/api/notas-devolucao');
+    const response = await call('/api/return-notes');
 
     expect(response.status).toBe(200);
     const { notes } = (await response.json()) as { notes: Listed[] };
@@ -100,19 +100,19 @@ describe('#140 GET /api/notas-devolucao', () => {
     await publishNote(outbox);
     await publishNote(outbox);
 
-    const { notes } = (await (await call('/api/notas-devolucao')).json()) as { notes: Listed[] };
+    const { notes } = (await (await call('/api/return-notes')).json()) as { notes: Listed[] };
 
     expect(notes).toHaveLength(1);
   });
 
-  it('a fila padrão traz só as pendentes; ?estado= escolhe outro estado', async () => {
+  it('a fila padrão traz só as pendentes; ?status= escolhe outro estado', async () => {
     const { call, outbox } = setup();
     const a = await publishNote(outbox, 4);
     await publishNote(outbox, 5);
-    await call(`/api/notas-devolucao/${a.id}/emitir`, 'POST', { nfeNumber: '123456' });
+    await call(`/api/return-notes/${a.id}/issue`, 'POST', { nfeNumber: '123456' });
 
-    const pending = (await (await call('/api/notas-devolucao')).json()) as { notes: Listed[] };
-    const emitted = (await (await call('/api/notas-devolucao?estado=emitida')).json()) as { notes: Listed[] };
+    const pending = (await (await call('/api/return-notes')).json()) as { notes: Listed[] };
+    const emitted = (await (await call('/api/return-notes?status=emitida')).json()) as { notes: Listed[] };
 
     expect(pending.notes.map((n) => n.status)).toEqual(['pendente']);
     expect(emitted.notes.map((n) => n.id)).toEqual([a.id]);
@@ -126,24 +126,24 @@ describe('#140 GET /api/notas-devolucao', () => {
       lines: [{ supplierCode: 'X', quantity: Quantity.of(1, 'UN') }],
     });
 
-    const { notes } = (await (await call('/api/notas-devolucao')).json()) as { notes: Listed[] };
+    const { notes } = (await (await call('/api/return-notes')).json()) as { notes: Listed[] };
 
     expect(notes[0]).toMatchObject({ invoiceNumber: null, supplierId: null, valueCents: null });
   });
 
   it('estado fora da lista responde 400; sem credenciais do Supabase, 503', async () => {
     const { call } = setup();
-    expect((await call('/api/notas-devolucao?estado=x')).status).toBe(400);
-    expect((await call('/api/notas-devolucao', 'GET', undefined, { ...ENV, BARTE_ACADEMY_SUPABASE_URL: undefined })).status).toBe(503);
+    expect((await call('/api/return-notes?status=x')).status).toBe(400);
+    expect((await call('/api/return-notes', 'GET', undefined, { ...ENV, BARTE_ACADEMY_SUPABASE_URL: undefined })).status).toBe(503);
   });
 });
 
-describe('#140 POST /api/notas-devolucao/:id/emitir', () => {
+describe('#140 POST /api/return-notes/:id/issue', () => {
   it('AC-3 marca como emitida com o número da NF-e, quem e quando', async () => {
     const { fake, call, outbox } = setup();
     const { id } = await publishNote(outbox);
 
-    const response = await call(`/api/notas-devolucao/${id}/emitir`, 'POST', { nfeNumber: ' 123456 ' });
+    const response = await call(`/api/return-notes/${id}/issue`, 'POST', { nfeNumber: ' 123456 ' });
 
     expect(response.status).toBe(200);
     const body = (await response.json()) as Listed;
@@ -166,7 +166,7 @@ describe('#140 POST /api/notas-devolucao/:id/emitir', () => {
       const { fake, call, outbox } = setup();
       const { id } = await publishNote(outbox);
 
-      const response = await call(`/api/notas-devolucao/${id}/emitir`, 'POST', body);
+      const response = await call(`/api/return-notes/${id}/issue`, 'POST', body);
 
       expect(response.status).toBe(400);
       expect(fake.rows('outbox_return_notes')[0]).toMatchObject({ status: 'pendente' });
@@ -176,9 +176,9 @@ describe('#140 POST /api/notas-devolucao/:id/emitir', () => {
   it('emitir de novo, ou emitir a cancelada, responde 409 e não muda nada', async () => {
     const { fake, call, outbox } = setup();
     const { id } = await publishNote(outbox);
-    await call(`/api/notas-devolucao/${id}/emitir`, 'POST', { nfeNumber: '1' });
+    await call(`/api/return-notes/${id}/issue`, 'POST', { nfeNumber: '1' });
 
-    const again = await call(`/api/notas-devolucao/${id}/emitir`, 'POST', { nfeNumber: '2' });
+    const again = await call(`/api/return-notes/${id}/issue`, 'POST', { nfeNumber: '2' });
 
     expect(again.status).toBe(409);
     expect(fake.rows('outbox_return_notes')[0]).toMatchObject({ nfe_number: '1' });
@@ -186,20 +186,20 @@ describe('#140 POST /api/notas-devolucao/:id/emitir', () => {
 
   it('nota que não existe responde 404; identidade sem e-mail, 403', async () => {
     const { call } = setup();
-    expect((await call('/api/notas-devolucao/999/emitir', 'POST', { nfeNumber: '1' })).status).toBe(404);
+    expect((await call('/api/return-notes/999/issue', 'POST', { nfeNumber: '1' })).status).toBe(404);
 
     const anonymous = setup(null);
     const { id } = await publishNote(anonymous.outbox);
-    expect((await anonymous.call(`/api/notas-devolucao/${id}/emitir`, 'POST', { nfeNumber: '1' })).status).toBe(403);
+    expect((await anonymous.call(`/api/return-notes/${id}/issue`, 'POST', { nfeNumber: '1' })).status).toBe(403);
   });
 });
 
-describe('#140 POST /api/notas-devolucao/:id/cancelar', () => {
+describe('#140 POST /api/return-notes/:id/cancel', () => {
   it('cancela a pendente com a justificativa, quem e quando', async () => {
     const { fake, call, outbox } = setup();
     const { id } = await publishNote(outbox);
 
-    const response = await call(`/api/notas-devolucao/${id}/cancelar`, 'POST', { justification: ' Fornecedor mandou o crédito ' });
+    const response = await call(`/api/return-notes/${id}/cancel`, 'POST', { justification: ' Fornecedor mandou o crédito ' });
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
@@ -212,15 +212,15 @@ describe('#140 POST /api/notas-devolucao/:id/cancelar', () => {
   it('sem justificativa responde 400; cancelar a emitida responde 409', async () => {
     const { call, outbox } = setup();
     const { id } = await publishNote(outbox);
-    expect((await call(`/api/notas-devolucao/${id}/cancelar`, 'POST', { justification: '  ' })).status).toBe(400);
+    expect((await call(`/api/return-notes/${id}/cancel`, 'POST', { justification: '  ' })).status).toBe(400);
 
-    await call(`/api/notas-devolucao/${id}/emitir`, 'POST', { nfeNumber: '1' });
-    expect((await call(`/api/notas-devolucao/${id}/cancelar`, 'POST', { justification: 'engano' })).status).toBe(409);
+    await call(`/api/return-notes/${id}/issue`, 'POST', { nfeNumber: '1' });
+    expect((await call(`/api/return-notes/${id}/cancel`, 'POST', { justification: 'engano' })).status).toBe(409);
   });
 
   it('id que não é número responde 404, e método errado 405', async () => {
     const { call } = setup();
-    expect((await call('/api/notas-devolucao/abc/cancelar', 'POST', { justification: 'x' })).status).toBe(404);
-    expect((await call('/api/notas-devolucao/1/cancelar', 'GET')).status).toBe(405);
+    expect((await call('/api/return-notes/abc/cancel', 'POST', { justification: 'x' })).status).toBe(404);
+    expect((await call('/api/return-notes/1/cancel', 'GET')).status).toBe(405);
   });
 });
