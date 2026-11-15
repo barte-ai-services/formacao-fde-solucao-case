@@ -11,6 +11,7 @@ import {
 } from "@barte-ai-services/barte-ui-kit";
 import { apiGet } from "../api";
 import type { Cents, DivergenceCode } from "../api/contract";
+import { AutomationIndicators } from "../components/AutomationIndicators";
 import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
@@ -143,6 +144,7 @@ function BarredAmountView({ panel }: { panel: BarredAmountDto }): ReactElement {
 
   return (
     <>
+      <AutomationIndicators />
       <StatGrid columns={2}>
         <Stat
           caption={texts.valorBarrado.statAvoided.caption(monthName(panel.month))}

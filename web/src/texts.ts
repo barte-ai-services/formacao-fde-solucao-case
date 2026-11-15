@@ -17,6 +17,32 @@ export const texts = {
     noteWord: (n: number) => (n === 1 ? "1 nota" : `${n} notas`),
   },
 
+  /** #211 A faixa de automação no topo das telas, a gaveta das rodadas e os indicadores. */
+  automation: {
+    ok: (lastAt: string, ago: string, nextAt: string) => `⚙ Automático · última rodada às ${lastAt} (${ago}) · próxima às ${nextAt}`,
+    figures: (f: { captured: number; checked: number; byRule: number; toPerson: number; published: number }) =>
+      `${f.captured === 1 ? "1 nota capturada" : `${f.captured} notas capturadas`} · ${f.checked === 1 ? "1 conferida" : `${f.checked} conferidas`} · ${f.byRule === 1 ? "1 aprovada" : `${f.byRule} aprovadas`} pela regra · ${f.toPerson} para pessoa · ${f.published === 1 ? "1 ação publicada" : `${f.published} ações publicadas`} na doca`,
+    failed: (lastAt: string, nextAt: string) => `A última rodada falhou às ${lastAt}. A próxima tenta de novo às ${nextAt}.`,
+    stalled: (since: string) => `A automação está parada desde ${since}.`,
+    neverRan: "A automação ainda não rodou.",
+    seeRuns: "Ver rodadas",
+    drawerTitle: "Últimas rodadas",
+    ago: (minutes: number) => (minutes < 1 ? "agora" : minutes < 60 ? `há ${minutes} min` : `há ${Math.floor(minutes / 60)} h`),
+    columns: { at: "Início", status: "Estado", captured: "Capturadas", checked: "Conferidas", byRule: "Pela regra", toPerson: "Para pessoa", published: "Publicadas" },
+    statusOk: "Ok",
+    statusFailed: "Falhou",
+    noRuns: "Nenhuma rodada registrada ainda.",
+    indicators: {
+      withoutPerson: "Resolvidas sem pessoa",
+      withoutPersonContext: (month: string) => `hoje · no mês: ${month}`,
+      withoutPersonInfo: "Parte das notas decididas pela regra, sobre o total decidido.",
+      captureToDecision: "Da captura à decisão",
+      captureToDecisionContext: (withPerson: string) => `sem pessoa · com pessoa: ${withPerson}`,
+      captureToDecisionInfo: "Tempo mediano entre a captura da nota e a decisão.",
+      none: "—",
+    },
+  },
+
   /** #123 O estado vazio das telas: título, explicação e a ação para a fila. */
   emptyState: {
     action: "Ver a fila de aprovação",

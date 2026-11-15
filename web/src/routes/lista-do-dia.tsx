@@ -2,6 +2,7 @@ import { Table } from "barte-design-system";
 import { Stat, StatGrid } from "@barte-ai-services/barte-ui-kit";
 import { approvalApi, type TodayDto } from "../api/approval";
 import { ACTION_LABEL, ACTION_TONE, codeLabel } from "../approval/labels";
+import { AutomationIndicators } from "../components/AutomationIndicators";
 import { GridBadge } from "../components/GridBadge";
 import { InvoiceCell } from "../components/InvoiceCell";
 import { EmptyState } from "../components/EmptyState";
@@ -49,6 +50,7 @@ export default function ListaDoDia(_props: RouteProps) {
             <Stat caption={texts.listaDoDia.statToPay.caption} value={BRL.format((data?.total.cents ?? 0) / 100)} context={texts.listaDoDia.statToPay.context} />
             <Stat caption={texts.listaDoDia.statByRule.caption} value={byRule} context={texts.listaDoDia.statByRule.context} tone="positive" />
           </StatGrid>
+          <AutomationIndicators />
           <Table<Row>
             data={items}
             rowKey={(i) => i.invoiceAccessKey}

@@ -95,3 +95,9 @@ table [class*="StatusBadge-module__label"] {
   outline: var(--border-width-md) solid var(--stroke-brand);
   outline-offset: var(--spacing-2xs);
 }
+
+/* #211 A faixa de automação, com o mesmo respiro lateral das telas. */
+.pagar-automation-band {
+  margin: var(--spacing-md) 0 0;
+  padding: 0 var(--spacing-xl);
+}

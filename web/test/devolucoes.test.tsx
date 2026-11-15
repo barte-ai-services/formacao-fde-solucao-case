@@ -33,17 +33,19 @@ describe("#140 pendingSince", () => {
 });
 
 describe("#140 /devolucoes", () => {
-  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+  const respond = async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input);
     if (init?.method === "POST") {
       return Response.json({ ...note, status: path.endsWith("/issue") ? "emitida" : "cancelada" });
     }
     return Response.json({ notes: [note] });
-  });
+  };
+  const fetchMock = vi.fn(respond);
   beforeEach(() => vi.stubGlobal("fetch", fetchMock));
   afterEach(() => {
     vi.unstubAllGlobals();
     fetchMock.mockClear();
+    fetchMock.mockImplementation(respond);
   });
 
   function renderRoute() {
@@ -97,7 +99,10 @@ describe("#140 /devolucoes", () => {
 
   it("nota já decidida por outra pessoa mostra o aviso de conflito", async () => {
     fetchMock.mockImplementationOnce(async () => Response.json({ notes: [note] }));
-    fetchMock.mockImplementationOnce(async () => Response.json({ error: "already_decided" }, { status: 409 }));
+    // #211 A faixa de automação também chama a API: só o POST leva o 409.
+    fetchMock.mockImplementation(async (_input, init) =>
+      init?.method === "POST" ? Response.json({ error: "already_decided" }, { status: 409 }) : Response.json({ notes: [note] }),
+    );
     renderRoute();
     fireEvent.click((await screen.findByText("NF 70633")).closest("tr")!);
     fireEvent.change(await screen.findByLabelText("Número da NF-e de devolução"), { target: { value: "9" } });
