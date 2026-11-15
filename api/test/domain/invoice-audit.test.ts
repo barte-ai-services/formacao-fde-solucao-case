@@ -155,7 +155,7 @@ describe('applyAudit (#230)', () => {
   it('#230/AC-4: a auditoria não carrega ação nem decisão para a proposta, só o que ela mesma diz', () => {
     const result = applyAudit(valid({ dock_action: 'recusar' }), rule(), null);
     expect(Object.keys(result).sort()).toEqual(['agreement', 'audit', 'injectionFlag', 'raisedLevel']);
-    expect(result.audit.dockAction).toBe('recusar'); // a opinião do auditor; a ação da regra segue na proposta
+    expect(result.audit.dockAction).toBe('recusar'); // #230 a opinião do auditor; a ação da regra segue na proposta
   });
 
   it('#230/AC-5: o trecho de injeção entra no resultado', () => {

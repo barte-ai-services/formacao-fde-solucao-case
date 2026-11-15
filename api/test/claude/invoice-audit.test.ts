@@ -32,12 +32,14 @@ type Doubles = {
   saved: { key: string; result: AuditResult }[];
   notAuditedRows: { key: string; outcome: NotAudited }[];
   readCalls: string[];
+  sweeps: { count: number };
 };
 
 function doubles(note: AuditedNote | null, failing: Partial<Record<keyof AuditReadsPort, boolean>> = {}): Doubles {
   const saved: Doubles['saved'] = [];
   const notAuditedRows: Doubles['notAuditedRows'] = [];
   const readCalls: string[] = [];
+  const sweeps = { count: 0 };
   const read = (name: keyof AuditReadsPort) => async () => {
     readCalls.push(name);
     if (failing[name]) throw new Error(`${name}: falhou com ${SEGREDO}`);
@@ -60,11 +62,12 @@ function doubles(note: AuditedNote | null, failing: Partial<Record<keyof AuditRe
     loadNote: async () => note,
     save: async (key, result) => void saved.push({ key, result }),
     saveNotAudited: async (key, outcome) => void notAuditedRows.push({ key, outcome }),
+    reapplyRaisedLevels: async () => void (sweeps.count += 1),
   };
-  return { audits, reads, saved, notAuditedRows, readCalls };
+  return { audits, reads, saved, notAuditedRows, readCalls, sweeps };
 }
 
-/** Como o cliente real: a falha do handler volta ao modelo como erro genérico, sem o texto dela. */
+/** #230 Como o cliente real: a falha do handler volta ao modelo como erro genérico, sem o texto dela. */
 async function callTool(options: ConverseOptions, name: string, input: unknown): Promise<unknown> {
   const tool = options.tools?.find((t) => t.name === name);
   if (!tool) throw new Error(`tool ${name} não oferecida`);
@@ -91,7 +94,7 @@ const noAsk = async (): Promise<never> => {
   throw new Error('o auditor não usa ask');
 };
 
-/** O auditor roteirizado: lê a nota, grava e responde. */
+/** #230 O auditor roteirizado: lê a nota, grava e responde. */
 const auditing = (audit: Record<string, unknown> = validAudit()): Converse => async (options) => {
   await callTool(options, 'get_invoice', { invoice_access_key: KEY });
   await callTool(options, 'record_audit', audit);
@@ -267,8 +270,38 @@ describe('invoice-audit: o nível e a ação da proposta (#230)', () => {
     expect(saved?.raisedLevel).toBeNull();
     expect(saved?.agreement).toEqual({ agrees: false, differs: ['classification', 'dock_action', 'routing'] });
     expect(JSON.stringify(approved)).toBe(before);
-    // a única escrita da auditoria é save e saveNotAudited: nenhuma porta altera ação nem aprova
-    expect(Object.keys(d.audits).sort()).toEqual(['loadNote', 'save', 'saveNotAudited']);
+    // #230 a única escrita da auditoria é save e saveNotAudited: nenhuma porta altera ação nem aprova
+    expect(Object.keys(d.audits).sort()).toEqual(['loadNote', 'reapplyRaisedLevels', 'save', 'saveNotAudited']);
+  });
+});
+
+describe('invoice-audit: orçamento de leituras e reparo (#230)', () => {
+  it('#230 LLM-10: 9 leituras num turno: a porta recebe 8 e a nona volta como read_budget_exhausted', async () => {
+    const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
+    let ninth: unknown;
+    await task(d).run(input, noAsk, async (options) => {
+      for (let i = 0; i < 8; i += 1) await callTool(options, 'get_invoice', { invoice_access_key: KEY });
+      ninth = await callTool(options, 'get_regua', {});
+      await callTool(options, 'record_audit', validAudit());
+      return { recorded: true };
+    });
+    expect(d.readCalls).toHaveLength(8);
+    expect(ninth).toEqual({ refusal: 'read_budget_exhausted' });
+    expect(d.saved).toHaveLength(1);
+  });
+
+  it('#230: pending roda o reparo dos níveis uma vez, no começo da rodada, e segue se ele falhar', async () => {
+    const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
+    const rows: Row[] = [{ invoice_access_key: KEY }];
+    const db: Db = { select: async () => rows, upsert: async () => [] };
+    const found = await task(d).pending(db);
+    expect(d.sweeps.count).toBe(1);
+    expect(found.requests).toHaveLength(1);
+    const broken = doubles(null);
+    broken.audits.reapplyRaisedLevels = async () => {
+      throw new Error(`falhou com ${SEGREDO}`);
+    };
+    expect((await task(broken).pending(db)).requests).toHaveLength(1);
   });
 });
 
@@ -298,7 +331,7 @@ describe('invoice-audit: texto da nota é dado (#230)', () => {
 
   it('#230/AC-5: a ordem no texto da nota não vira ação: a auditoria segue o que o auditor grava e o trecho vai para injection_flag', async () => {
     const d = doubles({ invoice: poisoned(), proposal: proposal({ classification: 'E1' }) });
-    // o auditor roteirizado resistiu à ordem e classificou pelo fato
+    // #230 o auditor roteirizado resistiu à ordem e classificou pelo fato
     await task(d).run(input, noAsk, auditing(validAudit({ classification: 'E1', amount_at_risk: { cents: 50 } })));
     const saved = d.saved[0]?.result;
     expect(saved?.audit.classification).toBe('E1');
@@ -342,7 +375,7 @@ describe('invoice-audit: falha fechada (#230)', () => {
     expect(error).toBeInstanceOf(Error);
     expect(d.saved).toEqual([]);
     expect(d.notAuditedRows).toEqual([{ key: KEY, outcome: { audited: false, reason: 'erro_de_tool' } }]);
-    // exposição: nem o que fica gravado nem o erro do laço trazem o texto do erro da porta
+    // #230 exposição: nem o que fica gravado nem o erro do laço trazem o texto do erro da porta
     expect(JSON.stringify(d.notAuditedRows)).not.toContain(SEGREDO);
     expect(storedError(error)).not.toContain(SEGREDO);
     expect(String(error)).not.toContain(SEGREDO);

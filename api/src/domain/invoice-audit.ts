@@ -38,7 +38,7 @@ export type InvoiceAudit = {
 /** #230 O que o record_audit lê para validar: a nota auditada, o nível da regra e o que a gravação carimba. */
 export type AuditContext = {
   readonly invoiceAccessKey: string;
-  /** Regra 7: o nível do encaminhamento da regra para esta nota é o mínimo do auditor. */
+  /** #230 Regra 7: o nível do encaminhamento da regra para esta nota é o mínimo do auditor. */
   readonly ruleLevel: ApprovalLevel;
   readonly invoiceTotalCents: number;
   readonly model: string;
@@ -82,7 +82,7 @@ export function validateAudit(raw: unknown, ctx: AuditContext): AuditValidation 
     }
     amountAtRisk = { cents };
   }
-  // Regra 7: o auditor nunca encaminha abaixo da régua. Vem depois dos campos: a forma antes do mérito.
+  // #230 Regra 7: o auditor nunca encaminha abaixo da régua. Vem depois dos campos: a forma antes do mérito.
   if (compareLevels(routing, ctx.ruleLevel) < 0) {
     return { ok: false, refusal: { refusal: 'routing_below_regua', minimumLevel: ctx.ruleLevel } };
   }
@@ -153,7 +153,7 @@ const ORDERS: readonly RegExp[] = [
   /\b(voce|agente|auditor)\s+(\w+\s+){0,3}(deve|precisa|tem que)\b/,
 ];
 
-/** Minúsculas e sem acento, com o mesmo tamanho do texto, para o trecho sair do original. */
+/** #230 Minúsculas e sem acento, com o mesmo tamanho do texto, para o trecho sair do original. */
 function fold(text: string): string {
   return Array.from(text.normalize('NFC'), (c) => {
     const base = c.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();

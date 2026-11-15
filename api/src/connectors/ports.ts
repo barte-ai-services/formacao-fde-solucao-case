@@ -108,22 +108,37 @@ export type ReturnNoteOutbox = Outbox<ReturnNoteMessage>;
 export type AuditedNote = { readonly invoice: Invoice; readonly proposal: RuleProposal };
 
 /**
- * #230 O que a auditoria lê e grava por nota. `save` é a única escrita do auditor: grava a auditoria com
- * `agreement`, `raised_level` e `injection_flag` e, só se `raisedLevel` vier e a proposta ainda estiver em
- * aguardando_aprovacao NO MOMENTO da gravação, sobe o nível na mesma transação (a nota pode ter sido
- * decidida desde o `loadNote`). Nenhum método troca a ação da proposta nem aprova.
+ * #230 O que a auditoria lê e grava por nota. São duas raízes, a auditoria e a proposta, e não há transação entre
+ * elas; o contrato é o de duas gravações em ordem:
+ * 1. `save` primeiro acrescenta a linha em invoice_audits, que é a verdade (a tabela só recebe linhas);
+ * 2. se `raisedLevel` vier, depois sobe proposals.approval_level só onde state = aguardando_aprovacao e o
+ *    nível atual é menor que `raisedLevel`; não subir nada é válido (a nota pode ter sido decidida desde o
+ *    `loadNote`);
+ * 3. janela: entre as duas gravações, ou se a segunda falhar, a proposta pode ficar sem o nível até a próxima
+ *    rodada do Cron;
+ * 4. reparo: `reapplyRaisedLevels` é uma varredura idempotente que reaplica raised_level das linhas de auditoria
+ *    cuja proposta ainda está aguardando e abaixo desse nível. Quem a roda é a tarefa, em `pending`, no começo
+ *    de cada rodada; custa no máximo 2 subrequests (uma leitura e uma gravação em lote) e a falha dela não
+ *    impede a auditoria.
+ * Idempotência por chave de acesso: um segundo `save` para chave que já tem linha auditada é um no-op (a
+ * camada seguinte impõe com índice único parcial em invoice_access_key onde status = 'audited' e trata a
+ * violação como "já auditada"). `saveNotAudited` acrescenta o fato "não auditada" e nunca sobrescreve uma
+ * auditoria. Nenhum método troca a ação da proposta nem aprova.
  */
 export interface InvoiceAuditPort {
-  /** A nota capturada com a proposta da regra, ou null se a nota ou a proposta não existe. */
+  /** #230 A nota capturada com a proposta da regra, ou null se a nota ou a proposta não existe. */
   loadNote(invoiceAccessKey: string): Promise<AuditedNote | null>;
   save(invoiceAccessKey: string, result: AuditResult): Promise<void>;
-  /** AC-6: a nota fica "não auditada" com o motivo; a proposta da regra segue como estava. */
+  /** #230 AC-6: a nota fica "não auditada" com o motivo; a proposta da regra segue como estava. */
   saveNotAudited(invoiceAccessKey: string, outcome: NotAudited): Promise<void>;
+  /** #230 O reparo idempotente do nível (item 4 acima). */
+  reapplyRaisedLevels(): Promise<void>;
 }
 
 /**
  * #230 As 11 leituras das tools do auditor, sobre o banco da solução. Cada uma devolve o JSON que o modelo
- * lê (a mesma informação das tools do ja-chegou); nenhuma lê arquivo nem o gabarito.
+ * lê (a mesma informação das tools do ja-chegou); nenhuma lê arquivo nem o gabarito. Cada método custa
+ * exatamente 1 subrequest (o orçamento da tarefa conta com isso; a camada seguinte o cumpre).
  */
 export interface AuditReadsPort {
   getInvoice(invoiceAccessKey: string): Promise<unknown>;
