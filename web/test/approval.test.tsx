@@ -175,3 +175,34 @@ describe("#63 lista do dia", () => {
     expect(within(row as HTMLElement).getByText("Regra")).toBeTruthy();
   });
 });
+
+describe("#133 fila: Encaminhada a e Minhas", () => {
+  const queue = () =>
+    Response.json({
+      approver: { email: "c", level: "coordenacao" },
+      items: [
+        item(),
+        item({ invoiceAccessKey: "2".repeat(44), number: "81", requiredApproverLevel: "diretoria", level: "diretoria", canApprove: false }),
+      ],
+    });
+
+  it("AC-1 e AC-2: sem a coluna Você aprova?, com Encaminhada a pelo nome do glossário", async () => {
+    respond = queue;
+    renderAt("/pagar/fila");
+    expect(await screen.findByText("NF 80 · F12")).toBeTruthy();
+    expect(screen.queryByText("Você aprova?")).toBeNull();
+    expect(screen.getByText("Encaminhada a")).toBeTruthy();
+    expect(screen.getAllByText("Diretoria").length).toBeGreaterThan(0);
+  });
+
+  it("AC-3: a linha que não decide fica esmaecida com a dica, e Minhas mostra só as decidíveis", async () => {
+    respond = queue;
+    renderAt("/pagar/fila");
+    await screen.findByText("NF 80 · F12");
+    expect(document.querySelectorAll(".pagar-dimmed[title='Precisa de Diretoria']").length).toBeGreaterThan(0);
+    expect(document.querySelectorAll(".pagar-dimmed[title='Precisa de Coordenação']").length).toBe(0);
+    fireEvent.click(screen.getByRole("radio", { name: /Minhas/ }));
+    expect(screen.getByText("NF 80 · F12")).toBeTruthy();
+    expect(screen.queryByText(/NF 81/)).toBeNull();
+  });
+});

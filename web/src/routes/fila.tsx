@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Drawer, Table } from "barte-design-system";
-import { InlineEmpty, Stat, StatGrid, StatusBadge } from "@barte-ai-services/barte-ui-kit";
+import { InlineEmpty, SegmentedFilter, Stat, StatGrid, StatusBadge } from "@barte-ai-services/barte-ui-kit";
 import { approvalApi, type ProposalDetailDto, type QueueDto, type QueueItemDto } from "../api/approval";
 import { ProposalPanel } from "../approval/ProposalPanel";
 import { ACTION_LABEL, ACTION_TONE, LEVEL_LABEL, LEVEL_TONE, byQueueOrder } from "../approval/labels";
@@ -19,9 +19,19 @@ export default function FilaDeAprovacao(_props: RouteProps) {
     (queue) => queue.items.length === 0,
   );
   const [open, setOpen] = useState<string | null>(null);
-  const items = [...(data?.items ?? [])].sort(byQueueOrder);
-  const risk = items.reduce((sum, i) => sum + i.amountAtRisk.cents, 0);
-  const blocked = items.filter((i) => i.level === "bloqueio").length;
+  const [view, setView] = useState<"all" | "mine">("all");
+  const all = [...(data?.items ?? [])].sort(byQueueOrder);
+  const mine = all.filter((i) => i.canApprove);
+  const items = view === "mine" ? mine : all;
+  /** #133 A linha que a pessoa não decide fica esmaecida, com o cadeado e a dica do nível exigido. */
+  const dim = (i: QueueItemDto, node: ReactNode): ReactNode =>
+    i.canApprove ? node : (
+      <span className="pagar-dimmed" title={texts.fila.needsLevel(LEVEL_LABEL[i.requiredApproverLevel])}>
+        {node}
+      </span>
+    );
+  const risk = all.reduce((sum, i) => sum + i.amountAtRisk.cents, 0);
+  const blocked = all.filter((i) => i.level === "bloqueio").length;
 
   return (
     <Screen
@@ -36,10 +46,19 @@ export default function FilaDeAprovacao(_props: RouteProps) {
       {() => (
         <>
           <StatGrid columns={3}>
-            <Stat caption={texts.fila.statWaiting.caption} value={items.length} context={texts.fila.statWaiting.context} />
+            <Stat caption={texts.fila.statWaiting.caption} value={all.length} context={texts.fila.statWaiting.context} />
             <Stat caption={texts.fila.statRisk.caption} value={BRL.format(risk / 100)} context={texts.fila.statRisk.context} tone="waiting" />
             <Stat caption={texts.fila.statBlocked.caption} value={blocked} context={texts.fila.statBlocked.context} tone="negative" />
           </StatGrid>
+          <SegmentedFilter
+            ariaLabel={texts.fila.filterLabel}
+            value={view}
+            onChange={setView}
+            options={[
+              { value: "all", label: texts.fila.filterAll, count: all.length },
+              { value: "mine", label: texts.fila.filterMine, count: mine.length },
+            ]}
+          />
           <Table<QueueItemDto>
             data={items}
             rowKey={(i) => i.invoiceAccessKey}
@@ -47,49 +66,67 @@ export default function FilaDeAprovacao(_props: RouteProps) {
             onRowClick={(i) => setOpen(i.invoiceAccessKey)}
             emptyText={texts.fila.tableEmpty}
             columns={[
-              { key: "nota", title: texts.fila.columns.invoice, dataIndex: "number", render: (_, i) => `NF ${i.number} · ${i.supplierId}` },
+              { key: "nota", title: texts.fila.columns.invoice, dataIndex: "number", render: (_, i) =>
+                  dim(
+                    i,
+                    <>
+                      {i.canApprove ? null : (
+                        <span role="img" aria-label={texts.fila.noPermission}>
+                          🔒{" "}
+                        </span>
+                      )}
+                      {`NF ${i.number} · ${i.supplierId}`}
+                    </>,
+                  ),
+              },
               {
                 key: "classificacao",
                 title: texts.fila.columns.classification,
                 dataIndex: "classification",
-                render: (_, i) => (
-                  <StatusBadge size="sm" tone="neutral">
-                    {i.classification === "MATCH" ? texts.fila.match : divergenceLabel(i.classification)}
-                  </StatusBadge>
-                ),
+                render: (_, i) =>
+                  dim(
+                    i,
+                    <StatusBadge size="sm" tone="neutral">
+                      {i.classification === "MATCH" ? texts.fila.match : divergenceLabel(i.classification)}
+                    </StatusBadge>,
+                  ),
               },
               {
                 key: "acao",
                 title: texts.fila.columns.action,
                 dataIndex: "dockAction",
-                render: (_, i) => (
-                  <StatusBadge size="sm" tone={ACTION_TONE[i.dockAction.kind]}>
-                    {ACTION_LABEL[i.dockAction.kind]}
-                  </StatusBadge>
-                ),
+                render: (_, i) =>
+                  dim(
+                    i,
+                    <StatusBadge size="sm" tone={ACTION_TONE[i.dockAction.kind]}>
+                      {ACTION_LABEL[i.dockAction.kind]}
+                    </StatusBadge>,
+                  ),
               },
               {
                 key: "nivel",
                 title: texts.fila.columns.level,
                 dataIndex: "level",
-                render: (_, i) => (
-                  <StatusBadge size="sm" variant="soft" tone={LEVEL_TONE[i.level]}>
-                    {LEVEL_LABEL[i.level]}
-                  </StatusBadge>
-                ),
+                render: (_, i) =>
+                  dim(
+                    i,
+                    <StatusBadge size="sm" variant="soft" tone={LEVEL_TONE[i.level]}>
+                      {LEVEL_LABEL[i.level]}
+                    </StatusBadge>,
+                  ),
               },
               {
                 key: "risco",
                 title: texts.fila.columns.risk,
                 dataIndex: "amountAtRisk",
                 align: "right",
-                render: (_, i) => `${i.amountAtRisk.text} de ${i.total.text}`,
+                render: (_, i) => dim(i, `${i.amountAtRisk.text} de ${i.total.text}`),
               },
               {
-                key: "pode",
-                title: texts.fila.columns.canApprove,
-                dataIndex: "canApprove",
-                render: (_, i) => (i.canApprove ? texts.fila.yes : texts.fila.noOtherLevel),
+                key: "encaminhada",
+                title: texts.fila.columns.forwardedTo,
+                dataIndex: "requiredApproverLevel",
+                render: (_, i) => dim(i, LEVEL_LABEL[i.requiredApproverLevel]),
               },
             ]}
           />

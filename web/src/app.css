@@ -15,3 +15,6 @@
 /* #123 O estado vazio das telas: ilustração, título, explicação e ação, centrados. */
 .pagar-empty { display: grid; justify-items: center; gap: var(--spacing-md); padding: var(--spacing-3xl) var(--spacing-lg); text-align: center; }
 .pagar-empty-description { max-width: 48ch; color: var(--content-secondary); }
+
+/* #133 A linha da fila que a pessoa não pode decidir. */
+.pagar-dimmed { opacity: 0.5; }
