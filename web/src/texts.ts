@@ -19,7 +19,7 @@ export const texts = {
 
   /** #211 A faixa de automação no topo das telas, a gaveta das rodadas e os indicadores. */
   automation: {
-    ok: (lastAt: string, ago: string, nextAt: string) => `⚙ Automático · última rodada às ${lastAt} (${ago}) · próxima às ${nextAt}`,
+    ok: (lastAt: string, ago: string, nextAt: string) => `Automático · última rodada às ${lastAt} (${ago}) · próxima às ${nextAt}`,
     figures: (f: { captured: number; checked: number; byRule: number; toPerson: number; published: number }) =>
       `${f.captured === 1 ? "1 nota capturada" : `${f.captured} notas capturadas`} · ${f.checked === 1 ? "1 conferida" : `${f.checked} conferidas`} · ${f.byRule === 1 ? "1 aprovada" : `${f.byRule} aprovadas`} pela regra · ${f.toPerson} para pessoa · ${f.published === 1 ? "1 ação publicada" : `${f.published} ações publicadas`} na doca`,
     failed: (lastAt: string, nextAt: string) => `A última rodada falhou às ${lastAt}. A próxima tenta de novo às ${nextAt}.`,
