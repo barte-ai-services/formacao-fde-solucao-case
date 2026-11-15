@@ -363,7 +363,7 @@ export const texts = {
         receber_parcial: "Receber parcial",
         recusar: "Recusar",
       },
-      /** Depois da contagem a mercadoria já chegou: o verbo passa a confirmar o que foi contado. */
+      /** #134 Depois da contagem a mercadoria já chegou: o verbo passa a confirmar o que foi contado. */
       afterCountOptions: {
         receber: "Confirmar recebimento",
         receber_parcial: "Confirmar recebimento parcial",

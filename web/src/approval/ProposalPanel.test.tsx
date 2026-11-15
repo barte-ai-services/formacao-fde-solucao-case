@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ProposalPanel } from "../src/approval/ProposalPanel";
-import type { ProposalDetailDto } from "../src/api/approval";
+import { ProposalPanel } from "./ProposalPanel";
+import type { ProposalDetailDto } from "../api/approval";
 
 // #134 A decisão pela ação no recebimento: Receber, Receber parcial e Recusar.
 
@@ -35,7 +35,7 @@ const proposal = (dockAction: unknown, extra: Record<string, unknown> = {}) =>
     approval: null,
     dossier: { status: "pending", reason: "x" },
     ...extra,
-  }) as unknown as ProposalDetailDto;
+  }) as unknown as ProposalDetailDto; // a fixture é parcial: o DTO real traz campos que estes testes não leem
 
 let calls: { path: string; body: unknown }[] = [];
 beforeEach(() => {

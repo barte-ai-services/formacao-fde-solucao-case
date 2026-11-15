@@ -27,6 +27,9 @@ export function decisionError(reason: unknown): string {
 }
 
 type Choice = DockActionKind;
+/** #134 A validação local do receber parcial: o texto vai direto para quem decide. */
+class PartialInputError extends Error {}
+
 type Disposition = "segurar" | "devolver";
 type PartialInput = { amount: string; disposition: Disposition };
 
@@ -48,13 +51,14 @@ export function ProposalPanel({
   const labels = afterCount ? texts.proposalPanel.form.afterCountOptions : texts.proposalPanel.form.options;
   const tones: Record<Choice, "positive" | "waiting" | "negative"> = { receber: "positive", receber_parcial: "waiting", recusar: "negative" };
 
-  /** As linhas do receber parcial que a pessoa informou: o item, a quantidade na unidade da nota e o destino. */
+  /** #134 As linhas do receber parcial que a pessoa informou: o item, a quantidade na unidade da nota e o destino. */
   function typedLines(): PartialLineDto[] {
     return proposal.items.flatMap((i) => {
-      const input = partial[i.sku ?? ""];
+      const key = i.sku ?? i.supplierCode;
+      const input = partial[key];
       const amount = Number(input?.amount);
-      if (!i.sku || !input || !Number.isFinite(amount) || amount <= 0) return [];
-      return [{ sku: i.sku, quantity: { amount, unit: i.quantity.unit }, disposition: input.disposition }];
+      if (!input || !Number.isFinite(amount) || amount <= 0) return [];
+      return [{ sku: key, quantity: { amount, unit: i.quantity.unit }, disposition: input.disposition }];
     });
   }
 
@@ -64,7 +68,7 @@ export function ProposalPanel({
       result = await approvalApi.approve(proposal.invoiceAccessKey);
     } else if (value === "receber_parcial") {
       const lines = typedLines();
-      if (lines.length === 0) throw new Error(texts.proposalPanel.partial.missingLines);
+      if (lines.length === 0) throw new PartialInputError(texts.proposalPanel.partial.missingLines);
       result = await approvalApi.alter(proposal.invoiceAccessKey, { kind: "receber_parcial", lines }, note);
     } else {
       result = await approvalApi.alter(proposal.invoiceAccessKey, { kind: value }, note);
@@ -129,9 +133,8 @@ export function ProposalPanel({
             <Block title={texts.proposalPanel.partial.inputTitle} size="sm">
               <p>{texts.proposalPanel.partial.inputHelp}</p>
               {proposal.items
-                .filter((i) => i.sku)
                 .map((i) => {
-                  const sku = i.sku ?? "";
+                  const sku = i.sku ?? i.supplierCode;
                   const input = partial[sku] ?? { amount: "", disposition: "segurar" as Disposition };
                   return (
                     <div key={sku} className="pagar-partial-row">
@@ -161,7 +164,7 @@ export function ProposalPanel({
             title={texts.proposalPanel.form.title}
             description={texts.proposalPanel.form.description}
             minNoteLength={10}
-            onSubmit={(d) => submit(d).catch((e: unknown) => Promise.reject(e instanceof Error && !(e instanceof ApiError) ? e : new Error(decisionError(e))))}
+            onSubmit={(d) => submit(d).catch((e: unknown) => Promise.reject(e instanceof PartialInputError ? e : new Error(decisionError(e))))}
             texts={{ noteLabel: texts.proposalPanel.form.note, submit: texts.proposalPanel.form.submit, done: null }}
             options={(["receber", "receber_parcial", "recusar"] as const).map((k) => ({
               value: k,
@@ -190,7 +193,7 @@ function PartialItems({ proposal, lines }: { proposal: ProposalDetailDto; lines:
       <DataList
         divided
         items={proposal.items.map((i) => {
-          const line = lines.find((l) => l.sku === i.sku);
+          const line = lines.find((l) => l.sku === (i.sku ?? i.supplierCode));
           const enters = line && line.quantity.unit === i.quantity.unit ? { amount: i.quantity.amount - line.quantity.amount, unit: i.quantity.unit } : i.quantity;
           const outcome = line ? (line.disposition === "segurar" ? t.holds : t.returns)(qtyText(line.quantity)) : null;
           return {
