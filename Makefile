@@ -9,6 +9,7 @@ export NODE_AUTH_TOKEN ?= $(shell gh auth token 2>/dev/null)
 # Os testes online da base do kit (scripts/kit_online_test.py, #52) pulam sem as credenciais do Supabase.
 check:
 	@python3 scripts/validar_bpmn.py $(BPMN)
+	@python3 scripts/validar_migracoes.py
 	@python3 -m unittest discover -s scripts -p '*_test.py'
 	@python3 -m unittest discover -s eval -p '*_test.py'
 	@npm --prefix api ci --no-audit --no-fund --loglevel=error

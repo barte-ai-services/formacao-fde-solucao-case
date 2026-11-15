@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-const sql = readFileSync(new URL('../../../supabase/migrations/20261116110000_invoice_audits.sql', import.meta.url), 'utf8')
+const sql = readFileSync(new URL('../../../supabase/migrations/20261117130000_invoice_audits.sql', import.meta.url), 'utf8')
   .split('\n')
   .filter((l) => !l.trim().startsWith('--'))
   .join('\n');

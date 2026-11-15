@@ -31,7 +31,7 @@ async function outboxHasIdempotencyKey(): Promise<boolean> {
 }
 const HAS_IDEMPOTENCY = await outboxHasIdempotencyKey();
 
-// #230 A subida de nível só existe depois que a esteira aplicar 20261116110000_invoice_audits no merge.
+// #230 A subida de nível só existe depois que a esteira aplicar 20261117130000_invoice_audits no merge.
 async function hasRaiseProposalLevel(): Promise<boolean> {
   if (!ONLINE) return false;
   const rest = new SupabaseRest({ url: URL_ ?? '', secretKey: KEY ?? '' });
