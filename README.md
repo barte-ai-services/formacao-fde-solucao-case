@@ -3,15 +3,7 @@
 Repositório público com a solução de referência do case **Já Chegou** da Formação FDE. A turma
 contribui aqui por clone e PR, sem fork: o passo a passo está no [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-## Por que o repositório é público
-
-O CISO da Barte liberou o uso de repositório público neste case. Para isso valem as regras abaixo:
-
-- **Nenhum cliente real.** A Já Chegou é fictícia, e nenhum nome de cliente real entra no repositório.
-- **Nada de segredo no git.** Credenciais ficam no `.env`, que o git ignora. As de produção ficam só
-  no environment `producao`, que só a `main` alcança, e nenhum workflow de PR usa secret.
-- **A `main` é protegida.** Só aceita PR com o CI verde e a aprovação de um code owner
-  (`.github/CODEOWNERS`).
+O CISO da Barte liberou o uso de repositório público neste case.
 
 ## O problema
 
