@@ -30,17 +30,17 @@ EVENTS = {"startEvent", "endEvent", "intermediateCatchEvent"}
 
 TONES = {
     "system": ("#e1f7ff", "#00749e"),
-    "agent": ("#fdf0f4", "#df285d"),
+    "agent": ("#F7E9EC", "#C81F50"),
     "person": ("#fff0db", "#e68619"),
     "ok": ("#d2fff1", "#12805c"),
     "block": ("#f7e0e0", "#c62828"),
-    "neutral": ("#f9f9f9", "#737373"),
-    "gateway": ("#fefefe", "#404040"),
+    "neutral": ("#FAF8F4", "#76726B"),
+    "gateway": ("#FFFEFB", "#4F4C47"),
 }
 LANE_TINTS = {
-    "system": "#f4fbfe", "agent": "#fef8fa", "person": "#fffaf3", "neutral": "#fbfbfb", "block": "#fdf6f6",
+    "system": "#f4fbfe", "agent": "#fef8fa", "person": "#FAF8F4", "neutral": "#F6F3EE", "block": "#fdf6f6",
 }
-FLOW_COLORS = {"default": "#404040", "block": "#c62828", "ok": "#12805c"}
+FLOW_COLORS = {"default": "#4F4C47", "block": "#c62828", "ok": "#12805c"}
 NAMESPACES = (
     'xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" '
     'xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" '
@@ -219,9 +219,9 @@ def external_label(n: Node, box: Box) -> Box | None:
 
 
 def node_shapes(p: Process, lay: Layout) -> list[str]:
-    out = shape(f"Part_{p.id}", lay.pool, ' isHorizontal="true"' + colors("#fefefe", "#171717"))
+    out = shape(f"Part_{p.id}", lay.pool, ' isHorizontal="true"' + colors("#FFFEFB", "#1A1918"))
     for lane in p.lanes:
-        out += shape(lane.id, lay.lane_box[lane.id], ' isHorizontal="true"' + colors(LANE_TINTS[lane.tone], "#a3a3a3"))
+        out += shape(lane.id, lay.lane_box[lane.id], ' isHorizontal="true"' + colors(LANE_TINTS[lane.tone], "#B8B2A8"))
     for n in p.nodes:
         tone = "gateway" if n.kind in GATEWAYS else n.tone
         out += shape(n.id, lay.box[n.id], colors(*TONES[tone]), external_label(n, lay.box[n.id]))
