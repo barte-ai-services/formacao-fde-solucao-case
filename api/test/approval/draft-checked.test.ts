@@ -3,10 +3,12 @@ import { proposeChecked } from '../../src/approval/propose-checked.js';
 import { supabaseConnectors } from '../../src/connectors/supabase-connectors.js';
 import { captureInvoices } from '../../src/cron/capture.js';
 import { SupabaseRest } from '../../src/connectors/supabase-rest.js';
+import { approve, propose } from '../../src/domain/approval.js';
+import { ApprovalPolicy } from '../../src/domain/approval-policy.js';
 import { CHECKS } from '../../src/domain/checks/index.js';
 import { priceDifference } from '../../src/domain/checks/nao-catalogada.js';
 import { draftChecked } from '../../src/domain/draft-checked.js';
-import { Divergence, Invoice, Money, type CheckContext, type DockAction } from '../../src/domain/index.js';
+import { Divergence, Invoice, Money, Title, type CheckContext, type DockAction } from '../../src/domain/index.js';
 import { FakePostgrest } from '../support/fake-postgrest.js';
 import { kitTables } from '../support/kit.js';
 
@@ -29,8 +31,9 @@ async function kit() {
     invoice.check({ ...ctx, capturedInvoices: invoices.filter((i) => i !== invoice) });
     return invoice;
   };
-  return { ctx, checked };
+  return { ctx, checked, invoices };
 }
+
 
 const draftOf = (invoice: Invoice, ctx: CheckContext) =>
   draftChecked(invoice, ctx, priceDifference(invoice, ctx)?.overcharge ?? null);
@@ -88,6 +91,22 @@ describe('#56 a proposta de cada exceção liga ao que a história dela construi
     expect(draft.amountAtRisk.cents).toBe(0);
   });
 
+  it('#56 E8 (#66): nota 48063 recebe parcial segurando o item sem cadastro, e a aprovação reduz o título por ele', async () => {
+    const { ctx, checked } = await kit();
+    const invoice = checked('48063');
+    expect(invoice.classification).toBe('E8');
+    const draft = draftOf(invoice, ctx);
+    expect(linesOf(draft.dockAction)).toEqual(['F04-N42 20 UN segurar']);
+    expect(draft.amountAtRisk.cents).toBe(47_800);
+
+    const title = Title.post({ invoiceAccessKey: invoice.accessKey, amount: invoice.total, dueOn: '2026-11-20' });
+    const route = ApprovalPolicy.route(invoice, ctx.suppliers.find((s) => s.id === invoice.supplierId));
+    const { proposal } = propose(invoice, title, { route, ...draft, today: '2026-11-15' });
+    approve(invoice, proposal, title, { email: 'diretoria@jachegou.test', level: 'diretoria' }, { kind: 'aprovar' }, '2026-11-15');
+    expect(title.state).toBe('na_lista_do_dia');
+    expect(title.amount.cents).toBe(233_520 - 47_800);
+  });
+
   it('#56, regra 6: com várias divergências, soma o valor em risco limitado ao da nota e fica com a ação mais restritiva', async () => {
     const { ctx } = await kit();
     const base = (await kit()).checked('37423');
@@ -131,8 +150,29 @@ describe('#56 a proposta de cada exceção liga ao que a história dela construi
   });
 });
 
+describe('#56 toda proposta de exceção do kit é aceita pela aprovação (#63)', () => {
+  it('#56: em cada nota E1, E2, E3 e E8 do kit, aprovar a proposta reduz ou bloqueia o título sem lançar', async () => {
+    const { ctx, invoices } = await kit();
+    let seen = 0;
+    for (const invoice of invoices) {
+      invoice.check({ ...ctx, capturedInvoices: invoices.filter((i) => i !== invoice) });
+      if (!['E1', 'E2', 'E3', 'E8'].includes(invoice.classification)) continue;
+      seen += 1;
+      const draft = draftOf(invoice, ctx);
+      const title = Title.post({ invoiceAccessKey: invoice.accessKey, amount: invoice.total, dueOn: '2026-11-20' });
+      const route = ApprovalPolicy.route(invoice, ctx.suppliers.find((s) => s.id === invoice.supplierId));
+      const { proposal } = propose(invoice, title, { route, ...draft, today: '2026-11-15' });
+      approve(invoice, proposal, title, { email: 'diretoria@jachegou.test', level: 'diretoria' }, { kind: 'aprovar' }, '2026-11-15');
+      const expected = draft.dockAction.kind === 'recusar' ? 'bloqueado' : 'na_lista_do_dia';
+      expect([invoice.number, title.state]).toEqual([invoice.number, expected]);
+      if (draft.dockAction.kind === 'receber_parcial') expect(title.amount.compare(invoice.total)).toBeLessThan(0);
+    }
+    expect(seen).toBe(36);
+  });
+});
+
 describe('#56 o Cron grava a proposta de cada exceção com a contagem do WMS', () => {
-  it('#56: com o WMS, as 80 notas são propostas e E1, E2 e E3 saem com receber parcial e valor em risco', async () => {
+  it('#56: com o WMS, as 80 notas são propostas e E1, E2, E3 e E8 saem com receber parcial e valor em risco', async () => {
     const fake = new FakePostgrest(kitTables());
     const rest = new SupabaseRest({ url: 'https://fake.supabase.co', secretKey: 'sb_secret_fake', fetch: fake.fetch });
     const { captureDeps } = supabaseConnectors(rest);
@@ -146,7 +186,7 @@ describe('#56 o Cron grava a proposta de cada exceção com a contagem do WMS', 
     });
     expect(result.proposed).toBe(80);
     const rows = fake.rows('proposals');
-    for (const code of ['E1', 'E2', 'E3']) {
+    for (const code of ['E1', 'E2', 'E3', 'E8']) {
       const ofCode = rows.filter((r) => r.classification === code);
       expect(ofCode.length).toBeGreaterThan(0);
       expect(ofCode.every((r) => Number(r.amount_at_risk_cents) > 0)).toBe(true);

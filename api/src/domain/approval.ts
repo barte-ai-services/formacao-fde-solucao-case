@@ -177,7 +177,8 @@ function settlementOf(invoice: Invoice, title: Title, action: DockAction): () =>
   let withheld = Money.zero();
   const perSku = new Map<string, number>();
   for (const line of action.lines) {
-    const item = invoice.items.find((i) => i.sku === line.sku);
+    // #56: o item sem SKU (o E8 não tem cadastro) é identificado pelo código do fornecedor.
+    const item = invoice.items.find((i) => (i.sku ?? i.supplierCode) === line.sku);
     if (!item) throw new DomainError(`Receber parcial: o SKU ${line.sku} não está na nota`);
     if (item.quantity.unit !== line.quantity.unit) {
       throw new DomainError(`Receber parcial: ${line.sku} está em ${item.quantity.unit} na nota`);

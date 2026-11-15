@@ -2,6 +2,7 @@ import { draftProposal, type Draft } from './approval.js';
 import { amountAtRiskItemTrocado } from './checks/e2-item-trocado.js';
 import { isShortLine, proposeE3 } from './checks/e3-quantidade-menor.js';
 import { e4AmountAtRisk } from './checks/e4-unidade-de-medida.js';
+import { amountAtRiskOfUnregistered, unregisteredItems } from './checks/e8-item-sem-cadastro.js';
 import type { Classification } from './classification.js';
 import type { CheckContext } from './context.js';
 import { DockAction, type PartialLine } from './dock-action.js';
@@ -15,9 +16,12 @@ type Part = { readonly lines: readonly PartialLine[]; readonly risk: Money; read
 
 const NONE: Part = { lines: [], risk: Money.zero(), why: '' };
 
-/** #56: a linha da doca precisa do SKU da nota e da unidade do item (o título reduz por elas, #63). */
+/** #56: a chave da linha da doca: o SKU do item, ou o código do fornecedor quando não há SKU (E8). */
+const keyOf = (item: InvoiceItem): string => item.sku ?? item.supplierCode;
+
+/** #56: a linha da doca precisa da chave do item e da unidade dele (o título reduz por elas, #63). */
 function itemBySku(invoice: Invoice, sku: string): InvoiceItem | undefined {
-  return invoice.items.find((i) => i.sku !== null && i.sku === sku);
+  return invoice.items.find((i) => keyOf(i) === sku);
 }
 
 /** #56 E1 (#69): segura os itens que não aparecem na contagem; valor em risco pelo amountAtRiskOfMissing. */
@@ -25,9 +29,7 @@ function partE1(invoice: Invoice, ctx: CheckContext): Part {
   const assessment = assessCount(invoice, ctx);
   if (assessment.status === 'no_count') return NONE;
   const missing = missingItems(invoice, assessment.lines);
-  const lines = missing
-    .filter(({ item }) => item.sku !== null)
-    .map(({ item }) => ({ sku: item.sku as string, quantity: item.quantity, disposition: 'segurar' as const }));
+  const lines = missing.map(({ item }) => ({ sku: keyOf(item), quantity: item.quantity, disposition: 'segurar' as const }));
   const risk = amountAtRiskOfMissing(invoice, assessment.lines).amount;
   return { lines, risk, why: `E1: ${missing.length} item(ns) não aparecem na contagem, segurados` };
 }
@@ -45,7 +47,7 @@ function partE3(invoice: Invoice, ctx: CheckContext): Part {
     const factor =
       item.quantity.unit === line.quantity.unit
         ? 1
-        : (ctx.products.find((p) => p.sku === item.sku)?.boxFactor ?? 0);
+        : (ctx.products.find((p) => p.sku === item.sku || (p.supplierId === invoice.supplierId && p.supplierCode === item.supplierCode))?.boxFactor ?? 0);
     if (factor <= 0) continue;
     lines.push({ ...line, quantity: Quantity.of(line.quantity.amount / factor, item.quantity.unit) });
   }
@@ -57,7 +59,7 @@ function partE2(invoice: Invoice, ctx: CheckContext): Part {
   const skus = new Set(invoice.divergences.filter((d) => d.classification === 'E2').flatMap((d) => d.skus));
   const lines = invoice.items
     .filter((i) => i.sku !== null && skus.has(i.sku))
-    .map((i) => ({ sku: i.sku as string, quantity: i.quantity, disposition: 'segurar' as const }));
+    .map((i) => ({ sku: keyOf(i), quantity: i.quantity, disposition: 'segurar' as const }));
   return { lines, risk: amountAtRiskItemTrocado(invoice, ctx).amount, why: 'E2: item trocado segurado' };
 }
 
@@ -66,15 +68,23 @@ function partE4(invoice: Invoice, ctx: CheckContext): Part {
   return { lines: [], risk: e4AmountAtRisk(invoice, ctx).amount, why: 'E4: caixa cobrada como unidade; recebe' };
 }
 
+/** #56 E8 (#66): segura os itens sem cadastro, pela chave do item; valor pelo amountAtRiskOfUnregistered. */
+function partE8(invoice: Invoice, ctx: CheckContext): Part {
+  const items = unregisteredItems(invoice, ctx);
+  const lines = items.map((i) => ({ sku: keyOf(i), quantity: i.quantity, disposition: 'segurar' as const }));
+  const risk = amountAtRiskOfUnregistered(invoice, ctx).amount;
+  return { lines, risk, why: `E8: ${items.length} item(ns) sem cadastro, segurados` };
+}
+
 function partOf(code: Classification, invoice: Invoice, ctx: CheckContext, overcharge: Money | null): Part {
   if (code === 'E1') return partE1(invoice, ctx);
   if (code === 'E2') return partE2(invoice, ctx);
   if (code === 'E3') return partE3(invoice, ctx);
   if (code === 'E4') return partE4(invoice, ctx);
+  if (code === 'E8') return partE8(invoice, ctx);
   if (code === 'NAO_CATALOGADA' && overcharge) {
     return { lines: [], risk: overcharge, why: `Diferença de preço: ${overcharge.toString()} acima da ordem` };
   }
-  // #56: o E8 (#66) entra quando o amountAtRiskOfUnregistered do #112 chegar à main.
   return NONE;
 }
 
@@ -95,7 +105,7 @@ function mergeLines(invoice: Invoice, parts: readonly Part[]): PartialLine[] {
 function actionOf(invoice: Invoice, lines: readonly PartialLine[]): DockAction {
   if (lines.length === 0) return DockAction.receive();
   const allHeld = invoice.items.every((i) =>
-    lines.some((l) => l.sku === i.sku && l.quantity.amount >= i.quantity.amount),
+    lines.some((l) => l.sku === keyOf(i) && l.quantity.amount >= i.quantity.amount),
   );
   return allHeld ? DockAction.refuse() : DockAction.partial(lines);
 }
