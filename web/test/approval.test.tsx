@@ -264,6 +264,23 @@ describe("#129 AC-2 largura da gaveta por token", () => {
     const { readFileSync } = await import("node:fs");
     const css = readFileSync("src/app.css", "utf8");
     expect(css).toMatch(/--pagar-drawer-width:\s*5[0-3]0px/);
-    expect(css).toMatch(/\.shell-connection-panel\s*{\s*width:\s*var\(--pagar-drawer-width\)/);
+    expect(css).toMatch(/\.shell-connection-panel\.shell-connection-panel\s*{\s*width:\s*var\(--pagar-drawer-width\)/);
+  });
+
+  it("#129 a largura aplicada à gaveta é a do token, mesmo com a folha do DS carregada depois da nossa", async () => {
+    const { readFileSync } = await import("node:fs");
+    // Pior ordem: a nossa folha primeiro e a do DS depois, como pode chegar de dentro do Shell.
+    const ours = document.createElement("style");
+    ours.textContent = readFileSync("src/app.css", "utf8");
+    const ds = document.createElement("style");
+    ds.textContent = ".Drawer-module__drawer__WqK1d{width:480px;max-width:100vw}";
+    document.head.append(ours, ds);
+    const el = document.createElement("div");
+    el.className = "Drawer-module__drawer__WqK1d shell-connection-panel";
+    document.body.append(el);
+    expect(getComputedStyle(el).width).toBe("530px");
+    el.remove();
+    ours.remove();
+    ds.remove();
   });
 });

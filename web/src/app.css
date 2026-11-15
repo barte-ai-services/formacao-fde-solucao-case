@@ -30,9 +30,12 @@
 /* #129 A gaveta lateral 50 px mais larga que os 480 px do design system, para a chave de 44 dígitos
    caber numa linha. A medida mora no token; o resto do CSS só lê a variável. */
 :root { --pagar-drawer-width: 530px; }
-.shell-connection-panel { width: var(--pagar-drawer-width); }
-.pagar-access-key { display: inline-flex; align-items: center; gap: var(--spacing-sm); }
-.pagar-access-key__value { white-space: nowrap; overflow-wrap: normal; }
+/* O Drawer do DS fixa `width: 480px` numa classe só (.Drawer-module__drawer). Dentro do Shell a folha da zone pode
+   chegar depois da do DS, e aí a regra de uma classe perde pela ordem. Duas classes iguais vencem em qualquer ordem. */
+.shell-connection-panel.shell-connection-panel { width: var(--pagar-drawer-width); }
+.pagar-access-key { display: inline-flex; align-items: center; gap: var(--spacing-sm); max-width: 100%; min-width: 0; }
+/* A chave não passa da borda da gaveta: numa linha quando cabe, e rola dentro do próprio campo quando não cabe. */
+.pagar-access-key__value { white-space: nowrap; overflow-wrap: normal; min-width: 0; max-width: 100%; overflow-x: auto; }
 .pagar-access-key__copy { display: none; }
 @media (max-width: 600px) {
   .pagar-access-key { flex-wrap: wrap; }

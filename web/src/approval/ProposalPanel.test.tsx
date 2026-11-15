@@ -30,7 +30,7 @@ const proposal = (dockAction: unknown, extra: Record<string, unknown> = {}) =>
       { supplierCode: "A", sku: "SKU-1", description: "Arroz 5kg", quantity: { amount: 10, unit: "UN" }, unitPrice: money(1000), total: money(10_000) },
       { supplierCode: "B", sku: "SKU-2", description: "Feijão 1kg", quantity: { amount: 5, unit: "CX" }, unitPrice: money(2000), total: money(10_000) },
     ],
-    divergences: [],
+    divergences: [{ classification: "E4", exceptionCode: "E4", exceptionName: "Unidade de medida", skus: ["SKU-1", "SKU-2"], evidence: [] }],
     title: { state: "lancado", amount: money(100_000), dueOn: "2026-11-30" },
     approval: null,
     dossier: { status: "pending", reason: "x" },
@@ -155,5 +155,19 @@ describe("#134 decisão pela ação no recebimento", () => {
     fireEvent.click(screen.getByRole("button", { name: /Registrar a de/ }));
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(calls[0]?.body).toMatchObject({ dockAction: { lines: [{ sku: "SKU-1", quantity: { amount: 4.5 } }] } });
+  });
+
+  it("#134: nota sem divergência (MATCH) não mostra o bloco de itens a segurar ou devolver", () => {
+    render(<ProposalPanel proposal={proposal({ kind: "receber" }, { classification: "MATCH", divergences: [] })} />);
+    expect(screen.queryByText("Receber parcial: itens a segurar ou devolver")).toBeNull();
+    // Sem item divergente o parcial não tem o que informar: a opção também some, não vira beco sem saída.
+    expect(screen.queryByRole("radio", { name: /^Receber parcial/ })).toBeNull();
+    expect(screen.getByRole("radio", { name: /^Receber(?! parcial)/ })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: /^Recusar/ })).toBeTruthy();
+  });
+
+  it("#134: nota com divergência em item mostra o bloco", () => {
+    render(<ProposalPanel proposal={proposal({ kind: "receber" })} />);
+    expect(screen.getByText("Receber parcial: itens a segurar ou devolver")).toBeTruthy();
   });
 });
