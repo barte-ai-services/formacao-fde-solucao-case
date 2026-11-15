@@ -85,7 +85,8 @@ async function show(id) {
 const CANDIDATES = {
   Task_Classify: { kind: "Agente LLM", text: "Casar item com o cadastro e achar a ordem provável", pos: { top: -100, left: 12 } },
   Task_ProposeAction: { kind: "Agente LLM", text: "Escrever o dossiê da exceção para quem aprova", pos: { top: -100, left: 26 } },
-  Task_Confirm: { kind: "Agente Clef + LLM", text: "Confirmar com confiança calibrada; recomendar a alteração" },
+  Task_Confirm: { kind: "Agente Clef + LLM", text: "Confirmar antes da doca com confiança calibrada; recomendar a alteração" },
+  Task_ConfirmCount: { kind: "Agente Clef + LLM", text: "Confirmar com a contagem no banco: falta física e quantidade menor" },
   Task_Count: { kind: "Agente LLM com visão", text: "Contar o pallet pela foto, como contraponto ao operador" }
 };
 function addNotes(overlays) {
