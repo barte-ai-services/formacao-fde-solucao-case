@@ -14,6 +14,7 @@ import { dossierField, dossierReadFailed, type DossierField } from '../dossier/p
 import { readDossier } from '../dossier/read-dossier.js';
 import type { DossierSource } from '../dossier/source.js';
 import type { DockActionOutbox } from '../connectors/ports.js';
+import { SupabaseRestError } from '../connectors/supabase-rest.js';
 import { publishApprovedDockAction } from '../dock/publish-approved-dock-action.js';
 
 export interface ApprovalDeps {
@@ -221,7 +222,7 @@ async function decide(
 
 /**
  * #43 AC-1: a decisão gravada chega à doca pela caixa de saída do WMS, idempotente. Se o WMS falha, a
- * decisão continua valendo (já está gravada): o log leva só a chave, e a varredura do Cron
+ * decisão continua valendo (já está gravada): o log leva só a chave e o status HTTP, e a varredura do Cron
  * (`publishDecidedDockActions`) publica na próxima rodada.
  */
 async function publishDecision(outbox: DockActionOutbox | undefined, key: string, proposal: CaseFile['proposal']): Promise<void> {
@@ -229,7 +230,9 @@ async function publishDecision(outbox: DockActionOutbox | undefined, key: string
   try {
     await publishApprovedDockAction({ type: 'proposta_aprovada', invoiceAccessKey: key, proposal }, outbox);
   } catch (e) {
-    console.error(`#43 ação na doca da nota ${key} não publicada agora; a varredura do Cron publica depois: ${e instanceof Error ? e.message : String(e)}`);
+    // #43 Só campos nomeados no log: a mensagem do erro pode trazer o corpo da resposta do PostgREST.
+    const status = e instanceof SupabaseRestError ? ` (HTTP ${e.status})` : '';
+    console.error(`#43 ação na doca da nota ${key} não publicada agora${status}; a varredura do Cron publica depois`);
   }
 }
 
