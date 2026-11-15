@@ -55,6 +55,9 @@ export type ConverseOptions = AskOptions & {
   readonly maxTurns?: number;
 };
 
+/** #230 O laço de tool use, injetável como o Ask: a tarefa que usa tools recebe um Converse e os testes passam um falso. */
+export type Converse = (options: ConverseOptions) => Promise<unknown>;
+
 export type ClaudeCredentials =
   | { readonly kind: 'api-key'; readonly apiKey: string }
   | { readonly kind: 'oauth'; readonly token: string };

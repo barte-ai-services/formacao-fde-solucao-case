@@ -3,7 +3,7 @@
  * que está pendente, pergunta ao Claude e grava a sugestão em claude_suggestions. A regra
  * determinística confirma depois e, sem sugestão, decide sozinha (fail-closed).
  */
-import { ClaudeError, DEFAULT_MODEL, type Ask } from './client.js';
+import { ClaudeError, DEFAULT_MODEL, type Ask, type Converse } from './client.js';
 import { isInteger, isString, isTimestamp, partitionRows, shaped, type Shape } from './guards.js';
 import { SupabaseRestError } from '../connectors/supabase-rest.js';
 import type { Db, Row } from './db.js';
@@ -21,6 +21,8 @@ const MAX_ERROR = 200;
 export type RunOptions = {
   readonly db: Db;
   readonly ask: Ask;
+  /** #230 O laço de tool use, para a tarefa que oferece tools; sem ele, essa tarefa falha fechada. */
+  readonly converse?: Converse;
   readonly tasks: readonly ClaudeTask<unknown, unknown>[];
   readonly log: (line: string) => void;
   readonly limit?: number;
@@ -111,7 +113,7 @@ async function runOne(
   const attempts = previous?.attempts ?? 0;
   let row: Row;
   try {
-    const output = await task.run(request.input, options.ask);
+    const output = await task.run(request.input, options.ask, options.converse);
     row = { output, status: 'ok', error: null, attempts };
     counts.ok += 1;
   } catch (error) {
@@ -155,7 +157,9 @@ async function runTask(task: ClaudeTask<unknown, unknown>, options: RunOptions):
   const { requests, dropped } = await task.pending(options.db);
   const pending = requests.filter((request) => existing.byKey.get(request.key)?.status !== 'ok');
   const now = (options.now ?? (() => new Date()))();
-  const plan = planQueue(pending, existing, now, options.limit ?? MAX_PER_RUN);
+  // #230 O teto da tarefa, quando houver, vale sobre o da rodada.
+  const limit = Math.min(options.limit ?? MAX_PER_RUN, task.maxPerRun ?? Number.POSITIVE_INFINITY);
+  const plan = planQueue(pending, existing, now, limit);
   const counts: Counts = { ok: 0, failed: 0, firstError: undefined };
   let stopped = false;
   let outOfBudget = false;

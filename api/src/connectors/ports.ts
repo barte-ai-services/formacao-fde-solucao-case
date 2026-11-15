@@ -1,5 +1,6 @@
 // Portas dos conectores (#59, AC-2): o que a conferência lê dos sistemas e o que publica para eles.
 import type {
+  AuditResult,
   DockAction,
   Invoice,
   Payment,
@@ -7,7 +8,9 @@ import type {
   Product,
   PurchaseOrder,
   Quantity,
+  NotAudited,
   Receipt,
+  RuleProposal,
   Supplier,
 } from '../domain/index.js';
 
@@ -98,3 +101,40 @@ export type RegistryCorrectionOutbox = Outbox<RegistryCorrectionMessage>;
 
 /** #59 ERP: a nota de devolução das linhas devolvidas. */
 export type ReturnNoteOutbox = Outbox<ReturnNoteMessage>;
+
+// #230 O auditor de notas (história #153)
+
+/** #230 A nota capturada e a proposta da regra, como a auditoria as lê. */
+export type AuditedNote = { readonly invoice: Invoice; readonly proposal: RuleProposal };
+
+/**
+ * #230 O que a auditoria lê e grava por nota. `save` é a única escrita do auditor: grava a auditoria com
+ * `agreement`, `raised_level` e `injection_flag` e, só se `raisedLevel` vier e a proposta ainda estiver em
+ * aguardando_aprovacao NO MOMENTO da gravação, sobe o nível na mesma transação (a nota pode ter sido
+ * decidida desde o `loadNote`). Nenhum método troca a ação da proposta nem aprova.
+ */
+export interface InvoiceAuditPort {
+  /** A nota capturada com a proposta da regra, ou null se a nota ou a proposta não existe. */
+  loadNote(invoiceAccessKey: string): Promise<AuditedNote | null>;
+  save(invoiceAccessKey: string, result: AuditResult): Promise<void>;
+  /** AC-6: a nota fica "não auditada" com o motivo; a proposta da regra segue como estava. */
+  saveNotAudited(invoiceAccessKey: string, outcome: NotAudited): Promise<void>;
+}
+
+/**
+ * #230 As 11 leituras das tools do auditor, sobre o banco da solução. Cada uma devolve o JSON que o modelo
+ * lê (a mesma informação das tools do ja-chegou); nenhuma lê arquivo nem o gabarito.
+ */
+export interface AuditReadsPort {
+  getInvoice(invoiceAccessKey: string): Promise<unknown>;
+  getPurchaseOrder(orderId: string): Promise<unknown>;
+  searchPurchaseOrders(query: { supplierId: string; store?: string; status?: string }): Promise<unknown>;
+  getReceipt(invoiceAccessKey: string): Promise<unknown>;
+  searchReceiptsWithoutInvoice(query: { supplierId: string; store: string }): Promise<unknown>;
+  getRegistry(query: { sku?: string; supplierCode?: string; supplierId?: string }): Promise<unknown>;
+  getSupplier(supplierId: string): Promise<unknown>;
+  searchPostedInvoices(query: { supplierId: string; number?: string; orderId?: string }): Promise<unknown>;
+  searchOutOfFlowPayments(query: { supplierId: string; store?: string }): Promise<unknown>;
+  compareItems(invoiceAccessKey: string): Promise<unknown>;
+  getRegua(): Promise<unknown>;
+}

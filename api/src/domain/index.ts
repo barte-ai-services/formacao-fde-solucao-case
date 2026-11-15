@@ -16,3 +16,4 @@ export * from './reconciliation.js';
 export * from './description-match.js';
 export * from './probable-order.js';
 export * from './dossier.js';
+export * from './invoice-audit.js';
