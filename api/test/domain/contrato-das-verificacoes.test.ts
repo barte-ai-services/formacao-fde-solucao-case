@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { checkDuplicidade } from '../../src/domain/checks/e6-duplicidade.js';
 import { checkPagoForaDoFluxo } from '../../src/domain/checks/e7-pago-fora-do-fluxo.js';
-import { checkNotaSemOrdem } from '../../src/domain/checks/e5-nota-sem-ordem.js';
 import { checkItemSemCadastro } from '../../src/domain/checks/e8-item-sem-cadastro.js';
 import { checkItemTrocado } from '../../src/domain/checks/e2-item-trocado.js';
 import { checkUnidadeDeMedida } from '../../src/domain/checks/e4-unidade-de-medida.js';
@@ -12,11 +11,11 @@ import { anInvoice, emptyContext } from './fixtures.js';
 
 // #59: este teste é o contrato das histórias. Quando a sua história preencher uma verificação,
 // (planos #62 a #73) troque o caso dela aqui pelos testes da história; não mude o nome nem a assinatura.
+// #65: checkNotaSemOrdem saiu daqui; os testes dela estão em e5-nota-sem-ordem.test.ts.
 // #73: checkQuantidadeMenor saiu daqui; os casos dele estão em e3-quantidade-menor.test.ts.
 const contract = {
   checkDuplicidade,
   checkPagoForaDoFluxo,
-  checkNotaSemOrdem,
   checkItemSemCadastro,
   checkItemTrocado,
   checkUnidadeDeMedida,

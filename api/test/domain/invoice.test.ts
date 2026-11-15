@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CHECKS, Divergence, type Check, type NamedCheck } from '../../src/domain/index.js';
 import { anInvoice, emptyContext } from './fixtures.js';
+import { order } from './e5-fixtures.js';
 
 type CheckId = NamedCheck['id'];
 
@@ -67,7 +68,8 @@ describe('Invoice', () => {
 
   it('AC-2: com as verificações vazias, toda nota sai MATCH', () => {
     const invoice = anInvoice();
-    invoice.check(emptyContext());
+    // #65: a E5 já está preenchida; a ordem que a nota cita existe em Compras, então ela não acusa.
+    invoice.check(emptyContext({ purchaseOrders: [order('OC-100')] }));
     expect(invoice.state).toBe('conferida');
     expect(invoice.classification).toBe('MATCH');
   });

@@ -14,3 +14,4 @@ export * from './title.js';
 export * from './checks/index.js';
 export * from './reconciliation.js';
 export * from './description-match.js';
+export * from './probable-order.js';

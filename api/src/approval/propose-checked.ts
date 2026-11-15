@@ -1,10 +1,12 @@
 // #63 Depois da conferência, o Cron registra a proposta de cada nota conferida e a encaminha pela régua.
 import { isInteger, isString, parseRows, shaped } from '../connectors/guards.js';
 import type { PurchasingPort, RegistryPort } from '../connectors/ports.js';
+import type { ProbableOrderSuggestions } from '../connectors/probable-order-suggestions.js';
 import type { SupabaseRest } from '../connectors/supabase-rest.js';
 import { draftProposal, propose } from '../domain/approval.js';
 import { ApprovalPolicy } from '../domain/approval-policy.js';
 import { priceDifference } from '../domain/checks/nao-catalogada.js';
+import { draftNotaSemOrdem, resolveProbableOrder } from '../domain/probable-order.js';
 import type { CheckContext } from '../domain/context.js';
 import { Title } from '../domain/title.js';
 import { todayInBrasilia } from '../http/approval.js';
@@ -14,6 +16,8 @@ export type ProposeDeps = {
   readonly rest: SupabaseRest;
   readonly purchasing: PurchasingPort;
   readonly registry: RegistryPort;
+  /** #65: as sugestões de ordem provável do executor da #66. Sem elas, a regra decide sozinha. */
+  readonly suggestions?: ProbableOrderSuggestions;
   readonly now?: () => Date;
 };
 
@@ -34,14 +38,18 @@ export async function proposeChecked(deps: ProposeDeps): Promise<ProposeResult> 
   if (invoices.length === 0) return { proposed: 0, approvedByRule: 0 };
   const now = (deps.now ?? (() => new Date()))();
   const today = todayInBrasilia(now);
-  const [purchaseOrders, suppliers] = await Promise.all([
+  const e5Keys = invoices.filter((i) => i.classification === 'E5').map((i) => i.accessKey);
+  // #65: os produtos entram para a regra da ordem provável converter caixa em unidade (regra 4).
+  const [purchaseOrders, suppliers, products, suggestions] = await Promise.all([
     deps.purchasing.listPurchaseOrders(),
     deps.registry.listSuppliers(),
+    deps.registry.listProducts(),
+    deps.suggestions?.listSuggestions(e5Keys) ?? Promise.resolve(new Map()),
   ]);
   const ctx: CheckContext = {
     purchaseOrders,
     suppliers,
-    products: [],
+    products,
     postedInvoices: [],
     payments: [],
     receipts: [],
@@ -53,7 +61,11 @@ export async function proposeChecked(deps: ProposeDeps): Promise<ProposeResult> 
     const route = ApprovalPolicy.route(invoice, supplier);
     // #63 A nota da SEFAZ não traz vencimento: o título nasce com o valor da nota e vence na emissão.
     const title = Title.post({ invoiceAccessKey: invoice.accessKey, amount: invoice.total, dueOn: invoice.issuedOn });
-    const draft = draftProposal(invoice, priceDifference(invoice, ctx)?.overcharge ?? null);
+    // #65 AC-2 e AC-3: a nota sem ordem leva a ordem provável que a regra confirmou, ou nenhuma.
+    const draft =
+      invoice.classification === 'E5'
+        ? draftNotaSemOrdem(invoice, resolveProbableOrder(invoice, ctx, suggestions.get(invoice.accessKey)))
+        : draftProposal(invoice, priceDifference(invoice, ctx)?.overcharge ?? null);
     const result = propose(invoice, title, { route, ...draft, today });
     return { invoice, title, route, ...result };
   });
