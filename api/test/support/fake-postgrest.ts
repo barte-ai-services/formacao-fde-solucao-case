@@ -99,6 +99,12 @@ export class FakePostgrest {
   private matches(row: Row, params: URLSearchParams): boolean {
     for (const [col, expr] of params) {
       if (['select', 'order', 'on_conflict'].includes(col)) continue;
+      // #71: in.(a,b) para o filtro de estado do painel.
+      const inList = /^in\.\((.*)\)$/.exec(expr);
+      if (inList) {
+        if (!(inList[1] ?? '').split(',').includes(String(row[col]))) return false;
+        continue;
+      }
       if (!expr.startsWith('eq.')) throw new Error(`fake: filtro não suportado ${col}=${expr}`);
       if (String(row[col]) !== expr.slice(3)) return false;
     }
