@@ -19,7 +19,7 @@ export class AmountAtRisk {
     return new AmountAtRisk(amount, invoiceTotal);
   }
 
-  /** Regra 3: na duplicidade, o valor em risco é o valor da nota. */
+  /** Regra 3, #59: na duplicidade, o valor em risco é o valor da nota. */
   static full(invoiceTotal: Money): AmountAtRisk {
     return AmountAtRisk.of(invoiceTotal, invoiceTotal);
   }

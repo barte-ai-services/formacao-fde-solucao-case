@@ -7,7 +7,7 @@ import { InvalidTransitionError } from './errors.js';
 import type { Money } from './money.js';
 import type { Quantity } from './quantity.js';
 
-export type InvoiceState = 'a_conferir' | 'conferida' | 'com_proposta' | 'decidida';
+export type InvoiceState = 'a_conferir' | 'conferida' | 'com_proposta' | 'decidida'; // ADR-002
 
 export type InvoiceItem = {
   readonly supplierCode: string;
@@ -17,6 +17,25 @@ export type InvoiceItem = {
   readonly unitPrice: Money;
   readonly total: Money;
 };
+
+/** #59: o que uma verificação, a conciliação e a duplicidade leem da nota, sem as transições. */
+export type InvoiceView = Pick<
+  Invoice,
+  | 'accessKey'
+  | 'number'
+  | 'series'
+  | 'supplierId'
+  | 'store'
+  | 'issuedOn'
+  | 'purchaseOrderRef'
+  | 'entryChannel'
+  | 'items'
+  | 'total'
+  | 'state'
+  | 'divergences'
+  | 'classification'
+  | 'equals'
+>;
 
 export type InvoiceProps = {
   accessKey: string;
@@ -59,7 +78,6 @@ export class Invoice {
     this.total = props.total;
   }
 
-  /** Nota fiscal recebida: nasce a conferir. */
   static receive(props: InvoiceProps): Invoice {
     return new Invoice(props);
   }
@@ -72,18 +90,18 @@ export class Invoice {
     return this.found;
   }
 
-  /** Regra 6: vale a divergência de maior precedência; sem nenhuma, MATCH. */
+  /** Regra 6, #59: vale a divergência de maior precedência; sem nenhuma, MATCH. */
   get classification(): Classification {
     return highestPrecedence(this.found.map((d) => d.classification));
   }
 
-  /** Regra 1: a nota é única pela chave de acesso. */
-  equals(other: Invoice): boolean {
+  /** Regra 1, #59: a nota é única pela chave de acesso. */
+  equals(other: InvoiceView): boolean {
     return this.accessKey === other.accessKey;
   }
 
   /**
-   * Regra 2: roda as verificações na ordem da lista e para logo depois da duplicidade (E6)
+   * Regra 2, #59: roda as verificações na ordem da lista e para logo depois da duplicidade (E6)
    * quando ela acha alguma coisa. Passa a nota a conferida.
    */
   check(ctx: CheckContext, checks: readonly NamedCheck[] = CHECKS): void {

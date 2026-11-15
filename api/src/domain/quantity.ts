@@ -44,7 +44,7 @@ export class Quantity {
     return new Quantity(this.amount - other.amount, this.unit);
   }
 
-  /** Regra 4: caixa vira unidade pelo fator do produto (12 CX, fator 4 = 48 UN). UN fica igual. */
+  /** Regra 4, #59: caixa vira unidade pelo fator do produto (12 CX, fator 4 = 48 UN). UN fica igual. */
   toUnits(boxFactor: number): Quantity {
     if (!Number.isSafeInteger(boxFactor) || boxFactor <= 0) {
       throw new DomainError(`Quantity: fator de caixa deve ser inteiro > 0, recebido ${boxFactor}`);

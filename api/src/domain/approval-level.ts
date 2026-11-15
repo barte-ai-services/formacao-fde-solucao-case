@@ -1,4 +1,4 @@
-export type ApprovalLevel = 'regra' | 'analista' | 'coordenacao' | 'diretoria' | 'bloqueio';
+export type ApprovalLevel = 'regra' | 'analista' | 'coordenacao' | 'diretoria' | 'bloqueio'; // ADR-002
 
 /** Em ordem crescente: regra < analista < coordenação < diretoria < bloqueio. */
 export const APPROVAL_LEVELS: readonly ApprovalLevel[] = Object.freeze([

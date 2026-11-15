@@ -32,16 +32,23 @@ describe('Proposal', () => {
     p.approve();
     expect(p.state).toBe('aprovada');
     expect(() => p.approve()).toThrow();
-    expect(() => p.alter('outra')).toThrow();
+    expect(() => p.alter(DockAction.refuse(), 'outra')).toThrow();
   });
 
   it('regra 8: alterar exige justificativa', () => {
     const p = register('analista');
     p.awaitApproval();
-    expect(() => p.alter('')).toThrow();
-    expect(() => p.alter('   ')).toThrow();
-    p.alter('fornecedor reenviou a nota');
+    expect(() => p.alter(DockAction.refuse(), '')).toThrow();
+    expect(() => p.alter(DockAction.refuse(), '   ')).toThrow();
+    expect(p.dockAction.kind).toBe('receber');
+  });
+
+  it('regra 8: alterar grava a nova ação na doca e a justificativa', () => {
+    const p = register('analista');
+    p.awaitApproval();
+    p.alter(DockAction.refuse(), 'fornecedor reenviou a nota');
     expect(p.state).toBe('alterada');
+    expect(p.dockAction.kind).toBe('recusar');
     expect(p.justification).toBe('fornecedor reenviou a nota');
   });
 

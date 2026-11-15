@@ -1,5 +1,5 @@
 import type { Product, Receipt } from './context.js';
-import type { Invoice } from './invoice.js';
+import type { InvoiceView } from './invoice.js';
 import type { Quantity } from './quantity.js';
 
 export type ReconciliationLine = {
@@ -18,7 +18,7 @@ export type ReconciliationLine = {
  * Preencha aqui; não mude o nome nem a assinatura.
  */
 export function reconcile(
-  _invoice: Invoice,
+  _invoice: InvoiceView,
   _receipt: Receipt,
   _products: readonly Product[],
 ): readonly ReconciliationLine[] {

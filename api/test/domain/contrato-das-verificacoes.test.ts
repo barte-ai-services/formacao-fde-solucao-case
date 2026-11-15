@@ -11,8 +11,8 @@ import { checkNaoCatalogada } from '../../src/domain/checks/nao-catalogada.js';
 import { matchByDescription, reconcile } from '../../src/domain/index.js';
 import { anInvoice, emptyContext } from './fixtures.js';
 
-// Este teste é o contrato das histórias. Quando a sua história preencher uma verificação,
-// troque o caso dela aqui pelos testes da história; não mude o nome nem a assinatura.
+// #59: este teste é o contrato das histórias. Quando a sua história preencher uma verificação,
+// (planos #62 a #73) troque o caso dela aqui pelos testes da história; não mude o nome nem a assinatura.
 const contract = {
   checkDuplicidade,
   checkPagoForaDoFluxo,

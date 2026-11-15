@@ -21,7 +21,7 @@ export class Divergence {
     Object.freeze(this);
   }
 
-  /** Regra 6: toda divergência cita ao menos uma evidência. */
+  /** Regra 6, #59: toda divergência cita ao menos uma evidência. */
   static of(props: DivergenceProps): Divergence {
     if (props.evidence.length === 0) {
       throw new DomainError(`Divergence ${props.classification}: toda divergência cita uma evidência`);

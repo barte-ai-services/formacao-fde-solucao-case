@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { CHECKS, Divergence, type Check, type Classification, type NamedCheck } from '../../src/domain/index.js';
+import { CHECKS, Divergence, type Check, type NamedCheck } from '../../src/domain/index.js';
 import { anInvoice, emptyContext } from './fixtures.js';
 
-const ORDER: Classification[] = ['E6', 'E7', 'E5', 'E8', 'E2', 'E4', 'E1', 'E3', 'NAO_CATALOGADA'];
+type CheckId = NamedCheck['id'];
+
+const ORDER: CheckId[] = ['E6', 'E7', 'E5', 'E8', 'E2', 'E4', 'E1', 'E3', 'NAO_CATALOGADA'];
 
 const evidence = [{ source: 'erp_contas_a_pagar' as const, reference: 'T-1', description: 'já lançada' }];
 
-const spies = (calls: Classification[], results: Partial<Record<Classification, Check>> = {}): NamedCheck[] =>
+const spies = (calls: CheckId[], results: Partial<Record<CheckId, Check>> = {}): NamedCheck[] =>
   ORDER.map((id) => ({
     id,
     run: (invoice, ctx) => {
@@ -29,13 +31,13 @@ describe('Invoice', () => {
   });
 
   it('AC-2: check() chama as verificações na ordem E6, E7, E5, E8, E2, E4, E1, E3, NAO_CATALOGADA', () => {
-    const calls: Classification[] = [];
+    const calls: CheckId[] = [];
     anInvoice().check(emptyContext(), spies(calls));
     expect(calls).toEqual(ORDER);
   });
 
   it('AC-2 regra 2: com E6 achando duplicidade, só E6 roda e a nota fica conferida como E6', () => {
-    const calls: Classification[] = [];
+    const calls: CheckId[] = [];
     const invoice = anInvoice();
     invoice.check(
       emptyContext(),

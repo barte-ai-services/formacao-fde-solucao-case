@@ -1,8 +1,8 @@
-import type { Invoice } from './invoice.js';
+import type { InvoiceView } from './invoice.js';
 import type { Money } from './money.js';
 import type { Quantity, Unit } from './quantity.js';
 
-// Snapshots read-only que as verificações recebem. Os conectores preenchem; o domínio só lê.
+// #59: snapshots read-only que as verificações recebem. Os conectores preenchem; o domínio só lê.
 
 export type PurchaseOrderItem = {
   readonly sku: string;
@@ -10,7 +10,7 @@ export type PurchaseOrderItem = {
   readonly description: string;
   readonly quantity: Quantity;
   readonly unitPrice: Money;
-  /** Regra 5: o saldo que Compras publica para o item da ordem. */
+  /** Regra 5, #59: o saldo que Compras publica para o item da ordem. */
   readonly balance: Quantity;
 };
 
@@ -20,7 +20,7 @@ export type PurchaseOrder = {
   readonly supplierId: string;
   readonly store: string;
   readonly issuedOn: string;
-  readonly status: 'aberta' | 'atendida' | 'travada';
+  readonly status: 'aberta' | 'atendida' | 'travada'; // ADR-002
   readonly statusReason: string;
   readonly items: readonly PurchaseOrderItem[];
   readonly total: Money;
@@ -95,6 +95,6 @@ export type CheckContext = {
   readonly postedInvoices: readonly PostedInvoice[];
   readonly payments: readonly Payment[];
   readonly receipts: readonly Receipt[];
-  /** Notas já capturadas, para a duplicidade (regra 1). */
-  readonly capturedInvoices: readonly Invoice[];
+  /** Regra 1, #59: notas já capturadas, para a duplicidade. */
+  readonly capturedInvoices: readonly InvoiceView[];
 };

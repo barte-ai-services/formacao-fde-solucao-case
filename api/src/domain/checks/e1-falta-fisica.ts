@@ -7,4 +7,4 @@ import type { Check } from './check.js';
  *
  * Preencha aqui; não mude o nome nem a assinatura.
  */
-export const checkFaltaFisica: Check = (_invoice, _ctx) => [];
+export const checkFaltaFisica: Check = (_invoice, _ctx) => []; // ADR-002

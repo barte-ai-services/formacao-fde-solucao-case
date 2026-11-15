@@ -1,7 +1,7 @@
 import { DomainError, InvalidTransitionError } from './errors.js';
 import type { Money } from './money.js';
 
-export type TitleState = 'lancado' | 'liberado' | 'reduzido' | 'bloqueado' | 'na_lista_do_dia';
+export type TitleState = 'lancado' | 'liberado' | 'reduzido' | 'bloqueado' | 'na_lista_do_dia'; // ADR-002
 
 export type TitleProps = {
   invoiceAccessKey: string;
@@ -22,7 +22,6 @@ export class Title {
     this.dueOn = props.dueOn;
   }
 
-  /** Título lançado. */
   static post(props: TitleProps): Title {
     return new Title(props);
   }
@@ -40,7 +39,7 @@ export class Title {
     this.currentState = 'liberado';
   }
 
-  /** Reduz para um valor entre zero e o atual, ambos exclusivos. */
+  /** #59: reduz para um valor entre zero e o atual, ambos exclusivos. */
   reduce(to: Money): void {
     this.assertState(['lancado'], 'reduzir');
     if (to.compare(this.currentAmount) >= 0 || to.isZero() || to.isNegative()) {
