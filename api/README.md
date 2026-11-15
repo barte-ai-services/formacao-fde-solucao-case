@@ -77,16 +77,21 @@ O time do Zero Trust é `long-frost-f16b.cloudflareaccess.com` (variável do rep
 `BARTE_ACADEMY_ACCESS_AUD`. O script `scripts/cloudflare_access.py` a atualiza e nunca cria outra: acha a
 aplicação pelo AUD, não pelo nome, e um AUD que não bate com nenhuma aplicação é erro, sem gravar nada.
 
-O PUT preserva o nome, o domínio e o AUD da aplicação, e o que ela já tem: os provedores de login (o código por
-e-mail entra se faltar), a duração da sessão e o redirecionamento automático. Só a política é reescrita: libera a
-`barte.com` e cada e-mail de `BARTE_ACADEMY_ACCESS_ALLOWED_EMAILS`, e as outras políticas da aplicação saem.
-Execução real sem e-mails é recusada. Rodar de novo deixa o mesmo estado.
+O PUT substitui o recurso, então o corpo parte da aplicação inteira (menos os campos só de leitura: `id`, `uid`,
+`aud`, `created_at`, `updated_at`) e troca só duas coisas. Nome, domínio, AUD, sessão, redirecionamento e os demais
+campos ficam como estão. Em `allowed_idps` o código por e-mail entra se faltar, mas lista vazia ou ausente, que na
+API quer dizer "todos os provedores", fica como está. Em `policies`, a política do script (libera a `barte.com` e
+cada e-mail de `BARTE_ACADEMY_ACCESS_ALLOWED_EMAILS`) é trocada no lugar ou acrescentada ao fim, e as outras
+políticas da aplicação ficam na forma em que vieram. Execução real sem e-mails é recusada. Rodar de novo deixa o
+mesmo estado.
 
 **Pelo workflow** (o caminho normal):
 
 1. Em Settings, Secrets and variables, Actions, confira os secrets `BARTE_ACADEMY_CLOUDFLARE_API_TOKEN` (com
-   permissão de Access: Apps and Policies) e `BARTE_ACADEMY_CLOUDFLARE_ACCOUNT_ID`, e as variáveis
-   `BARTE_ACADEMY_ACCESS_AUD` e `BARTE_ACADEMY_ACCESS_ALLOWED_EMAILS` (e-mails separados por vírgula ou espaço).
+   permissão de Access: Apps and Policies) e `BARTE_ACADEMY_CLOUDFLARE_ACCOUNT_ID`, o secret
+   `BARTE_ACADEMY_ACCESS_ALLOWED_EMAILS` (e-mails separados por vírgula ou espaço) e a variável
+   `BARTE_ACADEMY_ACCESS_AUD`. Os e-mails são secret porque o Actions imprime o `env` do step no log e só mascara
+   secrets.
 2. Na aba Actions, rode `Provisiona o Cloudflare Access` (`.github/workflows/cloudflare-access.yml`) na `main`,
    com `dry_run` marcado. O log mostra a chamada que enviaria, com os e-mails mascarados e a contagem deles.
 3. Rode de novo com `dry_run` desmarcado para gravar.

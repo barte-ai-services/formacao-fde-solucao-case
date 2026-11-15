@@ -29,7 +29,8 @@ jobs:
         with:
           persist-credentials: false
       # Token, conta, AUD e e-mails entram pelo env e o script os lê de lá: nenhuma expressão do Actions na
-      # linha de comando, e o script não imprime token nem e-mail. O input de dry-run também entra pelo env.
+      # linha de comando, e o script não imprime token nem e-mail. Os e-mails são secret, não variável: o Actions
+      # imprime o env do step no cabeçalho do log e só mascara secrets. O input de dry-run também entra pelo env.
       - name: Provisiona o Access
         run: |
           if [ "$DRY_RUN" = "true" ]; then
@@ -41,5 +42,5 @@ jobs:
           BARTE_ACADEMY_CLOUDFLARE_API_TOKEN: ${{ secrets.BARTE_ACADEMY_CLOUDFLARE_API_TOKEN }}
           BARTE_ACADEMY_CLOUDFLARE_ACCOUNT_ID: ${{ secrets.BARTE_ACADEMY_CLOUDFLARE_ACCOUNT_ID }}
           BARTE_ACADEMY_ACCESS_AUD: ${{ vars.BARTE_ACADEMY_ACCESS_AUD }}
-          BARTE_ACADEMY_ACCESS_ALLOWED_EMAILS: ${{ vars.BARTE_ACADEMY_ACCESS_ALLOWED_EMAILS }}
+          BARTE_ACADEMY_ACCESS_ALLOWED_EMAILS: ${{ secrets.BARTE_ACADEMY_ACCESS_ALLOWED_EMAILS }}
           DRY_RUN: ${{ inputs.dry_run }}

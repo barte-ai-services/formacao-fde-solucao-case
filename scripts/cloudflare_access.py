@@ -3,16 +3,19 @@
 
 Atualiza a aplicação do Access que o Worker já usa, a que tem o AUD de BARTE_ACADEMY_ACCESS_AUD, e
 garante o provedor de identidade de código por e-mail (one-time PIN). A política libera quem é da
-barte.com e os alunos listados. O PUT preserva o nome, o domínio e o AUD da aplicação, e os ajustes
-que ela já tem (provedores de login, duração da sessão, redirecionamento automático): só a política é
-reescrita, e as outras políticas da aplicação saem. Rodar duas vezes deixa o mesmo estado.
+barte.com e os alunos listados. O PUT substitui o recurso, então o corpo parte da aplicação inteira (menos
+os campos só de leitura, em READ_ONLY_APP_FIELDS) e troca só duas coisas: `allowed_idps`, onde o código por
+e-mail entra se faltar (vazio ou ausente, que na API é "todos os provedores", fica como está), e `policies`,
+onde a política do script é trocada no lugar ou acrescentada, e as outras políticas ficam na forma em que
+vieram. Nome, domínio e AUD não mudam. Rodar duas vezes deixa o mesmo estado.
 
 Criar uma aplicação nova só por pedido explícito, com --create, e então o domínio vem de
 BARTE_ACADEMY_ACCESS_APP_DOMAIN. Sem --create, um AUD que não bate com nenhuma aplicação é erro.
 
 Variáveis de ambiente: BARTE_ACADEMY_CLOUDFLARE_API_TOKEN, BARTE_ACADEMY_CLOUDFLARE_ACCOUNT_ID,
 BARTE_ACADEMY_ACCESS_AUD e BARTE_ACADEMY_ACCESS_ALLOWED_EMAILS (e-mails dos alunos, separados por
-vírgula ou espaço; obrigatória fora do --dry-run).
+vírgula ou espaço; obrigatória fora do --dry-run; no workflow é secret, porque o Actions imprime o `env`
+do step e só mascara secrets).
 Nunca imprime o token, o corpo das respostas de erro nem os e-mails: o --dry-run os mascara.
 
 Uso: python3 scripts/cloudflare_access.py [--dry-run] [--create]
@@ -44,6 +47,8 @@ ALLOWED_DOMAIN = "barte.com"
 OTP_TYPE = "onetimepin"
 OTP_NAME = "Código por e-mail"
 EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+# O que a API do Access devolve da aplicação e não aceita de volta no PUT: identificadores e carimbos.
+READ_ONLY_APP_FIELDS = ("id", "uid", "aud", "created_at", "updated_at")
 PENDING_OTP = "<id do one-time PIN, criado na execução real>"
 
 NOT_ENABLED_MESSAGE = (
@@ -142,7 +147,7 @@ class Options:
     """O que a execução pede: o AUD da aplicação, os e-mails, e os dois interruptores."""
 
     aud: str
-    emails: list[str]
+    emails: tuple[str, ...]
     create: bool = False
     dry_run: bool = False
     app_domain: str = ""
@@ -156,16 +161,19 @@ def validate(options: Options) -> None:
         raise ConfigError(f"defina {EMAILS_VAR}: sem e-mails a política deixaria os alunos de fora")
 
 
-def policy(emails: list[str], policy_id: str | None = None) -> Json:
+def policy(emails: tuple[str, ...], current: Json = None, precedence: int = 1) -> Json:
+    """A política do script. Se ela já existe na aplicação (`current`), reaproveita o id e a precedência."""
     include: list[Json] = [{"email_domain": {"domain": ALLOWED_DOMAIN}}]
     include += [{"email": {"email": email}} for email in emails]
-    body: Json = {"name": POLICY_NAME, "decision": "allow", "precedence": 1, "include": include}
-    if policy_id:
-        body["id"] = policy_id
+    body: Json = {"name": POLICY_NAME, "decision": "allow", "precedence": precedence, "include": include}
+    if current:
+        body["precedence"] = current.get("precedence", precedence)
+        if current.get("id"):
+            body["id"] = current["id"]
     return body
 
 
-def new_app_payload(otp_id: str, emails: list[str], domain: str) -> Json:
+def new_app_payload(otp_id: str, emails: tuple[str, ...], domain: str) -> Json:
     return {
         "name": APP_NAME,
         "type": "self_hosted",
@@ -177,20 +185,31 @@ def new_app_payload(otp_id: str, emails: list[str], domain: str) -> Json:
     }
 
 
-def updated_app_payload(existing: Json, otp_id: str, emails: list[str]) -> Json:
-    """O PUT da aplicação vigente: tudo o que ela já tem fica, e só a política é a que o script define."""
-    policy_id = next((p.get("id") for p in existing.get("policies") or []
-                      if isinstance(p, dict) and p.get("name") == POLICY_NAME), None)
-    idps = [str(i) for i in existing.get("allowed_idps") or []]
-    return {
-        "name": existing["name"],
-        "type": existing.get("type", "self_hosted"),
-        "domain": existing["domain"],
-        "allowed_idps": idps if otp_id in idps else [*idps, otp_id],
-        "auto_redirect_to_identity": existing.get("auto_redirect_to_identity", True),
-        "session_duration": existing.get("session_duration", "24h"),
-        "policies": [policy(emails, policy_id)],
-    }
+def merged_policies(existing: list[Json], emails: tuple[str, ...]) -> list[Json]:
+    """As políticas da aplicação como vieram, com a do script trocada no lugar ou acrescentada ao fim."""
+    mine = next((p for p in existing if isinstance(p, dict) and p.get("name") == POLICY_NAME), None)
+    if mine is not None:
+        return [policy(emails, mine) if p is mine else p for p in existing]
+    taken = [p["precedence"] for p in existing if isinstance(p, dict) and isinstance(p.get("precedence"), int)]
+    return [*existing, policy(emails, precedence=max(taken, default=0) + 1)]
+
+
+def merged_idps(existing: Json, otp_id: str) -> list[str] | None:
+    """`allowed_idps` vazio ou ausente é "todos os provedores da conta": fica como está, sem fixar no OTP."""
+    if not existing.get("allowed_idps"):
+        return None
+    idps = [str(i) for i in existing["allowed_idps"]]
+    return idps if otp_id in idps else [*idps, otp_id]
+
+
+def updated_app_payload(existing: Json, otp_id: str, emails: tuple[str, ...]) -> Json:
+    """O PUT substitui o recurso: o corpo parte da aplicação toda e troca só `allowed_idps` e `policies`."""
+    body = {key: value for key, value in existing.items() if key not in READ_ONLY_APP_FIELDS}
+    idps = merged_idps(existing, otp_id)
+    if idps is not None:
+        body["allowed_idps"] = idps
+    body["policies"] = merged_policies(list(existing.get("policies") or []), emails)
+    return body
 
 
 def _call(client: Client, method: str, path: str, body: Json = None) -> Json:
@@ -242,29 +261,25 @@ def find_app(client: Client, account: str, options: Options) -> Json:
     return existing
 
 
-def write_app(client: Client, account: str, existing: Json, otp_id: str,
-              options: Options, out: TextIO) -> Json:
+def app_request(account: str, existing: Json, otp_id: str, options: Options) -> tuple[str, str, Json]:
+    """Método, caminho e corpo da gravação da aplicação: POST se for nova, PUT na vigente."""
     path = f"/accounts/{account}/access/apps"
     if existing is None:
-        method, target = "POST", path
-        body = new_app_payload(otp_id, options.emails, options.app_domain)
-        done = "Criada a aplicação do Access."
-    else:
-        method, target = "PUT", f"{path}/{existing['id']}"
-        body = updated_app_payload(existing, otp_id, options.emails)
-        done = "Atualizada a aplicação do Access."
-    if options.dry_run:
-        _show(out, method, target, body)
-        return existing
-    out.write(f"{done}\n")
-    return _call(client, method, target, body)
+        return "POST", path, new_app_payload(otp_id, options.emails, options.app_domain)
+    return "PUT", f"{path}/{existing['id']}", updated_app_payload(existing, otp_id, options.emails)
 
 
 def provision(client: Client, account: str, options: Options, out: TextIO = sys.stdout) -> int:
     validate(options)
     existing = find_app(client, account, options)
     otp_id = ensure_otp(client, account, options.dry_run, out)
-    app = write_app(client, account, existing, otp_id, options, out)
+    method, path, body = app_request(account, existing, otp_id, options)
+    if options.dry_run:
+        _show(out, method, path, body)
+        app = existing
+    else:
+        out.write("Criada a aplicação do Access.\n" if existing is None else "Atualizada a aplicação do Access.\n")
+        app = _call(client, method, path, body)
     organization = _call(client, "GET", f"/accounts/{account}/access/organizations") or {}
     out.write(f"Política com {len(options.emails)} e-mail(s) de aluno e a barte.com.\n")
     if existing is None and app and app.get("aud"):
@@ -285,7 +300,7 @@ def main(argv: list[str], env: Mapping[str, str] = os.environ,
         token, account = env.get(TOKEN_VAR, "").strip(), env.get(ACCOUNT_VAR, "").strip()
         if not token or not account:
             raise ConfigError(f"defina {TOKEN_VAR} e {ACCOUNT_VAR}")
-        options = Options(aud=env.get(AUD_VAR, "").strip(), emails=parse_emails(env.get(EMAILS_VAR)),
+        options = Options(aud=env.get(AUD_VAR, "").strip(), emails=tuple(parse_emails(env.get(EMAILS_VAR))),
                           create=args.create, dry_run=args.dry_run,
                           app_domain=env.get(APP_DOMAIN_VAR, "").strip())
         client = (client_factory or HttpClient)(token)

@@ -78,7 +78,7 @@ def vigente(**changes: Json) -> Json:
 
 def options(emails: list[str] | None = None, aud: str = AUD, create: bool = False,
             dry_run: bool = False, app_domain: str = "") -> ca.Options:
-    return ca.Options(aud=aud, emails=emails or [], create=create, dry_run=dry_run, app_domain=app_domain)
+    return ca.Options(aud=aud, emails=tuple(emails or ()), create=create, dry_run=dry_run, app_domain=app_domain)
 
 
 def run(client: FakeClient, **kwargs: Json) -> tuple[int, str]:
@@ -143,7 +143,7 @@ class UpdateExistingAppTest(unittest.TestCase):
         """#232/AC-3: a política enviada inclui barte.com e cada e-mail."""
         client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[vigente()])
         run(client, emails=[ALUNO, "outra@example.com"])
-        [policy] = client.writes()[0][2]["policies"]
+        policy = next(p for p in client.writes()[0][2]["policies"] if p["name"] == ca.POLICY_NAME)
         self.assertEqual("pol-1", policy["id"])
         self.assertEqual("allow", policy["decision"])
         self.assertEqual(
@@ -166,6 +166,61 @@ class UpdateExistingAppTest(unittest.TestCase):
         _, out = run(client, emails=[ALUNO])
         self.assertIn(f"ACCESS_TEAM_DOMAIN={AUTH_DOMAIN}\n", out)
         self.assertNotIn(AUD, out)
+
+
+class PreserveExistingAppTest(unittest.TestCase):
+    def put_body(self, app: Json, idps: list[Json] | None = None) -> Json:
+        client = FakeClient(idps=idps or [{"id": OTP_ID, "type": "onetimepin"}], apps=[app])
+        run(client, emails=[ALUNO])
+        return client.writes()[0][2]
+
+    def test_extra_fields_of_the_app_survive_the_put(self) -> None:
+        """#232/AC-1: o PUT parte da aplicação existente; campos que o script não conhece ficam."""
+        body = self.put_body(vigente(cors_headers={"allow_all_origins": True}, tags=["fde"]))
+        self.assertEqual({"allow_all_origins": True}, body["cors_headers"])
+        self.assertEqual(["fde"], body["tags"])
+
+    def test_read_only_fields_are_not_sent(self) -> None:
+        """#232/AC-1: id, aud e carimbos de data são só leitura e não vão no corpo."""
+        body = self.put_body(vigente(created_at="2026-01-01", updated_at="2026-02-01"))
+        for field in ca.READ_ONLY_APP_FIELDS:
+            self.assertNotIn(field, body)
+
+    def test_another_policy_of_the_app_survives_in_the_form_it_came(self) -> None:
+        """#232/AC-1: a política da aplicação com outro nome fica, e a do script é a única trocada."""
+        body = self.put_body(vigente())
+        self.assertEqual(["pol-1", "pol-x"], [p["id"] for p in body["policies"]])
+        self.assertEqual({"id": "pol-x", "name": "outra"}, body["policies"][1])
+        self.assertEqual(ca.POLICY_NAME, body["policies"][0]["name"])
+
+    def test_script_policy_is_appended_when_the_app_has_none_of_its_own(self) -> None:
+        """#232/AC-3: sem política do script, ela entra depois das que a aplicação já tem."""
+        body = self.put_body(vigente(policies=[{"id": "pol-x", "name": "outra", "precedence": 1}]))
+        self.assertEqual(["outra", ca.POLICY_NAME], [p["name"] for p in body["policies"]])
+        self.assertNotIn("id", body["policies"][1])
+        self.assertEqual(2, body["policies"][1]["precedence"])
+
+    def test_empty_allowed_idps_is_kept_empty_because_it_means_every_idp(self) -> None:
+        """#232/AC-1: allowed_idps vazio é "todos os provedores"; não vira só o código por e-mail."""
+        self.assertEqual([], self.put_body(vigente(allowed_idps=[]))["allowed_idps"])
+
+    def test_absent_allowed_idps_stays_absent(self) -> None:
+        """#232/AC-1: sem allowed_idps na aplicação, o corpo também não os traz."""
+        app = vigente()
+        del app["allowed_idps"]
+        self.assertNotIn("allowed_idps", self.put_body(app))
+
+    def test_options_emails_are_immutable(self) -> None:
+        self.assertIsInstance(options(emails=[ALUNO]).emails, tuple)
+
+    def test_app_request_decides_method_path_and_body_without_calling_the_api(self) -> None:
+        method, path, body = ca.app_request(ACCOUNT, vigente(), OTP_ID, options(emails=[ALUNO]))
+        self.assertEqual(("PUT", f"{BASE}/apps/{APP_ID}"), (method, path))
+        self.assertEqual("nome-vigente", body["name"])
+        method, path, body = ca.app_request(ACCOUNT, None, OTP_ID, options(
+            emails=[ALUNO], aud="", create=True, app_domain=APP_DOMAIN))
+        self.assertEqual(("POST", f"{BASE}/apps"), (method, path))
+        self.assertEqual(APP_DOMAIN, body["domain"])
 
 
 class UnknownAudTest(unittest.TestCase):
@@ -413,6 +468,9 @@ class DocsAndWorkflowTest(unittest.TestCase):
         self.assertEqual([], [c for c in commands if "${{" in c])
         for name in (ca.TOKEN_VAR, ca.ACCOUNT_VAR, ca.AUD_VAR, ca.EMAILS_VAR):
             self.assertRegex(text, rf"{name}: \$\{{\{{ (secrets|vars)\.{name} \}}\}}")
+        # O Actions imprime o bloco env no cabeçalho do step e só mascara secrets: e-mails só como secret.
+        self.assertIn(f"{ca.EMAILS_VAR}: ${{{{ secrets.{ca.EMAILS_VAR} }}}}", text)
+        self.assertNotIn(f"vars.{ca.EMAILS_VAR}", text)
         self.assertIn("DRY_RUN: ${{ inputs.dry_run }}", text)
 
     def test_workflow_prints_no_secret_and_no_email(self) -> None:
