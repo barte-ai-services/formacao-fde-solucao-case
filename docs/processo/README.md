@@ -30,7 +30,7 @@ A estratégia tem cinco escolhas, cada uma ligada a uma causa-raiz do pagar erra
 | **Duplicidade primeiro, e bloqueada na hora** | O gateway "Duplicada?" logo depois da classificação leva direto a "Bloquear o título duplicado", sem esperar caminhão | A exceção mais cara de errar: paga a nota inteira de novo |
 | **O que já foi pago não paga de novo** | O gateway "Já paga fora do fluxo?" vincula a nota tardia ao pagamento da compra emergencial e fecha sem passar pela lista | A compra da loja paga por fora, que hoje volta a ser paga quando a nota chega |
 | **O que bate passa direto** | O ramo "regra" de "Quem decide?" pula o aprovador | O meio: a conferência manual não escala com 11,4 mil notas por mês |
-| **A pessoa só na exceção, pela régua** | "Confirmar ou alterar a ação", na raia do aprovador da alçada | O mandato: a decisão vai para quem tem alçada, e o CFO deixa de aprovar tudo |
+| **A pessoa só na exceção, pela régua** | "Aprovar a proposta", na raia do aprovador da alçada | O mandato: a decisão vai para quem tem alçada, e o CFO deixa de aprovar tudo |
 | **O título só vai para a lista conferido** | Contas a pagar libera, devolve a diferença ou bloqueia depois da conciliação | A visibilidade e o dinheiro: nada é pago antes de o recebido bater |
 
 Dois momentos de conferência, porque a informação chega em dois tempos:
