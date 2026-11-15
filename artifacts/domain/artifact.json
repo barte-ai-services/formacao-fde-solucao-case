@@ -1,0 +1,14 @@
+{
+  "pages": {
+    "domain": {
+      "file": "index.html",
+      "title": "Modelo de domínio do contas a pagar",
+      "home": "team",
+      "links": {
+        "team": "https://claude.ai/artifact/1kUeshgUCn7vtrViwgAxHC"
+      },
+      "capabilities": {}
+    }
+  },
+  "publishOrder": ["domain"]
+}
