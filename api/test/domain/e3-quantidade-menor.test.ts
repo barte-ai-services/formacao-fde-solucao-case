@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   amountAtRiskOfShortfall,
   isShortLine,
-  makeCheckQuantidadeMenor,
+  checkQuantidadeMenor,
   proposeQuantidadeMenor,
   settleQuantidadeMenor,
 } from '../../src/domain/checks/e3-quantidade-menor.js';
@@ -67,15 +67,21 @@ const line = (invoiced: number, counted: number, countedUnit: Unit = 'UN'): Reco
   missing: Quantity.of(invoiced - counted, 'UN'),
 });
 
-/** Conciliação falsa: devolve as linhas dadas, sem depender do stub do #84. */
-const fakeReconcile = (lines: readonly ReconciliationLine[]) => () => lines;
+/** Contagem do WMS ligada à nota: contado zero é o item que não aparece na contagem. */
+const counted = (amount: number, unit: Unit = 'UN', invoiceAccessKey: string | null = KEY): Receipt => ({
+  ...receipt(invoiceAccessKey),
+  items:
+    amount === 0
+      ? []
+      : [{ supplierCode: 'F08-001', description: 'Óleo de soja 900 ml', quantity: Quantity.of(amount, unit) }],
+});
 
 const ctx = (overrides: Partial<CheckContext> = {}) =>
   emptyContext({ receipts: [receipt()], purchaseOrders: [order], ...overrides });
 
 describe('#73 E3 quantidade menor: a verificação', () => {
   it('#73/AC-1, regras 4 e 6: contado menor que o faturado, na mesma unidade, marca E3 com evidência do WMS e da ordem', () => {
-    const [d, ...rest] = makeCheckQuantidadeMenor(fakeReconcile([line(100, 75)]))(invoice(), ctx());
+    const [d, ...rest] = checkQuantidadeMenor(invoice(), ctx({ receipts: [counted(75)] }));
     expect(rest).toEqual([]);
     expect(d?.classification).toBe('E3');
     expect(d?.skus).toEqual(['SKU-1']);
@@ -86,35 +92,33 @@ describe('#73 E3 quantidade menor: a verificação', () => {
   });
 
   it('#73/AC-1, regra 6: sem a ordem no contexto, a evidência é só a do WMS', () => {
-    const [d] = makeCheckQuantidadeMenor(fakeReconcile([line(100, 75)]))(invoice(), ctx({ purchaseOrders: [] }));
+    const [d] = checkQuantidadeMenor(invoice(), ctx({ receipts: [counted(75)], purchaseOrders: [] }));
     expect(d?.evidence.map((e) => e.source)).toEqual(['wms']);
   });
 
   it('#73/AC-1: contado zero não é E3 (é falta física, E1)', () => {
-    expect(makeCheckQuantidadeMenor(fakeReconcile([line(100, 0)]))(invoice(), ctx())).toEqual([]);
+    expect(checkQuantidadeMenor(invoice(), ctx({ receipts: [counted(0)] }))).toEqual([]);
   });
 
   it('#73/AC-1: contado igual ao faturado não é E3', () => {
-    expect(makeCheckQuantidadeMenor(fakeReconcile([line(100, 100)]))(invoice(), ctx())).toEqual([]);
+    expect(checkQuantidadeMenor(invoice(), ctx({ receipts: [counted(100)] }))).toEqual([]);
   });
 
   it('#73/AC-1: contado acima do faturado não é E3', () => {
-    expect(makeCheckQuantidadeMenor(fakeReconcile([line(100, 120)]))(invoice(), ctx())).toEqual([]);
+    expect(checkQuantidadeMenor(invoice(), ctx({ receipts: [counted(120)] }))).toEqual([]);
   });
 
   it('#73/AC-1, regra 4: unidades diferentes não são E3', () => {
-    expect(makeCheckQuantidadeMenor(fakeReconcile([line(100, 5, 'CX')]))(invoice(), ctx())).toEqual([]);
+    expect(checkQuantidadeMenor(invoice(), ctx({ receipts: [counted(5, 'CX')] }))).toEqual([]);
     expect(isShortLine(line(100, 5, 'CX'))).toBe(false);
   });
 
   it('#73/AC-1: recebimento com chave nula nunca casa com a nota', () => {
-    const check = makeCheckQuantidadeMenor(fakeReconcile([line(100, 75)]));
-    expect(check(invoice(), ctx({ receipts: [receipt(null)] }))).toEqual([]);
+    expect(checkQuantidadeMenor(invoice(), ctx({ receipts: [counted(75, 'UN', null)] }))).toEqual([]);
   });
 
   it('#73/AC-1: nota sem recebimento não é E3', () => {
-    const check = makeCheckQuantidadeMenor(fakeReconcile([line(100, 75)]));
-    expect(check(invoice(), ctx({ receipts: [] }))).toEqual([]);
+    expect(checkQuantidadeMenor(invoice(), ctx({ receipts: [] }))).toEqual([]);
   });
 });
 

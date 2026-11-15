@@ -1,6 +1,6 @@
 import { AmountAtRisk } from '../amount-at-risk.js';
 import type { ApprovalLevel } from '../approval-level.js';
-import type { CheckContext, PurchaseOrder, Receipt } from '../context.js';
+import type { CheckContext } from '../context.js';
 import { Divergence } from '../divergence.js';
 import { DockAction } from '../dock-action.js';
 import { DomainError } from '../errors.js';
@@ -9,23 +9,9 @@ import type { InvoiceItem, InvoiceView } from '../invoice.js';
 import { Money } from '../money.js';
 import type { Proposal, ProposalProps } from '../proposal.js';
 import type { Quantity } from '../quantity.js';
-import { reconcile, type ReconciliationLine } from '../reconciliation.js';
+import { findReceipt, orderOf, reconcile, type ReconciliationLine } from '../reconciliation.js';
 import type { Title } from '../title.js';
 import type { Check } from './check.js';
-
-type Reconcile = typeof reconcile;
-
-// temporário até o #84: troca por findReceipt/orderOf/countRoute
-/** Recebimento da nota pela chave de acesso. Recebimento sem chave (nula) nunca casa. */
-function receiptOf(invoice: InvoiceView, receipts: readonly Receipt[]): Receipt | undefined {
-  return receipts.find((r) => r.invoiceAccessKey !== null && r.invoiceAccessKey === invoice.accessKey);
-}
-
-// temporário até o #84: troca por findReceipt/orderOf/countRoute
-/** Ordem que a nota cobra, pelo número referenciado. */
-function orderOf(invoice: InvoiceView, orders: readonly PurchaseOrder[]): PurchaseOrder | undefined {
-  return invoice.purchaseOrderRef === null ? undefined : orders.find((o) => o.id === invoice.purchaseOrderRef);
-}
 
 const CEM_MIL = Money.ofCents(10_000_000);
 const VINTE_MIL = Money.ofCents(2_000_000);
@@ -64,30 +50,26 @@ const fmt = (q: Quantity): string => `${q.amount} ${q.unit}`;
  * Regra que rege: regras 4 e 6.
  * Dona: plano #73 (história #45).
  *
- * A conciliação entra por parâmetro para os testes; a verificação publicada usa `reconcile`.
+ * Concilia pela `reconcile` do #69: o recebimento entra pela chave de acesso (`findReceipt`).
  */
-export function makeCheckQuantidadeMenor(reconcileFn: Reconcile = reconcile): Check {
-  return (invoice, ctx) => {
-    const receipt = receiptOf(invoice, ctx.receipts);
-    if (receipt === undefined) return [];
-    const short = reconcileFn(invoice, receipt, ctx.products).filter(isShortLine);
-    if (short.length === 0) return [];
-    const evidence: Evidence[] = short.map((line) => ({
-      source: 'wms',
-      reference: receipt.id,
-      description: `Contado ${fmt(line.counted)} de ${line.invoiced.amount} ${line.invoiced.unit}: ${
-        itemOf(invoice, line)?.description ?? line.supplierCode
-      }`,
-    }));
-    const order = orderOf(invoice, ctx.purchaseOrders);
-    if (order !== undefined) {
-      evidence.push({ source: 'erp_compras', reference: order.id, description: `Ordem cobrada pela nota ${invoice.number}` });
-    }
-    return [Divergence.of({ classification: 'E3', skus: short.map(skuOf), evidence })];
-  };
-}
-
-export const checkQuantidadeMenor: Check = makeCheckQuantidadeMenor(reconcile); // ADR-002
+export const checkQuantidadeMenor: Check = (invoice, ctx) => {
+  const receipt = findReceipt(invoice, ctx.receipts);
+  if (receipt === null) return [];
+  const short = reconcile(invoice, receipt, ctx.products).filter(isShortLine);
+  if (short.length === 0) return [];
+  const evidence: Evidence[] = short.map((line) => ({
+    source: 'wms',
+    reference: receipt.id,
+    description: `Contado ${fmt(line.counted)} de ${line.invoiced.amount} ${line.invoiced.unit}: ${
+      itemOf(invoice, line)?.description ?? line.supplierCode
+    }`,
+  }));
+  const order = orderOf(invoice, ctx.purchaseOrders);
+  if (order !== null) {
+    evidence.push({ source: 'erp_compras', reference: order.id, description: `Ordem cobrada pela nota ${invoice.number}` });
+  }
+  return [Divergence.of({ classification: 'E3', skus: short.map(skuOf), evidence })];
+};
 
 /** Regra 6: o valor em risco é a diferença em dinheiro: o valor do item proporcional ao que faltou. */
 export function amountAtRiskOfShortfall(invoice: InvoiceView, lines: readonly ReconciliationLine[]): AmountAtRisk {

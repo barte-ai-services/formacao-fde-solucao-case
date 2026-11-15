@@ -4,7 +4,7 @@ import { supabaseConnectors } from '../../src/connectors/supabase-connectors.js'
 import { SupabaseRest } from '../../src/connectors/supabase-rest.js';
 import {
   isShortLine,
-  makeCheckQuantidadeMenor,
+  checkQuantidadeMenor,
   proposeQuantidadeMenor,
 } from '../../src/domain/checks/e3-quantidade-menor.js';
 import {
@@ -12,27 +12,11 @@ import {
   Proposal,
   Quantity,
   Title,
+  reconcile,
   type CheckContext,
-  type InvoiceView,
-  type Product,
-  type Receipt,
-  type ReconciliationLine,
 } from '../../src/domain/index.js';
 import { FakePostgrest } from '../support/fake-postgrest.js';
 import { kitTables } from '../support/kit.js';
-
-/**
- * Conciliação falsa, só deste teste, até o #84 (dono do `reconcile`) entrar: casa pelo código do
- * fornecedor e converte para UN pelo fator de caixa do produto. Item que não veio conta zero.
- */
-function fakeReconcile(invoice: InvoiceView, receipt: Receipt, products: readonly Product[]): ReconciliationLine[] {
-  return invoice.items.map((item) => {
-    const factor = products.find((p) => p.supplierCode === item.supplierCode)?.boxFactor ?? 1;
-    const counted = (receipt.items.find((r) => r.supplierCode === item.supplierCode)?.quantity ?? Quantity.of(0, 'UN')).toUnits(factor);
-    const invoiced = item.quantity.toUnits(factor);
-    return { supplierCode: item.supplierCode, sku: item.sku, invoiced, counted, missing: invoiced.subtract(counted) };
-  });
-}
 
 async function kit() {
   const fake = new FakePostgrest(kitTables());
@@ -51,12 +35,12 @@ async function kit() {
   const caseOf = (receiptId: string) => {
     const receipt = receipts.find((r) => r.id === receiptId)!;
     const invoice = invoices.find((i) => i.accessKey === receipt.invoiceAccessKey)!;
-    return { receipt, invoice, lines: fakeReconcile(invoice, receipt, products) };
+    return { receipt, invoice, lines: reconcile(invoice, receipt, products) };
   };
   return { fake, ctx, returnNotes, caseOf };
 }
 
-const check = makeCheckQuantidadeMenor(fakeReconcile);
+const check = checkQuantidadeMenor;
 
 // Dados de base do kit (notas.json, recebimentos.json): faturado, contado e o valor do item.
 const E3_CASES = [
