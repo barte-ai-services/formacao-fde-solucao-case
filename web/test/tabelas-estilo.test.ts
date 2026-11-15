@@ -2,12 +2,11 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-// #127 #121 #122 O estilo compartilhado das tabelas e do filtro em pílula, lido do app.css. Sem layout no jsdom,
-// o teste afirma as regras (por token, sem px fixo); a medida no navegador fica no relato da camada.
+/* #127 #121 #122 O estilo compartilhado das tabelas e do filtro em pílula, lido do app.css. Sem layout no jsdom,
+   o teste afirma as regras (por token, sem px fixo); a medida no navegador fica no relato da camada. */
 
 const css = readFileSync(resolve(process.cwd(), "src/app.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 
-/** Os corpos das regras cuja lista de seletores traz exatamente `selector`, juntos. */
 function rule(selector: string): string {
   const bodies = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)]
     .filter(([, sel]) => sel!.split(",").some((s) => s.trim() === selector))
@@ -22,8 +21,8 @@ describe("#127 corpo, texto secundário e cabeçalho das tabelas no token de cor
     ["th", "table th"],
     ["caption-sm", 'table [class*="Text-module__captionSm"]'],
     ["selo (StatusBadge)", 'table [class*="StatusBadge-module__label"]'],
-  ])("%s tem fonte por var(--typography-body-xs-fontSize)", (_nome, seletor) => {
-    expect(rule(seletor)).toMatch(/font-size:\s*var\(--typography-body-xs-fontSize\)/);
+  ])("%s tem fonte por var(--typography-body-xs-fontSize)", (_name, selector) => {
+    expect(rule(selector)).toMatch(/font-size:\s*var\(--typography-body-xs-fontSize\)/);
   });
 
   it("a altura da linha cresce com o conteúdo, por token, sem cortar selo", () => {
@@ -41,7 +40,7 @@ describe("#127 corpo, texto secundário e cabeçalho das tabelas no token de cor
 
 describe("#122 colunas de valor à direita, dígitos tabulares", () => {
   it("o cabeçalho right alinha o conteúdo interno à direita", () => {
-    // th > cellContentWrapper > headerCellContent: os dois miolos são flex e nenhum herda o alinhamento do th.
+    // #122 th > cellContentWrapper > headerCellContent: os dois miolos são flex e nenhum herda o alinhamento do th.
     expect(css).toMatch(/\[class\*="headerCell--right"\]\s*\[class\*="cellContentWrapper"\][^{]*\{[^}]*justify-content:\s*flex-end/);
     expect(css).toMatch(/\[class\*="headerCell--right"\]\s*\[class\*="headerCellContent"\][^{]*\{[^}]*justify-content:\s*flex-end/);
   });
