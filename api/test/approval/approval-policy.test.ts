@@ -127,10 +127,16 @@ describe('routeDivergences: a régua como função pura, para as outras históri
     expect(routeDivergences([{ classification: 'E6' }], total(1000))).toMatchObject({ line: 1, level: 'bloqueio' });
     expect(routeDivergences([], total(100_000.01))).toMatchObject({ line: 2, level: 'diretoria' });
     expect(routeDivergences([{ classification: 'E1' }], total(10), { paymentBlocked: true })).toMatchObject({ line: 2, level: 'diretoria' });
-    expect(routeDivergences([{ classification: 'E7' }], total(10))).toMatchObject({ line: 3, level: 'coordenacao' });
+    expect(routeDivergences([{ classification: 'E7' }], total(10))).toMatchObject({ line: 6, level: 'regra' });
     expect(routeDivergences([{ classification: 'E3' }], total(20_000.01))).toMatchObject({ line: 4, level: 'coordenacao' });
     expect(routeDivergences([{ classification: 'E3' }], total(20_000))).toMatchObject({ line: 5, level: 'analista' });
     expect(routeDivergences([], total(5_000))).toMatchObject({ line: 6, level: 'regra' });
+  });
+  it('#177: o E7 absorve E5 e E8 (consequências da compra de emergência), mas não E6 nem a linha 2', () => {
+    expect(routeDivergences([{ classification: 'E7' }, { classification: 'E5' }, { classification: 'E8' }], total(3000))).toMatchObject({ line: 6, level: 'regra' });
+    expect(routeDivergences([{ classification: 'E7' }, { classification: 'E6' }], total(3000))).toMatchObject({ line: 1, level: 'bloqueio' });
+    expect(routeDivergences([{ classification: 'E7' }, { classification: 'E5' }], total(100_000.01))).toMatchObject({ line: 2, level: 'diretoria' });
+    expect(routeDivergences([{ classification: 'E7' }, { classification: 'E3' }], total(30_000))).toMatchObject({ line: 4, level: 'coordenacao' });
   });
   it('dá o mesmo que ApprovalPolicy.route para a nota', () => {
     const invoice = checkedWith(kitInvoice('NF-008'), 'E4', 'E5');

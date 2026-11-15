@@ -239,10 +239,10 @@ primeira linha que se aplica.
 |---|---|---|
 | 1 | Duplicidade (E6) | **bloqueio**: ninguém paga até a coordenação resolver |
 | 2 | Nota acima de R$ 100 mil, ou fornecedor com pagamento bloqueado | **diretoria** |
-| 3 | E5, E7, E8 ou não catalogada | **coordenação** |
+| 3 | E5, E8 ou não catalogada | **coordenação** |
 | 4 | E1 a E4, nota acima de R$ 20 mil | **coordenação** |
 | 5 | E1 a E4, nota de até R$ 20 mil | **analista** |
-| 6 | Match exato, ou diferença de até R$ 50 **e** 0,5% em nota de até R$ 5 mil | **regra**, sem pessoa |
+| 6 | Match exato, E7 (pago fora do fluxo, em qualquer valor), ou diferença de até R$ 50 **e** 0,5% em nota de até R$ 5 mil | **regra**, sem pessoa |
 
 ## Regras que nunca quebram
 
@@ -281,7 +281,7 @@ coordenação podem ser delegados; **bloqueio e diretoria continuam sempre com u
 | # | O modelo propõe | Por quê |
 |---|---|---|
 | 1 | Precedência: E6, E7, E5, E8, E2, E4, E1, E3, depois a não catalogada | Uma nota pode ter várias divergências |
-| 2 | E7 segue os limites de aprovação (coordenação), e não o BPMN (sem pessoa) | As duas fontes se contradizem |
+| 2 | E7 segue o BPMN: a regra vincula a nota ao pagamento já feito e bloqueia o título, sem pessoa (decidido na #177) | Resolve a contradição entre o BPMN e os limites; o título nunca vai à lista do dia |
 | 3 | Diferença de preço fora da tolerância é divergência não catalogada (coordenação) | Não é nenhuma das 8 exceções |
 | 4 | Bloqueio é resolvido pela coordenação | O nível bloqueio não é uma pessoa |
 | 5 | Na 1ª entrega, o E7 se prova pelo pagamento fora do fluxo; o recebimento da loja entra na 2ª | O recebimento é da 2ª entrega |

@@ -39,10 +39,10 @@ const LINE_LEVEL: Readonly<Record<ReguaLine, ApprovalLevel>> = Object.freeze({
 const LINE_REASON: Readonly<Record<ReguaLine, string>> = Object.freeze({
   1: 'Duplicidade (E6): ninguém paga até a coordenação resolver',
   2: 'Nota acima de R$ 100 mil, ou fornecedor com pagamento bloqueado',
-  3: 'E5, E7, E8 ou não catalogada, em qualquer valor',
+  3: 'E5, E8 ou não catalogada, em qualquer valor',
   4: 'E1 a E4 em nota acima de R$ 20 mil',
   5: 'E1 a E4 em nota de até R$ 20 mil',
-  6: 'Match exato, ou diferença dentro da tolerância',
+  6: 'Match exato, E7 (pago fora do fluxo) ou diferença dentro da tolerância',
 });
 
 /** Regra 4 e linha 6: até R$ 50 e até 0,5% da nota, em nota de até R$ 5 mil. */
@@ -60,8 +60,9 @@ function lineForDivergence(classification: Exclude<Classification, 'MATCH'>, tot
   switch (classification) {
     case 'E6':
       return 1;
-    case 'E5':
     case 'E7':
+      return 6; // #177: pago fora do fluxo, como no BPMN: a regra vincula ao pagamento, sem pessoa
+    case 'E5':
     case 'E8':
     case 'NAO_CATALOGADA':
       return 3;
@@ -99,7 +100,12 @@ export function routeDivergences(
   invoiceTotal: Money,
   supplier?: Pick<Supplier, 'paymentBlocked'>,
 ): ApprovalRoute {
-  const lines: ReguaLine[] = divergences.map((d) => lineForDivergence(d.classification, invoiceTotal));
+  // #177: a nota E7 é compra de emergência já paga, sem ordem (E5) nem cadastro (E8) por natureza; a regra
+  // vincula ao pagamento, então esses dois não sobem o nível. E6, a linha 2 e E1 a E4 continuam valendo.
+  const paidOutsideFlow = divergences.some((d) => d.classification === 'E7');
+  const lines: ReguaLine[] = divergences
+    .filter((d) => !(paidOutsideFlow && (d.classification === 'E5' || d.classification === 'E8')))
+    .map((d) => lineForDivergence(d.classification, invoiceTotal));
   if (invoiceTotal.compare(REGUA.coordinationCeiling) > 0 || supplier?.paymentBlocked === true) lines.push(2);
   if (lines.length === 0) lines.push(6);
   const level = maxLevel(...lines.map((l) => LINE_LEVEL[l]));
