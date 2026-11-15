@@ -288,6 +288,7 @@ coordenação podem ser delegados; **bloqueio e diretoria continuam sempre com u
 | 6 | A aprovação fica dentro da Conferência, e não num contexto à parte | Proposta e aprovação estão no grupo da nota fiscal |
 | 7 | Cadastro é genérico, e não suporte | Fornecedor e produto são dados mestres sem regra própria do pagar errado |
 | 8 | Compras baixa o saldo quando recebe "proposta aprovada" | O saldo é de Compras; a Conferência só lê |
+| 9 | A coordenação resolve o bloqueio mantendo a recusa; liberar a nota exige também o nível das outras linhas (acima de R$ 100 mil, a diretoria) | A decisão 4 não pode deixar a regra 7 descer (#63) |
 
 Caíram: o **contexto Aprovação** (decisão 6), **entrega parcial** (agora é a regra 5, pelo saldo da ordem), **lojas sem plano de doca** e
 **diretoria sem recomendar valor** (o plano de recebimento e o valor a pagar saíram do modelo).

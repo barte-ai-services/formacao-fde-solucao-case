@@ -19,4 +19,9 @@ export interface Env {
    * publicado sem a tela: aí todo caminho fora das rotas da API responde 404.
    */
   ASSETS?: Fetcher;
+  /**
+   * #63 Nível de aprovação de cada pessoa, JSON de e-mail para nível (`analista`, `coordenacao`,
+   * `diretoria`). Não é segredo: a esteira passa com `wrangler deploy --var`. Vazio: ninguém aprova.
+   */
+  APPROVER_LEVELS?: string;
 }

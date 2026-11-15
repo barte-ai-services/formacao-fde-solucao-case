@@ -93,16 +93,21 @@ export class FakePostgrest {
     const now = new Date().toISOString();
     if (table.startsWith('outbox_')) return { id: this.nextId++, published_at: now };
     if (table === 'invoices') return { captured_at: now, classification: null, checked_at: null };
+    // #63 As colunas com default da migração do domínio e da aprovação.
+    if (table === 'proposals') return { id: this.nextId++, state: 'registrada', regua_line: null, created_at: now };
+    if (table === 'approvals') return { id: this.nextId++, dock_action: null, decided_on: null, approved_at: now };
+    if (table === 'titles') return { state: 'lancado', updated_at: now };
     return {};
   }
 
   private matches(row: Row, params: URLSearchParams): boolean {
     for (const [col, expr] of params) {
       if (['select', 'order', 'on_conflict'].includes(col)) continue;
-      // #71: in.(a,b) para o filtro de estado do painel.
+      // #71 e #63: in.(a,"b") do PostgREST, valores separados por vírgula, aspas opcionais.
       const inList = /^in\.\((.*)\)$/.exec(expr);
       if (inList) {
-        if (!(inList[1] ?? '').split(',').includes(String(row[col]))) return false;
+        const values = (inList[1] ?? '').split(',').map((v) => v.replace(/^"(.*)"$/, '$1'));
+        if (!values.includes(String(row[col]))) return false;
         continue;
       }
       if (!expr.startsWith('eq.')) throw new Error(`fake: filtro não suportado ${col}=${expr}`);

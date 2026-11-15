@@ -1,5 +1,7 @@
 import type { Env } from "../env";
 import { authenticate, type AccessVerifier, type Identity } from "./access";
+import { MemoryApprovalStore } from "../approval/store";
+import { approvalRoutes, type ApprovalDeps } from "./approval";
 import { health } from "./health";
 import { me } from "./me";
 import { barredAmount } from "./barred-amount";
@@ -20,6 +22,11 @@ const protectedRoutes: Record<string, Record<string, ProtectedHandler>> = {
 
 export interface RouterDeps {
   verifier: AccessVerifier;
+  /**
+   * #63 A fila de aprovação, a proposta e a lista do dia. Uma função recebe o Env da requisição (as
+   * credenciais do Supabase só chegam ali). Sem ela, uma loja vazia em memória.
+   */
+  approval?: ApprovalDeps | ((env: Env) => ApprovalDeps);
 }
 
 /**
@@ -35,6 +42,16 @@ export async function route(request: Request, env: Env, deps: RouterDeps): Promi
 
   const auth = await authenticate(request, env, deps.verifier);
   if ("response" in auth) return auth.response;
+
+  const approval = await approvalRoutes(
+    request,
+    auth.identity,
+    env,
+    typeof deps.approval === "function"
+      ? deps.approval(env)
+      : (deps.approval ?? { store: new MemoryApprovalStore() }),
+  );
+  if (approval) return approval;
 
   const methods = own(protectedRoutes, pathname);
   if (methods) return dispatch(request, methods, (handler) => handler(auth.identity, request, env));
