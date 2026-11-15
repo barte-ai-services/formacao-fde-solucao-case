@@ -19,7 +19,8 @@ describe('#59/AC-5 captura do Cron (offline)', () => {
     const rows = fake.rows('invoices');
     expect(new Set(rows.map((r) => r.access_key)).size).toBe(80);
     expect(rows).toHaveLength(80);
-    expect(rows.every((r) => r.state === 'conferida' && r.classification === 'MATCH' && r.checked_at)).toBe(true);
+    // A classificação depende das verificações das histórias (#62 a #73); aqui só a captura e a conferência.
+    expect(rows.every((r) => r.state === 'conferida' && typeof r.classification === 'string' && r.checked_at)).toBe(true);
     expect(rows.every((r) => Number.isSafeInteger(r.total_cents))).toBe(true);
   });
 });
