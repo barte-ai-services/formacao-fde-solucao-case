@@ -30,7 +30,7 @@ function orderOf(invoice: InvoiceView, orders: readonly PurchaseOrder[]): Purcha
 const CEM_MIL = Money.ofCents(10_000_000);
 const VINTE_MIL = Money.ofCents(2_000_000);
 
-// temporário até o #84: troca por findReceipt/orderOf/countRoute
+// temporário até a #63: troca pela ApprovalPolicy (fonte única do encaminhamento) e apaga este helper
 /**
  * Nível de aprovação do E3 pela tabela de limites (docs/domain/README.md). A `ApprovalPolicy` é do
  * plano #63; até lá, só as linhas que valem para o E3: linha 2 (nota acima de R$ 100 mil ou
