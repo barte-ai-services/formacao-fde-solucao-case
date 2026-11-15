@@ -31,6 +31,7 @@ export async function tick(controller: Pick<ScheduledController, "cron">, env: E
     rest,
     purchasing: captureDeps.purchasing,
     registry: captureDeps.registry,
+    wms: captureDeps.wms,
   });
   const cadastroE8 = await publishApproved(rest, registryCorrections);
   console.log(

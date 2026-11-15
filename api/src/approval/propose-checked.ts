@@ -1,9 +1,10 @@
 // #63 Depois da conferência, o Cron registra a proposta de cada nota conferida e a encaminha pela régua.
 import { isInteger, isString, parseRows, shaped } from '../connectors/guards.js';
-import type { PurchasingPort, RegistryPort } from '../connectors/ports.js';
+import type { PurchasingPort, RegistryPort, WmsCountPort } from '../connectors/ports.js';
 import type { ProbableOrderSuggestions } from '../connectors/probable-order-suggestions.js';
 import type { SupabaseRest } from '../connectors/supabase-rest.js';
-import { draftProposal, propose } from '../domain/approval.js';
+import { propose } from '../domain/approval.js';
+import { draftChecked } from '../domain/draft-checked.js';
 import { ApprovalPolicy } from '../domain/approval-policy.js';
 import { priceDifference } from '../domain/checks/nao-catalogada.js';
 import { draftNotaSemOrdem, resolveProbableOrder } from '../domain/probable-order.js';
@@ -16,6 +17,8 @@ export type ProposeDeps = {
   readonly rest: SupabaseRest;
   readonly purchasing: PurchasingPort;
   readonly registry: RegistryPort;
+  /** #56: a contagem do WMS, para o E1 e o E3 conciliarem a nota. Sem ela, não há linha a segurar. */
+  readonly wms?: WmsCountPort;
   /** #65: as sugestões de ordem provável do executor da #66. Sem elas, a regra decide sozinha. */
   readonly suggestions?: ProbableOrderSuggestions;
   readonly now?: () => Date;
@@ -40,10 +43,11 @@ export async function proposeChecked(deps: ProposeDeps): Promise<ProposeResult> 
   const today = todayInBrasilia(now);
   const e5Keys = invoices.filter((i) => i.classification === 'E5').map((i) => i.accessKey);
   // #65: os produtos entram para a regra da ordem provável converter caixa em unidade (regra 4).
-  const [purchaseOrders, suppliers, products, suggestions] = await Promise.all([
+  const [purchaseOrders, suppliers, products, receipts, suggestions] = await Promise.all([
     deps.purchasing.listPurchaseOrders(),
     deps.registry.listSuppliers(),
     deps.registry.listProducts(),
+    deps.wms?.listReceipts() ?? Promise.resolve([]),
     deps.suggestions?.listSuggestions(e5Keys) ?? Promise.resolve(new Map()),
   ]);
   const ctx: CheckContext = {
@@ -52,7 +56,7 @@ export async function proposeChecked(deps: ProposeDeps): Promise<ProposeResult> 
     products,
     postedInvoices: [],
     payments: [],
-    receipts: [],
+    receipts,
     capturedInvoices: [],
   };
 
@@ -65,7 +69,7 @@ export async function proposeChecked(deps: ProposeDeps): Promise<ProposeResult> 
     const draft =
       invoice.classification === 'E5'
         ? draftNotaSemOrdem(invoice, resolveProbableOrder(invoice, ctx, suggestions.get(invoice.accessKey)))
-        : draftProposal(invoice, priceDifference(invoice, ctx)?.overcharge ?? null);
+        : draftChecked(invoice, ctx, priceDifference(invoice, ctx)?.overcharge ?? null);
     const result = propose(invoice, title, { route, ...draft, today });
     return { invoice, title, route, ...result };
   });
