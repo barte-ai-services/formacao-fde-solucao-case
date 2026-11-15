@@ -3,7 +3,7 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { DockAction, Quantity } from '../../src/domain/index.js';
 import { supabaseConnectors } from '../../src/connectors/supabase-connectors.js';
-import { arrayOf, isString, nullable, optional, parseRows, shaped, type Shape } from '../../src/connectors/guards.js';
+import { arrayOf, isNumber, isString, nullable, optional, parseRows, shaped, type Shape } from '../../src/connectors/guards.js';
 import { SupabaseRest, SupabaseRestError } from '../../src/connectors/supabase-rest.js';
 import { captureInvoices } from '../../src/cron/capture.js';
 import { kitCounts } from '../support/kit.js';
@@ -30,6 +30,33 @@ async function outboxHasIdempotencyKey(): Promise<boolean> {
   }
 }
 const HAS_IDEMPOTENCY = await outboxHasIdempotencyKey();
+
+// #230 A subida de nível só existe depois que a esteira aplicar 20261116110000_invoice_audits no merge.
+async function hasRaiseProposalLevel(): Promise<boolean> {
+  if (!ONLINE) return false;
+  const rest = new SupabaseRest({ url: URL_ ?? '', secretKey: KEY ?? '' });
+  try {
+    await rest.select('proposal_level_changes', { select: 'id', filters: { id: 'eq.0' } });
+    await rest.rpc('raise_proposal_level', { p_invoice_access_key: 'sem-nota', p_to_level: 'analista', p_invoice_audit_id: 0 });
+    return true;
+  } catch (error) {
+    if (error instanceof SupabaseRestError && /42P01|42883|PGRST/.test(`${error.code ?? ''} ${error.detail}`)) return false;
+    throw error;
+  }
+}
+const HAS_RAISE = await hasRaiseProposalLevel();
+
+type LevelChangeRow = { proposal_id: number; from_level: string; to_level: string; invoice_audit_id: number };
+const isLevelChangeRow = shaped<LevelChangeRow>({
+  proposal_id: isNumber,
+  from_level: isString,
+  to_level: isString,
+  invoice_audit_id: isNumber,
+} satisfies Shape<LevelChangeRow>);
+type IdRow = { id: number };
+const isIdRow = shaped<IdRow>({ id: isNumber } satisfies Shape<IdRow>);
+type LevelRow = { approval_level: string };
+const isLevelRow = shaped<LevelRow>({ approval_level: isString } satisfies Shape<LevelRow>);
 
 type ApiKey = { type?: string; name?: string | null; api_key: string };
 const isApiKeys = arrayOf(
@@ -147,5 +174,108 @@ describe.skipIf(!ONLINE)('#59 online, no Supabase real', () => {
       expect([200, 401, 403]).toContain(response.status);
       expect(body).toEqual([]);
     }
+  });
+
+  describe.skipIf(!HAS_RAISE)('#230 subida de nível da proposta', () => {
+    const key = `teste-230-${Date.now()}`;
+
+    afterAll(async () => {
+      await rest.delete('invoices', { access_key: `eq.${key}` });
+    });
+
+    async function seed(): Promise<number> {
+      await rest.insert('invoices', [
+        {
+          access_key: key, number: '1', series: '1', supplier_id: 'F-TESTE', store: 'L01', issued_on: '2026-11-10',
+          entry_channel: 'edi', total_cents: 1000, items: [], state: 'com_proposta',
+        },
+      ]);
+      await rest.insert('proposals', [
+        {
+          invoice_access_key: key, classification: 'E4', dock_action: { kind: 'receber' }, approval_level: 'analista',
+          amount_at_risk_cents: 0, justification: 'teste online', state: 'aguardando_aprovacao',
+        },
+      ]);
+      return audited();
+    }
+
+    async function audited(): Promise<number> {
+      const rows = await rest.insert(
+        'invoice_audits',
+        [
+          {
+            invoice_access_key: key, status: 'audited', classification: 'E4', dock_action: { kind: 'receber' },
+            routing: 'diretoria', justification: 'teste online', model: 'teste', audited_at: new Date().toISOString(),
+            differing_fields: ['routing'], requested_level: 'diretoria', requested_from_level: 'analista',
+          },
+        ],
+        { ignoreDuplicates: false },
+      );
+      return parseRows(rows, isIdRow, 'invoice_audits')[0]?.id ?? -1;
+    }
+
+    const raise = (level: string, auditId: number): Promise<unknown> =>
+      rest.rpc('raise_proposal_level', { p_invoice_access_key: key, p_to_level: level, p_invoice_audit_id: auditId });
+    const history = async (): Promise<LevelChangeRow[]> => {
+      const proposal = parseRows(
+        await rest.select('proposals', { select: 'id', filters: { invoice_access_key: `eq.${key}` } }),
+        isIdRow,
+        'proposals',
+      )[0];
+      return parseRows(
+        await rest.select('proposal_level_changes', {
+          select: 'proposal_id,from_level,to_level,invoice_audit_id',
+          filters: { proposal_id: `eq.${proposal?.id ?? -1}` },
+          order: 'id.asc',
+        }),
+        isLevelChangeRow,
+        'proposal_level_changes',
+      );
+    };
+
+    it('#230/AC-3 a função sobe o nível, grava uma linha de história e, repetida, devolve null sem outra linha', async () => {
+      const auditId = await seed();
+      expect(auditId).toBeGreaterThan(0);
+      expect(await raise('diretoria', auditId)).toBe('diretoria');
+      const level = parseRows(
+        await rest.select('proposals', { select: 'approval_level', filters: { invoice_access_key: `eq.${key}` } }),
+        isLevelRow,
+        'proposals',
+      );
+      expect(level[0]?.approval_level).toBe('diretoria');
+      const [first, ...rest1] = await history();
+      expect(rest1).toEqual([]);
+      expect(first).toMatchObject({ from_level: 'analista', to_level: 'diretoria', invoice_audit_id: auditId });
+      expect(await raise('diretoria', auditId)).toBeNull();
+      expect(await history()).toHaveLength(1);
+      expect(await raise('bloqueio', auditId)).toBe('bloqueio');
+      expect((await history()).map((h) => `${h.from_level}>${h.to_level}`)).toEqual([
+        'analista>diretoria',
+        'diretoria>bloqueio',
+      ]);
+    });
+
+    it('#230/AC-1 uma segunda auditoria feita da mesma nota falha com 409 e código 23505', async () => {
+      const error = await audited().then(
+        () => undefined,
+        (e: unknown) => e,
+      );
+      expect(error).toBeInstanceOf(SupabaseRestError);
+      expect(error).toMatchObject({ status: 409, code: '23505' });
+    });
+
+    it('#230/AC-3 a chave pública não chama a função (recusada), e a nota segue no nível aplicado', async () => {
+      const pub = await publishableKey();
+      if (!pub) return console.log('  #230 pulado: sem chave pública nem token para buscá-la');
+      const headers: Record<string, string> = { apikey: pub, 'Content-Type': 'application/json' };
+      if (!pub.startsWith('sb_')) headers.Authorization = `Bearer ${pub}`;
+      const response = await fetch(`${(URL_ ?? '').replace(/\/+$/, '')}/rest/v1/rpc/raise_proposal_level`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ p_invoice_access_key: key, p_to_level: 'bloqueio', p_invoice_audit_id: 0 }),
+      });
+      expect([401, 403, 404]).toContain(response.status);
+      expect(await history()).toHaveLength(2);
+    });
   });
 });

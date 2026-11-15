@@ -7,7 +7,7 @@ import { readLatestAudit } from '../../src/approval/latest-audit.js';
 import { SupabaseInvoiceAudits } from '../../src/connectors/invoice-audit-store.js';
 import { SupabaseRestError } from '../../src/connectors/supabase-rest.js';
 import type { AuditResult } from '../../src/domain/index.js';
-import { scripted } from '../support/scripted-postgrest.js';
+import { scripted, type Call } from '../support/scripted-postgrest.js';
 
 const KEY = '35261100000000000000550010000012341000012345';
 const OTHER = '35261100000000000000550010000099991000099999';
@@ -166,6 +166,33 @@ describe('SupabaseInvoiceAudits.reapplyRaisedLevels (#230)', () => {
     await new SupabaseInvoiceAudits(rest).reapplyRaisedLevels();
     expect(calls.length).toBeLessThanOrEqual(2);
     expect((calls[1]?.body as { p_invoice_access_key: string }).p_invoice_access_key).toBe(KEY);
+  });
+});
+
+// #230 Sem limite o cliente pagina: devolve uma página cheia e depois uma curta, para o teste acabar mesmo no código sem o limite.
+const pageOf = (c: Call, full: unknown[]): unknown => {
+  if (c.method !== 'GET') return 'diretoria';
+  if (c.params.has('limit')) return full;
+  return full.slice(0, 3);
+};
+
+describe('SupabaseInvoiceAudits.reapplyRaisedLevels, custo limitado (#230)', () => {
+  it('#230/AC-3: a leitura é uma requisição só, filtrada no servidor e com limite, mesmo que a tabela seja grande', async () => {
+    const full = Array.from({ length: 1000 }, (_, i) => ({
+      id: i + 1,
+      invoice_access_key: KEY,
+      requested_level: 'diretoria',
+      invoices: { proposals: { state: 'aguardando_aprovacao', approval_level: 'diretoria' } },
+    }));
+    const { rest, calls } = scripted((c) => ({ body: pageOf(c, full) }));
+    await new SupabaseInvoiceAudits(rest).reapplyRaisedLevels();
+    expect(calls).toHaveLength(1);
+    const [read] = calls;
+    expect(read?.params.get('select')).toContain('invoices!inner(proposals!inner(');
+    expect(read?.params.get('invoices.proposals.state')).toBe('eq.aguardando_aprovacao');
+    expect(read?.params.get('order')).toBe('id.asc');
+    expect(Number(read?.params.get('limit'))).toBeGreaterThan(0);
+    expect(Number(read?.params.get('limit'))).toBeLessThanOrEqual(100);
   });
 });
 

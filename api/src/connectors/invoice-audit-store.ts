@@ -55,7 +55,8 @@ const RAISE_FUNCTION = 'raise_proposal_level';
 /** #230 SQLSTATE de violação de unicidade. */
 const UNIQUE_VIOLATION = '23505';
 
-const KEY_PATTERN = /^[A-Za-z0-9-]+$/;
+/** #230 Linhas lidas por varredura do reparo: o limite faz o SupabaseRest não paginar (uma requisição, qualquer tamanho de tabela). */
+const SWEEP_LIMIT = 50;
 
 export class SupabaseInvoiceAudits implements InvoiceAuditPort {
   constructor(
@@ -150,16 +151,18 @@ export class SupabaseInvoiceAudits implements InvoiceAuditPort {
   }
 
   /**
-   * #230 Reparo: uma leitura (auditorias com nível pedido, com a proposta embutida) e, no máximo, uma chamada da função,
-   * da nota mais antiga que ainda precisa de reparo (proposta à espera e abaixo do nível pedido); as demais ficam para
-   * a próxima varredura (idempotente: a função só sobe).
+   * #230 Reparo: uma leitura e, no máximo, uma chamada da função, qualquer que seja o tamanho da tabela. A leitura traz,
+   * do servidor, só as auditorias com nível pedido cuja proposta ainda espera (embutidos !inner), as SWEEP_LIMIT mais
+   * antigas e sem paginar; a primeira abaixo do nível pedido é reparada e as demais ficam para a próxima varredura
+   * (idempotente: a função só sobe).
    */
   async reapplyRaisedLevels(): Promise<void> {
     const rows = parseRows(
       await this.rest.select('invoice_audits', {
-        select: 'id,invoice_access_key,requested_level,invoices(proposals(state,approval_level))',
-        filters: { requested_level: 'not.is.null' },
-        order: 'id',
+        select: 'id,invoice_access_key,requested_level,invoices!inner(proposals!inner(state,approval_level))',
+        filters: { requested_level: 'not.is.null', 'invoices.proposals.state': 'eq.aguardando_aprovacao' },
+        order: 'id.asc',
+        limit: SWEEP_LIMIT,
       }),
       isSweepRow,
       'invoice_audits',
