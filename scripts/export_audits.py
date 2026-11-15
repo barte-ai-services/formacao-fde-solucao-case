@@ -40,6 +40,7 @@ AUDITED = "audited"
 OPERATION_LABELS = {
     "read": "falha ao ler",
     "network": "falha de rede",
+    "pagination": "paginação sem fim: o servidor ignorou o Range",
     "table": "tabela fora da exportação",
     "proposal": "auditoria sem proposta da regra",
     "config": f"defina {URL_VAR} e {KEY_VAR}",
@@ -98,6 +99,7 @@ class Reader:
         path = f"{table}?select=*&order={urllib.parse.quote(order, safe=',.')}"
         rows: list[Row] = []
         start = 0
+        previous: list[Row] | None = None
         while True:
             status, body = self._get(path, start)
             if status >= 300:
@@ -105,6 +107,9 @@ class Reader:
             page = json.loads(body)
             if not page:
                 return rows
+            if len(page) > PAGE_SIZE or page == previous:
+                raise ExportError("pagination", table=table)
+            previous = page
             rows += page
             start += len(page)
 

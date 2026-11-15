@@ -12,7 +12,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import urllib.error
 from typing import Any
+from unittest import mock
 
 import export_audits as ea
 
@@ -219,6 +221,87 @@ class PaginationTest(unittest.TestCase):
         rows = ShortPages("https://exemplo.invalid", "chave-de-teste").read_all("invoice_audits", "id")
         self.assertEqual(rows, data)
         self.assertEqual(starts, [0, 3, 6, 7])
+
+
+TEST_KEY = "chave-de-teste-secreta"
+
+
+def reader_with(get: Any = None) -> ea.Reader:
+    """Um Reader de teste; `get` troca o _get, para a página vir de onde o teste quiser."""
+    reader = ea.Reader("https://exemplo.invalid", TEST_KEY)
+    if get is not None:
+        reader._get = get  # type: ignore[method-assign]
+    return reader
+
+
+class ReadFailureTest(unittest.TestCase):
+    def test_refused_read_names_operation_table_and_status_only(self) -> None:
+        """#240/AC-2: a recusa do banco vira ExportError read/invoice_audits/403, sem o corpo nem a chave."""
+        reader = reader_with(lambda path, start: (403, b'{"message":"segredo"}'))
+        with self.assertRaises(ea.ExportError) as caught:
+            reader.read_all("invoice_audits", "id")
+        error = caught.exception
+        self.assertEqual((error.operation, error.table, error.status), ("read", "invoice_audits", 403))
+        self.assertNotIn("segredo", ea.describe(error))
+        self.assertNotIn(TEST_KEY, ea.describe(error))
+        self.assertNotIn("segredo", str(error))
+
+    def test_http_error_from_the_network_layer_becomes_a_read_error(self) -> None:
+        """#240/AC-2: HTTPError 401 do urllib vira ExportError read com o status."""
+        failure = urllib.error.HTTPError("https://exemplo.invalid", 401, "x", {}, None)  # type: ignore[arg-type]
+        with mock.patch("urllib.request.urlopen", side_effect=failure):
+            with self.assertRaises(ea.ExportError) as caught:
+                reader_with().read_all("invoice_audits", "id")
+        self.assertEqual((caught.exception.operation, caught.exception.status), ("read", 401))
+        self.assertNotIn(TEST_KEY, ea.describe(caught.exception))
+
+    def test_unreachable_server_becomes_a_network_error(self) -> None:
+        """#240/AC-2: URLError vira ExportError network, sem o texto do erro."""
+        with mock.patch("urllib.request.urlopen", side_effect=urllib.error.URLError("segredo")):
+            with self.assertRaises(ea.ExportError) as caught:
+                reader_with().read_all("invoice_audits", "id")
+        self.assertEqual(caught.exception.operation, "network")
+        self.assertNotIn("segredo", ea.describe(caught.exception))
+
+    def test_main_prints_the_fixed_line_and_writes_no_file(self) -> None:
+        """#240/AC-2: falha de leitura sai com 1, a linha fixa em stderr e nenhum arquivo."""
+        def failing(table: str, order: str) -> list[dict[str, Json]]:
+            raise ea.ExportError("read", "proposals", 500)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "auditorias.jsonl")
+            err, out = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stderr(err), contextlib.redirect_stdout(out):
+                code = ea.main([path], reader=failing)
+            self.assertFalse(os.path.exists(path))
+        self.assertEqual(code, 1)
+        self.assertEqual(err.getvalue(), "erro: falha ao ler, tabela proposals, HTTP 500\n")
+        self.assertEqual(out.getvalue(), "")
+
+
+class RunawayPaginationTest(unittest.TestCase):
+    def test_page_larger_than_the_range_asked_stops_the_read(self) -> None:
+        """#240/AC-2: servidor que ignora o Range e devolve mais que a página pedida: erro nomeado, sem eco."""
+        big = [{"id": i, "texto": "segredo"} for i in range(ea.PAGE_SIZE + 1)]
+        reader = reader_with(lambda path, start: (200, json.dumps(big).encode()))
+        with self.assertRaises(ea.ExportError) as caught:
+            reader.read_all("invoice_audits", "id")
+        self.assertEqual((caught.exception.operation, caught.exception.table), ("pagination", "invoice_audits"))
+        self.assertNotIn("segredo", ea.describe(caught.exception))
+
+    def test_same_full_page_repeated_stops_the_read(self) -> None:
+        """#240/AC-2: a mesma página cheia duas vezes seguidas (Range ignorado) para a leitura, sem laço."""
+        full = [{"id": i} for i in range(ea.PAGE_SIZE)]
+        calls: list[int] = []
+
+        def same(path: str, start: int) -> tuple[int, bytes]:
+            calls.append(start)
+            return 200, json.dumps(full).encode()
+
+        with self.assertRaises(ea.ExportError) as caught:
+            reader_with(same).read_all("proposals", "id")
+        self.assertEqual(caught.exception.operation, "pagination")
+        self.assertEqual(len(calls), 2)
 
 
 class MakeTargetTest(unittest.TestCase):
