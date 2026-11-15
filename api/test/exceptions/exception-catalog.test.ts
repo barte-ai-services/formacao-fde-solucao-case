@@ -28,7 +28,9 @@ describe('catálogo das exceções (#128)', () => {
     expect(sql).toMatch(/create table public\.exceptions/i);
     expect(sql).toMatch(/alter table public\.exceptions enable row level security/i);
     expect(sql).not.toMatch(/create policy/i);
-    expect(sql).toMatch(/kit_excecoes/);
+    const kit = JSON.parse(readFileSync(new URL('../../../data/kit/excecoes.json', import.meta.url), 'utf8')) as Record<string, string>;
+    for (const [code, text] of Object.entries(kit)) expect(sql).toContain(`'${code}', '${EXCEPTION_CATALOG[code as keyof typeof EXCEPTION_CATALOG].name}', '${text.replaceAll("'", "''")}'`);
+    expect(sql).not.toMatch(/join public\.kit_excecoes/i);
     for (const [code, entry] of Object.entries(EXCEPTION_CATALOG)) {
       expect(sql).toContain(`'${code}'`);
       expect(sql).toContain(`'${entry.name}'`);
