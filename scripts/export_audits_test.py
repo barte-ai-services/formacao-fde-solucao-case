@@ -175,7 +175,7 @@ class EvalAcceptsTheExportTest(unittest.TestCase):
             "proposals": [proposal(KEY_A, "MATCH", "receber", "regra"), proposal(KEY_B), proposal(KEY_C)],
         })
         key = [
-            {"chave": k, "classificacao": c, "acao_doca": "receber", "encaminhamento": "regra"}
+            {"chave": k, "classificacao": c, "acao_doca": "receber", "encaminhamento": "regra"}  # ADR-001
             for k, c in ((KEY_A, "match"), (KEY_B, "E1"), (KEY_C, "E1"))
         ]
         with tempfile.TemporaryDirectory() as tmp:
@@ -203,6 +203,22 @@ class EvalAcceptsTheExportTest(unittest.TestCase):
             with open(path, encoding="utf-8") as f:
                 self.assertEqual(len(f.read().splitlines()), 1)
         self.assertNotIn(KEY_A, out.getvalue())
+
+
+class PaginationTest(unittest.TestCase):
+    def test_short_pages_are_all_read_until_an_empty_page(self) -> None:
+        """#240/AC-1: com max_rows do servidor menor que a página, nenhuma linha é descartada."""
+        data = [{"id": i} for i in range(7)]
+        starts: list[int] = []
+
+        class ShortPages(ea.Reader):
+            def _get(self, path: str, start: int) -> tuple[int, bytes]:
+                starts.append(start)
+                return 200, json.dumps(data[start:start + 3]).encode()
+
+        rows = ShortPages("https://exemplo.invalid", "chave-de-teste").read_all("invoice_audits", "id")
+        self.assertEqual(rows, data)
+        self.assertEqual(starts, [0, 3, 6, 7])
 
 
 class MakeTargetTest(unittest.TestCase):

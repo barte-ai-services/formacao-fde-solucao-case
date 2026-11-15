@@ -20,7 +20,7 @@ check:
 	@npm --prefix web run build
 
 # O eval do auditor (#240): exporta as auditorias e as propostas da regra do banco (só leitura; lê
-# BARTE_ACADEMY_SUPABASE_URL e BARTE_ACADEMY_SUPABASE_SECRET_KEY do ambiente ou do .env) e mede o resultado.
+# BARTE_ACADEMY_SUPABASE_URL e BARTE_ACADEMY_SUPABASE_SECRET_KEY do ambiente ou do .env na raiz) e mede o resultado.
 EVAL_AUDITORIAS := eval/saidas/auditorias.jsonl
 eval:
 	@python3 scripts/export_audits.py $(EVAL_AUDITORIAS)

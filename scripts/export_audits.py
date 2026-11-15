@@ -9,7 +9,7 @@ Uma nota entra com a leitura corrente da auditoria: a auditoria feita, ou a tent
 recente. Nota sem nenhuma linha de auditoria fica fora do arquivo; o eval a conta como erro.
 
 Variáveis: BARTE_ACADEMY_SUPABASE_URL e BARTE_ACADEMY_SUPABASE_SECRET_KEY, do ambiente ou do
-.env (e do .dev.vars) na raiz. Nunca imprime a chave, os cabeçalhos nem o corpo das respostas.
+.env na raiz. Nunca imprime a chave, os cabeçalhos nem o corpo das respostas.
 """
 import json
 import os
@@ -23,14 +23,14 @@ from typing import Any
 # Any: as linhas do banco e do JSONL só têm forma conhecida em tempo de execução (#240).
 Json = Any
 Row = dict[str, Json]
-# Leitura de uma tabela inteira: (tabela, ordem) -> linhas. Injetada nos testes.
+# Leitura de uma tabela inteira: (tabela, ordem) -> linhas. Injetada nos testes (#240).
 ReadTable = Callable[[str, str], list[Row]]
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_OUTPUT = os.path.join(ROOT, "eval", "saidas", "auditorias.jsonl")
 URL_VAR = "BARTE_ACADEMY_SUPABASE_URL"
 KEY_VAR = "BARTE_ACADEMY_SUPABASE_SECRET_KEY"
-ENV_FILES = (".env", ".dev.vars")
+ENV_FILE = ".env"
 AUDITS_TABLE = "invoice_audits"
 PROPOSALS_TABLE = "proposals"
 READABLE_TABLES = (AUDITS_TABLE, PROPOSALS_TABLE)
@@ -92,7 +92,7 @@ class Reader:
             raise ExportError("network", table=table) from None
 
     def read_all(self, table: str, order: str) -> list[Row]:
-        """Lê a tabela inteira, paginando, na ordem dada; nunca trunca em silêncio."""
+        """Lê a tabela inteira, na ordem dada, até a primeira página vazia: o teto de linhas do servidor não trunca."""
         if table not in READABLE_TABLES:
             raise ExportError("table", table=table)
         path = f"{table}?select=*&order={urllib.parse.quote(order, safe=',.')}"
@@ -103,10 +103,10 @@ class Reader:
             if status >= 300:
                 raise ExportError("read", table, status)
             page = json.loads(body)
-            rows += page
-            if len(page) < PAGE_SIZE:
+            if not page:
                 return rows
-            start += PAGE_SIZE
+            rows += page
+            start += len(page)
 
     def __call__(self, table: str, order: str) -> list[Row]:
         return self.read_all(table, order)
@@ -178,18 +178,17 @@ def write_jsonl(path: str, lines: list[Row]) -> None:
 
 
 def env_from_files(root: str = ROOT) -> dict[str, str]:
-    """As duas variáveis, lidas das linhas CHAVE=valor dos arquivos de ambiente da raiz que existirem."""
+    """As duas variáveis, lidas das linhas CHAVE=valor do .env da raiz, se existir."""
     found: dict[str, str] = {}
-    for name in ENV_FILES:
-        try:
-            with open(os.path.join(root, name), encoding="utf-8") as f:
-                text = f.read()
-        except OSError:
-            continue
-        for raw in text.splitlines():
-            name_part, _, value = raw.strip().removeprefix("export ").partition("=")
-            if name_part in (URL_VAR, KEY_VAR) and name_part not in found:
-                found[name_part] = value.strip().strip("\"'")
+    try:
+        with open(os.path.join(root, ENV_FILE), encoding="utf-8") as f:
+            text = f.read()
+    except OSError:
+        return found
+    for raw in text.splitlines():
+        name_part, _, value = raw.strip().removeprefix("export ").partition("=")
+        if name_part in (URL_VAR, KEY_VAR):
+            found[name_part] = value.strip().strip("\"'")
     return found
 
 
