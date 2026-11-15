@@ -40,26 +40,44 @@ tables:
         serves: no máximo uma auditoria feita por nota (índice único parcial, status = 'audited'); a violação (409, 23505) é o "já auditada"
       - name: invoice_audits_key_id_idx
         serves: a leitura da API por nota (invoice_access_key = ? order by status, id desc limit 1) e o cascade da chave estrangeira
-      - name: invoice_audits_raised_idx
-        serves: a varredura do reparo (raised_level is not null order by id), que só vê as linhas com nível elevado em vez da tabela que cresce
+      - name: invoice_audits_requested_idx
+        serves: a varredura do reparo (requested_level is not null order by id), que só vê as linhas com nível pedido em vez da tabela que cresce
     # UPDATE e DELETE revogados de anon, authenticated e service_role. A linha sai só pelo cascade
     # de invoices (roda como dono da tabela), que o reset administrativo usa; reconferir.ts não
     # lista a tabela.
+    refusal: grant
+
+  proposal_level_changes:
+    # A história de nível de proposals: cada subida aplicada é um fato (de, para, qual auditoria, quem, quando).
+    # Só recebe linhas, gravada na mesma transação que muda proposals.approval_level (raise_proposal_level).
+    mode: append-only
+    history: none
+    tenant: none
+    projection: o nível que uma auditoria aplicou = a linha mais recente de proposal_level_changes com invoice_audit_id = ?
+      e changed_by = 'invoice-audit' (order=id.desc&limit=1), lida pela API de aprovação no lugar do pedido
+      guardado em invoice_audits.requested_level
+    rebuild_test: teste do leitor da auditoria (pedido sem linha de história devolve raisedLevel nulo; com a linha
+      devolve o nível aplicado) e teste do adaptador (a chamada da função com a chave, o nível e a auditoria)
+    indexes:
+      - name: proposal_level_changes_audit_idx
+        serves: a leitura da API (invoice_audit_id = ? order by id desc limit 1) e o cascade da chave estrangeira de invoice_audits
+      - name: proposal_level_changes_proposal_idx
+        serves: a história de uma proposta, da mais recente para a mais antiga (proposal_id = ? order by id desc), e o cascade da chave estrangeira de proposals
+    # UPDATE e DELETE revogados de anon, authenticated e service_role; a linha sai só pelo cascade.
     refusal: grant
 
   proposals:
     # A proposta é uma entidade que muda de estado e de nível. A #230 só acrescenta uma escrita:
     # subir approval_level, condicionada ao estado e ao nível atual, nunca descer.
     mode: upsert-with-history
-    # Sem tabela de história própria: o nível anterior e o novo ficam na linha de invoice_audits
-    # que causou a subida (raised_from_level, raised_level); a decisão fica em approvals.
     history: history-table
-    history_table: invoice_audits (subida de nível), approvals (decisão)
-    # PER-3: a história da subida mora em invoice_audits, gravada em requisição própria (antes) e
-    # reparada por reapplyRaisedLevels se o PATCH da proposta falhar. Decisão: gravações em ordem
-    # mais varredura é o desenho aceito; uma RPC ou gatilho que fizesse as duas gravações foi
-    # rejeitada porque mudaria duas raízes de agregado numa transação e esconderia no SQL a regra
-    # "só sobe, e só enquanto espera".
-    version_column: none          # a guarda é o filtro de estado e de nível no próprio PATCH
+    history_table: proposal_level_changes (subida de nível), approvals (decisão)
+    # PER-3: a subida de nível e a história dela são gravadas na mesma transação pela função
+    # public.raise_proposal_level (chamada por POST /rest/v1/rpc/raise_proposal_level, uma requisição = uma
+    # transação). A função muda uma raiz (proposals) e a história dela; a guarda ("só sobe, e só enquanto
+    # espera") fica no próprio update, com a linha travada (for update). Substitui a nota anterior, que
+    # guardava a história em invoice_audits antes do PATCH: invoice_audits.requested_level é só o nível que o
+    # auditor pediu, não o fato. A varredura (reapplyRaisedLevels) repete a função, uma nota por rodada.
+    version_column: none          # a guarda é o filtro de estado e de nível dentro da função
     # PER-4 (conhecido): coluna de versão em proposals fica para outra issue.
     tenant: none

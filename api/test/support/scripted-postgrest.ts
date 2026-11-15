@@ -12,7 +12,7 @@ export type Call = {
 
 export type Reply = { status?: number; body: unknown };
 
-export function scripted(respond: (call: Call) => Reply = () => ({ body: [] })) {
+export function scripted(respond: (call: Call) => Reply = () => ({ body: [] })): { rest: SupabaseRest; calls: Call[] } {
   const calls: Call[] = [];
   const fetch: FetchFn = async (input, init = {}) => {
     const url = new URL(input);

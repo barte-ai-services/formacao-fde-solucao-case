@@ -27,6 +27,7 @@ const call = async (o: ConverseOptions, name: string, input: unknown) => {
 };
 const respond = (c: Call) => {
   if (c.table === 'proposals' && c.method === 'GET') return { body: [note] };
+  if (c.table === 'rpc/raise_proposal_level') return { body: 'diretoria' };
   if (c.table === 'kit_fornecedores') return { status: 500, body: { message: SEGREDO } };
   return { body: [{ id: 1 }] };
 };
@@ -55,7 +56,7 @@ describe('invoice-audit com os adaptadores (#230)', () => {
   it('#230/AC-1 e AC-3: auditada, grava a linha uma vez e sobe o nível da proposta que aguarda', async () => {
     const { task, calls } = build();
     await task.run({ invoiceAccessKey: KEY }, noAsk, async (o) => { await call(o, 'record_audit', audit); return { recorded: true }; });
-    expect(calls.map((c) => `${c.method} ${c.table}`)).toEqual(['GET proposals', 'POST invoice_audits', 'PATCH proposals']);
+    expect(calls.map((c) => `${c.method} ${c.table}`)).toEqual(['GET proposals', 'POST invoice_audits', 'POST rpc/raise_proposal_level']);
   });
 
   it('#230: a tarefa vem registrada, depois das existentes', () => {

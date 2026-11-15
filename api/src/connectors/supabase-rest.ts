@@ -32,7 +32,7 @@ export type InsertOptions = {
   readonly ignoreDuplicates?: boolean;
 };
 
-export type RestOperation = 'select' | 'insert' | 'upsert' | 'update' | 'delete' | 'network' | 'parse';
+export type RestOperation = 'select' | 'insert' | 'upsert' | 'update' | 'delete' | 'rpc' | 'network' | 'parse';
 
 /** #59 Falha do PostgREST. A mensagem diz a operação, a tabela e o status; nunca a chave nem os dados. */
 export class SupabaseRestError extends Error {
@@ -133,6 +133,14 @@ export class SupabaseRest {
     await this.request('delete', table, 'DELETE', params, undefined, { Prefer: 'return=minimal' });
   }
 
+  /**
+   * #230 Chama uma função do banco (POST /rest/v1/rpc/<nome>): uma requisição, uma transação. Devolve o valor que a
+   * função devolve (texto, número, null...), sem tipo: quem chama valida. Falha com o mesmo SupabaseRestError.
+   */
+  async rpc(fn: string, args: Row): Promise<unknown> {
+    return this.requestJson('rpc', `rpc/${fn}`, 'POST', new URLSearchParams(), args, {});
+  }
+
   private requireFilters(operation: RestOperation, table: string, filters: Filters): URLSearchParams {
     const entries = Object.entries(filters);
     if (entries.length === 0) {
@@ -149,6 +157,23 @@ export class SupabaseRest {
     body: unknown,
     extra: Record<string, string>,
   ): Promise<unknown[]> {
+    const parsed = await this.requestJson(operation, table, method, params, body, extra);
+    if (parsed === undefined) return [];
+    if (!Array.isArray(parsed)) {
+      throw new SupabaseRestError('parse', table, 0, 'a resposta não é uma lista');
+    }
+    return parsed;
+  }
+
+  /** #230 A requisição e o JSON da resposta; undefined quando o corpo vem vazio. */
+  private async requestJson(
+    operation: RestOperation,
+    table: string,
+    method: string,
+    params: URLSearchParams,
+    body: unknown,
+    extra: Record<string, string>,
+  ): Promise<unknown> {
     const headers: Record<string, string> = { apikey: this.secretKey, 'Content-Type': 'application/json', ...extra };
     // #59 Chave nova (sb_...) vai só no apikey; a legada (JWT) também vai no Authorization.
     if (!this.secretKey.startsWith('sb_')) headers.Authorization = `Bearer ${this.secretKey}`;
@@ -173,16 +198,11 @@ export class SupabaseRest {
     if (!response.ok) {
       throw new SupabaseRestError(operation, table, response.status, text.slice(0, MAX_DETAIL), postgrestCode(text));
     }
-    if (!text) return [];
-    let parsed: unknown;
+    if (!text) return undefined;
     try {
-      parsed = JSON.parse(text);
+      return JSON.parse(text);
     } catch {
       throw new SupabaseRestError('parse', table, response.status, 'a resposta não é JSON');
     }
-    if (!Array.isArray(parsed)) {
-      throw new SupabaseRestError('parse', table, response.status, 'a resposta não é uma lista');
-    }
-    return parsed;
   }
 }

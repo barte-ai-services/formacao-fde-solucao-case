@@ -20,6 +20,7 @@ const isRefusal: Guard<AuditRefusal> = (v): v is AuditRefusal =>
   ((v.refusal === 'invalid_field' && isString(v.field)) || (v.refusal === 'routing_below_regua' && isLevel(v.minimumLevel)));
 
 type AuditRow = {
+  id: number;
   status: 'audited' | 'nao_auditada';
   reason: NotAuditedReason | null;
   classification: string | null;
@@ -30,12 +31,12 @@ type AuditRow = {
   model: string | null;
   audited_at: string | null;
   differing_fields: ('classification' | 'dock_action' | 'routing')[] | null;
-  raised_level: ApprovalLevel | null;
   injection_flag: string | null;
   refusals: AuditRefusal[];
 };
 
 const isAuditRow = shaped<AuditRow>({
+  id: isInteger,
   status: oneOf('audited', 'nao_auditada'),
   reason: nullable(isReason),
   classification: nullable(isString),
@@ -46,13 +47,30 @@ const isAuditRow = shaped<AuditRow>({
   model: nullable(isString),
   audited_at: nullable(isString),
   differing_fields: nullable(arrayOf(isField)),
-  raised_level: nullable(isLevel),
   injection_flag: nullable(isString),
   refusals: arrayOf(isRefusal),
 } satisfies Shape<AuditRow>);
 
 function corrupt(detail: string): never {
   throw new SupabaseRestError('parse', 'invoice_audits', 0, detail);
+}
+
+const isChange = shaped<{ to_level: ApprovalLevel }>({ to_level: isLevel });
+
+/**
+ * #230 AC-3 O nível que a subida desta auditoria aplicou (proposal_level_changes, a mais recente, por invoice-audit), ou
+ * null se nenhuma foi aplicada: o pedido guardado em invoice_audits.requested_level não vale como fato.
+ */
+async function appliedLevel(rest: SupabaseRest, invoiceAuditId: number): Promise<ApprovalLevel | null> {
+  const rows = await rest.select('proposal_level_changes', {
+    select: 'to_level',
+    filters: { invoice_audit_id: `eq.${invoiceAuditId}`, changed_by: 'eq.invoice-audit' },
+    order: 'id.desc',
+    limit: 1,
+  });
+  const [raw] = rows;
+  if (raw === undefined) return null;
+  return parseOne(raw, isChange, 'proposal_level_changes').to_level;
 }
 
 /** #230 AC-7 A auditoria feita da nota, ou, sem ela, a tentativa mais recente (status asc, id desc, limit 1) como a API a lê, ou null se nunca foi tentada. */
@@ -96,7 +114,7 @@ export async function readLatestAudit(rest: SupabaseRest, invoiceAccessKey: stri
     model: row.model,
     auditedAt: auditedAt.toISOString(),
     differs: row.differing_fields,
-    raisedLevel: row.raised_level,
+    raisedLevel: await appliedLevel(rest, row.id),
     injectionFlag: row.injection_flag,
     refusals: row.refusals,
   };

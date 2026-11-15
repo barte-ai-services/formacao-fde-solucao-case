@@ -11,6 +11,7 @@ import { checkedWith, kitInvoice, kitSupplier } from './kit.js';
 
 const ANALISTA = 'analista@jachegou.test';
 const env: Env = { ACCESS_AUD: 'aud', ACCESS_TEAM_DOMAIN: 'time.cloudflareaccess.com', APPROVER_LEVELS: JSON.stringify({ [ANALISTA]: 'analista' }) };
+// #230 stub de teste: o Worker só usa waitUntil/passThroughOnException
 const ctx = { waitUntil: () => {}, passThroughOnException: () => {}, props: {} } as unknown as ExecutionContext;
 const verifier: AccessVerifier = { verify: async (token) => ({ ok: true, identity: { email: token } }) };
 

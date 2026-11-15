@@ -1,6 +1,7 @@
 // #230 A auditoria da nota no Supabase (tabela invoice_audits, só recebe linhas) e a leitura da mais recente.
-// #230 Cada escrita é uma requisição PostgREST própria (uma transação cada); não há transação entre a auditoria e
-// #230 o nível da proposta, e o contrato de duas gravações em ordem está no InvoiceAuditPort.
+// #230 Cada escrita é uma requisição PostgREST própria (uma transação cada). A subida do nível da proposta e a história
+// #230 dela (proposal_level_changes) são uma só chamada da função raise_proposal_level, uma transação; entre a auditoria
+// #230 e a subida há duas gravações em ordem, como diz o InvoiceAuditPort.
 import { dockActionFromJson, invoiceFromRows, isDivergenceRow, isInvoiceRow } from '../approval/supabase-store.js';
 import {
   APPROVAL_LEVELS,
@@ -12,7 +13,7 @@ import {
   type NotAudited,
   type RuleProposal,
 } from '../domain/index.js';
-import { isRecord, isString, isUnknown, oneOf, parseOne, parseRows, shaped, type Shape } from './guards.js';
+import { isInteger, isRecord, isString, isUnknown, oneOf, parseOne, parseRows, shaped, type Shape } from './guards.js';
 import type { AuditedNote, AuditWriteContext, InvoiceAuditPort } from './ports.js';
 import { SupabaseRestError, type SupabaseRest } from './supabase-rest.js';
 
@@ -38,12 +39,18 @@ const isProposalWithInvoice = shaped<ProposalWithInvoice>({
   invoices: isUnknown,
 } satisfies Shape<ProposalWithInvoice>);
 
-type SweepRow = { invoice_access_key: string; raised_level: ApprovalLevel; invoices: unknown };
-const isSweepRow = shaped<SweepRow>({ invoice_access_key: isString, raised_level: isLevel, invoices: isUnknown } satisfies Shape<SweepRow>);
+type SweepRow = { id: number; invoice_access_key: string; requested_level: ApprovalLevel; invoices: unknown };
+const isSweepRow = shaped<SweepRow>({
+  id: isInteger,
+  invoice_access_key: isString,
+  requested_level: isLevel,
+  invoices: isUnknown,
+} satisfies Shape<SweepRow>);
 
-/** #230 Os níveis estritamente abaixo de `level`, no formato do filtro `in.(...)` do PostgREST. */
-const belowFilter = (level: ApprovalLevel): string =>
-  `in.(${APPROVAL_LEVELS.filter((l) => compareLevels(l, level) < 0).join(',')})`;
+const isInsertedRow = shaped<{ id: number }>({ id: isInteger });
+
+/** #230 A função do banco que sobe o nível e grava a história na mesma transação. */
+const RAISE_FUNCTION = 'raise_proposal_level';
 
 /** #230 SQLSTATE de violação de unicidade. */
 const UNIQUE_VIOLATION = '23505';
@@ -84,28 +91,29 @@ export class SupabaseInvoiceAudits implements InvoiceAuditPort {
     };
   }
 
-  /** #230 AC-1 e AC-3: a linha primeiro (a verdade); depois, só se ela entrou e há nível a subir, o PATCH guardado. */
+  /** #230 AC-1 e AC-3: a linha primeiro (a verdade); depois, só se ela entrou e há nível a subir, a função que sobe e grava a história. */
   async save(invoiceAccessKey: string, result: AuditResult, context: AuditWriteContext): Promise<void> {
-    if (!(await this.insertAudit(invoiceAccessKey, result, context))) return;
+    const auditId = await this.insertAudit(invoiceAccessKey, result, context);
+    if (auditId === null) return;
     const { raisedLevel } = result;
     if (raisedLevel === null) return;
     // #230 A linha já está gravada: se a subida falhar, o save não falha (falhar faria o caso de uso reauditar);
-    // #230 a varredura (reapplyRaisedLevels) repete a subida, que é idempotente. O alerta não leva chave nem texto.
+    // #230 a varredura (reapplyRaisedLevels) repete a subida, que é idempotente. O alerta leva a chave da nota, nunca o texto do erro.
     try {
-      const touched = await this.raise(invoiceAccessKey, raisedLevel);
-      // #230 Nenhuma proposta tocada: já decidida ou já no nível. Vale só como alerta, sem a chave nem o texto.
-      if (touched === 0) this.log('#230 invoice-audit: a auditoria pede nível mais alto, mas a proposta não está mais à espera abaixo dele');
+      const applied = await this.raise(invoiceAccessKey, raisedLevel, auditId);
+      // #230 Nada subiu: proposta já decidida ou já no nível. Vale só como alerta.
+      if (applied === null) this.log(`#230 invoice-audit: a auditoria da nota ${invoiceAccessKey} pede nível mais alto, mas a proposta não está mais à espera abaixo dele`);
     } catch {
-      this.log('#230 invoice-audit: a subida de nível falhou; a varredura repete');
+      this.log(`#230 invoice-audit: subida de nível da nota ${invoiceAccessKey} falhou; a varredura repete`);
     }
   }
 
   /**
    * #230 Insert simples. O PostgREST usaria a chave primária como alvo do ignore-duplicates, e on_conflict não infere
    * um índice parcial (42P10): quem decide "já auditada" é o índice único parcial, que responde 409 com 23505.
-   * Devolve false nesse caso (no-op); o 409 de outro código (23503, chave estrangeira) segue como falha.
+   * Devolve null nesse caso (no-op) e, senão, o id da linha; o 409 de outro código (23503, chave estrangeira) segue como falha.
    */
-  private async insertAudit(invoiceAccessKey: string, result: AuditResult, context: AuditWriteContext): Promise<boolean> {
+  private async insertAudit(invoiceAccessKey: string, result: AuditResult, context: AuditWriteContext): Promise<number | null> {
     const { audit, agreement, raisedLevel, injectionFlag } = result;
     const row = {
       invoice_access_key: invoiceAccessKey,
@@ -119,16 +127,16 @@ export class SupabaseInvoiceAudits implements InvoiceAuditPort {
       model: audit.model,
       audited_at: audit.auditedAt,
       differing_fields: agreement.agrees ? [] : [...agreement.differs],
-      raised_level: raisedLevel,
-      raised_from_level: raisedLevel === null ? null : context.fromLevel,
+      requested_level: raisedLevel,
+      requested_from_level: raisedLevel === null ? null : context.fromLevel,
       injection_flag: injectionFlag,
       refusals: [...context.refusals],
     };
     try {
-      await this.rest.insert('invoice_audits', [row], { ignoreDuplicates: false });
-      return true;
+      const [inserted] = await this.rest.insert('invoice_audits', [row], { ignoreDuplicates: false });
+      return parseOne(inserted, isInsertedRow, 'invoice_audits').id;
     } catch (error) {
-      if (error instanceof SupabaseRestError && error.status === 409 && error.code === UNIQUE_VIOLATION) return false;
+      if (error instanceof SupabaseRestError && error.status === 409 && error.code === UNIQUE_VIOLATION) return null;
       throw error;
     }
   }
@@ -142,45 +150,42 @@ export class SupabaseInvoiceAudits implements InvoiceAuditPort {
   }
 
   /**
-   * #230 Reparo: uma leitura (auditorias com nível elevado, com a proposta embutida) e, no máximo, uma gravação em
-   * lote, do nível mais alto que ainda precisa de reparo; os demais ficam para a próxima varredura (idempotente).
+   * #230 Reparo: uma leitura (auditorias com nível pedido, com a proposta embutida) e, no máximo, uma chamada da função,
+   * da nota mais antiga que ainda precisa de reparo (proposta à espera e abaixo do nível pedido); as demais ficam para
+   * a próxima varredura (idempotente: a função só sobe).
    */
   async reapplyRaisedLevels(): Promise<void> {
     const rows = parseRows(
       await this.rest.select('invoice_audits', {
-        select: 'invoice_access_key,raised_level,invoices(proposals(state,approval_level))',
-        filters: { raised_level: 'not.is.null' },
+        select: 'id,invoice_access_key,requested_level,invoices(proposals(state,approval_level))',
+        filters: { requested_level: 'not.is.null' },
         order: 'id',
       }),
       isSweepRow,
       'invoice_audits',
     );
-    const pending = rows.filter((r) => {
+    const pending = rows.find((r) => {
       const proposal = isRecord(r.invoices) && isRecord(r.invoices.proposals) ? r.invoices.proposals : null;
       return (
-        KEY_PATTERN.test(r.invoice_access_key) &&
         proposal !== null &&
         proposal.state === 'aguardando_aprovacao' &&
         isLevel(proposal.approval_level) &&
-        compareLevels(proposal.approval_level, r.raised_level) < 0
+        compareLevels(proposal.approval_level, r.requested_level) < 0
       );
     });
-    const highest = pending.reduce<ApprovalLevel | null>((top, r) => (top === null || compareLevels(r.raised_level, top) > 0 ? r.raised_level : top), null);
-    if (highest === null) return;
-    const keys = pending.filter((r) => r.raised_level === highest).map((r) => r.invoice_access_key);
-    await this.rest.update(
-      'proposals',
-      { invoice_access_key: `in.(${keys.join(',')})`, state: 'eq.aguardando_aprovacao', approval_level: belowFilter(highest) },
-      { approval_level: highest },
-    );
+    if (pending === undefined) return;
+    await this.raise(pending.invoice_access_key, pending.requested_level, pending.id);
   }
 
-  private async raise(invoiceAccessKey: string, level: ApprovalLevel): Promise<number> {
-    const touched = await this.rest.update(
-      'proposals',
-      { invoice_access_key: `eq.${invoiceAccessKey}`, state: 'eq.aguardando_aprovacao', approval_level: belowFilter(level) },
-      { approval_level: level },
-    );
-    return touched.length;
+  /** #230 Uma chamada, uma transação: sobe o nível e grava a história. Devolve o nível aplicado, ou null se nada subiu. */
+  private async raise(invoiceAccessKey: string, level: ApprovalLevel, auditId: number): Promise<ApprovalLevel | null> {
+    const applied = await this.rest.rpc(RAISE_FUNCTION, {
+      p_invoice_access_key: invoiceAccessKey,
+      p_to_level: level,
+      p_invoice_audit_id: auditId,
+    });
+    if (applied === null) return null;
+    if (!isLevel(applied)) return corrupt('nível aplicado fora do formato');
+    return applied;
   }
 }
