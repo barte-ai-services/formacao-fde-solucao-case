@@ -28,7 +28,7 @@ import { kitTables } from '../support/kit.js';
 import { emptyContext } from './fixtures.js';
 
 // Plano #67, história #37. Os casos do kit são montados à mão a partir de data/kit/{notas,ordens,
-// produtos}.json, citando o id da nota. O gabarito (excecoes.json) não é lido.
+// produtos}.json, citando o id da nota. O gabarito (excecoes.json) não é lido (#37).
 
 type Line = {
   supplierCode: string;
@@ -36,7 +36,7 @@ type Line = {
   description: string;
   quantity: number;
   unit: Unit;
-  unitPrice: number; // reais, como o kit entrega; a conversão para centavos é da borda
+  unitPrice: number; // #67: reais, como o kit entrega; a conversão para centavos é da borda
 };
 
 type InvoiceCase = {
@@ -102,7 +102,7 @@ const productOf = (
   referenceUnitPrice: Money.fromReais(referenceUnitPrice),
 });
 
-// NF-008: SKU-1025 vem em CX (232 @ 18,76) contra a ordem em UN (928 @ 4,69), fator 4.
+// #67, NF-008: SKU-1025 vem em CX (232 @ 18,76) contra a ordem em UN (928 @ 4,69), fator 4.
 const nf008 = {
   invoice: invoiceOf({
     accessKey: '35261162833783000154550010000374521840226160',
@@ -136,7 +136,7 @@ const nf008 = {
   }),
 };
 
-// NF-044: SKU-1022 vem em CX (867 @ 37,96) contra a ordem em UN (3468 @ 9,49), fator 4. Nota de R$ 53.685,32.
+// #67, NF-044: SKU-1022 vem em CX (867 @ 37,96) contra a ordem em UN (3468 @ 9,49), fator 4. Nota de R$ 53.685,32.
 const nf044 = {
   invoice: invoiceOf({
     accessKey: '35261113769729000182550010000137591816304136',
@@ -164,7 +164,7 @@ const nf044 = {
   }),
 };
 
-// NF-067: SKU-1031 vem em CX (923 @ 25,96) contra a ordem em UN (3692 @ 6,49), fator 4. Nota de R$ 64.034,00.
+// #67, NF-067: SKU-1031 vem em CX (923 @ 25,96) contra a ordem em UN (3692 @ 6,49), fator 4. Nota de R$ 64.034,00.
 const nf067 = {
   invoice: invoiceOf({
     accessKey: '35261153194517000138550010000844441912118632',
@@ -198,7 +198,7 @@ const nf067 = {
   }),
 };
 
-// NF-065: SKU-1018 vem em CX (38 @ 19,96) contra a ordem em UN (152 @ 4,99), fator 4.
+// #67, NF-065: SKU-1018 vem em CX (38 @ 19,96) contra a ordem em UN (152 @ 4,99), fator 4.
 const nf065 = {
   invoice: invoiceOf({
     accessKey: '35261154813096000149550010000706431621743193',
@@ -232,8 +232,8 @@ const nf065 = {
   }),
 };
 
-// NF-073: SKU-1014 vem em CX (8 @ 67,60) contra a ordem em UN (32 @ 16,90), fator 4. Os outros dois
-// itens têm fator 12 no cadastro e vêm em UN dos dois lados: não são E4.
+// #67, NF-073: SKU-1014 vem em CX (8 @ 67,60) contra a ordem em UN (32 @ 16,90), fator 4.
+// #67: os outros dois itens têm fator 12 no cadastro e vêm em UN dos dois lados, não são E4.
 const nf073 = {
   invoice: invoiceOf({
     accessKey: '35261100023027000111550010000479761598126270',
@@ -267,7 +267,7 @@ const nf073 = {
   }),
 };
 
-// Sintético: 12 CX, fator 4, contra a ordem de 48 UN. `boxPrice` em reais por caixa.
+// #67, sintético: 12 CX, fator 4, contra a ordem de 48 UN. `boxPrice` em reais por caixa.
 const synthetic = (boxPrice: number, orderUnit: Unit = 'UN', orderQty = 48, orderPrice = 10) => {
   const invoiceUnit: Unit = orderUnit === 'UN' ? 'CX' : 'UN';
   const invoiceQty = invoiceUnit === 'CX' ? 12 : 48;
@@ -330,6 +330,23 @@ describe('E4 — unidade de medida (plano #67, história #37)', () => {
       expect(found[0]?.skus).toEqual(['SKU-1']);
     });
 
+    it('regra 4, AC-1, #67: 10 CX com fator 4 (40 UN) contra a ordem de 48 UN é E4, e o risco é sobre 40 UN', () => {
+      const invoice = invoiceOf({
+        accessKey: '35261100000000000000550010000066661000066666',
+        supplierId: 'F01',
+        purchaseOrderRef: 'OC-SINT',
+        items: [{ supplierCode: 'F01-001', sku: 'SKU-1', description: 'Arroz 5 kg', quantity: 10, unit: 'CX', unitPrice: 40, total: 400 }],
+        total: 400,
+      });
+      const { ctx } = synthetic(40);
+      const found = checkUnidadeDeMedida(invoice, ctx);
+      expect(found).toHaveLength(1);
+      expect(found[0]?.classification).toBe('E4');
+      expect(found[0]?.skus).toEqual(['SKU-1']);
+      expect(found[0]?.evidence[2]?.description).toContain('nota 40 UN, ordem 48 UN');
+      expect(e4AmountAtRisk(invoice, ctx).amount.cents).toBe(0);
+    });
+
     it('regra 4, AC-1: NF-008 acusa E4 só no SKU-1025 (232 CX = 928 UN), e os itens em UN não divergem', () => {
       const found = checkUnidadeDeMedida(nf008.invoice, nf008.ctx);
       expect(found).toHaveLength(1);
@@ -382,7 +399,7 @@ describe('E4 — unidade de medida (plano #67, história #37)', () => {
     });
 
     it('regra 4, AC-2: mesma unidade, mesmo com quantidade diferente, não é E4 (é de E1/E3)', () => {
-      const { invoice, ctx } = synthetic(10, 'CX', 12, 40); // nota 48 UN
+      const { invoice, ctx } = synthetic(10, 'CX', 12, 40); // #67: nota 48 UN
       const sameUnit = { ...ctx, purchaseOrders: [orderOf('OC-SINT', 'F01', [{ supplierCode: 'F01-001', sku: 'SKU-1', description: 'Arroz 5 kg', quantity: 50, unit: 'UN', unitPrice: 10 }], 500)] };
       expect(checkUnidadeDeMedida(invoice, sameUnit)).toEqual([]);
     });
@@ -422,13 +439,13 @@ describe('E4 — unidade de medida (plano #67, história #37)', () => {
     });
 
     it('regra 6, AC-3: com a ordem em CX, o esperado é o preço da caixa sobre o fator, arredondado em centavos', () => {
-      // 48 UN a R$ 12,00 contra 12 CX a R$ 40,00: esperado 48 × 4000 / 4 = 48000; cobrado 57600.
+      // AC-3, #67: 48 UN a R$ 12,00 contra 12 CX a R$ 40,00: esperado 48 × 4000 / 4 = 48000; cobrado 57600.
       const { invoice, ctx } = synthetic(12, 'CX', 12, 40);
       expect(e4AmountAtRisk(invoice, ctx).amount.cents).toBe(9600);
     });
 
     it('regra 6, AC-3: o valor em risco nunca passa do valor da nota nem fica negativo', () => {
-      const { invoice, ctx } = synthetic(1); // 12 CX a R$ 1,00: abaixo do esperado
+      const { invoice, ctx } = synthetic(1); // AC-3, #67: 12 CX a R$ 1,00, abaixo do esperado
       const risk = e4AmountAtRisk(invoice, ctx);
       expect(risk.amount.cents).toBe(0);
       expect(risk.amount.compare(risk.invoiceTotal)).toBeLessThanOrEqual(0);
@@ -535,7 +552,7 @@ describe('E4 — unidade de medida (plano #67, história #37)', () => {
 
     it('AC-5: a correção da E4 é uma RegistryCorrectionMessage e o RegistryCorrectionOutbox do #80 é o porto da E4', async () => {
       const { fake, outbox, ctx, invoice } = await offline();
-      // Prova de compatibilidade em tempo de compilação: o domínio não importa de connectors.
+      // AC-5, #67: prova em tempo de compilação; o domínio não importa de connectors.
       const port: E4CorrectionOutbox = outbox satisfies RegistryCorrectionOutbox;
       const nf044Kit = invoice(nf044.invoice.accessKey);
       const approved = proposalFor(nf044Kit, 'E4', 'aprovada');

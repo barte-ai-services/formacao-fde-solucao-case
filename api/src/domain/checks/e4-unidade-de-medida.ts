@@ -9,32 +9,32 @@ import type { Proposal } from '../proposal.js';
 import type { Quantity } from '../quantity.js';
 import type { Check } from './check.js';
 
-/** Um item da nota cobrado numa unidade diferente da ordem, com o fator do cadastro. */
+/** Regra 4, #67: um item da nota cobrado numa unidade diferente da ordem, com o fator do cadastro. */
 type E4Line = {
   readonly item: InvoiceItem;
   readonly orderItem: PurchaseOrderItem;
   readonly product: Product;
-  /** A quantidade da nota já em UN, pelo fator do cadastro. */
+  /** Regra 4, AC-2, #67: a quantidade da nota já em UN, pelo fator do cadastro. */
   readonly invoicedUnits: Quantity;
-  /** A quantidade da ordem já em UN, pelo fator do cadastro. */
+  /** Regra 4, AC-2, #67: a quantidade da ordem já em UN, pelo fator do cadastro. */
   readonly orderedUnits: Quantity;
 };
 
 const findOrder = (invoice: InvoiceView, ctx: CheckContext): PurchaseOrder | undefined =>
   invoice.purchaseOrderRef === null ? undefined : ctx.purchaseOrders.find((o) => o.id === invoice.purchaseOrderRef);
 
-/** O item da ordem pelo SKU; sem SKU que case, pelo código do fornecedor. */
+/** Regra 4, AC-2, #67: o item da ordem pelo SKU; sem SKU que case, pelo código do fornecedor. */
 const findOrderItem = (order: PurchaseOrder, item: InvoiceItem): PurchaseOrderItem | undefined =>
   (item.sku === null ? undefined : order.items.find((o) => o.sku === item.sku)) ??
   order.items.find((o) => o.supplierCode === item.supplierCode);
 
-/** O produto pelo SKU; sem SKU que case, pelo fornecedor e código do fornecedor. */
+/** Regra 4, AC-2, #67: o produto pelo SKU; sem SKU que case, pelo fornecedor e código do fornecedor. */
 const findProduct = (invoice: InvoiceView, item: InvoiceItem, ctx: CheckContext): Product | undefined =>
   (item.sku === null ? undefined : ctx.products.find((p) => p.sku === item.sku)) ??
   ctx.products.find((p) => p.supplierId === invoice.supplierId && p.supplierCode === item.supplierCode);
 
 /**
- * Regra 4: os itens da nota em unidade diferente da ordem. Sem ordem (E5), sem item na ordem (E2) ou
+ * Regra 4, #67: os itens da nota em unidade diferente da ordem. Sem ordem (E5), sem item na ordem (E2) ou
  * sem produto no cadastro (E8) o item fica para a verificação dona. As quantidades só se comparam em
  * UN, depois da conversão pelo fator, que é conta e não modelo (AC-2).
  */
@@ -92,6 +92,8 @@ const evidenceOf = (invoice: InvoiceView, order: string, line: E4Line): readonly
  * Unidade da nota diferente da unidade da ordem, com o fator conhecido no cadastro, é E4, e não
  * diferença de preço (regra 4). Devolve uma divergência por nota, com todos os SKUs afetados e, para
  * cada um, a nota (SEFAZ), a ordem (Compras) e o fator (Cadastro) como evidência (regra 6).
+ * Decisão do #67: é E4 mesmo se a quantidade convertida não bater, senão a checagem de preço compararia
+ * preço por CX com preço por UN.
  */
 export const checkUnidadeDeMedida: Check = (invoice, ctx) => { // ADR-002
   const lines = e4Lines(invoice, ctx);
@@ -128,7 +130,7 @@ export function e4AmountAtRisk(invoice: InvoiceView, ctx: CheckContext): AmountA
   return AmountAtRisk.of(risk.compare(invoice.total) > 0 ? invoice.total : risk, invoice.total);
 }
 
-/** R$ 20 mil, a fronteira entre as linhas 4 e 5 dos limites de aprovação. */
+/** Limites linhas 4 e 5, AC-4, #67: R$ 20 mil, a fronteira entre analista e coordenação. */
 const ANALYST_LIMIT = Money.ofCents(2_000_000);
 
 /**
@@ -154,7 +156,7 @@ export type E4RegistryCorrection = {
   readonly detail: string;
 };
 
-/** O fator que a nota e a ordem mostram: unidades do lado em UN sobre as caixas do lado em CX. */
+/** AC-5, #67: o fator que a nota e a ordem mostram, unidades do lado em UN sobre caixas do lado em CX. */
 const observedFactor = (line: E4Line): string => {
   const [boxes, units] =
     line.item.quantity.unit === 'CX'
