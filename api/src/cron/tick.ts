@@ -17,11 +17,11 @@ const PUBLISH_WINDOW_DAYS = 7;
 
 /** #174 O que uma rodada fez, para a reconferência devolver. Nulo quando a rodada foi pulada. */
 export interface TickSummary {
-  vistas: number;
-  novas: number;
-  conferidas: number;
-  comErro: number;
-  propostas: number;
+  seen: number;
+  inserted: number;
+  checked: number;
+  failed: number;
+  proposed: number;
 }
 
 /** Execução agendada: captura e confere as notas (#59). Registra uma linha, sem dado sensível. */
@@ -53,11 +53,11 @@ export async function tick(controller: Pick<ScheduledController, "cron">, env: E
     `cron: execução agendada (${controller.cron}); notas vistas ${result.seen}, novas ${result.inserted}, conferidas ${result.checked}, com erro ${result.failed}, propostas ${proposals.proposed}, aprovadas pela regra ${proposals.approvedByRule}, cadastro E8 ${cadastroE8}, ações publicadas na doca ${dock}, ações publicadas no app da loja ${storeActions}, títulos duplicados bloqueados ${duplicates.blocked}, com falha ${duplicates.failed}; recebimentos sem nota [${unreconciled.noKey.join(", ")}], com chave sem nota [${unreconciled.keyWithoutInvoice.join(", ")}]`,
   );
   return {
-    vistas: result.seen,
-    novas: result.inserted,
-    conferidas: result.checked,
-    comErro: result.failed,
-    propostas: proposals.proposed,
+    seen: result.seen,
+    inserted: result.inserted,
+    checked: result.checked,
+    failed: result.failed,
+    proposed: proposals.proposed,
   };
 }
 

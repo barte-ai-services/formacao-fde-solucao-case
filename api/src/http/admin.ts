@@ -4,7 +4,7 @@
  * Apaga as tabelas do domínio (nunca as `kit_*`) e roda o `tick` uma vez; devolve o resumo.
  */
 import { isAdmin } from '../approval/admins.js';
-import { SupabaseRest } from '../connectors/supabase-rest.js';
+import { SupabaseRest, SupabaseRestError } from '../connectors/supabase-rest.js';
 import type { Env } from '../env.js';
 import { reconferir } from '../ops/reconferir.js';
 import type { Identity } from './access.js';
@@ -17,8 +17,12 @@ const fail = (status: number, error: string, headers?: HeadersInit) => Response.
 /** Devolve nulo quando o caminho não é de administração, para o roteador seguir. */
 export async function adminRoutes(request: Request, identity: Identity, env: Env): Promise<Response | null> {
   if (new URL(request.url).pathname !== RECONFERIR_PATH) return null;
-  if (request.method !== 'POST') return fail(405, 'method_not_allowed', { Allow: 'POST' });
   if (!isAdmin(env.BARTE_ACADEMY_ADMIN_EMAILS, identity.email)) return fail(403, 'forbidden');
+  if (request.method !== 'POST') return fail(405, 'method_not_allowed', { Allow: 'POST' });
+  // Muda estado e o Access também aceita o cookie: só JSON, que força o preflight de CORS que o Worker não responde.
+  if (!request.headers.get('Content-Type')?.toLowerCase().startsWith('application/json')) {
+    return fail(415, 'unsupported_media_type');
+  }
 
   let body: unknown = null;
   try {
@@ -33,9 +37,18 @@ export async function adminRoutes(request: Request, identity: Identity, env: Env
   const secretKey = env.BARTE_ACADEMY_SUPABASE_SECRET_KEY;
   if (!url || !secretKey) return fail(503, 'supabase_not_configured');
 
+  const by = identity.email;
   try {
-    return Response.json(await reconferir(new SupabaseRest({ url, secretKey }), env));
-  } catch {
+    const summary = await reconferir(new SupabaseRest({ url, secretKey }), env);
+    console.log('admin-reconferir', { by, ...summary });
+    return Response.json(summary);
+  } catch (error) {
+    console.error(
+      'admin-reconferir: falhou',
+      error instanceof SupabaseRestError
+        ? { by, operation: error.operation, table: error.table, status: error.status }
+        : { by, name: error instanceof Error ? error.name : 'unknown' },
+    );
     return fail(502, 'reconferir_failed');
   }
 }

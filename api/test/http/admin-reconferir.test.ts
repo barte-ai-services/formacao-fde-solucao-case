@@ -80,9 +80,34 @@ describe('#174 POST /api/admin/reconferir', () => {
     expect(fake.requests).toHaveLength(0);
   });
 
-  it('só aceita POST: GET responde 405', async () => {
+  it('só aceita POST: GET do administrador responde 405, e o de quem não é, 403', async () => {
     serve();
     expect((await call({ method: 'GET' })).status).toBe(405);
+    expect((await call({ as: outsider, method: 'GET' })).status).toBe(403);
+  });
+
+  it('corpo que não é application/json (formulário cross-site): 415, e nada é apagado', async () => {
+    const fake = serve();
+    const headers = new Headers({ 'Content-Type': 'text/plain', 'Cf-Access-Jwt-Assertion': await kit.token() });
+    const request = new Request('https://worker.test/api/admin/reconferir', {
+      method: 'POST',
+      headers,
+      body: '{"confirmar":"RECONFERIR","x":"="}',
+    });
+    const response = await createWorker({ verifier: kit.verifier }).fetch(request, env, ctx);
+    expect(response.status).toBe(415);
+    expect(fake.requests).toHaveLength(0);
+  });
+
+  it('falha no meio: 502 sem detalhe, e o registro leva quem rodou', async () => {
+    const fake = serve();
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.stubGlobal('fetch', async () => new Response('x', { status: 500 }));
+    const response = await call({ body: confirm });
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ error: 'reconferir_failed' });
+    expect(error).toHaveBeenCalledWith('admin-reconferir: falhou', expect.objectContaining({ by: ADMIN }));
+    expect(fake.requests).toHaveLength(0);
   });
 
   it('sem as credenciais do Supabase: 503', async () => {
@@ -101,8 +126,8 @@ describe('#174 POST /api/admin/reconferir', () => {
     const response = await call({ body: confirm });
     expect(response.status).toBe(200);
     const summary = (await response.json()) as Record<string, number>;
-    expect(summary).toMatchObject({ vistas: 80, novas: 80, conferidas: 80, comErro: 0 });
-    expect(summary.propostas).toBeGreaterThan(0);
+    expect(summary).toMatchObject({ seen: 80, inserted: 80, checked: 80, failed: 0 });
+    expect(summary.proposed).toBeGreaterThan(0);
     expect(fake.rows('invoices')).toHaveLength(80);
     expect(fake.rows('outbox_dock_actions').some((r) => r.id === 99)).toBe(false);
     expect(Object.fromEntries(Object.keys(kitTables()).map((t) => [t, fake.rows(t).length]))).toEqual(kitBefore);
