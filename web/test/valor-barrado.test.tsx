@@ -110,7 +110,7 @@ describe("#71 painel do valor barrado no mês", () => {
     expect(screen.getByText("R$ 42 mil de R$ 543 mil")).toBeTruthy();
   });
 
-  it("#192/AC-1 #192/AC-4 os quatro cartões estão numa só grade de duas colunas", async () => {
+  it("#192/AC-1 #192/AC-4 the four cards share one two-column grid", async () => {
     respondWith(200, NOVEMBER);
     const { container } = renderPanel();
     const cards = await Promise.all(
