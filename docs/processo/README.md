@@ -1,7 +1,7 @@
 # O processo do contas a pagar
 
 Dois diagramas em BPMN 2.0. Os arquivos `.bpmn` abrem no [bpmn.io](https://demo.bpmn.io) e no
-Camunda Modeler. As imagens ao lado servem só para leitura rápida. Os dois são gerados por
+Camunda Modeler. As imagens ao lado servem só para leitura rápida, e a página com os dois diagramas navegáveis está publicada como artefato ([Processo do contas a pagar](https://claude.ai/artifact/Tm2f4K6MuFoxHBBTSpqdhE)), gerada por `scripts/gerar_artefato.py` a partir de `artifacts/processo/`. Os dois são gerados por
 `scripts/gerar_bpmn.py`: para mudar o desenho, mude o script e rode de novo.
 
 ## O processo atual

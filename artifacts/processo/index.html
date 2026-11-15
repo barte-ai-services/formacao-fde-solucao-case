@@ -1,0 +1,1847 @@
+<title>Processo do contas a pagar</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* layout: uma coluna de leitura; cada diagrama ganha a largura toda numa prancha clara com zoom */
+:root {
+  --bg: #f6f7f5; --fg: #1d2420; --muted: #5d6a63; --line: #d5dbd6;
+  --card: #ffffff; --accent: #1f6f5c; --loss: #b4372f; --loss-bg: #fbeceb;
+  --sans: "IBM Plex Sans", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #131816; --fg: #e4ebe7; --muted: #9aa8a1; --line: #2c3632;
+  --card: #1b211e; --accent: #6cc3a8; --loss: #f0938b; --loss-bg: #3a1f1d; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #131816; --fg: #e4ebe7; --muted: #9aa8a1; --line: #2c3632;
+  --card: #1b211e; --accent: #6cc3a8; --loss: #f0938b; --loss-bg: #3a1f1d; color-scheme: dark }
+/**
+ * color definitions
+ */
+.djs-parent {
+  --color-grey-225-10-15: hsl(225, 10%, 15%);
+  --color-grey-225-10-35: hsl(225, 10%, 35%);
+  --color-grey-225-10-55: hsl(225, 10%, 55%);
+  --color-grey-225-10-75: hsl(225, 10%, 75%);
+  --color-grey-225-10-80: hsl(225, 10%, 80%);
+  --color-grey-225-10-85: hsl(225, 10%, 85%);
+  --color-grey-225-10-90: hsl(225, 10%, 90%);
+  --color-grey-225-10-95: hsl(225, 10%, 95%);
+  --color-grey-225-10-97: hsl(225, 10%, 97%);
+
+  --color-blue-205-100-45: hsl(205, 100%, 45%);
+  --color-blue-205-100-45-opacity-30: hsla(205, 100%, 45%, 30%);
+  --color-blue-205-100-50: hsl(205, 100%, 50%);
+  --color-blue-205-100-50-opacity-15: hsla(205, 100%, 50%, 15%);
+  --color-blue-205-100-70: hsl(205, 100%, 75%);
+  --color-blue-205-100-95: hsl(205, 100%, 95%);
+
+  --color-green-150-86-44: hsl(150, 86%, 44%);
+
+  --color-red-360-100-40: hsl(360, 100%, 40%);
+  --color-red-360-100-45: hsl(360, 100%, 45%);
+  --color-red-360-100-92: hsl(360, 100%, 92%);
+  --color-red-360-100-97: hsl(360, 100%, 97%);
+
+  --color-white: hsl(0, 0%, 100%);
+  --color-black: hsl(0, 0%, 0%);
+  --color-black-opacity-10: hsla(0, 0%, 0%, 10%);
+  --color-black-opacity-30: hsla(0, 0%, 0%, 30%);
+
+  --canvas-fill-color: var(--color-white);
+
+  --bendpoint-fill-color: var(--color-blue-205-100-45);
+  --bendpoint-stroke-color: var(--canvas-fill-color);
+
+  --context-pad-entry-background-color: var(--color-white);
+  --context-pad-entry-hover-background-color: var(--color-grey-225-10-95);
+
+  --element-dragger-color: var(--color-blue-205-100-50);
+  --element-hover-outline-fill-color: var(--color-blue-205-100-45);
+  --element-selected-outline-stroke-color: var(--color-blue-205-100-50);
+  --element-selected-outline-secondary-stroke-color: var(--color-blue-205-100-70);
+
+  --lasso-fill-color: var(--color-blue-205-100-50-opacity-15);
+  --lasso-stroke-color: var(--element-selected-outline-stroke-color);
+
+  --palette-entry-color: var(--color-grey-225-10-15);
+  --palette-entry-hover-color: var(--color-blue-205-100-45);
+  --palette-entry-selected-color: var(--color-blue-205-100-50);
+  --palette-separator-color: var(--color-grey-225-10-75);
+  --palette-toggle-hover-background-color: var(--color-grey-225-10-55);
+  --palette-background-color: var(--color-grey-225-10-97);
+  --palette-border-color: var(--color-grey-225-10-75);
+
+  --popup-font-family: "IBM Plex Sans", sans-serif;
+  --popup-font-size: 14px;
+  --popup-header-entry-selected-color: var(--color-blue-205-100-50);
+  --popup-header-font-weight: bolder;
+  --popup-header-group-divider-color: var(--color-grey-225-10-75);
+  --popup-background-color: var(--color-white);
+  --popup-border-color: transparent;
+  --popup-shadow-color: var(--color-black-opacity-30);
+  --popup-description-color: var(--color-grey-225-10-55);
+  --popup-no-results-color: var(--color-grey-225-10-55);
+  --popup-entry-title-color: var(--color-grey-225-10-55);
+  --popup-entry-hover-color:  var(--color-grey-225-10-95);
+  --popup-search-border-color: var(--color-grey-225-10-75);
+  --popup-search-focus-border-color: var(--color-blue-205-100-50);
+  --popup-search-focus-background-color: var(--color-blue-205-100-95);
+
+  --resizer-fill-color: var(--color-blue-205-100-45);
+  --resizer-stroke-color: var(--canvas-fill-color);
+
+  --search-font-family: "IBM Plex Sans", sans-serif;
+  --search-font-size: 14px;
+  --search-container-background-color: var(--color-white);
+  --search-shadow-color: var(--color-black-opacity-30);
+  --search-input-border-color: var(--color-grey-225-10-75);
+  --search-input-focus-border-color: var(--color-blue-205-100-50);
+  --search-input-focus-background-color: var(--color-blue-205-100-95);
+  --search-result-hover-background-color: var(--color-grey-225-10-95);
+  --search-result-secondary-color: var(--color-grey-225-10-55);
+
+  --shape-attach-allowed-stroke-color: var(--color-blue-205-100-50);
+  --shape-connect-allowed-fill-color: var(--color-grey-225-10-97);
+  --shape-drop-allowed-fill-color: var(--color-grey-225-10-97);
+  --shape-drop-not-allowed-fill-color: var(--color-red-360-100-97);
+  --shape-resize-preview-stroke-color: var(--color-blue-205-100-50);
+
+  --snap-line-stroke-color: var(--color-blue-205-100-45-opacity-30);
+
+  --space-tool-crosshair-stroke-color: var(--color-black);
+
+  --tooltip-error-background-color: var(--color-red-360-100-97);
+  --tooltip-error-border-color: var(--color-red-360-100-45);
+  --tooltip-error-color: var(--color-red-360-100-45);
+}
+
+/**
+ * outline styles
+ */
+
+.djs-outline,
+.djs-selection-outline {
+  fill: none;
+  shape-rendering: geometricPrecision;
+  stroke-width: 2px;
+}
+
+.djs-outline {
+  visibility: hidden;
+}
+
+.djs-selection-outline {
+  stroke: var(--element-selected-outline-stroke-color);
+}
+
+.djs-element.selected .djs-outline {
+  visibility: visible;
+
+  stroke: var(--element-selected-outline-stroke-color);
+}
+
+.djs-connection.selected .djs-outline {
+  display: none;
+}
+
+.djs-multi-select .djs-element.selected .djs-outline {
+  stroke: var(--element-selected-outline-secondary-stroke-color);
+  display: block;
+}
+
+.djs-shape.connect-ok .djs-visual > :nth-child(1) {
+  fill: var(--shape-connect-allowed-fill-color) !important;
+}
+
+.djs-shape.connect-not-ok .djs-visual > :nth-child(1),
+.djs-shape.drop-not-ok .djs-visual > :nth-child(1) {
+  fill: var(--shape-drop-not-allowed-fill-color) !important;
+}
+
+.djs-shape.new-parent .djs-visual > :nth-child(1) {
+  fill: var(--shape-drop-allowed-fill-color) !important;
+}
+
+svg.drop-not-ok {
+  background: var(--shape-drop-not-allowed-fill-color) !important;
+}
+
+svg.new-parent {
+  background: var(--shape-drop-allowed-fill-color) !important;
+}
+
+
+/* Override move cursor during drop and connect */
+.drop-not-ok,
+.connect-not-ok,
+.drop-not-ok *,
+.connect-not-ok * {
+  cursor: not-allowed !important;
+}
+
+.drop-ok,
+.connect-ok,
+.drop-ok *,
+.connect-ok * {
+  cursor: default !important;
+}
+
+.djs-element.attach-ok .djs-visual > :nth-child(1) {
+  stroke-width: 5px !important;
+  stroke: var(--shape-attach-allowed-stroke-color) !important;
+}
+
+.djs-frame.connect-not-ok .djs-visual > :nth-child(1),
+.djs-frame.drop-not-ok .djs-visual > :nth-child(1) {
+  stroke-width: 3px !important;
+  stroke: var(--shape-drop-not-allowed-fill-color) !important;
+  fill: none !important;
+}
+
+/**
+* Selection box style
+*
+*/
+.djs-lasso-overlay {
+  fill: var(--lasso-fill-color);
+  stroke: var(--lasso-stroke-color);
+  stroke-width: 2px;
+  shape-rendering: geometricPrecision;
+  pointer-events: none;
+}
+
+/**
+ * Resize styles
+ */
+.djs-resize-overlay {
+  fill: none;
+
+  stroke-dasharray: 5 1 3 1;
+  stroke: var(--shape-resize-preview-stroke-color);
+
+  pointer-events: none;
+}
+
+.djs-resizer-hit {
+  fill: none;
+  pointer-events: all;
+}
+
+.djs-resizer-visual {
+  fill: var(--resizer-fill-color);
+  stroke-width: 1px;
+  stroke: var(--resizer-stroke-color);
+  shape-rendering: geometricPrecision;
+}
+
+.djs-resizer:hover .djs-resizer-visual {
+  stroke: var(--resizer-stroke-color);
+  stroke-opacity: 1;
+}
+
+.djs-cursor-resize-ns,
+.djs-resizer-n,
+.djs-resizer-s {
+  cursor: ns-resize;
+}
+
+.djs-cursor-resize-ew,
+.djs-resizer-e,
+.djs-resizer-w {
+  cursor: ew-resize;
+}
+
+.djs-cursor-resize-nwse,
+.djs-resizer-nw,
+.djs-resizer-se {
+  cursor: nwse-resize;
+}
+
+.djs-cursor-resize-nesw,
+.djs-resizer-ne,
+.djs-resizer-sw {
+  cursor: nesw-resize;
+}
+
+.djs-shape.djs-resizing > .djs-outline {
+  visibility: hidden !important;
+}
+
+.djs-shape.djs-resizing > .djs-resizer {
+  visibility: hidden;
+}
+
+.djs-dragger > .djs-resizer {
+  visibility: hidden;
+}
+
+/**
+ * drag styles
+ */
+.djs-dragger * {
+  fill: none !important;
+  stroke: var(--element-dragger-color) !important;
+}
+
+.djs-dragger tspan,
+.djs-dragger text {
+  fill: var(--element-dragger-color) !important;
+  stroke: none !important;
+}
+
+.djs-dragger marker circle,
+.djs-dragger marker path,
+.djs-dragger marker polygon,
+.djs-dragger marker polyline,
+.djs-dragger marker rect {
+  fill: var(--element-dragger-color) !important;
+  stroke: none !important;
+}
+
+.djs-dragger marker text,
+.djs-dragger marker tspan {
+  fill: none !important;
+  stroke: var(--element-dragger-color) !important;
+}
+
+.djs-dragging,
+.djs-dragging > * {
+  opacity: 0.3 !important;
+  pointer-events: none !important;
+}
+
+/**
+ * no pointer events for visual
+ */
+.djs-visual,
+.djs-outline {
+  pointer-events: none;
+}
+
+.djs-element.attach-ok .djs-hit {
+  stroke-width: 60px !important;
+}
+
+/**
+ * all pointer events for hit shape
+ */
+.djs-element > .djs-hit-all,
+.djs-element > .djs-hit-no-move {
+  pointer-events: all;
+}
+
+.djs-element > .djs-hit-stroke,
+.djs-element > .djs-hit-click-stroke {
+  pointer-events: stroke;
+}
+
+/**
+ * shape / connection basic styles
+ */
+.djs-connection .djs-visual {
+  stroke-width: 2px;
+  fill: none;
+}
+
+.djs-cursor-grab {
+  cursor: -webkit-grab;
+  cursor: -moz-grab;
+  cursor: grab;
+}
+
+.djs-cursor-grabbing {
+  cursor: -webkit-grabbing;
+  cursor: -moz-grabbing;
+  cursor: grabbing;
+}
+
+.djs-cursor-crosshair {
+  cursor: crosshair;
+}
+
+.djs-cursor-move {
+  cursor: move;
+}
+
+.djs-cursor-resize-ns {
+  cursor: ns-resize;
+}
+
+.djs-cursor-resize-ew {
+  cursor: ew-resize;
+}
+
+
+/**
+ * snapping
+ */
+.djs-snap-line {
+  stroke: var(--snap-line-stroke-color);
+  stroke-linecap: round;
+  stroke-width: 2px;
+  pointer-events: none;
+}
+
+/**
+ * snapping
+ */
+.djs-crosshair {
+  stroke: var(--space-tool-crosshair-stroke-color);
+  stroke-linecap: round;
+  stroke-width: 1px;
+  pointer-events: none;
+  shape-rendering: geometricPrecision;
+  stroke-dasharray: 5, 5;
+}
+
+/**
+ * palette
+ */
+
+.djs-palette {
+  position: absolute;
+  left: 20px;
+  top: 20px;
+
+  box-sizing: border-box;
+  width: 48px;
+}
+
+.djs-palette .separator {
+  margin: 5px;
+  padding-top: 5px;
+
+  border: none;
+  border-bottom: solid 1px var(--palette-separator-color);
+
+  clear: both;
+}
+
+.djs-palette .entry:before {
+  vertical-align: initial;
+}
+
+.djs-palette .djs-palette-toggle {
+  cursor: pointer;
+}
+
+.djs-palette .entry,
+.djs-palette .djs-palette-toggle {
+  color: var(--palette-entry-color);
+  font-size: 30px;
+
+  text-align: center;
+}
+
+.djs-palette .entry {
+  float: left;
+}
+
+.djs-palette .entry img {
+  max-width: 100%;
+}
+
+.djs-palette .djs-palette-entries:after {
+  content: '';
+  display: table;
+  clear: both;
+}
+
+.djs-palette .djs-palette-toggle:hover {
+  background: var(--palette-toggle-hover-background-color);
+}
+
+.djs-palette .entry:hover {
+  color: var(--palette-entry-hover-color);
+}
+
+.djs-palette .highlighted-entry {
+  color: var(--palette-entry-selected-color) !important;
+}
+
+.djs-palette .entry,
+.djs-palette .djs-palette-toggle {
+  width: 46px;
+  height: 46px;
+  line-height: 46px;
+  cursor: default;
+}
+
+/**
+ * Palette open / two-column layout is controlled via
+ * classes on the palette. Events to hook into palette
+ * changed life-cycle are available in addition.
+ */
+.djs-palette.two-column.open {
+  width: 94px;
+}
+
+.djs-palette:not(.open) .djs-palette-entries {
+  display: none;
+}
+
+.djs-palette:not(.open) {
+  overflow: hidden;
+}
+
+.djs-palette.open .djs-palette-toggle {
+  display: none;
+}
+
+/**
+ * context-pad
+ */
+.djs-context-pad {
+  position: absolute;
+  display: none;
+  pointer-events: none;
+  line-height: 1;
+  width: 72px;
+  z-index: 100;
+}
+
+.djs-context-pad .entry {
+  width: 22px;
+  height: 22px;
+  text-align: center;
+  display: inline-block;
+  font-size: 22px;
+  margin: 0 2px 2px 0;
+
+  border-radius: 3px;
+
+  cursor: default;
+
+  background-color: var(--context-pad-entry-background-color);
+  box-shadow: 0 0 2px 1px var(--context-pad-entry-background-color);
+  pointer-events: all;
+  vertical-align: middle;
+}
+
+.djs-context-pad .entry:hover {
+  background: var(--context-pad-entry-hover-background-color);
+}
+
+.djs-context-pad.open {
+  display: block;
+}
+
+/**
+ * popup styles
+ */
+.djs-popup {
+  line-height: 1;
+  box-sizing: border-box;
+  width: min-content;
+  background: var(--popup-background-color);
+  overflow: hidden;
+  position: fixed;
+  z-index: 200;
+  box-shadow: 0px 2px 6px var(--popup-shadow-color);
+  border: solid 1px var(--popup-border-color);
+  min-width: 120px;
+  outline: none;
+  font-size: var(--popup-font-size);
+  font-family: var(--popup-font-family);
+}
+
+.djs-popup-search input {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: var(--popup-font-size);
+  padding: 3px 6px 3px 28px;
+  border-radius: 2px;
+  border: solid 1px var(--popup-search-border-color);
+  line-height: 21px;
+}
+
+.djs-popup-search input:focus {
+  background-color: var(--popup-search-focus-background-color);
+  border: solid 1px var(--popup-search-focus-border-color);
+  outline: none;
+}
+
+.djs-popup-header {
+  display: flex;
+  align-items: stretch;
+  line-height: 20px;
+  margin: 10px 12px 10px 12px;
+}
+
+.djs-popup-header .entry {
+  border-radius: 2px;
+}
+
+.djs-popup button.entry {
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+
+.djs-popup-header .entry.active {
+  color: var(--popup-header-entry-selected-color);
+}
+
+.djs-popup-header .entry.disabled {
+  color: inherit;
+}
+
+.djs-popup-header-group {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.djs-popup-header-group .entry {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.djs-popup-header-group + .djs-popup-header-group:before {
+  content: '';
+  width: 1px;
+  height: 20px;
+  background: var(--popup-header-group-divider-color);
+  margin: 0 5px;
+}
+
+.djs-popup-search {
+  position: relative;
+  width: auto;
+  margin: 10px 12px;
+}
+
+.djs-popup-title {
+  font-size: var(--popup-font-size);
+  font-weight: var(--popup-header-font-weight);
+  flex: 1;
+  margin: 0;
+}
+
+.djs-popup-search-icon {
+  position: absolute;
+  left: 8px;
+  top: 7px;
+}
+
+.djs-popup-results {
+  margin: 7px 3px 7px 12px;
+  list-style: none;
+  max-height: 280px;
+  overflow: auto;
+  padding-right: 9px;
+}
+
+.djs-popup-group {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+}
+
+.djs-popup-body .entry,
+.djs-popup-body .entry-header {
+  padding: 5px 7px;
+  cursor: default;
+  border-radius: 4px;
+}
+
+.djs-popup-body .entry-header {
+  font-weight: var(--popup-header-font-weight);
+  color: var(--popup-entry-title-color);
+  padding-left: 0;
+}
+
+.djs-popup [class*="icon"] .djs-popup-label,
+.djs-popup-label:not(:first-child) {
+  margin-left: .5em;
+}
+
+.djs-popup [class*="icon"]:before,
+.djs-popup-entry-icon {
+  width: 1em;
+  height: 1em;
+  display: inline-block;
+  font-size: 1.4em;
+  vertical-align: middle;
+}
+
+.djs-popup-body .entry-header:not(:first-child) {
+  margin-top: 8px;
+  margin-bottom: 2px;
+}
+
+.djs-popup-body .entry {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  height: min-content;
+}
+
+.djs-popup .entry.selected {
+  background-color: var(--popup-entry-hover-color);
+}
+
+.djs-popup-body .entry:not(:first-child) {
+  margin-top: 2px;
+}
+
+.djs-popup-entry-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.djs-popup-entry-description {
+  color: var(--popup-description-color);
+}
+
+.djs-popup-label,
+.djs-popup-entry-description {
+  line-height: 1.4em;
+}
+
+.djs-popup .entry,
+.djs-popup .entry-header {
+  margin: 1px;
+}
+
+.djs-popup-title,
+.djs-popup-label,
+.djs-popup-entry-description,
+.djs-popup .entry-header {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.djs-popup-entry-name {
+  display: flex;
+}
+
+.djs-popup-body {
+  flex-direction: column;
+  width: auto;
+}
+
+.djs-popup *::-webkit-scrollbar {
+  width: 6px;
+}
+
+.djs-popup *::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+.djs-popup *::-webkit-scrollbar-track {
+  box-shadow: none;
+  background: transparent;
+  margin: 0;
+  padding: 5px;
+}
+
+.djs-popup-no-results {
+  padding: 0 12px 12px 12px;
+  color: var(--popup-no-results-color);
+}
+
+.djs-popup-entry-docs {
+  flex: 0;
+  flex-direction: row;
+  align-items: center;
+  padding-left: 5px;
+  display: none;
+}
+
+.djs-popup-body .entry:hover .djs-popup-entry-docs {
+  display: flex;
+}
+
+.djs-popup-entry-docs svg {
+  vertical-align: middle;
+  margin: auto 2px auto 5px;
+}
+
+/**
+ *  palette styles
+ */
+.djs-palette {
+  background: var(--palette-background-color);
+  border: solid 1px var(--palette-border-color);
+  border-radius: 2px;
+}
+
+/**
+ * bendpoints
+ */
+.djs-segment-dragger,
+.djs-bendpoint {
+  display: none;
+}
+
+.djs-segment-dragger .djs-visual {
+  display: none;
+
+  fill: var(--bendpoint-fill-color);
+  stroke: var(--bendpoint-stroke-color);
+  stroke-width: 1px;
+  stroke-opacity: 1;
+}
+
+.djs-segment-dragger:hover .djs-visual {
+  display: block;
+}
+
+.djs-bendpoint .djs-visual {
+  fill: var(--bendpoint-fill-color);
+  stroke: var(--bendpoint-stroke-color);
+  stroke-width: 1px;
+}
+
+.djs-segment-dragger:hover,
+.djs-bendpoints.hover .djs-segment-dragger,
+.djs-bendpoints.selected .djs-segment-dragger,
+.djs-bendpoint:hover,
+.djs-bendpoints.hover .djs-bendpoint,
+.djs-bendpoints.selected .djs-bendpoint {
+  display: block;
+}
+
+.djs-drag-active .djs-bendpoints * {
+  display: none;
+}
+
+.djs-bendpoints:not(.hover) .floating {
+  display: none;
+}
+
+.djs-segment-dragger:hover .djs-visual,
+.djs-segment-dragger.djs-dragging .djs-visual,
+.djs-bendpoint:hover .djs-visual,
+.djs-bendpoint.floating .djs-visual {
+  fill: var(--bendpoint-fill-color);
+  stroke: var(--bendpoint-stroke-color);
+  stroke-opacity: 1;
+}
+
+.djs-bendpoint.floating .djs-hit {
+  pointer-events: none;
+}
+
+.djs-segment-dragger .djs-hit,
+.djs-bendpoint .djs-hit {
+  fill: none;
+  pointer-events: all;
+}
+
+.djs-segment-dragger.horizontal .djs-hit {
+  cursor: ns-resize;
+}
+
+.djs-segment-dragger.vertical .djs-hit {
+  cursor: ew-resize;
+}
+
+.djs-segment-dragger.djs-dragging .djs-hit {
+  pointer-events: none;
+}
+
+.djs-updating,
+.djs-updating > * {
+  pointer-events: none !important;
+}
+
+.djs-updating .djs-context-pad,
+.djs-updating .djs-outline,
+.djs-updating .djs-bendpoint,
+.djs-multi-select .djs-bendpoint,
+.djs-multi-select .djs-segment-dragger,
+.connect-ok .djs-bendpoint,
+.connect-not-ok .djs-bendpoint,
+.drop-ok .djs-bendpoint,
+.drop-not-ok .djs-bendpoint {
+  display: none !important;
+}
+
+.djs-segment-dragger.djs-dragging,
+.djs-bendpoint.djs-dragging {
+  display: block;
+  opacity: 1.0;
+}
+
+
+/**
+ * tooltips
+ */
+.djs-tooltip-error {
+  width: 160px;
+  padding: 6px;
+
+  background: var(--tooltip-error-background-color);
+  border: solid 1px var(--tooltip-error-border-color);
+  border-radius: 2px;
+  color: var(--tooltip-error-color);
+  font-size: 12px;
+  line-height: 16px;
+
+  opacity: 0.75;
+}
+
+.djs-tooltip-error:hover {
+  opacity: 1;
+}
+
+
+/**
+ * search pad
+ */
+.djs-search-open .djs-context-pad {
+  display: none;
+}
+
+.djs-search-open .djs-connection.selected .djs-outline {
+  display: block;
+}
+
+.djs-search-container {
+  position: absolute;
+  top: 20px;
+  left: 0;
+  right: 0;
+  margin-left: auto;
+  margin-right: auto;
+
+  width: 25%;
+  min-width: 300px;
+  max-width: 400px;
+  z-index: 10;
+
+  font-family: var(--search-font-family);
+  font-size: var(--search-font-size);
+  border-radius: 2px;
+  box-shadow: 0px 2px 6px var(--search-shadow-color);
+}
+
+.djs-search-container:not(.open) {
+  display: none;
+}
+
+.djs-search-input {
+  position: relative;
+}
+
+.djs-search-input svg {
+  position: absolute;
+  left: 8px;
+  top: 7px;
+}
+
+.djs-search-input input {
+  font-size: var(--search-font-size);
+  width: 100%;
+  padding: 3px 6px 3px 28px;
+  border: 1px solid var(--search-input-border-color);
+  border-radius: 2px;
+  box-sizing: border-box;
+  line-height: 21px;
+}
+
+.djs-search-input input:focus {
+  background-color: var(--search-input-focus-background-color);
+  border: solid 1px var(--search-input-focus-border-color);
+  outline: none;
+}
+
+.djs-search-results {
+  position: relative;
+  overflow-y: auto;
+  max-height: 200px;
+  background: var(--search-container-background-color);
+}
+
+.djs-search-result {
+  padding: 6px 8px;
+}
+
+.djs-search-result-primary {
+  margin: 0 0 3px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.djs-search-result-secondary {
+  font-family: monospace;
+  margin: 0;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--search-result-secondary-color);
+}
+
+.djs-search-result:hover {
+  background: var(--search-result-hover-background-color);
+}
+
+.djs-search-result-selected {
+  background: var(--search-result-hover-background-color);
+}
+
+.djs-search-result-selected:hover {
+  background: var(--search-result-hover-background-color);
+}
+
+/**
+ * hidden styles
+ */
+.djs-element-hidden,
+.djs-element-hidden .djs-hit,
+.djs-element-hidden .djs-outline,
+.djs-label-hidden .djs-label {
+  display: none !important;
+}
+
+.djs-element .djs-hit-stroke,
+.djs-element .djs-hit-click-stroke,
+.djs-element .djs-hit-all {
+  cursor: move;
+}
+body { background: var(--bg); color: var(--fg); font: 16px/1.6 var(--sans); }
+.wrap { max-width: 1180px; margin: 0 auto; padding-block: 40px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 48px; }
+header { display: grid; gap: 12px; }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+h1 { font-size: clamp(28px, 4vw, 40px); line-height: 1.15; margin: 0; font-weight: 600; text-wrap: balance; }
+h2 { font-size: 22px; margin: 0; font-weight: 600; text-wrap: balance; }
+p { margin: 0; max-width: 68ch; }
+.lead { color: var(--muted); font-size: 18px; }
+.loss { display: inline-flex; gap: 8px; align-items: baseline; background: var(--loss-bg); color: var(--loss);
+  border-radius: 6px; padding: 4px 10px; font: 500 14px var(--mono); font-variant-numeric: tabular-nums; }
+section { display: grid; gap: 16px; min-width: 0; }
+.board { position: relative; background: #ffffff; border: 1px solid var(--line); border-radius: 10px; height: 560px; overflow: hidden; }
+.board .canvas { position: absolute; inset: 0; }
+.tools { position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; z-index: 2; }
+.tools button { font: 500 13px var(--sans); background: #ffffff; color: #1d2420; border: 1px solid #c9d0cb; border-radius: 6px;
+  padding: 6px 10px; cursor: pointer; }
+.tools button:hover { border-color: #1f6f5c; }
+.tools button:focus-visible { outline: 2px solid #1f6f5c; outline-offset: 2px; }
+.hint { font-size: 13px; color: var(--muted); }
+.error { color: var(--loss); font-size: 14px; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 15px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+th { font: 500 12px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+td:first-child { font-weight: 500; }
+ol { margin: 0; padding-left: 20px; display: grid; gap: 8px; max-width: 72ch; }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Já Chegou · contas a pagar · BPMN 2.0</span>
+    <h1>Da nota emitida ao título pago</h1>
+    <p class="lead">O processo de hoje e o processo-alvo. O alvo leva a conferência para antes da doca, para atacar o pagar errado.</p>
+    <span class="loss">Pagar errado · R$ 543 mil por mês · nada recuperado</span>
+  </header>
+
+  <section aria-labelledby="t-atual">
+    <h2 id="t-atual">Hoje: o pagamento não espera a conferência</h2>
+    <p>Depois que o fornecedor emite a nota, dois caminhos correm em paralelo, sem se falar. A mercadoria entra na doca sem ninguém ter olhado a nota e é conferida à mão até 14 dias depois. Enquanto isso, a nota já entrou na lista do dia, o CFO aprova item a item e o banco paga.</p>
+    <div class="board"><div class="tools"><button type="button" data-fit="atual">Ajustar</button><button type="button" data-zoom="atual" data-step="1.2">+</button><button type="button" data-zoom="atual" data-step="0.8">−</button></div><div class="canvas" id="atual"></div></div>
+    <p class="hint">Arraste para mover e use a roda do mouse ou os botões para dar zoom.</p>
+  </section>
+
+  <section aria-labelledby="t-alvo">
+    <h2 id="t-alvo">Alvo: conferir quando a nota é emitida</h2>
+    <p>A nota é conferida assim que chega da SEFAZ, antes do caminhão. O que bate passa direto, e a pessoa entra só na exceção, pela régua de alçadas. O título só vai para a lista do dia depois de conferido.</p>
+    <div class="board"><div class="tools"><button type="button" data-fit="alvo">Ajustar</button><button type="button" data-zoom="alvo" data-step="1.2">+</button><button type="button" data-zoom="alvo" data-step="0.8">−</button></div><div class="canvas" id="alvo"></div></div>
+  </section>
+
+  <section aria-labelledby="t-escolhas">
+    <h2 id="t-escolhas">As escolhas do processo-alvo</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Escolha</th><th>Onde aparece</th><th>Causa que ataca</th></tr></thead>
+      <tbody>
+        <tr><td>Conferir quando a nota é emitida</td><td>O evento "Nota emitida na SEFAZ" dispara o agente</td><td>O momento: hoje a conferência vem depois do aceite</td></tr>
+        <tr><td>Duplicidade primeiro, bloqueada na hora</td><td>"Duplicada?" leva direto a "Bloquear o título duplicado", sem esperar caminhão</td><td>A exceção mais cara: paga a nota inteira de novo</td></tr>
+        <tr><td>O que já foi pago não paga de novo</td><td>"Já paga fora do fluxo?" vincula a nota ao pagamento feito e fecha</td><td>A compra emergencial da loja paga outra vez quando a nota chega</td></tr>
+        <tr><td>O que bate passa direto</td><td>O ramo "regra" de "Quem decide?" pula o aprovador</td><td>O meio: conferência manual não escala com 11,4 mil notas por mês</td></tr>
+        <tr><td>A pessoa só na exceção, pela régua</td><td>"Confirmar ou alterar a ação", na raia do aprovador da alçada</td><td>O mandato: a decisão vai a quem tem alçada, e o CFO deixa de aprovar tudo</td></tr>
+        <tr><td>O título só vai para a lista conferido</td><td>Contas a pagar libera, devolve a diferença ou bloqueia depois da decisão na doca</td><td>Nada é pago antes de o recebido bater</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section aria-labelledby="t-tempos">
+    <h2 id="t-tempos">Dois momentos de conferência</h2>
+    <ol>
+      <li><strong>Antes da doca, só com documentos.</strong> Duplicidade, nota sem pedido, pago fora do fluxo, item sem cadastro, item trocado e unidade de medida. A doca recebe a ação proposta antes do caminhão.</li>
+      <li><strong>Na doca, com o caminhão parado e antes do aceite.</strong> Falta física e quantidade menor só aparecem na contagem. O agente concilia e a doca decide: receber, receber parcial com nota de devolução, ou recusar com o título bloqueado. Para o jurídico, aceitar a nota é aceitar o pedido, por isso a decisão vem antes.</li>
+    </ol>
+    <p class="hint">Fora do alvo por enquanto: as lojas (9,5 mil notas por mês, divergência por WhatsApp). O CD vem primeiro, com 64% do valor.</p>
+  </section>
+</div>
+
+<script type="text/plain" id="xml-atual"><?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Defs_AccountsPayable_Current" targetNamespace="https://barte.ai/formacao-fde/ja-chegou">
+  <bpmn:collaboration id="Collab_AccountsPayable_Current">
+    <bpmn:participant id="Part_AccountsPayable_Current" name="Já Chegou: contas a pagar hoje" processRef="AccountsPayable_Current" />
+  </bpmn:collaboration>
+  <bpmn:process id="AccountsPayable_Current" name="Contas a pagar da Já Chegou: processo atual" isExecutable="false">
+    <bpmn:laneSet id="LaneSet_AccountsPayable_Current">
+      <bpmn:lane id="Lane_Purchasing" name="Compras">
+        <bpmn:flowNodeRef>Start_NeedToBuy</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_IssueOrder</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Supplier" name="Fornecedor">
+        <bpmn:flowNodeRef>Task_IssueInvoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Split</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Deliver</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Dock" name="Doca (CD e lojas)">
+        <bpmn:flowNodeRef>Task_Receive</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Matching" name="Contas a pagar: conferência">
+        <bpmn:flowNodeRef>Task_MatchByHand</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Differs</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Matched</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Supplement</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Provisioned</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_DailyList" name="Contas a pagar: lista do dia">
+        <bpmn:flowNodeRef>Task_BuildList</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_CFO" name="CFO">
+        <bpmn:flowNodeRef>Task_ApproveAll</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Bank" name="Banco">
+        <bpmn:flowNodeRef>Task_PayOneByOne</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Paid</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="Start_NeedToBuy" name="Precisa comprar">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:task id="Task_IssueOrder" name="Emitir o pedido no ERP">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_IssueInvoice" name="Emitir a nota antes de entregar">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:parallelGateway id="Gateway_Split" name="">
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+      <bpmn:outgoing>Flow_5</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:task id="Task_Deliver" name="Entregar a mercadoria">
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+      <bpmn:outgoing>Flow_6</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_Receive" name="Receber a mercadoria">
+      <bpmn:incoming>Flow_6</bpmn:incoming>
+      <bpmn:outgoing>Flow_7</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_MatchByHand" name="Conferir nota, pedido e recebido à mão">
+      <bpmn:incoming>Flow_7</bpmn:incoming>
+      <bpmn:outgoing>Flow_8</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="Gateway_Differs" name="Diverge?">
+      <bpmn:incoming>Flow_8</bpmn:incoming>
+      <bpmn:outgoing>Flow_9</bpmn:outgoing>
+      <bpmn:outgoing>Flow_10</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End_Matched" name="Nota conciliada">
+      <bpmn:incoming>Flow_9</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:task id="Task_Supplement" name="Abrir ordem complementar ou provisionar">
+      <bpmn:incoming>Flow_10</bpmn:incoming>
+      <bpmn:outgoing>Flow_11</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="End_Provisioned" name="Mês fecha com provisão">
+      <bpmn:incoming>Flow_11</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:task id="Task_BuildList" name="Montar a lista do dia (ERP, e-mail, WhatsApp)">
+      <bpmn:incoming>Flow_5</bpmn:incoming>
+      <bpmn:outgoing>Flow_12</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:userTask id="Task_ApproveAll" name="Aprovar item a item, das 16h às 18h">
+      <bpmn:incoming>Flow_12</bpmn:incoming>
+      <bpmn:outgoing>Flow_13</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:task id="Task_PayOneByOne" name="Pagar um boleto por vez">
+      <bpmn:incoming>Flow_13</bpmn:incoming>
+      <bpmn:outgoing>Flow_14</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="End_Paid" name="Pago, conferido ou não">
+      <bpmn:incoming>Flow_14</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_NeedToBuy" targetRef="Task_IssueOrder" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_IssueOrder" targetRef="Task_IssueInvoice" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Task_IssueInvoice" targetRef="Gateway_Split" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Gateway_Split" targetRef="Task_Deliver" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Gateway_Split" targetRef="Task_BuildList" />
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="Task_Deliver" targetRef="Task_Receive" />
+    <bpmn:sequenceFlow id="Flow_7" sourceRef="Task_Receive" targetRef="Task_MatchByHand" />
+    <bpmn:sequenceFlow id="Flow_8" sourceRef="Task_MatchByHand" targetRef="Gateway_Differs" />
+    <bpmn:sequenceFlow id="Flow_9" name="não" sourceRef="Gateway_Differs" targetRef="End_Matched" />
+    <bpmn:sequenceFlow id="Flow_10" name="sim" sourceRef="Gateway_Differs" targetRef="Task_Supplement" />
+    <bpmn:sequenceFlow id="Flow_11" sourceRef="Task_Supplement" targetRef="End_Provisioned" />
+    <bpmn:sequenceFlow id="Flow_12" sourceRef="Task_BuildList" targetRef="Task_ApproveAll" />
+    <bpmn:sequenceFlow id="Flow_13" sourceRef="Task_ApproveAll" targetRef="Task_PayOneByOne" />
+    <bpmn:sequenceFlow id="Flow_14" sourceRef="Task_PayOneByOne" targetRef="End_Paid" />
+    <bpmn:textAnnotation id="Note_1"><bpmn:text>Ninguém olhou a nota antes. Entra mesmo divergente, por pressão comercial.</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="Assoc_1" sourceRef="Task_Receive" targetRef="Note_1" />
+    <bpmn:textAnnotation id="Note_2"><bpmn:text>Até 14 dias no CD. Só 0,7% das notas casam sozinhas.</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="Assoc_2" sourceRef="Task_MatchByHand" targetRef="Note_2" />
+    <bpmn:textAnnotation id="Note_3"><bpmn:text>Pagar errado: R$ 543 mil por mês sem mercadoria, nada recuperado.</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="Assoc_3" sourceRef="Task_PayOneByOne" targetRef="Note_3" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_AccountsPayable_Current">
+    <bpmndi:BPMNPlane id="Plane_AccountsPayable_Current" bpmnElement="Collab_AccountsPayable_Current">
+      <bpmndi:BPMNShape id="Part_AccountsPayable_Current_di" bpmnElement="Part_AccountsPayable_Current" isHorizontal="true">
+        <dc:Bounds x="100" y="80" width="1670" height="1200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Purchasing_di" bpmnElement="Lane_Purchasing" isHorizontal="true">
+        <dc:Bounds x="130" y="80" width="1640" height="150" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Supplier_di" bpmnElement="Lane_Supplier" isHorizontal="true">
+        <dc:Bounds x="130" y="230" width="1640" height="150" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Dock_di" bpmnElement="Lane_Dock" isHorizontal="true">
+        <dc:Bounds x="130" y="380" width="1640" height="150" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Matching_di" bpmnElement="Lane_Matching" isHorizontal="true">
+        <dc:Bounds x="130" y="530" width="1640" height="300" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_DailyList_di" bpmnElement="Lane_DailyList" isHorizontal="true">
+        <dc:Bounds x="130" y="830" width="1640" height="150" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_CFO_di" bpmnElement="Lane_CFO" isHorizontal="true">
+        <dc:Bounds x="130" y="980" width="1640" height="150" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Bank_di" bpmnElement="Lane_Bank" isHorizontal="true">
+        <dc:Bounds x="130" y="1130" width="1640" height="150" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Start_NeedToBuy_di" bpmnElement="Start_NeedToBuy">
+        <dc:Bounds x="232" y="162" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="200" y="204" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_IssueOrder_di" bpmnElement="Task_IssueOrder">
+        <dc:Bounds x="350" y="145" width="120" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_IssueInvoice_di" bpmnElement="Task_IssueInvoice">
+        <dc:Bounds x="510" y="295" width="120" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Split_di" bpmnElement="Gateway_Split">
+        <dc:Bounds x="705" y="305" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="680" y="361" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Deliver_di" bpmnElement="Task_Deliver">
+        <dc:Bounds x="830" y="295" width="120" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Receive_di" bpmnElement="Task_Receive">
+        <dc:Bounds x="990" y="445" width="120" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_MatchByHand_di" bpmnElement="Task_MatchByHand">
+        <dc:Bounds x="1150" y="595" width="120" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Differs_di" bpmnElement="Gateway_Differs">
+        <dc:Bounds x="1345" y="605" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1320" y="661" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Matched_di" bpmnElement="End_Matched">
+        <dc:Bounds x="1512" y="612" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1480" y="654" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Supplement_di" bpmnElement="Task_Supplement">
+        <dc:Bounds x="1470" y="745" width="120" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Provisioned_di" bpmnElement="End_Provisioned">
+        <dc:Bounds x="1672" y="762" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1640" y="804" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_BuildList_di" bpmnElement="Task_BuildList">
+        <dc:Bounds x="830" y="895" width="120" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ApproveAll_di" bpmnElement="Task_ApproveAll">
+        <dc:Bounds x="990" y="1045" width="120" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_PayOneByOne_di" bpmnElement="Task_PayOneByOne">
+        <dc:Bounds x="1150" y="1195" width="120" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Paid_di" bpmnElement="End_Paid">
+        <dc:Bounds x="1352" y="1212" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1320" y="1254" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_1_di" bpmnElement="Flow_1">
+        <di:waypoint x="268" y="180" />
+        <di:waypoint x="350" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_2_di" bpmnElement="Flow_2">
+        <di:waypoint x="470" y="180" />
+        <di:waypoint x="492" y="180" />
+        <di:waypoint x="492" y="330" />
+        <di:waypoint x="510" y="330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_3_di" bpmnElement="Flow_3">
+        <di:waypoint x="630" y="330" />
+        <di:waypoint x="705" y="330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_4_di" bpmnElement="Flow_4">
+        <di:waypoint x="755" y="330" />
+        <di:waypoint x="830" y="330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_5_di" bpmnElement="Flow_5">
+        <di:waypoint x="755" y="330" />
+        <di:waypoint x="812" y="330" />
+        <di:waypoint x="812" y="930" />
+        <di:waypoint x="830" y="930" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_6_di" bpmnElement="Flow_6">
+        <di:waypoint x="950" y="330" />
+        <di:waypoint x="972" y="330" />
+        <di:waypoint x="972" y="480" />
+        <di:waypoint x="990" y="480" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_7_di" bpmnElement="Flow_7">
+        <di:waypoint x="1110" y="480" />
+        <di:waypoint x="1132" y="480" />
+        <di:waypoint x="1132" y="630" />
+        <di:waypoint x="1150" y="630" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_8_di" bpmnElement="Flow_8">
+        <di:waypoint x="1270" y="630" />
+        <di:waypoint x="1345" y="630" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_9_di" bpmnElement="Flow_9">
+        <di:waypoint x="1395" y="630" />
+        <di:waypoint x="1512" y="630" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1401" y="608" width="80" height="18" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_10_di" bpmnElement="Flow_10">
+        <di:waypoint x="1395" y="630" />
+        <di:waypoint x="1452" y="630" />
+        <di:waypoint x="1452" y="780" />
+        <di:waypoint x="1470" y="780" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1366" y="758" width="80" height="18" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_11_di" bpmnElement="Flow_11">
+        <di:waypoint x="1590" y="780" />
+        <di:waypoint x="1672" y="780" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_12_di" bpmnElement="Flow_12">
+        <di:waypoint x="950" y="930" />
+        <di:waypoint x="972" y="930" />
+        <di:waypoint x="972" y="1080" />
+        <di:waypoint x="990" y="1080" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_13_di" bpmnElement="Flow_13">
+        <di:waypoint x="1110" y="1080" />
+        <di:waypoint x="1132" y="1080" />
+        <di:waypoint x="1132" y="1230" />
+        <di:waypoint x="1150" y="1230" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_14_di" bpmnElement="Flow_14">
+        <di:waypoint x="1270" y="1230" />
+        <di:waypoint x="1352" y="1230" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Note_1_di" bpmnElement="Note_1">
+        <dc:Bounds x="1058" y="384" width="260" height="56" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Assoc_1_di" bpmnElement="Assoc_1">
+        <di:waypoint x="1050" y="445" />
+        <di:waypoint x="1070" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Note_2_di" bpmnElement="Note_2">
+        <dc:Bounds x="1218" y="534" width="260" height="56" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Assoc_2_di" bpmnElement="Assoc_2">
+        <di:waypoint x="1210" y="595" />
+        <di:waypoint x="1230" y="590" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Note_3_di" bpmnElement="Note_3">
+        <dc:Bounds x="1218" y="1134" width="260" height="56" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Assoc_3_di" bpmnElement="Assoc_3">
+        <di:waypoint x="1210" y="1195" />
+        <di:waypoint x="1230" y="1190" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
+</script>
+<script type="text/plain" id="xml-alvo"><?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Defs_AccountsPayable_Target" targetNamespace="https://barte.ai/formacao-fde/ja-chegou">
+  <bpmn:collaboration id="Collab_AccountsPayable_Target">
+    <bpmn:participant id="Part_AccountsPayable_Target" name="Já Chegou: contas a pagar com o agente" processRef="AccountsPayable_Target" />
+  </bpmn:collaboration>
+  <bpmn:process id="AccountsPayable_Target" name="Contas a pagar da Já Chegou: processo-alvo" isExecutable="false">
+    <bpmn:laneSet id="LaneSet_AccountsPayable_Target">
+      <bpmn:lane id="Lane_Capture" name="Captura de notas">
+        <bpmn:flowNodeRef>Start_InvoiceIssued</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Capture</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Agent" name="Agente">
+        <bpmn:flowNodeRef>Task_Classify</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Duplicate</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AlreadyPaid</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ProposeAction</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Approver</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_WhoDecides</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Reconcile</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Approver" name="Aprovador da alçada">
+        <bpmn:flowNodeRef>Task_Confirm</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Dock" name="Doca (CD)">
+        <bpmn:flowNodeRef>Gateway_Join</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Plan</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_Arrives</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Count</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_DockDecision</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Payables" name="Contas a pagar">
+        <bpmn:flowNodeRef>Task_BlockDuplicate</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_DuplicateBlocked</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_LinkPayment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Regularized</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Release</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReturnNote</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Block</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_OnList</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Refused</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="Start_InvoiceIssued" name="Nota emitida na SEFAZ">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="Task_Capture" name="Capturar a nota">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_Classify" name="Classificar a divergência">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_Duplicate" name="Duplicada?">
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+      <bpmn:outgoing>Flow_5</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="Gateway_AlreadyPaid" name="Já paga fora do fluxo?">
+      <bpmn:incoming>Flow_5</bpmn:incoming>
+      <bpmn:outgoing>Flow_7</bpmn:outgoing>
+      <bpmn:outgoing>Flow_8</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Task_ProposeAction" name="Propor a ação na doca">
+      <bpmn:incoming>Flow_8</bpmn:incoming>
+      <bpmn:outgoing>Flow_10</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:businessRuleTask id="Task_Approver" name="Definir o aprovador pela régua">
+      <bpmn:incoming>Flow_10</bpmn:incoming>
+      <bpmn:outgoing>Flow_11</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:exclusiveGateway id="Gateway_WhoDecides" name="Quem decide?">
+      <bpmn:incoming>Flow_11</bpmn:incoming>
+      <bpmn:outgoing>Flow_12</bpmn:outgoing>
+      <bpmn:outgoing>Flow_13</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_Confirm" name="Confirmar ou alterar a ação">
+      <bpmn:incoming>Flow_12</bpmn:incoming>
+      <bpmn:outgoing>Flow_14</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Join" name="">
+      <bpmn:incoming>Flow_13</bpmn:incoming>
+      <bpmn:incoming>Flow_14</bpmn:incoming>
+      <bpmn:outgoing>Flow_15</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_Plan" name="Planejar o recebimento">
+      <bpmn:incoming>Flow_15</bpmn:incoming>
+      <bpmn:outgoing>Flow_16</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:intermediateCatchEvent id="Event_Arrives" name="Mercadoria chega">
+      <bpmn:incoming>Flow_16</bpmn:incoming>
+      <bpmn:outgoing>Flow_17</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:userTask id="Task_Count" name="Contar a mercadoria na chegada">
+      <bpmn:incoming>Flow_17</bpmn:incoming>
+      <bpmn:outgoing>Flow_18</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="Task_Reconcile" name="Conciliar contagem, nota e pedido">
+      <bpmn:incoming>Flow_18</bpmn:incoming>
+      <bpmn:outgoing>Flow_19</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_DockDecision" name="Decisão na doca">
+      <bpmn:incoming>Flow_19</bpmn:incoming>
+      <bpmn:outgoing>Flow_20</bpmn:outgoing>
+      <bpmn:outgoing>Flow_21</bpmn:outgoing>
+      <bpmn:outgoing>Flow_22</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="Task_BlockDuplicate" name="Bloquear o título duplicado">
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+      <bpmn:outgoing>Flow_6</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="End_DuplicateBlocked" name="Título bloqueado">
+      <bpmn:incoming>Flow_6</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:task id="Task_LinkPayment" name="Vincular a nota ao pagamento já feito">
+      <bpmn:incoming>Flow_7</bpmn:incoming>
+      <bpmn:outgoing>Flow_9</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="End_Regularized" name="Entrada regularizada, sem novo pagamento">
+      <bpmn:incoming>Flow_9</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:task id="Task_Release" name="Liberar o título para a lista do dia">
+      <bpmn:incoming>Flow_20</bpmn:incoming>
+      <bpmn:incoming>Flow_23</bpmn:incoming>
+      <bpmn:outgoing>Flow_24</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_ReturnNote" name="Emitir nota de devolução da diferença">
+      <bpmn:incoming>Flow_21</bpmn:incoming>
+      <bpmn:outgoing>Flow_23</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_Block" name="Bloquear o título">
+      <bpmn:incoming>Flow_22</bpmn:incoming>
+      <bpmn:outgoing>Flow_25</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="End_OnList" name="Título na lista do dia, conferido">
+      <bpmn:incoming>Flow_24</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="End_Refused" name="Recusado na doca, título bloqueado">
+      <bpmn:incoming>Flow_25</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_InvoiceIssued" targetRef="Task_Capture" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_Capture" targetRef="Task_Classify" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Task_Classify" targetRef="Gateway_Duplicate" />
+    <bpmn:sequenceFlow id="Flow_4" name="sim" sourceRef="Gateway_Duplicate" targetRef="Task_BlockDuplicate" />
+    <bpmn:sequenceFlow id="Flow_5" name="não" sourceRef="Gateway_Duplicate" targetRef="Gateway_AlreadyPaid" />
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="Task_BlockDuplicate" targetRef="End_DuplicateBlocked" />
+    <bpmn:sequenceFlow id="Flow_7" name="sim" sourceRef="Gateway_AlreadyPaid" targetRef="Task_LinkPayment" />
+    <bpmn:sequenceFlow id="Flow_8" name="não" sourceRef="Gateway_AlreadyPaid" targetRef="Task_ProposeAction" />
+    <bpmn:sequenceFlow id="Flow_9" sourceRef="Task_LinkPayment" targetRef="End_Regularized" />
+    <bpmn:sequenceFlow id="Flow_10" sourceRef="Task_ProposeAction" targetRef="Task_Approver" />
+    <bpmn:sequenceFlow id="Flow_11" sourceRef="Task_Approver" targetRef="Gateway_WhoDecides" />
+    <bpmn:sequenceFlow id="Flow_12" name="pessoa" sourceRef="Gateway_WhoDecides" targetRef="Task_Confirm" />
+    <bpmn:sequenceFlow id="Flow_13" name="regra" sourceRef="Gateway_WhoDecides" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_14" sourceRef="Task_Confirm" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_15" sourceRef="Gateway_Join" targetRef="Task_Plan" />
+    <bpmn:sequenceFlow id="Flow_16" sourceRef="Task_Plan" targetRef="Event_Arrives" />
+    <bpmn:sequenceFlow id="Flow_17" sourceRef="Event_Arrives" targetRef="Task_Count" />
+    <bpmn:sequenceFlow id="Flow_18" sourceRef="Task_Count" targetRef="Task_Reconcile" />
+    <bpmn:sequenceFlow id="Flow_19" sourceRef="Task_Reconcile" targetRef="Gateway_DockDecision" />
+    <bpmn:sequenceFlow id="Flow_20" name="receber" sourceRef="Gateway_DockDecision" targetRef="Task_Release" />
+    <bpmn:sequenceFlow id="Flow_21" name="receber parcial" sourceRef="Gateway_DockDecision" targetRef="Task_ReturnNote" />
+    <bpmn:sequenceFlow id="Flow_22" name="recusar" sourceRef="Gateway_DockDecision" targetRef="Task_Block" />
+    <bpmn:sequenceFlow id="Flow_23" sourceRef="Task_ReturnNote" targetRef="Task_Release" />
+    <bpmn:sequenceFlow id="Flow_24" sourceRef="Task_Release" targetRef="End_OnList" />
+    <bpmn:sequenceFlow id="Flow_25" sourceRef="Task_Block" targetRef="End_Refused" />
+    <bpmn:textAnnotation id="Note_1"><bpmn:text>Antes da doca, só com documentos: duplicidade, pedido, pago fora do fluxo, cadastro, item e unidade.</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="Assoc_1" sourceRef="Task_Classify" targetRef="Note_1" />
+    <bpmn:textAnnotation id="Note_2"><bpmn:text>Régua: o que bate passa direto (regra). A exceção vai a quem tem a alçada do valor.</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="Assoc_2" sourceRef="Gateway_WhoDecides" targetRef="Note_2" />
+    <bpmn:textAnnotation id="Note_3"><bpmn:text>A doca sabe antes do caminhão: receber, receber parcial ou recusar.</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="Assoc_3" sourceRef="Task_Plan" targetRef="Note_3" />
+    <bpmn:textAnnotation id="Note_4"><bpmn:text>Com o caminhão na doca, antes do aceite: falta física e quantidade menor aparecem aqui.</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="Assoc_4" sourceRef="Task_Reconcile" targetRef="Note_4" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_AccountsPayable_Target">
+    <bpmndi:BPMNPlane id="Plane_AccountsPayable_Target" bpmnElement="Collab_AccountsPayable_Target">
+      <bpmndi:BPMNShape id="Part_AccountsPayable_Target_di" bpmnElement="Part_AccountsPayable_Target" isHorizontal="true">
+        <dc:Bounds x="100" y="80" width="2950" height="1050" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Capture_di" bpmnElement="Lane_Capture" isHorizontal="true">
+        <dc:Bounds x="130" y="80" width="2920" height="150" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Agent_di" bpmnElement="Lane_Agent" isHorizontal="true">
+        <dc:Bounds x="130" y="230" width="2920" height="150" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Approver_di" bpmnElement="Lane_Approver" isHorizontal="true">
+        <dc:Bounds x="130" y="380" width="2920" height="150" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Dock_di" bpmnElement="Lane_Dock" isHorizontal="true">
+        <dc:Bounds x="130" y="530" width="2920" height="150" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Payables_di" bpmnElement="Lane_Payables" isHorizontal="true">
+        <dc:Bounds x="130" y="680" width="2920" height="450" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Start_InvoiceIssued_di" bpmnElement="Start_InvoiceIssued">
+        <dc:Bounds x="232" y="162" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="200" y="204" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Capture_di" bpmnElement="Task_Capture">
+        <dc:Bounds x="350" y="145" width="120" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Classify_di" bpmnElement="Task_Classify">
+        <dc:Bounds x="510" y="295" width="120" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Duplicate_di" bpmnElement="Gateway_Duplicate">
+        <dc:Bounds x="705" y="305" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="680" y="361" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_AlreadyPaid_di" bpmnElement="Gateway_AlreadyPaid">
+        <dc:Bounds x="865" y="305" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="840" y="361" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ProposeAction_di" bpmnElement="Task_ProposeAction">
+        <dc:Bounds x="990" y="295" width="120" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Approver_di" bpmnElement="Task_Approver">
+        <dc:Bounds x="1150" y="295" width="120" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_WhoDecides_di" bpmnElement="Gateway_WhoDecides">
+        <dc:Bounds x="1345" y="305" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1320" y="361" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Confirm_di" bpmnElement="Task_Confirm">
+        <dc:Bounds x="1470" y="445" width="120" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Join_di" bpmnElement="Gateway_Join">
+        <dc:Bounds x="1665" y="605" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1640" y="661" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Plan_di" bpmnElement="Task_Plan">
+        <dc:Bounds x="1790" y="595" width="120" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_Arrives_di" bpmnElement="Event_Arrives">
+        <dc:Bounds x="1992" y="612" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1960" y="654" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Count_di" bpmnElement="Task_Count">
+        <dc:Bounds x="2110" y="595" width="120" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Reconcile_di" bpmnElement="Task_Reconcile">
+        <dc:Bounds x="2270" y="295" width="120" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_DockDecision_di" bpmnElement="Gateway_DockDecision">
+        <dc:Bounds x="2465" y="605" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="2440" y="661" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_BlockDuplicate_di" bpmnElement="Task_BlockDuplicate">
+        <dc:Bounds x="830" y="1045" width="120" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_DuplicateBlocked_di" bpmnElement="End_DuplicateBlocked">
+        <dc:Bounds x="1032" y="1062" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1000" y="1104" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_LinkPayment_di" bpmnElement="Task_LinkPayment">
+        <dc:Bounds x="990" y="895" width="120" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Regularized_di" bpmnElement="End_Regularized">
+        <dc:Bounds x="1192" y="912" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1160" y="954" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Release_di" bpmnElement="Task_Release">
+        <dc:Bounds x="2750" y="745" width="120" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ReturnNote_di" bpmnElement="Task_ReturnNote">
+        <dc:Bounds x="2590" y="895" width="120" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Block_di" bpmnElement="Task_Block">
+        <dc:Bounds x="2590" y="1045" width="120" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_OnList_di" bpmnElement="End_OnList">
+        <dc:Bounds x="2952" y="762" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="2920" y="804" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Refused_di" bpmnElement="End_Refused">
+        <dc:Bounds x="2792" y="1062" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="2760" y="1104" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_1_di" bpmnElement="Flow_1">
+        <di:waypoint x="268" y="180" />
+        <di:waypoint x="350" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_2_di" bpmnElement="Flow_2">
+        <di:waypoint x="470" y="180" />
+        <di:waypoint x="492" y="180" />
+        <di:waypoint x="492" y="330" />
+        <di:waypoint x="510" y="330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_3_di" bpmnElement="Flow_3">
+        <di:waypoint x="630" y="330" />
+        <di:waypoint x="705" y="330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_4_di" bpmnElement="Flow_4">
+        <di:waypoint x="730" y="355" />
+        <di:waypoint x="730" y="1080" />
+        <di:waypoint x="830" y="1080" />
+        <bpmndi:BPMNLabel><dc:Bounds x="736" y="399" width="80" height="18" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_5_di" bpmnElement="Flow_5">
+        <di:waypoint x="755" y="330" />
+        <di:waypoint x="865" y="330" />
+        <bpmndi:BPMNLabel><dc:Bounds x="761" y="308" width="80" height="18" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_6_di" bpmnElement="Flow_6">
+        <di:waypoint x="950" y="1080" />
+        <di:waypoint x="1032" y="1080" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_7_di" bpmnElement="Flow_7">
+        <di:waypoint x="890" y="355" />
+        <di:waypoint x="890" y="930" />
+        <di:waypoint x="990" y="930" />
+        <bpmndi:BPMNLabel><dc:Bounds x="896" y="399" width="80" height="18" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_8_di" bpmnElement="Flow_8">
+        <di:waypoint x="915" y="330" />
+        <di:waypoint x="990" y="330" />
+        <bpmndi:BPMNLabel><dc:Bounds x="921" y="308" width="80" height="18" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_9_di" bpmnElement="Flow_9">
+        <di:waypoint x="1110" y="930" />
+        <di:waypoint x="1192" y="930" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_10_di" bpmnElement="Flow_10">
+        <di:waypoint x="1110" y="330" />
+        <di:waypoint x="1150" y="330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_11_di" bpmnElement="Flow_11">
+        <di:waypoint x="1270" y="330" />
+        <di:waypoint x="1345" y="330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_12_di" bpmnElement="Flow_12">
+        <di:waypoint x="1395" y="330" />
+        <di:waypoint x="1452" y="330" />
+        <di:waypoint x="1452" y="480" />
+        <di:waypoint x="1470" y="480" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1366" y="458" width="80" height="18" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_13_di" bpmnElement="Flow_13">
+        <di:waypoint x="1395" y="330" />
+        <di:waypoint x="1633" y="330" />
+        <di:waypoint x="1633" y="630" />
+        <di:waypoint x="1665" y="630" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1547" y="608" width="80" height="18" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_14_di" bpmnElement="Flow_14">
+        <di:waypoint x="1590" y="480" />
+        <di:waypoint x="1647" y="480" />
+        <di:waypoint x="1647" y="630" />
+        <di:waypoint x="1665" y="630" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_15_di" bpmnElement="Flow_15">
+        <di:waypoint x="1715" y="630" />
+        <di:waypoint x="1790" y="630" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_16_di" bpmnElement="Flow_16">
+        <di:waypoint x="1910" y="630" />
+        <di:waypoint x="1992" y="630" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_17_di" bpmnElement="Flow_17">
+        <di:waypoint x="2028" y="630" />
+        <di:waypoint x="2110" y="630" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_18_di" bpmnElement="Flow_18">
+        <di:waypoint x="2230" y="630" />
+        <di:waypoint x="2252" y="630" />
+        <di:waypoint x="2252" y="330" />
+        <di:waypoint x="2270" y="330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_19_di" bpmnElement="Flow_19">
+        <di:waypoint x="2390" y="330" />
+        <di:waypoint x="2447" y="330" />
+        <di:waypoint x="2447" y="630" />
+        <di:waypoint x="2465" y="630" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_20_di" bpmnElement="Flow_20">
+        <di:waypoint x="2515" y="630" />
+        <di:waypoint x="2732" y="630" />
+        <di:waypoint x="2732" y="780" />
+        <di:waypoint x="2750" y="780" />
+        <bpmndi:BPMNLabel><dc:Bounds x="2646" y="758" width="80" height="18" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_21_di" bpmnElement="Flow_21">
+        <di:waypoint x="2515" y="630" />
+        <di:waypoint x="2572" y="630" />
+        <di:waypoint x="2572" y="930" />
+        <di:waypoint x="2590" y="930" />
+        <bpmndi:BPMNLabel><dc:Bounds x="2486" y="908" width="80" height="18" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_22_di" bpmnElement="Flow_22">
+        <di:waypoint x="2515" y="630" />
+        <di:waypoint x="2558" y="630" />
+        <di:waypoint x="2558" y="1080" />
+        <di:waypoint x="2590" y="1080" />
+        <bpmndi:BPMNLabel><dc:Bounds x="2472" y="1058" width="80" height="18" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_23_di" bpmnElement="Flow_23">
+        <di:waypoint x="2710" y="930" />
+        <di:waypoint x="2732" y="930" />
+        <di:waypoint x="2732" y="780" />
+        <di:waypoint x="2750" y="780" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_24_di" bpmnElement="Flow_24">
+        <di:waypoint x="2870" y="780" />
+        <di:waypoint x="2952" y="780" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_25_di" bpmnElement="Flow_25">
+        <di:waypoint x="2710" y="1080" />
+        <di:waypoint x="2792" y="1080" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Note_1_di" bpmnElement="Note_1">
+        <dc:Bounds x="578" y="234" width="260" height="56" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Assoc_1_di" bpmnElement="Assoc_1">
+        <di:waypoint x="570" y="295" />
+        <di:waypoint x="590" y="290" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Note_2_di" bpmnElement="Note_2">
+        <dc:Bounds x="1378" y="234" width="260" height="56" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Assoc_2_di" bpmnElement="Assoc_2">
+        <di:waypoint x="1370" y="305" />
+        <di:waypoint x="1390" y="290" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Note_3_di" bpmnElement="Note_3">
+        <dc:Bounds x="1858" y="534" width="260" height="56" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Assoc_3_di" bpmnElement="Assoc_3">
+        <di:waypoint x="1850" y="595" />
+        <di:waypoint x="1870" y="590" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Note_4_di" bpmnElement="Note_4">
+        <dc:Bounds x="2338" y="234" width="260" height="56" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Assoc_4_di" bpmnElement="Assoc_4">
+        <di:waypoint x="2330" y="295" />
+        <di:waypoint x="2350" y="290" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
+</script>
+<script src="https://unpkg.com/bpmn-js@17.11.1/dist/bpmn-navigated-viewer.production.min.js"></script>
+<script>
+const viewers = {};
+async function show(id) {
+  const box = document.getElementById(id);
+  try {
+    const viewer = new BpmnJS({ container: box });
+    await viewer.importXML(document.getElementById("xml-" + id).textContent.trim());
+    viewer.get("canvas").zoom("fit-viewport");
+    viewers[id] = viewer;
+  } catch (err) {
+    box.innerHTML = '<p class="error" style="padding:16px">O diagrama não carregou: ' + err.message + "</p>";
+  }
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  const fit = b.dataset.fit, zoomId = b.dataset.zoom;
+  if (fit && viewers[fit]) viewers[fit].get("canvas").zoom("fit-viewport");
+  if (zoomId && viewers[zoomId]) {
+    const canvas = viewers[zoomId].get("canvas");
+    canvas.zoom(canvas.zoom() * Number(b.dataset.step));
+  }
+});
+if (window.BpmnJS) { show("atual"); show("alvo"); }
+else document.querySelectorAll(".canvas").forEach((c) => c.innerHTML = '<p class="error" style="padding:16px">O visualizador de BPMN não carregou.</p>');
+</script>

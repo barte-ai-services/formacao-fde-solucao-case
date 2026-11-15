@@ -1,0 +1,14 @@
+{
+  "pages": {
+    "processo": {
+      "file": "index.html",
+      "title": "Processo do contas a pagar",
+      "home": "team",
+      "links": {
+        "team": "https://claude.ai/artifact/Tm2f4K6MuFoxHBBTSpqdhE"
+      },
+      "capabilities": {}
+    }
+  },
+  "publishOrder": ["processo"]
+}
