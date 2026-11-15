@@ -1,12 +1,10 @@
 import { render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import ValorBarrado, { type BarredAmountDto, reaisCurto } from "../src/routes/valor-barrado";
+import BarredAmountRoute, { type BarredAmountDto, formatBrlShort } from "../src/routes/valor-barrado";
 
-/**
- * Novembro com duas decididas que barram (E6 e E1) e duas aguardando (E6 e E2).
- * Barrado R$ 120 mil; aguardando R$ 37 mil; os dois juntos R$ 157 mil.
- */
-const NOVEMBRO: BarredAmountDto = {
+// #71: novembro com duas decididas que barram (E6 e E1) e duas aguardando (E6 e E2).
+// #71: barrado R$ 120 mil; aguardando R$ 37 mil; os dois juntos R$ 157 mil.
+const NOVEMBER: BarredAmountDto = {
   month: "2026-11",
   baselineCents: 54_300_000,
   barred: {
@@ -29,7 +27,7 @@ const NOVEMBRO: BarredAmountDto = {
   ],
 };
 
-const VAZIO: BarredAmountDto = {
+const EMPTY: BarredAmountDto = {
   month: "2026-11",
   baselineCents: 54_300_000,
   barred: { totalCents: 0, byException: [] },
@@ -44,10 +42,10 @@ function respondWith(status: number, body: unknown) {
 }
 
 function renderPanel() {
-  return render(<ValorBarrado params={{}} />);
+  return render(<BarredAmountRoute params={{}} />);
 }
 
-/** O cartão do `Stat` cuja legenda é `caption`. */
+/** #71: o cartão do `Stat` cuja legenda é `caption`. */
 async function statCard(caption: string): Promise<HTMLElement> {
   const label = await screen.findByText(caption);
   let card: HTMLElement | null = label;
@@ -60,19 +58,21 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("#71 painel do valor barrado no mês", () => {
   it("pede o endpoint do painel", async () => {
-    const fetchMock = respondWith(200, NOVEMBRO);
+    const fetchMock = respondWith(200, NOVEMBER);
     renderPanel();
     await screen.findByText("Barrado em novembro");
     expect(fetchMock).toHaveBeenCalledWith("/api/valor-barrado", expect.objectContaining({ method: "GET" }));
   });
 
   it("#71/AC-1 o ranking mostra cada exceção com o valor, barrado e aguardando somados", async () => {
-    respondWith(200, NOVEMBRO);
+    respondWith(200, NOVEMBER);
     renderPanel();
     const title = await screen.findByRole("heading", { name: "Valor em risco por tipo de divergência" });
     const ranking = title.closest("section") ?? title.parentElement!.parentElement!.parentElement!;
     const e6 = await within(ranking).findByText("E6 · Duplicidade");
     expect(e6).toBeTruthy();
+    const barredByException = NOVEMBER.barred.byException.reduce((sum, item) => sum + item.cents, 0);
+    expect(barredByException).toBe(NOVEMBER.barred.totalCents);
     expect(within(ranking).getByText("E1 · Falta física")).toBeTruthy();
     expect(within(ranking).getByText("E2 · Item trocado")).toBeTruthy();
     expect(within(ranking).getByText("R$ 115 mil")).toBeTruthy();
@@ -82,39 +82,39 @@ describe("#71 painel do valor barrado no mês", () => {
   });
 
   it("#71/AC-2 a linha de base de R$ 543 mil aparece ao lado", async () => {
-    respondWith(200, NOVEMBRO);
+    respondWith(200, NOVEMBER);
     renderPanel();
     expect(await screen.findByText("O mês contra os R$ 543 mil")).toBeTruthy();
-    const contra = await statCard("Contra o pagar errado");
-    expect(within(contra).getByText("22%")).toBeTruthy();
-    expect(within(contra).getByText("de R$ 543 mil por mês; 29% com tudo aprovado")).toBeTruthy();
+    const versusCard = await statCard("Contra o pagar errado");
+    expect(within(versusCard).getByText("22%")).toBeTruthy();
+    expect(within(versusCard).getByText("de R$ 543 mil por mês; 29% com tudo aprovado")).toBeTruthy();
   });
 
   it("#71/AC-3 o Barrado é só o decidido, sem somar o aguardando aprovação", async () => {
-    respondWith(200, NOVEMBRO);
+    respondWith(200, NOVEMBER);
     renderPanel();
-    const barrado = await statCard("Barrado em novembro");
-    expect(within(barrado).getByText("R$ 120 mil")).toBeTruthy();
-    expect(within(barrado).queryByText("R$ 157 mil")).toBeNull();
-    const emRisco = await statCard("Ainda em risco");
-    expect(within(emRisco).getByText("R$ 37 mil")).toBeTruthy();
+    const barredCard = await statCard("Barrado em novembro");
+    expect(within(barredCard).getByText("R$ 120 mil")).toBeTruthy();
+    expect(within(barredCard).queryByText("R$ 157 mil")).toBeNull();
+    const atRiskCard = await statCard("Ainda em risco");
+    expect(within(atRiskCard).getByText("R$ 37 mil")).toBeTruthy();
   });
 
   it("#71/AC-4 o total exibido bate com a soma das exceções da resposta", async () => {
-    respondWith(200, NOVEMBRO);
+    respondWith(200, NOVEMBER);
     renderPanel();
-    const somaBarrado = NOVEMBRO.barred.byException.reduce((s, e) => s + e.cents, 0);
-    const somaAguardando = NOVEMBRO.ifApprovedAsProposed.byException.reduce((s, e) => s + e.cents, 0);
-    expect(somaBarrado).toBe(NOVEMBRO.barred.totalCents);
-    const barrado = await statCard("Barrado em novembro");
-    expect(within(barrado).getByText(reaisCurto(somaBarrado))).toBeTruthy();
-    const emRisco = await statCard("Ainda em risco");
-    expect(within(emRisco).getByText(reaisCurto(somaAguardando))).toBeTruthy();
-    expect(screen.getByText(`${reaisCurto(somaBarrado + somaAguardando)} de R$ 543 mil`)).toBeTruthy();
+    const barredSum = NOVEMBER.barred.byException.reduce((s, e) => s + e.cents, 0);
+    const waitingSum = NOVEMBER.ifApprovedAsProposed.byException.reduce((s, e) => s + e.cents, 0);
+    expect(barredSum).toBe(NOVEMBER.barred.totalCents);
+    const barredCard = await statCard("Barrado em novembro");
+    expect(within(barredCard).getByText(formatBrlShort(barredSum))).toBeTruthy();
+    const atRiskCard = await statCard("Ainda em risco");
+    expect(within(atRiskCard).getByText(formatBrlShort(waitingSum))).toBeTruthy();
+    expect(screen.getByText(`${formatBrlShort(barredSum + waitingSum)} de R$ 543 mil`)).toBeTruthy();
   });
 
   it("sem nada barrado nem aguardando, mostra o estado vazio", async () => {
-    respondWith(200, VAZIO);
+    respondWith(200, EMPTY);
     renderPanel();
     expect(await screen.findByText(/Nada barrado neste mês ainda/)).toBeTruthy();
   });
@@ -128,8 +128,8 @@ describe("#71 painel do valor barrado no mês", () => {
 });
 
 describe("#71 dinheiro em centavos inteiros", () => {
-  it("reaisCurto arredonda em mil a partir de centavos e mostra por extenso abaixo de R$ 1.000", () => {
-    expect(reaisCurto(54_300_000)).toBe("R$ 543 mil");
-    expect(reaisCurto(99_999).replace(/\s/g, " ")).toBe("R$ 999,99");
+  it("formatBrlShort arredonda em mil a partir de centavos e mostra por extenso abaixo de R$ 1.000", () => {
+    expect(formatBrlShort(54_300_000)).toBe("R$ 543 mil");
+    expect(formatBrlShort(99_999).replace(/\s/g, " ")).toBe("R$ 999,99");
   });
 });

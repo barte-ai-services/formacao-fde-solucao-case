@@ -28,7 +28,7 @@ export interface BarredBreakdownDto {
 }
 
 export interface BarredDailyPointDto {
-  /** `AAAA-MM-DD`, no fuso de Brasília. */
+  /** #71: `AAAA-MM-DD`, no fuso de Brasília. */
   day: string;
   barredCumulativeCents: Cents;
   proposedCumulativeCents: Cents;
@@ -36,13 +36,13 @@ export interface BarredDailyPointDto {
 
 /** #71: `GET /api/valor-barrado`, o painel do valor barrado no mês contra a linha de base. */
 export interface BarredAmountDto {
-  /** `AAAA-MM`. */
+  /** #71: `AAAA-MM`. */
   month: string;
   /** #71/AC-2: R$ 543 mil por mês, em centavos. */
   baselineCents: Cents;
   /** #71/AC-1, AC-3: decididas no mês com recusar ou receber parcial. */
   barred: BarredBreakdownDto;
-  /** Aguardando aprovação: o que seria barrado se aprovadas como propostas. */
+  /** #71: aguardando aprovação: o que seria barrado se aprovadas como propostas. */
   ifApprovedAsProposed: BarredBreakdownDto;
   daily: BarredDailyPointDto[];
 }
@@ -64,30 +64,30 @@ const MONTH_NAME = [
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
-/** Reais por extenso a partir de centavos inteiros: a divisão por 100 só acontece aqui, na exibição. */
-export function reais(cents: Cents): string {
+/** #71: reais por extenso a partir de centavos inteiros: a divisão por 100 só acontece aqui, na exibição. */
+export function formatBrl(cents: Cents): string {
   return BRL.format(cents / 100);
 }
 
-/** Reais curtos (`R$ 543 mil`) a partir de centavos inteiros; abaixo de R$ 1.000, por extenso. */
-export function reaisCurto(cents: Cents): string {
-  if (cents < 100_000) return reais(cents);
+/** #71: reais curtos (`R$ 543 mil`) a partir de centavos inteiros; abaixo de R$ 1.000, por extenso. */
+export function formatBrlShort(cents: Cents): string {
+  if (cents < 100_000) return formatBrl(cents);
   return `R$ ${Math.round(cents / 100_000).toLocaleString("pt-BR")} mil`;
 }
 
-/** A parte de `cents` sobre `baselineCents`, em porcentagem inteira; sem base, um traço. */
+/** #71: a parte de `cents` sobre `baselineCents`, em porcentagem inteira; sem base, um traço. */
 export function percentOf(cents: Cents, baselineCents: Cents): string {
   if (baselineCents <= 0) return "—";
   return `${Math.round((cents * 100) / baselineCents)}%`;
 }
 
-/** `2026-11` vira `novembro`; um mês que não se lê volta como veio. */
+/** #71: `2026-11` vira `novembro`; um mês que não se lê volta como veio. */
 export function monthName(month: string): string {
   const index = Number(month.slice(5, 7)) - 1;
   return MONTH_NAME[index] ?? month;
 }
 
-/** `2026-11-03` vira `03/11`. */
+/** #71: `2026-11-03` vira `03/11`. */
 function dayLabel(day: string): string {
   return `${day.slice(8, 10)}/${day.slice(5, 7)}`;
 }
@@ -113,24 +113,24 @@ function isEmpty(panel: BarredAmountDto): boolean {
   return panel.barred.totalCents === 0 && panel.ifApprovedAsProposed.totalCents === 0;
 }
 
-function Painel({ panel }: { panel: BarredAmountDto }) {
+function BarredAmountView({ panel }: { panel: BarredAmountDto }) {
   const barred = panel.barred.totalCents;
   const waiting = panel.ifApprovedAsProposed.totalCents;
   const baseline = panel.baselineCents;
   const daily = panel.daily.map((point) => ({
-    dia: dayLabel(point.day),
-    barrado: point.barredCumulativeCents,
-    proposto: point.proposedCumulativeCents,
-    meta: baseline,
+    day: dayLabel(point.day),
+    barred: point.barredCumulativeCents,
+    proposed: point.proposedCumulativeCents,
+    baseline,
   }));
-  const baselineLabel = reaisCurto(baseline);
+  const baselineLabel = formatBrlShort(baseline);
 
   return (
     <>
       <StatGrid columns={3}>
         <Stat
           caption={`Barrado em ${monthName(panel.month)}`}
-          value={reaisCurto(barred)}
+          value={formatBrlShort(barred)}
           context="propostas aprovadas"
           tone="positive"
         />
@@ -139,13 +139,13 @@ function Painel({ panel }: { panel: BarredAmountDto }) {
           value={percentOf(barred, baseline)}
           context={`de ${baselineLabel} por mês; ${percentOf(barred + waiting, baseline)} com tudo aprovado`}
         />
-        <Stat caption="Ainda em risco" value={reaisCurto(waiting)} context="aguardando aprovação" tone="waiting" />
+        <Stat caption="Ainda em risco" value={formatBrlShort(waiting)} context="aguardando aprovação" tone="waiting" />
       </StatGrid>
       <Panel title={`O mês contra os ${baselineLabel}`} size="sm">
         <ProgressBar
           max={baseline}
           showLegend
-          valueText={`${reaisCurto(barred + waiting)} de ${baselineLabel}`}
+          valueText={`${formatBrlShort(barred + waiting)} de ${baselineLabel}`}
           segments={[
             { value: barred, tone: "positive", label: "Barrado" },
             { value: waiting, tone: "waiting", label: "Aguardando aprovação" },
@@ -156,20 +156,20 @@ function Painel({ panel }: { panel: BarredAmountDto }) {
         <Panel title="Acumulado no mês" size="sm">
           <LineChart
             data={daily}
-            xKey="dia"
+            xKey="day"
             series={[
-              { key: "barrado", label: "Barrado (aprovado)" },
-              { key: "proposto", label: "Proposto, aguardando aprovação", color: toneColor.waiting },
-              { key: "meta", label: `${baselineLabel} por mês`, dashed: true, color: toneColor.negative },
+              { key: "barred", label: "Barrado (aprovado)" },
+              { key: "proposed", label: "Proposto, aguardando aprovação", color: toneColor.waiting },
+              { key: "baseline", label: `${baselineLabel} por mês`, dashed: true, color: toneColor.negative },
             ]}
             height={220}
-            formatValue={reais}
+            formatValue={formatBrl}
             formatAxis={(cents) => `${Math.round(cents / 100_000)} mil`}
             ariaLabel={`Valor barrado acumulado por dia, contra ${baselineLabel}`}
           />
         </Panel>
         <Panel title="Valor em risco por tipo de divergência" size="sm">
-          <RankingBars items={rankingByException(panel)} formatValue={reaisCurto} tone="positive" />
+          <RankingBars items={rankingByException(panel)} formatValue={formatBrlShort} tone="positive" />
         </Panel>
       </div>
     </>
@@ -177,7 +177,7 @@ function Painel({ panel }: { panel: BarredAmountDto }) {
 }
 
 /** /pagar/valor-barrado: o painel do valor barrado (#71). */
-export default function ValorBarrado(_props: RouteProps) {
+export default function BarredAmountRoute(_props: RouteProps) {
   const { state, data, retry } = useLoad(
     (signal) => apiGet<BarredAmountDto>("/api/valor-barrado", { signal }),
     isEmpty,
@@ -192,7 +192,7 @@ export default function ValorBarrado(_props: RouteProps) {
       errorTitle="Não consegui somar o valor barrado agora"
       emptyLabel="Nada barrado neste mês ainda. O valor aparece aqui assim que a primeira proposta for aprovada."
     >
-      {() => (data ? <Painel panel={data} /> : null)}
+      {() => (data ? <BarredAmountView panel={data} /> : null)}
     </Screen>
   );
 }
