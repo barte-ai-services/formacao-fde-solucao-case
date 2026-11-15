@@ -93,7 +93,11 @@ mesmo estado.
    `BARTE_ACADEMY_ACCESS_AUD`. Os e-mails são secret porque o Actions imprime o `env` do step no log e só mascara
    secrets.
 2. Na aba Actions, rode `Provisiona o Cloudflare Access` (`.github/workflows/cloudflare-access.yml`) na `main`,
-   com `dry_run` marcado. O log mostra a chamada que enviaria, com os e-mails mascarados e a contagem deles.
+   com `dry_run` marcado. O log traz um resumo em campos nomeados: `allowed_idps` (inalterado ou com o código por e-mail), o total de
+   políticas, a precedência da do script com a contagem de e-mails, e `id`, `precedence` e tipo de cada política
+   (reutilizável ou da aplicação). Não traz a configuração da aplicação, as políticas alheias nem a conta. Se a
+   aplicação usa políticas reutilizáveis, a do script também vira reutilizável (a Cloudflare não aceita as duas
+   juntas) e o resumo diz o caminho; o dry-run não grava em `/access/policies`.
 3. Rode de novo com `dry_run` desmarcado para gravar.
 
 O workflow não imprime o token nem os e-mails. Para criar uma aplicação nova, o que só se faz de propósito, rode à
