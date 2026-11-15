@@ -1,9 +1,10 @@
 import { useState, type ReactNode } from "react";
 import { Drawer, Table } from "barte-design-system";
-import { InlineEmpty, SegmentedFilter, Stat, StatGrid, StatusBadge } from "@barte-ai-services/barte-ui-kit";
+import { InlineEmpty, SegmentedFilter, Stat, StatGrid } from "@barte-ai-services/barte-ui-kit";
 import { approvalApi, type ProposalDetailDto, type QueueDto, type QueueItemDto } from "../api/approval";
 import { ProposalPanel } from "../approval/ProposalPanel";
-import { ACTION_LABEL, ACTION_TONE, LEVEL_LABEL, LEVEL_TONE, byQueueOrder } from "../approval/labels";
+import { ACTION_LABEL, ACTION_TONE, LEVEL_LABEL, LEVEL_TONE, byQueueOrder, codeLabel } from "../approval/labels";
+import { GridBadge } from "../components/GridBadge";
 import { InvoiceCell } from "../components/InvoiceCell";
 import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
@@ -92,12 +93,12 @@ export default function FilaDeAprovacao(_props: RouteProps) {
                 render: (_, i) =>
                   dim(
                     i,
-                    <StatusBadge size="sm" tone="neutral">
+                    <GridBadge tone="neutral">
                       {i.exceptionName}
-                    </StatusBadge>,
+                    </GridBadge>,
                   ),
               },
-              { key: "codigo", title: texts.fila.columns.code, dataIndex: "exceptionCode" },
+              { key: "codigo", title: texts.fila.columns.code, dataIndex: "exceptionCode", render: (_, i) => codeLabel(i.exceptionCode) },
               {
                 key: "acao",
                 title: texts.fila.columns.action,
@@ -105,9 +106,9 @@ export default function FilaDeAprovacao(_props: RouteProps) {
                 render: (_, i) =>
                   dim(
                     i,
-                    <StatusBadge size="sm" tone={ACTION_TONE[i.dockAction.kind]}>
+                    <GridBadge tone={ACTION_TONE[i.dockAction.kind]}>
                       {ACTION_LABEL[i.dockAction.kind]}
-                    </StatusBadge>,
+                    </GridBadge>,
                   ),
               },
               {
@@ -117,9 +118,9 @@ export default function FilaDeAprovacao(_props: RouteProps) {
                 render: (_, i) =>
                   dim(
                     i,
-                    <StatusBadge size="sm" variant="soft" tone={LEVEL_TONE[i.level]}>
+                    <GridBadge tone={LEVEL_TONE[i.level]}>
                       {LEVEL_LABEL[i.level]}
-                    </StatusBadge>,
+                    </GridBadge>,
                   ),
               },
               {

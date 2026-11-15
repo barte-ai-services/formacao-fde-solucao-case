@@ -32,3 +32,8 @@ export function byQueueOrder(
 ): number {
   return RANK[b.level] - RANK[a.level] || b.amountAtRisk.cents - a.amountAtRisk.cents;
 }
+
+/** #201 AC3: a coluna "Código" da fila e da lista do dia. MATCH não é código de exceção: aparece como traço. */
+export function codeLabel(code: string): string {
+  return code === "MATCH" ? "—" : code;
+}

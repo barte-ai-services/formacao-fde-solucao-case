@@ -5,13 +5,13 @@ import {
   ReconciliationDiff,
   Stat,
   StatGrid,
-  StatusBadge,
   formatCurrency,
   formatIsoDate,
 } from "@barte-ai-services/barte-ui-kit";
 import { apiGet } from "../api";
 import type { DuplicateDto, DuplicateReason, DuplicatesResponseDto, TitleState } from "../api/contract";
 import { EmptyState } from "../components/EmptyState";
+import { GridBadge } from "../components/GridBadge";
 import { InvoiceCell } from "../components/InvoiceCell";
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
@@ -146,9 +146,9 @@ export default function NotasDuplicadas(_props: RouteProps) {
                 title: texts.duplicadas.columns.reason,
                 dataIndex: "reason",
                 render: (_, d) => (
-                  <StatusBadge size="sm" tone="neutral">
+                  <GridBadge tone="neutral">
                     {reasonLabel(d.reason)}
-                  </StatusBadge>
+                  </GridBadge>
                 ),
               },
               {
@@ -165,9 +165,9 @@ export default function NotasDuplicadas(_props: RouteProps) {
                 render: (_, d) => {
                   const badge = titleBadge(d.titleState);
                   return (
-                    <StatusBadge size="sm" tone={badge.tone}>
+                    <GridBadge tone={badge.tone}>
                       {badge.label}
-                    </StatusBadge>
+                    </GridBadge>
                   );
                 },
               },

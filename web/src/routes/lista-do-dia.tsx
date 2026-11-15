@@ -1,7 +1,8 @@
 import { Table } from "barte-design-system";
-import { Stat, StatGrid, StatusBadge } from "@barte-ai-services/barte-ui-kit";
+import { Stat, StatGrid } from "@barte-ai-services/barte-ui-kit";
 import { approvalApi, type TodayDto } from "../api/approval";
-import { ACTION_LABEL, ACTION_TONE } from "../approval/labels";
+import { ACTION_LABEL, ACTION_TONE, codeLabel } from "../approval/labels";
+import { GridBadge } from "../components/GridBadge";
 import { InvoiceCell } from "../components/InvoiceCell";
 import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
@@ -60,20 +61,20 @@ export default function ListaDoDia(_props: RouteProps) {
                 title: texts.listaDoDia.columns.classification,
                 dataIndex: "exceptionName",
                 render: (_, i) => (
-                  <StatusBadge size="sm" tone="neutral">
+                  <GridBadge tone="neutral">
                     {i.exceptionName}
-                  </StatusBadge>
+                  </GridBadge>
                 ),
               },
-              { key: "codigo", title: texts.listaDoDia.columns.code, dataIndex: "exceptionCode" },
+              { key: "codigo", title: texts.listaDoDia.columns.code, dataIndex: "exceptionCode", render: (_, i) => codeLabel(i.exceptionCode) },
               {
                 key: "acao",
                 title: texts.listaDoDia.columns.action,
                 dataIndex: "dockAction",
                 render: (_, i) => (
-                  <StatusBadge size="sm" tone={ACTION_TONE[i.dockAction]}>
+                  <GridBadge tone={ACTION_TONE[i.dockAction]}>
                     {ACTION_LABEL[i.dockAction]}
-                  </StatusBadge>
+                  </GridBadge>
                 ),
               },
               { key: "quem", title: texts.listaDoDia.columns.approver, dataIndex: "approver", render: (_, i) => (i.approver === "regra" ? texts.listaDoDia.rule : (i.approver ?? "—")) },

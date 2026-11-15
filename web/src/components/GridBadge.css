@@ -1,0 +1,13 @@
+/* #201 AC5/AC6: o selo das grids é a pílula do kit, mais gorda: mais altura, mais respiro, texto um degrau acima
+   do body-xs. Só tokens do design system, só aqui. A classe dobrada vence a regra única do kit e a do app.css
+   (#127) que fixa o rótulo em body-xs dentro de tabela. */
+.grid-badge.grid-badge {
+  height: var(--sizes-3xl);
+  padding: 0 var(--spacing-md);
+  border-radius: var(--border-radius-full);
+}
+
+.grid-badge.grid-badge [class*="StatusBadge-module__label"] {
+  font-size: var(--typography-body-sm-fontSize);
+  line-height: var(--typography-body-sm-lineHeight);
+}

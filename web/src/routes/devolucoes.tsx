@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from "react";
 import { Alert, Button, Drawer, Input, Select, Table, Text } from "barte-design-system";
-import { DataList, StatusBadge, formatCurrency } from "@barte-ai-services/barte-ui-kit";
+import { DataList, formatCurrency } from "@barte-ai-services/barte-ui-kit";
 import { ApiError } from "../api/client";
 import { returnNotesApi, type ReturnNoteDto, type ReturnNoteStatusDto } from "../api/return-notes";
+import { GridBadge } from "../components/GridBadge";
 import { InvoiceCell } from "../components/InvoiceCell";
 import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
@@ -131,9 +132,9 @@ export default function ReturnNotes(_props: RouteProps) {
                   <Two
                     top={pendingSince(n.pendingSeconds)}
                     bottom={
-                      <StatusBadge size="sm" tone={STATUS_TONE[n.status]}>
+                      <GridBadge tone={STATUS_TONE[n.status]}>
                         {n.emitted ? texts.devolucoes.badgeEmitted(n.emitted.number) : n.status === "cancelada" ? texts.devolucoes.badgeCancelled : texts.devolucoes.badgeAwaiting}
-                      </StatusBadge>
+                      </GridBadge>
                     }
                   />
                 ),

@@ -1,10 +1,10 @@
 import { useEffect, useState, type ReactElement } from "react";
 import { Alert, Select, Table, Text } from "barte-design-system";
-import { StatusBadge } from "@barte-ai-services/barte-ui-kit";
 import { dockApi, type DockBoardDto, type DockRowDto } from "../api/dock";
 import type { DockActionDto, QuantityDto } from "../api/contract";
 import { ACTION_LABEL, ACTION_TONE } from "../approval/labels";
 import { EmptyState } from "../components/EmptyState";
+import { GridBadge } from "../components/GridBadge";
 import { InvoiceCell } from "../components/InvoiceCell";
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
@@ -170,18 +170,18 @@ export function ReceivingBoard({ title, subtitle, load, words, noun, emptyIn, wa
                   n.status.kind === "aguardando_aprovacao" ? (
                     <Two
                       top={
-                        <StatusBadge size="sm" tone="waiting">
+                        <GridBadge tone="waiting">
                           {texts.recebimento.awaitingBadge}
-                        </StatusBadge>
+                        </GridBadge>
                       }
                       bottom={words.awaiting}
                     />
                   ) : (
                     <Two
                       top={
-                        <StatusBadge size="sm" variant="solid" tone={ACTION_TONE[n.status.action.kind]}>
+                        <GridBadge variant="solid" tone={ACTION_TONE[n.status.action.kind]}>
                           {ACTION_LABEL[n.status.action.kind]}
-                        </StatusBadge>
+                        </GridBadge>
                       }
                       bottom={instruction(n.status.action, words)}
                     />
