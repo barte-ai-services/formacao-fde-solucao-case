@@ -19,8 +19,8 @@ const verifier: AccessVerifier = { verify: async () => ({ ok: true, identity: { 
 
 const cd03 = kitNotesOf('CD-03', '2026-11-11');
 
-function setup(options: { today?: string } = {}) {
-  const fake = new FakePostgrest({ invoices: kitInvoiceRows() });
+function setup(options: { today?: string; seed?: Record<string, Record<string, unknown>[]> } = {}) {
+  const fake = new FakePostgrest({ invoices: kitInvoiceRows(), ...options.seed });
   const rest = new SupabaseRest({ url: 'https://supabase.test', secretKey: 'sb_teste', fetch: fake.fetch });
   const worker = createWorker({
     verifier,
@@ -89,6 +89,24 @@ function isDockActionDto(value: unknown): value is DockActionDto {
 }
 
 describe('GET /api/doca (#72)', () => {
+  it('#211 cada linha traz decidedBy: quem aprovou a nota, e nulo sem aprovação', async () => {
+    const [a, b] = cd03.map((n) => n.chave) as [string, string];
+    const { get } = setup({
+      seed: {
+        proposals: [{ id: 1, invoice_access_key: a }, { id: 2, invoice_access_key: b }],
+        approvals: [
+          { proposal_id: 1, approver: 'regra', approver_level: 'regra' },
+          { proposal_id: 2, approver: 'ana@jachegou.test', approver_level: 'analista' },
+        ],
+      },
+    });
+    const body = (await (await get('/api/doca?destino=CD-03')).json()) as { rows: { invoiceAccessKey: string; decidedBy: unknown }[] };
+    const by = (k: string) => body.rows.find((r) => r.invoiceAccessKey === k)?.decidedBy;
+    expect(by(a)).toEqual({ actor: 'rule', actor_name: 'Regra' });
+    expect(by(b)).toEqual({ actor: 'person', actor_name: 'ana@jachegou.test' });
+    expect(body.rows.filter((r) => r.decidedBy === null).length).toBe(body.rows.length - 2);
+  });
+
   it('#43/AC-2 a ação de um receber parcial no JSON tem o formato do DockActionDto da tela', async () => {
     const { rest, get } = setup();
     const [, b] = cd03;

@@ -4,6 +4,8 @@ import FilaDeAprovacao from "../src/routes/fila";
 import ListaDoDia from "../src/routes/lista-do-dia";
 import NotasDuplicadas from "../src/routes/duplicadas";
 import ReturnNotes from "../src/routes/devolucoes";
+import Doca from "../src/routes/doca";
+import RecebimentoNaLoja from "../src/routes/recebimento-loja";
 
 // #211 AC-3: a coluna "Decidido por", com o selo certo, nas grids que sabem quem decidiu.
 const money = (cents: number) => ({ cents, text: `R$ ${cents / 100}` });
@@ -47,5 +49,26 @@ describe("#211 coluna Decidido por", () => {
     render(<ReturnNotes {...params} />);
     await waitFor(() => expect(screen.getByText("Aguardando pessoa")).toBeTruthy());
     expect(screen.getByText("Bia Lima")).toBeTruthy();
+  });
+
+  it.each([
+    ["doca", <Doca {...params} />],
+    ["loja", <RecebimentoNaLoja {...params} />],
+  ])("%s: a regra, a pessoa pelo e-mail e, sem decisão, o traço", async (_n, screenEl) => {
+    const row = (n: string, decidedBy: unknown, kind = "acao") => ({
+      invoiceAccessKey: `k${n}`, number: n, supplierId: "F", items: [{ sku: "S", description: "Feijão", quantity: { amount: 3, unit: "UN" } }],
+      status: kind === "acao" ? { kind, action: { kind: "receber" }, publishedAt: "2026-11-11T09:00:00Z" } : { kind, instrucao: "x" },
+      decidedBy,
+    });
+    serve({ destination: "X", date: "2026-11-11", destinations: ["X"], awaiting: 1, rows: [
+      row("1", { actor: "rule", actor_name: "Regra" }),
+      row("2", { actor: "person", actor_name: "ana@jachegou.com" }),
+      row("3", null, "aguardando_aprovacao"),
+    ] });
+    render(screenEl);
+    expect(await screen.findByText("Decidido por")).toBeTruthy();
+    expect(screen.getByText("⚙ Regra")).toBeTruthy();
+    expect(screen.getByText("ana@jachegou.com")).toBeTruthy();
+    expect(screen.getByText("Aguardando pessoa")).toBeTruthy();
   });
 });

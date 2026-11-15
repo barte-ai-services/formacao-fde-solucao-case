@@ -4,7 +4,7 @@ import type { DockActionMessage, Published } from '../connectors/ports.js';
 import type { SupabaseRest } from '../connectors/supabase-rest.js';
 import { appStoreActionOutbox } from '../connectors/store-action.js';
 import { wmsDockActionOutbox } from '../connectors/wms-dock-action.js';
-import type { DockInvoice, DockInvoiceItem } from './dock-board.js';
+import type { DockDecision, DockInvoice, DockInvoiceItem } from './dock-board.js';
 
 export interface DockSource {
   /** #72 As notas emitidas na data (AAAA-MM-DD), de todos os destinos. */
@@ -16,7 +16,15 @@ export interface DockSource {
   published(): Promise<Published<DockActionMessage>[]>;
   /** #135 As ações publicadas na caixa de saída do app da loja, em ordem de id. */
   publishedToStores(): Promise<Published<DockActionMessage>[]>;
+  /** #211 Quem aprovou cada nota (pela chave de acesso). Só as notas com aprovação entram. */
+  decisions(accessKeys: readonly string[]): Promise<Map<string, DockDecision>>;
 }
+
+const ACCESS_KEY = /^[A-Za-z0-9-]+$/;
+type ProposalRow = { id: number; invoice_access_key: string };
+type ApprovalRow = { proposal_id: number; approver: string; approver_level: string };
+const isProposalRow = shaped<ProposalRow>({ id: isNumber, invoice_access_key: isString } satisfies Shape<ProposalRow>);
+const isApprovalRow = shaped<ApprovalRow>({ proposal_id: isNumber, approver: isString, approver_level: isString } satisfies Shape<ApprovalRow>);
 
 type ItemRow = { sku: string | null; description: string; quantity: { amount: number; unit: 'UN' | 'CX' } };
 type InvoiceRow = {
@@ -65,6 +73,16 @@ export function supabaseDockSource(rest: SupabaseRest): DockSource {
         issuedOn: r.issued_on,
         items: r.items.map(toItem),
       }));
+    },
+    async decisions(accessKeys) {
+      const keys = accessKeys.filter((k) => ACCESS_KEY.test(k));
+      if (keys.length === 0) return new Map();
+      const proposals = parseRows(await rest.select('proposals', { select: 'id,invoice_access_key', filters: { invoice_access_key: `in.(${keys.join(',')})` } }), isProposalRow, 'proposals');
+      if (proposals.length === 0) return new Map();
+      const ids = proposals.map((p) => p.id).join(',');
+      const approvals = parseRows(await rest.select('approvals', { select: 'proposal_id,approver,approver_level', filters: { proposal_id: `in.(${ids})` } }), isApprovalRow, 'approvals');
+      const keyOf = new Map(proposals.map((p) => [p.id, p.invoice_access_key]));
+      return new Map(approvals.flatMap((a) => (keyOf.has(a.proposal_id) ? [[keyOf.get(a.proposal_id) as string, { approver: a.approver, approverLevel: a.approver_level }] as const] : [])));
     },
     published: () => outbox.list(),
     publishedToStores: () => storeOutbox.list(),

@@ -123,3 +123,23 @@ describe('dockBoard: a doca de um destino num dia (#72)', () => {
     );
   });
 });
+
+describe('dockBoard: quem decidiu cada nota (#211)', () => {
+  it('traz decidedBy no vocabulário do timeline: a regra, a pessoa pelo e-mail e nulo sem decisão', () => {
+    const decisions = new Map([
+      [first, { approver: 'regra', approverLevel: 'regra' }],
+      [second, { approver: 'ana@jachegou.test', approverLevel: 'analista' }],
+    ]);
+    const published = [publish(first, DockAction.receive()), publish(second, DockAction.refuse())];
+    const board = dockBoard({ invoices, published, decisions, destination: 'CD-03', date: DATE });
+    const by = (key: string) => board.rows.find((r) => r.invoiceAccessKey === key)?.decidedBy;
+    expect(by(first)).toEqual({ actor: 'rule', actor_name: 'Regra' });
+    expect(by(second)).toEqual({ actor: 'person', actor_name: 'ana@jachegou.test' });
+    expect(by(third)).toBeNull();
+  });
+
+  it('sem o mapa de decisões, toda linha leva decidedBy nulo', () => {
+    const board = dockBoard({ invoices, published: [], destination: 'CD-03', date: DATE });
+    expect(board.rows.every((r) => r.decidedBy === null)).toBe(true);
+  });
+});

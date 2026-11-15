@@ -7,6 +7,7 @@ import { DataList } from "@barte-ai-services/barte-ui-kit";
 import { InvoiceDrawer } from "../approval/InvoiceDrawer";
 import { RowTable } from "../components/RowTable";
 import { EmptyState } from "../components/EmptyState";
+import { DecidedBy } from "../components/DecidedBy";
 import { GridBadge } from "../components/GridBadge";
 import { InvoiceCell } from "../components/InvoiceCell";
 import { Screen } from "../components/Screen";
@@ -191,6 +192,20 @@ export function ReceivingBoard({ title, subtitle, load, words, noun, emptyIn, wa
                       }
                       bottom={instruction(n.status.action, words)}
                     />
+                  ),
+              },
+              // #211 Quem decidiu a nota; sem aprovação, a nota espera uma pessoa.
+              {
+                key: "decidedBy",
+                title: texts.decidedBy.column,
+                dataIndex: "decidedBy",
+                render: (_, n) =>
+                  n.decidedBy ? (
+                    <DecidedBy actor={n.decidedBy.actor} name={n.decidedBy.actor === "rule" ? null : n.decidedBy.actor_name} />
+                  ) : n.status.kind === "aguardando_aprovacao" ? (
+                    <GridBadge tone="waiting">{texts.decidedBy.awaiting}</GridBadge>
+                  ) : (
+                    "—"
                   ),
               },
             ]}

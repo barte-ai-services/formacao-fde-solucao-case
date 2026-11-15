@@ -42,12 +42,20 @@ export type DockStatus =
   | { readonly kind: 'acao'; readonly action: DockActionView; readonly publishedAt: string }
   | { readonly kind: 'aguardando_aprovacao'; readonly instrucao: typeof AWAITING_INSTRUCTION };
 
+/** #211 Quem decidiu a nota, no vocabulário do `timeline[]`: a régua ou a pessoa (pelo e-mail). */
+export type DockDecidedBy = { readonly actor: 'rule' | 'person'; readonly actor_name: string };
+
+/** #211 A decisão registrada da nota: quem aprovou e em que nível (`regra` é a régua). */
+export type DockDecision = { readonly approver: string; readonly approverLevel: string };
+
 export type DockRow = {
   readonly invoiceAccessKey: string;
   readonly number: string;
   readonly supplierId: string;
   readonly items: readonly DockInvoiceItem[];
   readonly status: DockStatus;
+  /** #211 Quem decidiu a nota; nulo enquanto não há aprovação. */
+  readonly decidedBy: DockDecidedBy | null;
 };
 
 export type DockBoard = {
@@ -66,7 +74,14 @@ export type DockBoardInput = {
   /** Nulo: o primeiro destino do dia (#72). */
   readonly destination: string | null;
   readonly date: string;
+  /** #211 A decisão de cada nota, pela chave de acesso. Sem ela, `decidedBy` vai nulo. */
+  readonly decisions?: ReadonlyMap<string, DockDecision>;
 };
+
+function decidedByOf(decision: DockDecision | undefined): DockDecidedBy | null {
+  if (!decision) return null;
+  return decision.approverLevel === 'regra' ? { actor: 'rule', actor_name: 'Regra' } : { actor: 'person', actor_name: decision.approver };
+}
 
 function view(action: DockAction): DockActionView {
   if (action.kind !== 'receber_parcial') return { kind: action.kind };
@@ -102,7 +117,7 @@ function statusOf(published: Published<DockActionMessage> | undefined): DockStat
 const byNumber = (a: DockInvoice, b: DockInvoice) => a.number.localeCompare(b.number, 'pt-BR', { numeric: true });
 
 /** #43 AC-4: as notas do dia do destino (ou do primeiro destino do dia), ordenadas pelo número, com a ação de cada uma. */
-export function dockBoard({ invoices, published, destination: requested, date, place = 'doca_cd' }: DockBoardInput): DockBoard {
+export function dockBoard({ invoices, published, destination: requested, date, place = 'doca_cd', decisions }: DockBoardInput): DockBoard {
   const ofDay = invoices.filter((i) => i.issuedOn === date && receivingPlace(i.store) === place);
   const destinations = [...new Set(ofDay.map((i) => i.store))].sort();
   const destination = requested ?? destinations[0] ?? null;
@@ -120,6 +135,7 @@ export function dockBoard({ invoices, published, destination: requested, date, p
         quantity: { amount: item.quantity.amount, unit: item.quantity.unit },
       })),
       status: statusOf(latest.get(i.accessKey)),
+      decidedBy: decidedByOf(decisions?.get(i.accessKey)),
     }));
   const awaiting = rows.filter((r) => r.status.kind === 'aguardando_aprovacao').length;
   return { destination, date, destinations, awaiting, rows };

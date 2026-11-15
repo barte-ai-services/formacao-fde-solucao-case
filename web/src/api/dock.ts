@@ -19,6 +19,8 @@ export interface DockRowDto {
   supplierId: string;
   items: DockItemDto[];
   status: DockStatusDto;
+  /** #211 Quem decidiu a nota (o vocabulário do `timeline[]`); nulo sem aprovação. */
+  decidedBy: { actor: "rule" | "person"; actor_name: string } | null;
 }
 
 export interface DockBoardDto {
