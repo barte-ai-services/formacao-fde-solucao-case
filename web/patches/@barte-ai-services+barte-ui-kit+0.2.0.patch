@@ -1,0 +1,65 @@
+diff --git a/node_modules/@barte-ai-services/barte-ui-kit/dist/DecisionForm/DecisionForm.d.ts b/node_modules/@barte-ai-services/barte-ui-kit/dist/DecisionForm/DecisionForm.d.ts
+index ab732bd..86daf06 100644
+--- a/node_modules/@barte-ai-services/barte-ui-kit/dist/DecisionForm/DecisionForm.d.ts
++++ b/node_modules/@barte-ai-services/barte-ui-kit/dist/DecisionForm/DecisionForm.d.ts
+@@ -38,6 +38,14 @@ export interface DecisionFormProps<T extends string> {
+     }) => void | Promise<unknown>;
+     /** Opção já marcada ao abrir. Padrão: nenhuma, para a decisão ser sempre um gesto explícito. */
+     defaultValue?: T;
++    /** Opção marcada, controlada por fora. Sem ela, o formulário guarda a escolha (`defaultValue`). */
++    value?: T;
++    /** Avisa a opção que a pessoa marcou, controlada ou não. */
++    onValueChange?: (value: T) => void;
++    /** Conteúdo que depende da opção, entre as opções e a observação. */
++    children?: ReactNode;
++    /** Desabilita só o botão de registrar. */
++    submitDisabled?: boolean;
+     /** Título do bloco ("Sua decisão"). */
+     title?: ReactNode;
+     /** Contexto abaixo do título. */
+@@ -57,4 +65,4 @@ export interface DecisionFormProps<T extends string> {
+  * Registrar uma decisão (aprovar, devolver, recusar…): as opções vêm por prop com o tom de cada uma, e a
+  * observação passa a ser obrigatória nas que pedem justificativa. Cuida do "enviando", do erro e do "registrada".
+  */
+-export declare function DecisionForm<T extends string>({ options, onSubmit, defaultValue, title, description, submitting: submittingProp, error: errorProp, minNoteLength, maxNoteLength, disabled, texts, className, }: DecisionFormProps<T>): import('react').JSX.Element;
++export declare function DecisionForm<T extends string>({ options, onSubmit, defaultValue, value, onValueChange, children, submitDisabled, title, description, submitting: submittingProp, error: errorProp, minNoteLength, maxNoteLength, disabled, texts, className, }: DecisionFormProps<T>): import('react').JSX.Element;
+diff --git a/node_modules/@barte-ai-services/barte-ui-kit/dist/index.js b/node_modules/@barte-ai-services/barte-ui-kit/dist/index.js
+index 9ff03c5..8461bf9 100644
+--- a/node_modules/@barte-ai-services/barte-ui-kit/dist/index.js
++++ b/node_modules/@barte-ai-services/barte-ui-kit/dist/index.js
+@@ -7590,15 +7590,15 @@ var jo = {
+ 	failed: "Não foi possível registrar a decisão. Tente de novo.",
+ 	done: "Decisão registrada."
+ };
+-function No({ options: r, onSubmit: i, defaultValue: a, title: s, description: c, submitting: u, error: d, minNoteLength: f, maxNoteLength: p, disabled: m, texts: h, className: g }) {
++function No({ options: r, onSubmit: i, defaultValue: a, value: __v, onValueChange: __ovc, children: __kids, submitDisabled: __sd, title: s, description: c, submitting: u, error: d, minNoteLength: f, maxNoteLength: p, disabled: m, texts: h, className: g }) {
+ 	let _ = {
+ 		...Mo,
+ 		...h
+-	}, v = S(), [y, b] = E(a), [x, C] = E(""), [w, D] = E(!1), [O, k] = E(!1), [A, j] = E(null), [M, N] = E(!1), ee = T([]), te = T(null), ne = !!u || O, re = m || ne, ie = r.find((e) => e.value === y), ae = ko(r, y, x, {
++	}, v = S(), [__iv, b] = E(a), y = __v !== void 0 ? __v : __iv, [x, C] = E(""), [w, D] = E(!1), [O, k] = E(!1), [A, j] = E(null), [M, N] = E(!1), ee = T([]), te = T(null), ne = !!u || O, re = m || ne, ie = r.find((e) => e.value === y), ae = ko(r, y, x, {
+ 		minNoteLength: f,
+ 		texts: h
+ 	}), P = w ? ae : null, oe = r.map(() => ({ disabled: re })), se = r.findIndex((e) => e.value === y), ce = se >= 0 ? se : Ha(oe, "first"), le = (e) => {
+-		e < 0 || (ee.current[e]?.focus(), b(r[e].value), N(!1), j(null));
++		e < 0 || (ee.current[e]?.focus(), b(r[e].value), __ovc?.(r[e].value), N(!1), j(null));
+ 	}, ue = (e, t) => {
+ 		let n = {
+ 			ArrowRight: 1,
+@@ -7689,6 +7689,7 @@ function No({ options: r, onSubmit: i, defaultValue: a, title: s, description: c
+ 				id: `${v}-decision-error`,
+ 				children: P.message
+ 			}) : null,
++			__kids,
+ 			/* @__PURE__ */ t(l, {
+ 				ref: (e) => {
+ 					te.current = e;
+@@ -7721,7 +7722,7 @@ function No({ options: r, onSubmit: i, defaultValue: a, title: s, description: c
+ 					type: "submit",
+ 					size: "sm",
+ 					loading: ne,
+-					disabled: m,
++					disabled: m || __sd,
+ 					children: ie?.submitLabel ?? _.submit
+ 				})]
+ 			})

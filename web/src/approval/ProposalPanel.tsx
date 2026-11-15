@@ -11,6 +11,7 @@ import type { PartialLineDto } from "../api/contract";
 import { AccessKey } from "../components/AccessKey";
 import { Dossier } from "../components/Dossier";
 import { EvidenceView } from "../evidence";
+import { partialPrefill, type Disposition, type PartialInput } from "./partial-prefill";
 import { ACTION_LABEL, ACTION_TONE, LEVEL_LABEL, LEVEL_TONE, type DockActionKind } from "./labels";
 import { texts } from "../texts";
 
@@ -30,8 +31,6 @@ type Choice = DockActionKind;
 /** #134 A validação local do receber parcial: o texto vai direto para quem decide. */
 class PartialInputError extends Error {}
 
-type Disposition = "segurar" | "devolver";
-type PartialInput = { amount: string; disposition: Disposition };
 
 const qtyText = (q: { amount: number; unit: string }): string => `${q.amount} ${q.unit}`;
 
@@ -61,12 +60,27 @@ export function ProposalPanel({
   afterCount?: boolean;
 }): JSX.Element {
   const [decided, setDecided] = useState<DecisionResultDto | null>(null);
-  const [partial, setPartial] = useState<Record<string, PartialInput>>({});
+  // #203 A opção marcada é do DecisionForm, mas a gaveta a conhece (value/onValueChange) para mostrar os itens só no parcial.
+  const [choice, setChoice] = useState<Choice | undefined>(undefined);
+  // #203 Já preenchidos com a diferença da evidência; o que a pessoa digita fica aqui ao trocar de opção.
+  const [partial, setPartial] = useState<Record<string, PartialInput>>(() => partialPrefill(proposal));
   const proposed = proposal.dockAction.kind;
   /** #134 Sem divergência em item (MATCH), não há o que segurar ou devolver: o bloco do parcial some. */
   const hasItemDivergence = proposal.divergences.some((d) => d.skus.length > 0);
   const labels = (afterCount ?? COUNTED.includes(proposal.classification)) ? texts.proposalPanel.form.afterCountOptions : texts.proposalPanel.form.options;
   const tones: Record<Choice, "positive" | "waiting" | "negative"> = { receber: "positive", receber_parcial: "waiting", recusar: "negative" };
+
+  const typingPartial = choice === "receber_parcial" && proposed !== "receber_parcial" && hasItemDivergence;
+  const inputOf = (key: string): PartialInput => partial[key] ?? { amount: "", disposition: "segurar" };
+  /** #203 AC-4: sem nenhuma quantidade maior que zero, o Registrar fica desabilitado (texto que não é número avisa no clique). */
+  const typedAmount = (key: string): number => {
+    const text = inputOf(key).amount.trim().replace(",", ".");
+    return text === "" ? 0 : Number(text);
+  };
+  const noQuantity = typingPartial && !proposal.items.some((i) => {
+    const n = typedAmount(i.sku ?? i.supplierCode);
+    return n > 0 || Number.isNaN(n);
+  });
 
   /** #134 As linhas do receber parcial que a pessoa informou: o item, a quantidade na unidade da nota e o destino. */
   function typedLines(): PartialLineDto[] {
@@ -149,13 +163,29 @@ export function ProposalPanel({
         />
       ) : proposal.canApprove ? (
         <>
-          {proposed !== "receber_parcial" && hasItemDivergence ? (
+          <DecisionForm<Choice>
+            title={texts.proposalPanel.form.title}
+            description={texts.proposalPanel.form.description}
+            minNoteLength={10}
+            value={choice}
+            onValueChange={setChoice}
+            submitDisabled={noQuantity}
+            onSubmit={(d) => submit(d).catch((e: unknown) => Promise.reject(e instanceof PartialInputError ? e : new Error(decisionError(e))))}
+            texts={{ noteLabel: texts.proposalPanel.form.note, submit: texts.proposalPanel.form.submit, done: null }}
+            // #134 Sem divergência em item não há linha para segurar ou devolver: o parcial seria um beco sem saída.
+            options={(["receber", "receber_parcial", "recusar"] as const).filter((k) => k !== "receber_parcial" || hasItemDivergence || proposed === "receber_parcial").map((k) => ({
+              value: k,
+              label: labels[k],
+              tone: tones[k],
+              ...(k === proposed ? { description: texts.proposalPanel.form.proposed } : { noteRequired: true }),
+            }))}
+          >
+            {typingPartial ? (
             <Block title={texts.proposalPanel.partial.inputTitle} size="sm">
-              <p>{texts.proposalPanel.partial.inputHelp}</p>
               {proposal.items
                 .map((i) => {
                   const sku = i.sku ?? i.supplierCode;
-                  const input = partial[sku] ?? { amount: "", disposition: "segurar" as Disposition };
+                  const input = inputOf(sku);
                   return (
                     <div key={sku} className="pagar-partial-row">
                       <span>{texts.proposalPanel.partial.itemQty(i.description, qtyText(i.quantity), stockText(i, i.quantity.amount))}</span>
@@ -180,22 +210,10 @@ export function ProposalPanel({
                     </div>
                   );
                 })}
+              {noQuantity ? <p role="status">{texts.proposalPanel.partial.missingLines}</p> : null}
             </Block>
           ) : null}
-          <DecisionForm<Choice>
-            title={texts.proposalPanel.form.title}
-            description={texts.proposalPanel.form.description}
-            minNoteLength={10}
-            onSubmit={(d) => submit(d).catch((e: unknown) => Promise.reject(e instanceof PartialInputError ? e : new Error(decisionError(e))))}
-            texts={{ noteLabel: texts.proposalPanel.form.note, submit: texts.proposalPanel.form.submit, done: null }}
-            // #134 Sem divergência em item não há linha para segurar ou devolver: o parcial seria um beco sem saída.
-            options={(["receber", "receber_parcial", "recusar"] as const).filter((k) => k !== "receber_parcial" || hasItemDivergence || proposed === "receber_parcial").map((k) => ({
-              value: k,
-              label: labels[k],
-              tone: tones[k],
-              ...(k === proposed ? { description: texts.proposalPanel.form.proposed } : { noteRequired: true }),
-            }))}
-          />
+          </DecisionForm>
         </>
       ) : (
         <Alert

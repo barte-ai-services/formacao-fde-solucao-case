@@ -82,14 +82,13 @@ describe("#134 decisão pela ação no recebimento", () => {
     expect(screen.getByText("Entra 5 CX")).toBeTruthy();
   });
 
-  it("AC-3: alterar para receber parcial pede os itens e as quantidades, e eles viram a ação enviada", async () => {
+  it("AC-3: alterar para receber parcial já traz os itens preenchidos, e o que a pessoa ajusta vira a ação enviada", async () => {
     render(<ProposalPanel proposal={proposal({ kind: "receber" })} />);
     fireEvent.click(screen.getByRole("radio", { name: /^Receber parcial/ }));
     fireEvent.change(document.querySelector("textarea") as HTMLTextAreaElement, { target: { value: "Faltou arroz na doca" } });
-    fireEvent.click(screen.getByRole("button", { name: /Registrar a decisão/ }));
-    await screen.findByText(/informe ao menos um item/i);
-    expect(calls).toHaveLength(0);
+    expect((screen.getByLabelText("Quantidade a segurar ou devolver de Arroz 5kg") as HTMLInputElement).value).toBe("10");
     fireEvent.change(screen.getByLabelText("Quantidade a segurar ou devolver de Arroz 5kg"), { target: { value: "4" } });
+    fireEvent.change(screen.getByLabelText("Quantidade a segurar ou devolver de Feijão 1kg"), { target: { value: "0" } });
     fireEvent.click(within(screen.getByRole("group", { name: "O que fazer com Arroz 5kg" })).getByRole("combobox"));
     fireEvent.click(screen.getByText("Devolver"));
     fireEvent.click(screen.getByRole("button", { name: /Registrar a decisão/ }));
@@ -141,6 +140,7 @@ describe("#134 decisão pela ação no recebimento", () => {
       { supplierCode: "B", sku: "SKU-2", description: "Feijão 1kg", quantity: { amount: 12, unit: "CX" }, stockQuantity: { amount: 48, unit: "UN" }, unitPrice: money(2000), total: money(24_000) },
     ];
     render(<ProposalPanel proposal={proposal({ kind: "receber" }, { classification: "E4", items })} />);
+    fireEvent.click(screen.getByRole("radio", { name: /^Receber parcial/ }));
     expect(screen.getByText("Feijão 1kg (12 CX = 48 UN)")).toBeTruthy();
   });
 
@@ -152,6 +152,7 @@ describe("#134 decisão pela ação no recebimento", () => {
     fireEvent.click(screen.getByRole("button", { name: /Registrar a de/ }));
     await screen.findByText(/precisa ser um número/);
     fireEvent.change(screen.getByLabelText("Quantidade a segurar ou devolver de Arroz 5kg"), { target: { value: "4,5" } });
+    fireEvent.change(screen.getByLabelText("Quantidade a segurar ou devolver de Feijão 1kg"), { target: { value: "0" } });
     fireEvent.click(screen.getByRole("button", { name: /Registrar a de/ }));
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(calls[0]?.body).toMatchObject({ dockAction: { lines: [{ sku: "SKU-1", quantity: { amount: 4.5 } }] } });
@@ -166,8 +167,67 @@ describe("#134 decisão pela ação no recebimento", () => {
     expect(screen.getByRole("radio", { name: /^Recusar/ })).toBeTruthy();
   });
 
-  it("#134: nota com divergência em item mostra o bloco", () => {
+});
+
+describe("#203 a decisão na gaveta: opções, itens do receber parcial, justificativa", () => {
+  const LIST = "Itens a segurar ou devolver";
+  const partialRadio = () => screen.getByRole("radio", { name: /^(Receber|Confirmar recebimento) parcial/ });
+
+  it("AC-1: com Receber ou Recusar marcado (ou nada), a lista dos itens não aparece", () => {
     render(<ProposalPanel proposal={proposal({ kind: "receber" })} />);
-    expect(screen.getByText("Receber parcial: itens a segurar ou devolver")).toBeTruthy();
+    expect(screen.queryByText(LIST)).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: /^Recusar/ }));
+    expect(screen.queryByText(LIST)).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: /^Receber(?! parcial)/ }));
+    expect(screen.queryByText(LIST)).toBeNull();
+    expect(screen.queryByText(/Vale só se você escolher/)).toBeNull();
+  });
+
+  it("AC-2: com Receber parcial, a lista fica entre as opções e a justificativa, pré-preenchida pela divergência", () => {
+    const e3 = { classification: "E3", exceptionCode: "E3", exceptionName: "Quantidade menor", skus: ["SKU-1"], evidence: [{ source: "wms", reference: "r", description: "Contado 7 UN de 10 UN: Arroz 5kg" }] };
+    render(<ProposalPanel proposal={proposal({ kind: "receber" }, { classification: "E3", divergences: [e3] })} />);
+    fireEvent.click(partialRadio());
+    const list = screen.getByText(LIST);
+    const before = (a: Node, b: Node) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(before(screen.getByRole("radiogroup"), list)).toBe(true);
+    expect(before(list, document.querySelector("textarea") as Node)).toBe(true);
+    expect((screen.getByLabelText("Quantidade a segurar ou devolver de Arroz 5kg") as HTMLInputElement).value).toBe("3");
+    expect(screen.getByText("Devolver")).toBeTruthy();
+    // O item sem divergência continua na lista, vazio.
+    expect((screen.getByLabelText("Quantidade a segurar ou devolver de Feijão 1kg") as HTMLInputElement).value).toBe("");
+  });
+
+  it("AC-3: trocar de opção e voltar mantém o digitado; registrar com outra opção não envia linhas", async () => {
+    render(<ProposalPanel proposal={proposal({ kind: "receber" })} />);
+    fireEvent.click(partialRadio());
+    fireEvent.change(screen.getByLabelText("Quantidade a segurar ou devolver de Arroz 5kg"), { target: { value: "6" } });
+    fireEvent.click(screen.getByRole("radio", { name: /^Recusar/ }));
+    expect(screen.queryByText(LIST)).toBeNull();
+    fireEvent.click(partialRadio());
+    expect((screen.getByLabelText("Quantidade a segurar ou devolver de Arroz 5kg") as HTMLInputElement).value).toBe("6");
+    fireEvent.click(screen.getByRole("radio", { name: /^Recusar/ }));
+    fireEvent.change(document.querySelector("textarea") as HTMLTextAreaElement, { target: { value: "Recusa por divergência" } });
+    fireEvent.click(screen.getByRole("button", { name: /Registrar a decisão/ }));
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0]?.body).toEqual({ dockAction: { kind: "recusar" }, justification: "Recusa por divergência" });
+  });
+
+  it("AC-4: Receber parcial sem quantidade maior que zero desabilita o Registrar e diz por quê", () => {
+    render(<ProposalPanel proposal={proposal({ kind: "receber" })} />);
+    fireEvent.click(partialRadio());
+    const submit = screen.getByRole("button", { name: /Registrar a decisão/ }) as HTMLButtonElement;
+    expect(submit.disabled).toBe(false);
+    for (const n of ["Arroz 5kg", "Feijão 1kg"]) fireEvent.change(screen.getByLabelText(`Quantidade a segurar ou devolver de ${n}`), { target: { value: "0" } });
+    expect(submit.disabled).toBe(true);
+    expect(screen.getByText(/informe ao menos um item/i)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Quantidade a segurar ou devolver de Arroz 5kg"), { target: { value: "2" } });
+    expect(submit.disabled).toBe(false);
+  });
+
+  it("nota sem divergência em item (MATCH) não mostra o parcial", () => {
+    render(<ProposalPanel proposal={proposal({ kind: "receber" }, { classification: "MATCH", divergences: [] })} />);
+    expect(screen.queryByRole("radio", { name: /^Receber parcial/ })).toBeNull();
+    expect(screen.getByRole("radio", { name: /^Receber(?! parcial)/ })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: /^Recusar/ })).toBeTruthy();
   });
 });
