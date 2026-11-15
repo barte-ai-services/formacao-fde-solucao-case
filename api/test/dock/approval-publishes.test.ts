@@ -4,6 +4,7 @@ import { SupabaseApprovalStore } from '../../src/approval/supabase-store.js';
 import type { DockActionOutbox } from '../../src/connectors/ports.js';
 import { supabaseConnectors } from '../../src/connectors/supabase-connectors.js';
 import { SupabaseRest } from '../../src/connectors/supabase-rest.js';
+import { appStoreActionOutbox } from '../../src/connectors/store-action.js';
 import { wmsDockActionOutbox } from '../../src/connectors/wms-dock-action.js';
 import { captureInvoices } from '../../src/cron/capture.js';
 import { publishDecidedDockActions, publishDecidedStoreActions } from '../../src/dock/publish-decided.js';
@@ -42,7 +43,7 @@ async function proposed(dockOutbox?: (rest: SupabaseRest) => DockActionOutbox) {
   const outbox = dockOutbox ? dockOutbox(rest) : wmsDockActionOutbox(rest);
   const worker = createWorker({
     verifier,
-    approval: { store, today: () => TODAY, dockOutbox: outbox },
+    approval: { store, today: () => TODAY, dockOutbox: outbox, storeOutbox: appStoreActionOutbox(rest) },
     dock: { supabase: () => rest, today: () => TODAY },
   });
   const call = (path: string, init: RequestInit = {}) =>
@@ -127,5 +128,15 @@ describe('#43 AC-1 o que a regra aprova sem pessoa também chega à doca', () =>
     await publishDecidedDockActions(rest);
     const published = new Set(fake.rows('outbox_dock_actions').map((r) => r.invoice_access_key));
     expect(published.has(NF080.accessKey)).toBe(false);
+  });
+});
+
+describe('#135 AC-1 a pessoa aprova e a ação vai para o lugar do destino', () => {
+  it('#135/AC-1 aprovar publica em uma caixa só: loja no app da loja, CD no WMS', async () => {
+    const { fake, call } = await proposed();
+    expect((await call(`/api/propostas/${NF080.accessKey}/aprovar`, { method: 'POST' })).status).toBe(200);
+    const inStore = fake.rows('outbox_store_actions').filter((r) => r.invoice_access_key === NF080.accessKey);
+    const inDock = fake.rows('outbox_dock_actions').filter((r) => r.invoice_access_key === NF080.accessKey);
+    expect(NF080.store.startsWith('LJ-') ? [inStore.length, inDock.length] : [inDock.length, inStore.length]).toEqual([1, 0]);
   });
 });

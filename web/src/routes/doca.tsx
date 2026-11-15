@@ -68,7 +68,8 @@ export interface ReceivingBoardProps {
   subtitle: string;
   load: (destination: string | null, signal: AbortSignal) => Promise<DockBoardDto>;
   words: ReceivingWording;
-  noun: string; // "doca" ou "loja": o lugar, nas mensagens de carga e de erro
+  /** #135 "doca" ou "loja": o lugar, nas mensagens de carga e de erro. */
+  noun: string;
   emptyIn: (shown: string | null) => string;
   warning: string;
 }
