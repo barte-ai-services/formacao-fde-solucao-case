@@ -4,8 +4,8 @@ Uso:
     python3 scripts/avaliar.py saidas/propostas.jsonl
     python3 scripts/avaliar.py saidas/propostas.jsonl --comparar saidas/baseline.jsonl --erros
 
-O gabarito não mora neste repositório (data/kit/contrato.json). Ele vem do kit-domingo do formacao-fde-ops:
-por padrão, ../formacao-fde-ops/kit-domingo/dados/gabarito/gabarito.json, ou o que --gabarito ou FDE_GABARITO apontarem.
+O gabarito não mora neste repositório (data/kit/contrato.json). Ele vem do kit:
+por padrão, o do formacao-kit ao lado (o único que bate com data/kit/notas.json), ou o que --gabarito ou FDE_GABARITO apontarem.
 
 Uma nota conta como acerto completo quando classificação, ação na doca e encaminhamento batem.
 Notas sem proposta contam como erro. Se houver mais de uma proposta para a mesma nota, vale a última.
@@ -20,7 +20,7 @@ from collections import defaultdict
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
-GABARITO_PADRAO = RAIZ.parent / "formacao-fde-ops" / "kit-domingo" / "dados" / "gabarito" / "gabarito.json"
+GABARITO_PADRAO = RAIZ.parent / "formacao-kit" / "src" / "t82-t84" / "kit" / "dados" / "gabarito" / "gabarito.json"
 CLASSIFICACOES = ["match", "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8"]  # as do kit (jachegou/base.py)
 CAMPOS = ("classificacao", "acao_doca", "encaminhamento")
 
@@ -118,12 +118,12 @@ def main():
     ap.add_argument("--comparar", type=Path, help="outro arquivo de propostas, por exemplo o baseline")
     ap.add_argument("--erros", action="store_true", help="lista as notas erradas")
     ap.add_argument("--gabarito", type=Path, default=Path(os.environ.get("FDE_GABARITO", GABARITO_PADRAO)),
-                    help="gabarito.json do kit-domingo (padrão: FDE_GABARITO ou o formacao-fde-ops ao lado)")
+                    help="gabarito.json do kit-domingo (padrão: FDE_GABARITO ou o formacao-kit ao lado)")
     ap.add_argument("--base", type=Path, default=RAIZ / "data" / "kit" / "notas.json",
                     help="notas.json da base, para conferir que o gabarito é dela (padrão: data/kit/notas.json)")
     a = ap.parse_args()
     if not a.gabarito.exists():
-        raise SystemExit(f"Gabarito não encontrado em {a.gabarito}. Clone o formacao-fde-ops ao lado ou passe --gabarito.")
+        raise SystemExit(f"Gabarito não encontrado em {a.gabarito}. Clone o formacao-kit ao lado ou passe --gabarito.")
     gabarito = json.loads(a.gabarito.read_text(encoding="utf-8"))
     if a.base.exists():
         conferir_base(gabarito, json.loads(a.base.read_text(encoding="utf-8")))
