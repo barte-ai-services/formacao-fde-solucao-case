@@ -2,11 +2,12 @@
  * #63 A proposta de uma nota: ação na doca, nível, valor em risco, a evidência de cada divergência
  * (AC-12) e a decisão de quem pode aprovar (AC-7 a AC-9). Usada na gaveta da fila e na rota própria.
  */
-import { useState } from "react";
+import { useState, type JSX } from "react";
 import { Alert } from "barte-design-system";
 import { Block, DataList, DecisionForm, StatusBadge } from "@barte-ai-services/barte-ui-kit";
 import { ApiError } from "../api/client";
 import { approvalApi, type DecisionResultDto, type ProposalDetailDto } from "../api/approval";
+import type { PartialLineDto } from "../api/contract";
 import { AccessKey } from "../components/AccessKey";
 import { Dossier } from "../components/Dossier";
 import { EvidenceView } from "../evidence";
@@ -25,24 +26,49 @@ export function decisionError(reason: unknown): string {
   return texts.proposalPanel.errors.other;
 }
 
-type Choice = "aprovar" | "alterar_receber" | "alterar_recusar";
+type Choice = DockActionKind;
+type Disposition = "segurar" | "devolver";
+type PartialInput = { amount: string; disposition: Disposition };
+
+const qtyText = (q: { amount: number; unit: string }): string => `${q.amount} ${q.unit}`;
 
 export function ProposalPanel({
   proposal,
   onDecided,
+  afterCount = false,
 }: {
   proposal: ProposalDetailDto;
   onDecided?: (result: DecisionResultDto) => void;
-}) {
+  /** #134 Depois da contagem (2ª entrega) o verbo é "Confirmar recebimento"; antes da doca, "Receber". */
+  afterCount?: boolean;
+}): JSX.Element {
   const [decided, setDecided] = useState<DecisionResultDto | null>(null);
-  const action = proposal.dockAction.kind;
-  const others = (["receber", "recusar"] as const).filter((k) => k !== action);
+  const [partial, setPartial] = useState<Record<string, PartialInput>>({});
+  const proposed = proposal.dockAction.kind;
+  const labels = afterCount ? texts.proposalPanel.form.afterCountOptions : texts.proposalPanel.form.options;
+  const tones: Record<Choice, "positive" | "waiting" | "negative"> = { receber: "positive", receber_parcial: "waiting", recusar: "negative" };
+
+  /** As linhas do receber parcial que a pessoa informou: o item, a quantidade na unidade da nota e o destino. */
+  function typedLines(): PartialLineDto[] {
+    return proposal.items.flatMap((i) => {
+      const input = partial[i.sku ?? ""];
+      const amount = Number(input?.amount);
+      if (!i.sku || !input || !Number.isFinite(amount) || amount <= 0) return [];
+      return [{ sku: i.sku, quantity: { amount, unit: i.quantity.unit }, disposition: input.disposition }];
+    });
+  }
 
   async function submit({ value, note }: { value: Choice; note: string }) {
-    const result =
-      value === "aprovar"
-        ? await approvalApi.approve(proposal.invoiceAccessKey)
-        : await approvalApi.alter(proposal.invoiceAccessKey, { kind: value === "alterar_receber" ? "receber" : "recusar" }, note);
+    let result: DecisionResultDto;
+    if (value === proposed) {
+      result = await approvalApi.approve(proposal.invoiceAccessKey);
+    } else if (value === "receber_parcial") {
+      const lines = typedLines();
+      if (lines.length === 0) throw new Error(texts.proposalPanel.partial.missingLines);
+      result = await approvalApi.alter(proposal.invoiceAccessKey, { kind: "receber_parcial", lines }, note);
+    } else {
+      result = await approvalApi.alter(proposal.invoiceAccessKey, { kind: value }, note);
+    }
     setDecided(result);
     onDecided?.(result);
     return result;
@@ -65,8 +91,8 @@ export function ProposalPanel({
             key: "acao",
             label: texts.proposalPanel.rows.action,
             value: (
-              <StatusBadge size="sm" tone={ACTION_TONE[action]}>
-                {ACTION_LABEL[action]}
+              <StatusBadge size="sm" tone={ACTION_TONE[proposed]}>
+                {ACTION_LABEL[proposed]}
               </StatusBadge>
             ),
           },
@@ -86,6 +112,7 @@ export function ProposalPanel({
           proposal.divergences.map((d, i) => <EvidenceView key={`${d.classification}-${i}`} divergence={d} />)
         )}
       </Block>
+      {proposal.dockAction.kind === "receber_parcial" ? <PartialItems proposal={proposal} lines={proposal.dockAction.lines} /> : null}
       <Dossier dossier={proposal.dossier} />
       {decided ?? proposal.approval ? (
         <Alert
@@ -97,22 +124,53 @@ export function ProposalPanel({
           )}
         />
       ) : proposal.canApprove ? (
-        <DecisionForm<Choice>
-          title={texts.proposalPanel.form.title}
-          description={texts.proposalPanel.form.description}
-          minNoteLength={10}
-          onSubmit={(d) => submit(d).catch((e: unknown) => Promise.reject(new Error(decisionError(e))))}
-          texts={{ noteLabel: texts.proposalPanel.form.note, submit: texts.proposalPanel.form.submit, done: null }}
-          options={[
-            { value: "aprovar", label: texts.proposalPanel.form.approve(ACTION_LABEL[action].toLowerCase()), tone: "positive" },
-            ...others.map((k) => ({
-              value: (k === "receber" ? "alterar_receber" : "alterar_recusar") as Choice,
-              label: texts.proposalPanel.form.change(ACTION_LABEL[k].toLowerCase()),
-              tone: "waiting" as const,
-              noteRequired: true,
-            })),
-          ]}
-        />
+        <>
+          {proposed !== "receber_parcial" ? (
+            <Block title={texts.proposalPanel.partial.inputTitle} size="sm">
+              <p>{texts.proposalPanel.partial.inputHelp}</p>
+              {proposal.items
+                .filter((i) => i.sku)
+                .map((i) => {
+                  const sku = i.sku ?? "";
+                  const input = partial[sku] ?? { amount: "", disposition: "segurar" as Disposition };
+                  return (
+                    <div key={sku} className="pagar-partial-row">
+                      <span>{`${i.description} (${qtyText(i.quantity)})`}</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={i.quantity.amount}
+                        aria-label={texts.proposalPanel.partial.qtyLabel(i.description)}
+                        value={input.amount}
+                        onChange={(e) => setPartial({ ...partial, [sku]: { ...input, amount: e.target.value } })}
+                      />
+                      <select
+                        aria-label={texts.proposalPanel.partial.dispositionLabel(i.description)}
+                        value={input.disposition}
+                        onChange={(e) => setPartial({ ...partial, [sku]: { ...input, disposition: e.target.value as Disposition } })}
+                      >
+                        <option value="segurar">{texts.proposalPanel.partial.hold}</option>
+                        <option value="devolver">{texts.proposalPanel.partial.giveBack}</option>
+                      </select>
+                    </div>
+                  );
+                })}
+            </Block>
+          ) : null}
+          <DecisionForm<Choice>
+            title={texts.proposalPanel.form.title}
+            description={texts.proposalPanel.form.description}
+            minNoteLength={10}
+            onSubmit={(d) => submit(d).catch((e: unknown) => Promise.reject(e instanceof Error && !(e instanceof ApiError) ? e : new Error(decisionError(e))))}
+            texts={{ noteLabel: texts.proposalPanel.form.note, submit: texts.proposalPanel.form.submit, done: null }}
+            options={(["receber", "receber_parcial", "recusar"] as const).map((k) => ({
+              value: k,
+              label: labels[k],
+              tone: tones[k],
+              ...(k === proposed ? { description: texts.proposalPanel.form.proposed } : { noteRequired: true }),
+            }))}
+          />
+        </>
       ) : (
         <Alert
           variant="warning"
@@ -121,5 +179,27 @@ export function ProposalPanel({
         />
       )}
     </div>
+  );
+}
+
+/** #134 O receber parcial item a item: o que entra e o que fica segurado ou volta, na unidade da nota. */
+function PartialItems({ proposal, lines }: { proposal: ProposalDetailDto; lines: readonly PartialLineDto[] }): JSX.Element {
+  const t = texts.proposalPanel.partial;
+  return (
+    <Block title={t.title} size="sm">
+      <DataList
+        divided
+        items={proposal.items.map((i) => {
+          const line = lines.find((l) => l.sku === i.sku);
+          const enters = line && line.quantity.unit === i.quantity.unit ? { amount: i.quantity.amount - line.quantity.amount, unit: i.quantity.unit } : i.quantity;
+          const outcome = line ? (line.disposition === "segurar" ? t.holds : t.returns)(qtyText(line.quantity)) : null;
+          return {
+            key: i.sku ?? i.supplierCode,
+            label: i.description,
+            value: [t.enters(qtyText(line ? enters : i.quantity)), outcome].filter(Boolean).join(" · "),
+          };
+        })}
+      />
+    </Block>
   );
 }

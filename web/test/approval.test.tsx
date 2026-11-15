@@ -93,7 +93,7 @@ describe("#63 proposta e decisão", () => {
           })
         : Response.json(detail());
     renderAt(`/pagar/fila/${KEY}`);
-    fireEvent.click(await screen.findByRole("radio", { name: /Aprovar: recusar/ }));
+    fireEvent.click(await screen.findByRole("radio", { name: /^Recusar/ }));
     fireEvent.click(screen.getByRole("button", { name: "Registrar a decisão" }));
     expect(await screen.findByText("Decisão registrada")).toBeTruthy();
     expect(calls.some((c) => c.method === "POST" && c.path === `/api/propostas/${KEY}/aprovar`)).toBe(true);
@@ -102,7 +102,7 @@ describe("#63 proposta e decisão", () => {
   it("AC-9: alterar sem justificativa não chega à API", async () => {
     respond = () => Response.json(detail());
     renderAt(`/pagar/fila/${KEY}`);
-    fireEvent.click(await screen.findByRole("radio", { name: /Alterar para receber/ }));
+    fireEvent.click(await screen.findByRole("radio", { name: /^Receber(?! parcial)/ }));
     fireEvent.click(screen.getByRole("button", { name: "Registrar a decisão" }));
     await screen.findByRole("heading", { name: /Proposta da nota/ });
     expect(calls.some((c) => c.method === "POST")).toBe(false);
@@ -111,7 +111,7 @@ describe("#63 proposta e decisão", () => {
   it("AC-8: a segunda decisão (409) aparece como já decidida", async () => {
     respond = (method) => (method === "POST" ? Response.json({ error: "ja_decidida" }, { status: 409 }) : Response.json(detail()));
     renderAt(`/pagar/fila/${KEY}`);
-    fireEvent.click(await screen.findByRole("radio", { name: /Aprovar: recusar/ }));
+    fireEvent.click(await screen.findByRole("radio", { name: /^Recusar/ }));
     fireEvent.click(screen.getByRole("button", { name: "Registrar a decisão" }));
     expect(await screen.findByText(/já foi decidida/)).toBeTruthy();
   });

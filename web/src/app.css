@@ -39,3 +39,8 @@
   .pagar-access-key__value { white-space: normal; overflow-wrap: anywhere; }
   .pagar-access-key__copy { display: inline-block; }
 }
+
+/* #134 O receber parcial: o item, a quantidade e o destino numa linha. */
+.pagar-partial-row { display: flex; gap: var(--spacing-sm); align-items: center; flex-wrap: wrap; }
+.pagar-partial-row > span { flex: 1 1 12rem; }
+.pagar-partial-row input { width: 6rem; }
