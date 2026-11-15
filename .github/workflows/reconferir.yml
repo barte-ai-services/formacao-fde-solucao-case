@@ -1,0 +1,48 @@
+name: Reconferir as notas
+
+# Apaga o que a conferência gravou nas tabelas do domínio e roda a captura e a conferência completas
+# uma vez, com as verificações que estão na main (#56). Nenhuma tabela kit_* é tocada.
+# Só por disparo manual, a partir da main, e só com a confirmação digitada.
+on:
+  workflow_dispatch:
+    inputs:
+      confirmar:
+        description: 'Apaga invoices, divergences, proposals, approvals, titles e as outbox_*. Digite RECONFERIR para seguir.'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# Não roda junto com outra reconferência nem com a carga da base do kit.
+concurrency:
+  group: supabase-base-do-kit
+  cancel-in-progress: false
+
+jobs:
+  reconferir:
+    if: github.ref == 'refs/heads/main' && inputs.confirmar == 'RECONFERIR'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      # O esbuild vem do lockfile (dependência do wrangler); empacota o script com o código da main.
+      - run: npx --no-install esbuild scripts/reconferir.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist-ops/reconferir.mjs
+      # A chave secreta entra só neste passo, pelo secret do repositório; o script nunca a escreve.
+      - run: node dist-ops/reconferir.mjs
+        env:
+          BARTE_ACADEMY_SUPABASE_URL: ${{ vars.BARTE_ACADEMY_SUPABASE_URL }}
+          BARTE_ACADEMY_SUPABASE_SECRET_KEY: ${{ secrets.BARTE_ACADEMY_SUPABASE_SECRET_KEY }}

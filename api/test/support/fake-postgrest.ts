@@ -110,6 +110,11 @@ export class FakePostgrest {
         if (!values.includes(String(row[col]))) return false;
         continue;
       }
+      // #56 not.is.null: o filtro que pega todas as linhas de uma coluna not null.
+      if (expr === 'not.is.null') {
+        if (row[col] === null || row[col] === undefined) return false;
+        continue;
+      }
       if (!expr.startsWith('eq.')) throw new Error(`fake: filtro não suportado ${col}=${expr}`);
       if (String(row[col]) !== expr.slice(3)) return false;
     }
