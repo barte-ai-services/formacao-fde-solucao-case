@@ -1,13 +1,13 @@
 """Builds the process page published as a claude.ai artifact (#2): the template with the two
 BPMN files and the diagram stylesheet inlined.
 
-    python3 scripts/gerar_artefato.py
+    python3 scripts/build_artifact.py
 """
 
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-FOLDER = ROOT / "artifacts" / "processo"
+FOLDER = ROOT / "artifacts" / "process"
 
 
 def build() -> str:

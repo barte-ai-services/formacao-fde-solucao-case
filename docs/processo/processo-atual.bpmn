@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Defs_AccountsPayable_Current" targetNamespace="https://barte.ai/formacao-fde/ja-chegou">
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0" id="Defs_AccountsPayable_Current" targetNamespace="https://barte.ai/formacao-fde/ja-chegou">
   <bpmn:collaboration id="Collab_AccountsPayable_Current">
-    <bpmn:participant id="Part_AccountsPayable_Current" name="Já Chegou: contas a pagar hoje" processRef="AccountsPayable_Current" />
+    <bpmn:participant id="Part_AccountsPayable_Current" name="Já Chegou · contas a pagar hoje" processRef="AccountsPayable_Current" />
   </bpmn:collaboration>
   <bpmn:process id="AccountsPayable_Current" name="Contas a pagar da Já Chegou: processo atual" isExecutable="false">
     <bpmn:laneSet id="LaneSet_AccountsPayable_Current">
@@ -17,14 +17,14 @@
       <bpmn:lane id="Lane_Dock" name="Doca (CD e lojas)">
         <bpmn:flowNodeRef>Task_Receive</bpmn:flowNodeRef>
       </bpmn:lane>
-      <bpmn:lane id="Lane_Matching" name="Contas a pagar: conferência">
+      <bpmn:lane id="Lane_Matching" name="Conferência">
         <bpmn:flowNodeRef>Task_MatchByHand</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Gateway_Differs</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>End_Matched</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_Supplement</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>End_Provisioned</bpmn:flowNodeRef>
       </bpmn:lane>
-      <bpmn:lane id="Lane_DailyList" name="Contas a pagar: lista do dia">
+      <bpmn:lane id="Lane_DailyList" name="Lista do dia">
         <bpmn:flowNodeRef>Task_BuildList</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="Lane_CFO" name="CFO">
@@ -46,7 +46,7 @@
       <bpmn:incoming>Flow_2</bpmn:incoming>
       <bpmn:outgoing>Flow_3</bpmn:outgoing>
     </bpmn:task>
-    <bpmn:parallelGateway id="Gateway_Split" name="">
+    <bpmn:parallelGateway id="Gateway_Split" name="Dois caminhos sem integração">
       <bpmn:incoming>Flow_3</bpmn:incoming>
       <bpmn:outgoing>Flow_4</bpmn:outgoing>
       <bpmn:outgoing>Flow_5</bpmn:outgoing>
@@ -55,14 +55,14 @@
       <bpmn:incoming>Flow_4</bpmn:incoming>
       <bpmn:outgoing>Flow_6</bpmn:outgoing>
     </bpmn:task>
-    <bpmn:task id="Task_Receive" name="Receber a mercadoria">
+    <bpmn:userTask id="Task_Receive" name="Receber sem olhar a nota">
       <bpmn:incoming>Flow_6</bpmn:incoming>
       <bpmn:outgoing>Flow_7</bpmn:outgoing>
-    </bpmn:task>
-    <bpmn:task id="Task_MatchByHand" name="Conferir nota, pedido e recebido à mão">
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_MatchByHand" name="Conferir à mão, até 14 dias depois">
       <bpmn:incoming>Flow_7</bpmn:incoming>
       <bpmn:outgoing>Flow_8</bpmn:outgoing>
-    </bpmn:task>
+    </bpmn:userTask>
     <bpmn:exclusiveGateway id="Gateway_Differs" name="Diverge?">
       <bpmn:incoming>Flow_8</bpmn:incoming>
       <bpmn:outgoing>Flow_9</bpmn:outgoing>
@@ -71,26 +71,26 @@
     <bpmn:endEvent id="End_Matched" name="Nota conciliada">
       <bpmn:incoming>Flow_9</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:task id="Task_Supplement" name="Abrir ordem complementar ou provisionar">
+    <bpmn:userTask id="Task_Supplement" name="Ordem complementar ou provisão">
       <bpmn:incoming>Flow_10</bpmn:incoming>
       <bpmn:outgoing>Flow_11</bpmn:outgoing>
-    </bpmn:task>
+    </bpmn:userTask>
     <bpmn:endEvent id="End_Provisioned" name="Mês fecha com provisão">
       <bpmn:incoming>Flow_11</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:task id="Task_BuildList" name="Montar a lista do dia (ERP, e-mail, WhatsApp)">
+    <bpmn:userTask id="Task_BuildList" name="Montar a lista com ERP, e-mail e WhatsApp">
       <bpmn:incoming>Flow_5</bpmn:incoming>
       <bpmn:outgoing>Flow_12</bpmn:outgoing>
-    </bpmn:task>
-    <bpmn:userTask id="Task_ApproveAll" name="Aprovar item a item, das 16h às 18h">
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_ApproveAll" name="Aprovar tudo, item a item">
       <bpmn:incoming>Flow_12</bpmn:incoming>
       <bpmn:outgoing>Flow_13</bpmn:outgoing>
     </bpmn:userTask>
-    <bpmn:task id="Task_PayOneByOne" name="Pagar um boleto por vez">
+    <bpmn:task id="Task_PayOneByOne" name="Pagar sem esperar a conferência">
       <bpmn:incoming>Flow_13</bpmn:incoming>
       <bpmn:outgoing>Flow_14</bpmn:outgoing>
     </bpmn:task>
-    <bpmn:endEvent id="End_Paid" name="Pago, conferido ou não">
+    <bpmn:endEvent id="End_Paid" name="Pago sem mercadoria">
       <bpmn:incoming>Flow_14</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_NeedToBuy" targetRef="Task_IssueOrder" />
@@ -107,182 +107,153 @@
     <bpmn:sequenceFlow id="Flow_12" sourceRef="Task_BuildList" targetRef="Task_ApproveAll" />
     <bpmn:sequenceFlow id="Flow_13" sourceRef="Task_ApproveAll" targetRef="Task_PayOneByOne" />
     <bpmn:sequenceFlow id="Flow_14" sourceRef="Task_PayOneByOne" targetRef="End_Paid" />
-    <bpmn:textAnnotation id="Note_1"><bpmn:text>Ninguém olhou a nota antes. Entra mesmo divergente, por pressão comercial.</bpmn:text></bpmn:textAnnotation>
-    <bpmn:association id="Assoc_1" sourceRef="Task_Receive" targetRef="Note_1" />
-    <bpmn:textAnnotation id="Note_2"><bpmn:text>Até 14 dias no CD. Só 0,7% das notas casam sozinhas.</bpmn:text></bpmn:textAnnotation>
-    <bpmn:association id="Assoc_2" sourceRef="Task_MatchByHand" targetRef="Note_2" />
-    <bpmn:textAnnotation id="Note_3"><bpmn:text>Pagar errado: R$ 543 mil por mês sem mercadoria, nada recuperado.</bpmn:text></bpmn:textAnnotation>
-    <bpmn:association id="Assoc_3" sourceRef="Task_PayOneByOne" targetRef="Note_3" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="Diagram_AccountsPayable_Current">
     <bpmndi:BPMNPlane id="Plane_AccountsPayable_Current" bpmnElement="Collab_AccountsPayable_Current">
-      <bpmndi:BPMNShape id="Part_AccountsPayable_Current_di" bpmnElement="Part_AccountsPayable_Current" isHorizontal="true">
-        <dc:Bounds x="100" y="80" width="1670" height="1200" />
+      <bpmndi:BPMNShape id="Part_AccountsPayable_Current_di" bpmnElement="Part_AccountsPayable_Current" isHorizontal="true" color:background-color="#FFFFFF" color:border-color="#444441">
+        <dc:Bounds x="60" y="60" width="1760" height="1200" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Purchasing_di" bpmnElement="Lane_Purchasing" isHorizontal="true">
-        <dc:Bounds x="130" y="80" width="1640" height="150" />
+      <bpmndi:BPMNShape id="Lane_Purchasing_di" bpmnElement="Lane_Purchasing" isHorizontal="true" color:background-color="#FFF9F0" color:border-color="#5F5E5A">
+        <dc:Bounds x="90" y="60" width="1730" height="150" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Supplier_di" bpmnElement="Lane_Supplier" isHorizontal="true">
-        <dc:Bounds x="130" y="230" width="1640" height="150" />
+      <bpmndi:BPMNShape id="Lane_Supplier_di" bpmnElement="Lane_Supplier" isHorizontal="true" color:background-color="#F8F7F3" color:border-color="#5F5E5A">
+        <dc:Bounds x="90" y="210" width="1730" height="150" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Dock_di" bpmnElement="Lane_Dock" isHorizontal="true">
-        <dc:Bounds x="130" y="380" width="1640" height="150" />
+      <bpmndi:BPMNShape id="Lane_Dock_di" bpmnElement="Lane_Dock" isHorizontal="true" color:background-color="#FFF9F0" color:border-color="#5F5E5A">
+        <dc:Bounds x="90" y="360" width="1730" height="150" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Matching_di" bpmnElement="Lane_Matching" isHorizontal="true">
-        <dc:Bounds x="130" y="530" width="1640" height="300" />
+      <bpmndi:BPMNShape id="Lane_Matching_di" bpmnElement="Lane_Matching" isHorizontal="true" color:background-color="#FFF9F0" color:border-color="#5F5E5A">
+        <dc:Bounds x="90" y="510" width="1730" height="300" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_DailyList_di" bpmnElement="Lane_DailyList" isHorizontal="true">
-        <dc:Bounds x="130" y="830" width="1640" height="150" />
+      <bpmndi:BPMNShape id="Lane_DailyList_di" bpmnElement="Lane_DailyList" isHorizontal="true" color:background-color="#FFF9F0" color:border-color="#5F5E5A">
+        <dc:Bounds x="90" y="810" width="1730" height="150" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_CFO_di" bpmnElement="Lane_CFO" isHorizontal="true">
-        <dc:Bounds x="130" y="980" width="1640" height="150" />
+      <bpmndi:BPMNShape id="Lane_CFO_di" bpmnElement="Lane_CFO" isHorizontal="true" color:background-color="#FFF9F0" color:border-color="#5F5E5A">
+        <dc:Bounds x="90" y="960" width="1730" height="150" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_Bank_di" bpmnElement="Lane_Bank" isHorizontal="true">
-        <dc:Bounds x="130" y="1130" width="1640" height="150" />
+      <bpmndi:BPMNShape id="Lane_Bank_di" bpmnElement="Lane_Bank" isHorizontal="true" color:background-color="#F4F8FD" color:border-color="#5F5E5A">
+        <dc:Bounds x="90" y="1110" width="1730" height="150" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Start_NeedToBuy_di" bpmnElement="Start_NeedToBuy">
-        <dc:Bounds x="232" y="162" width="36" height="36" />
-        <bpmndi:BPMNLabel><dc:Bounds x="200" y="204" width="100" height="27" /></bpmndi:BPMNLabel>
+      <bpmndi:BPMNShape id="Start_NeedToBuy_di" bpmnElement="Start_NeedToBuy" color:background-color="#F1EFE8" color:border-color="#5F5E5A">
+        <dc:Bounds x="185" y="125" width="40" height="40" />
+        <bpmndi:BPMNLabel><dc:Bounds x="145" y="171" width="120" height="28" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_IssueOrder_di" bpmnElement="Task_IssueOrder">
-        <dc:Bounds x="350" y="145" width="120" height="70" />
+      <bpmndi:BPMNShape id="Task_IssueOrder_di" bpmnElement="Task_IssueOrder" color:background-color="#FAEEDA" color:border-color="#854F0B">
+        <dc:Bounds x="310" y="107" width="130" height="76" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_IssueInvoice_di" bpmnElement="Task_IssueInvoice">
-        <dc:Bounds x="510" y="295" width="120" height="70" />
+      <bpmndi:BPMNShape id="Task_IssueInvoice_di" bpmnElement="Task_IssueInvoice" color:background-color="#F1EFE8" color:border-color="#5F5E5A">
+        <dc:Bounds x="480" y="257" width="130" height="76" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_Split_di" bpmnElement="Gateway_Split">
-        <dc:Bounds x="705" y="305" width="50" height="50" />
-        <bpmndi:BPMNLabel><dc:Bounds x="680" y="361" width="100" height="27" /></bpmndi:BPMNLabel>
+      <bpmndi:BPMNShape id="Gateway_Split_di" bpmnElement="Gateway_Split" color:background-color="#FFFFFF" color:border-color="#444441">
+        <dc:Bounds x="689" y="269" width="52" height="52" />
+        <bpmndi:BPMNLabel><dc:Bounds x="721" y="239" width="120" height="28" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_Deliver_di" bpmnElement="Task_Deliver">
-        <dc:Bounds x="830" y="295" width="120" height="70" />
+      <bpmndi:BPMNShape id="Task_Deliver_di" bpmnElement="Task_Deliver" color:background-color="#F1EFE8" color:border-color="#5F5E5A">
+        <dc:Bounds x="820" y="257" width="130" height="76" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_Receive_di" bpmnElement="Task_Receive">
-        <dc:Bounds x="990" y="445" width="120" height="70" />
+      <bpmndi:BPMNShape id="Task_Receive_di" bpmnElement="Task_Receive" color:background-color="#FCEBEB" color:border-color="#A32D2D">
+        <dc:Bounds x="990" y="407" width="130" height="76" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_MatchByHand_di" bpmnElement="Task_MatchByHand">
-        <dc:Bounds x="1150" y="595" width="120" height="70" />
+      <bpmndi:BPMNShape id="Task_MatchByHand_di" bpmnElement="Task_MatchByHand" color:background-color="#FAEEDA" color:border-color="#854F0B">
+        <dc:Bounds x="1160" y="557" width="130" height="76" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_Differs_di" bpmnElement="Gateway_Differs">
-        <dc:Bounds x="1345" y="605" width="50" height="50" />
-        <bpmndi:BPMNLabel><dc:Bounds x="1320" y="661" width="100" height="27" /></bpmndi:BPMNLabel>
+      <bpmndi:BPMNShape id="Gateway_Differs_di" bpmnElement="Gateway_Differs" color:background-color="#FFFFFF" color:border-color="#444441">
+        <dc:Bounds x="1369" y="569" width="52" height="52" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1401" y="539" width="120" height="28" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="End_Matched_di" bpmnElement="End_Matched">
-        <dc:Bounds x="1512" y="612" width="36" height="36" />
-        <bpmndi:BPMNLabel><dc:Bounds x="1480" y="654" width="100" height="27" /></bpmndi:BPMNLabel>
+      <bpmndi:BPMNShape id="End_Matched_di" bpmnElement="End_Matched" color:background-color="#EAF3DE" color:border-color="#3B6D11">
+        <dc:Bounds x="1545" y="575" width="40" height="40" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1505" y="621" width="120" height="28" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_Supplement_di" bpmnElement="Task_Supplement">
-        <dc:Bounds x="1470" y="745" width="120" height="70" />
+      <bpmndi:BPMNShape id="Task_Supplement_di" bpmnElement="Task_Supplement" color:background-color="#FCEBEB" color:border-color="#A32D2D">
+        <dc:Bounds x="1500" y="707" width="130" height="76" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="End_Provisioned_di" bpmnElement="End_Provisioned">
-        <dc:Bounds x="1672" y="762" width="36" height="36" />
-        <bpmndi:BPMNLabel><dc:Bounds x="1640" y="804" width="100" height="27" /></bpmndi:BPMNLabel>
+      <bpmndi:BPMNShape id="End_Provisioned_di" bpmnElement="End_Provisioned" color:background-color="#FCEBEB" color:border-color="#A32D2D">
+        <dc:Bounds x="1715" y="725" width="40" height="40" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1675" y="771" width="120" height="28" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_BuildList_di" bpmnElement="Task_BuildList">
-        <dc:Bounds x="830" y="895" width="120" height="70" />
+      <bpmndi:BPMNShape id="Task_BuildList_di" bpmnElement="Task_BuildList" color:background-color="#FAEEDA" color:border-color="#854F0B">
+        <dc:Bounds x="820" y="857" width="130" height="76" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_ApproveAll_di" bpmnElement="Task_ApproveAll">
-        <dc:Bounds x="990" y="1045" width="120" height="70" />
+      <bpmndi:BPMNShape id="Task_ApproveAll_di" bpmnElement="Task_ApproveAll" color:background-color="#FAEEDA" color:border-color="#854F0B">
+        <dc:Bounds x="990" y="1007" width="130" height="76" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_PayOneByOne_di" bpmnElement="Task_PayOneByOne">
-        <dc:Bounds x="1150" y="1195" width="120" height="70" />
+      <bpmndi:BPMNShape id="Task_PayOneByOne_di" bpmnElement="Task_PayOneByOne" color:background-color="#FCEBEB" color:border-color="#A32D2D">
+        <dc:Bounds x="1160" y="1157" width="130" height="76" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="End_Paid_di" bpmnElement="End_Paid">
-        <dc:Bounds x="1352" y="1212" width="36" height="36" />
-        <bpmndi:BPMNLabel><dc:Bounds x="1320" y="1254" width="100" height="27" /></bpmndi:BPMNLabel>
+      <bpmndi:BPMNShape id="End_Paid_di" bpmnElement="End_Paid" color:background-color="#FCEBEB" color:border-color="#A32D2D">
+        <dc:Bounds x="1375" y="1175" width="40" height="40" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1335" y="1221" width="120" height="28" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="Flow_1_di" bpmnElement="Flow_1">
-        <di:waypoint x="268" y="180" />
-        <di:waypoint x="350" y="180" />
+      <bpmndi:BPMNEdge id="Flow_1_di" bpmnElement="Flow_1" color:border-color="#5F5E5A">
+        <di:waypoint x="225" y="145" />
+        <di:waypoint x="310" y="145" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_2_di" bpmnElement="Flow_2">
-        <di:waypoint x="470" y="180" />
-        <di:waypoint x="492" y="180" />
-        <di:waypoint x="492" y="330" />
-        <di:waypoint x="510" y="330" />
+      <bpmndi:BPMNEdge id="Flow_2_di" bpmnElement="Flow_2" color:border-color="#5F5E5A">
+        <di:waypoint x="440" y="145" />
+        <di:waypoint x="460" y="145" />
+        <di:waypoint x="460" y="295" />
+        <di:waypoint x="480" y="295" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_3_di" bpmnElement="Flow_3">
-        <di:waypoint x="630" y="330" />
-        <di:waypoint x="705" y="330" />
+      <bpmndi:BPMNEdge id="Flow_3_di" bpmnElement="Flow_3" color:border-color="#5F5E5A">
+        <di:waypoint x="610" y="295" />
+        <di:waypoint x="689" y="295" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_4_di" bpmnElement="Flow_4">
-        <di:waypoint x="755" y="330" />
-        <di:waypoint x="830" y="330" />
+      <bpmndi:BPMNEdge id="Flow_4_di" bpmnElement="Flow_4" color:border-color="#5F5E5A">
+        <di:waypoint x="741" y="295" />
+        <di:waypoint x="820" y="295" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_5_di" bpmnElement="Flow_5">
-        <di:waypoint x="755" y="330" />
-        <di:waypoint x="812" y="330" />
-        <di:waypoint x="812" y="930" />
-        <di:waypoint x="830" y="930" />
+      <bpmndi:BPMNEdge id="Flow_5_di" bpmnElement="Flow_5" color:border-color="#5F5E5A">
+        <di:waypoint x="715" y="321" />
+        <di:waypoint x="715" y="895" />
+        <di:waypoint x="820" y="895" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_6_di" bpmnElement="Flow_6">
-        <di:waypoint x="950" y="330" />
-        <di:waypoint x="972" y="330" />
-        <di:waypoint x="972" y="480" />
-        <di:waypoint x="990" y="480" />
+      <bpmndi:BPMNEdge id="Flow_6_di" bpmnElement="Flow_6" color:border-color="#5F5E5A">
+        <di:waypoint x="950" y="295" />
+        <di:waypoint x="970" y="295" />
+        <di:waypoint x="970" y="445" />
+        <di:waypoint x="990" y="445" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_7_di" bpmnElement="Flow_7">
-        <di:waypoint x="1110" y="480" />
-        <di:waypoint x="1132" y="480" />
-        <di:waypoint x="1132" y="630" />
-        <di:waypoint x="1150" y="630" />
+      <bpmndi:BPMNEdge id="Flow_7_di" bpmnElement="Flow_7" color:border-color="#5F5E5A">
+        <di:waypoint x="1120" y="445" />
+        <di:waypoint x="1140" y="445" />
+        <di:waypoint x="1140" y="595" />
+        <di:waypoint x="1160" y="595" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_8_di" bpmnElement="Flow_8">
-        <di:waypoint x="1270" y="630" />
-        <di:waypoint x="1345" y="630" />
+      <bpmndi:BPMNEdge id="Flow_8_di" bpmnElement="Flow_8" color:border-color="#5F5E5A">
+        <di:waypoint x="1290" y="595" />
+        <di:waypoint x="1369" y="595" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_9_di" bpmnElement="Flow_9">
-        <di:waypoint x="1395" y="630" />
-        <di:waypoint x="1512" y="630" />
-        <bpmndi:BPMNLabel><dc:Bounds x="1401" y="608" width="80" height="18" /></bpmndi:BPMNLabel>
+      <bpmndi:BPMNEdge id="Flow_9_di" bpmnElement="Flow_9" color:border-color="#3B6D11">
+        <di:waypoint x="1421" y="595" />
+        <di:waypoint x="1545" y="595" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1429" y="573" width="80" height="18" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_10_di" bpmnElement="Flow_10">
-        <di:waypoint x="1395" y="630" />
-        <di:waypoint x="1452" y="630" />
-        <di:waypoint x="1452" y="780" />
-        <di:waypoint x="1470" y="780" />
-        <bpmndi:BPMNLabel><dc:Bounds x="1366" y="758" width="80" height="18" /></bpmndi:BPMNLabel>
+      <bpmndi:BPMNEdge id="Flow_10_di" bpmnElement="Flow_10" color:border-color="#A32D2D">
+        <di:waypoint x="1395" y="621" />
+        <di:waypoint x="1395" y="745" />
+        <di:waypoint x="1500" y="745" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1401" y="629" width="80" height="18" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_11_di" bpmnElement="Flow_11">
-        <di:waypoint x="1590" y="780" />
-        <di:waypoint x="1672" y="780" />
+      <bpmndi:BPMNEdge id="Flow_11_di" bpmnElement="Flow_11" color:border-color="#A32D2D">
+        <di:waypoint x="1630" y="745" />
+        <di:waypoint x="1715" y="745" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_12_di" bpmnElement="Flow_12">
-        <di:waypoint x="950" y="930" />
-        <di:waypoint x="972" y="930" />
-        <di:waypoint x="972" y="1080" />
-        <di:waypoint x="990" y="1080" />
+      <bpmndi:BPMNEdge id="Flow_12_di" bpmnElement="Flow_12" color:border-color="#5F5E5A">
+        <di:waypoint x="950" y="895" />
+        <di:waypoint x="970" y="895" />
+        <di:waypoint x="970" y="1045" />
+        <di:waypoint x="990" y="1045" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_13_di" bpmnElement="Flow_13">
-        <di:waypoint x="1110" y="1080" />
-        <di:waypoint x="1132" y="1080" />
-        <di:waypoint x="1132" y="1230" />
-        <di:waypoint x="1150" y="1230" />
+      <bpmndi:BPMNEdge id="Flow_13_di" bpmnElement="Flow_13" color:border-color="#5F5E5A">
+        <di:waypoint x="1120" y="1045" />
+        <di:waypoint x="1140" y="1045" />
+        <di:waypoint x="1140" y="1195" />
+        <di:waypoint x="1160" y="1195" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_14_di" bpmnElement="Flow_14">
-        <di:waypoint x="1270" y="1230" />
-        <di:waypoint x="1352" y="1230" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNShape id="Note_1_di" bpmnElement="Note_1">
-        <dc:Bounds x="1058" y="384" width="260" height="56" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="Assoc_1_di" bpmnElement="Assoc_1">
-        <di:waypoint x="1050" y="445" />
-        <di:waypoint x="1070" y="440" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNShape id="Note_2_di" bpmnElement="Note_2">
-        <dc:Bounds x="1218" y="534" width="260" height="56" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="Assoc_2_di" bpmnElement="Assoc_2">
-        <di:waypoint x="1210" y="595" />
-        <di:waypoint x="1230" y="590" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNShape id="Note_3_di" bpmnElement="Note_3">
-        <dc:Bounds x="1218" y="1134" width="260" height="56" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="Assoc_3_di" bpmnElement="Assoc_3">
-        <di:waypoint x="1210" y="1195" />
-        <di:waypoint x="1230" y="1190" />
+      <bpmndi:BPMNEdge id="Flow_14_di" bpmnElement="Flow_14" color:border-color="#A32D2D">
+        <di:waypoint x="1290" y="1195" />
+        <di:waypoint x="1375" y="1195" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

@@ -6,12 +6,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import gerar_bpmn  # noqa: E402
+import generate_bpmn  # noqa: E402
 
 DOCS = Path(__file__).resolve().parent.parent / "docs" / "processo"
 
 
-def reachable(process: gerar_bpmn.Process, start: str) -> set[str]:
+def reachable(process: generate_bpmn.Process, start: str) -> set[str]:
     edges: dict[str, list[str]] = {}
     for f in process.flows:
         edges.setdefault(f.source, []).append(f.target)
@@ -24,19 +24,19 @@ def reachable(process: gerar_bpmn.Process, start: str) -> set[str]:
     return seen
 
 
-def path_target(process: gerar_bpmn.Process, gateway: str, label: str) -> str:
+def path_target(process: generate_bpmn.Process, gateway: str, label: str) -> str:
     return next(f.target for f in process.flows if f.source == gateway and f.name == label)
 
 
 class GeneratedFilesTest(unittest.TestCase):
     def test_committed_files_match_the_generator(self) -> None:
-        for file_name, process in gerar_bpmn.OUTPUTS.items():
+        for file_name, process in generate_bpmn.OUTPUTS.items():
             committed = (DOCS / file_name).read_text(encoding="utf-8")
-            self.assertEqual(committed, gerar_bpmn.render(process), f"{file_name} desatualizado: rode scripts/gerar_bpmn.py")
+            self.assertEqual(committed, generate_bpmn.render(process), f"{file_name} desatualizado: rode scripts/generate_bpmn.py")
 
 
 class TargetProcessTest(unittest.TestCase):
-    target = gerar_bpmn.TARGET
+    target = generate_bpmn.TARGET
 
     def test_duplicate_is_blocked_without_waiting_for_the_goods(self) -> None:
         after = reachable(self.target, path_target(self.target, "Gateway_Duplicate", "sim"))

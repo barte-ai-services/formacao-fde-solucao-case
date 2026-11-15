@@ -1,7 +1,7 @@
 <title>Processo do contas a pagar</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
-:root { --bg: #ffffff; --fg: #1d2420; --line: #c9d0cb; --accent: #1f6f5c; }
+:root { --bg: #f4f6f4; --fg: #1d2420; --line: #c9d0cb; --accent: #1f6f5c; }
 __DIAGRAM_CSS__
 html, body { height: 100%; }
 body { background: var(--bg); color: var(--fg); font: 14px system-ui, sans-serif; display: flex; flex-direction: column;
@@ -12,12 +12,24 @@ body { background: var(--bg); color: var(--fg); font: 14px system-ui, sans-serif
 .bar button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 .bar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .bar .gap { flex: 1; }
+.legend { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; font-size: 13px; color: #444441; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 14px; height: 14px; border-radius: 3px; border: 1.5px solid; display: inline-block; }
+#canvas { background: #ffffff; border-top: 1px solid var(--line); }
 #canvas { flex: 1; min-height: 0; position: relative; }
 </style>
 
 <div class="bar">
   <button type="button" data-show="alvo" aria-pressed="true">Processo-alvo</button>
   <button type="button" data-show="atual" aria-pressed="false">Processo atual</button>
+  <span class="gap"></span>
+  <div class="legend" aria-label="Legenda das cores">
+    <span><i style="background:#E6F1FB;border-color:#185FA5"></i>Sistema</span>
+    <span><i style="background:#EEEDFE;border-color:#534AB7"></i>Agente</span>
+    <span><i style="background:#FAEEDA;border-color:#854F0B"></i>Pessoa</span>
+    <span><i style="background:#EAF3DE;border-color:#3B6D11"></i>Segue para pagar</span>
+    <span><i style="background:#FCEBEB;border-color:#A32D2D"></i>Bloqueio ou perda</span>
+  </div>
   <span class="gap"></span>
   <button type="button" data-zoom="1.2" aria-label="Aproximar">+</button>
   <button type="button" data-zoom="0.8" aria-label="Afastar">−</button>
