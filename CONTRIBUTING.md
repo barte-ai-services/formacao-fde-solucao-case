@@ -16,7 +16,10 @@ empurra a própria branch e abre PR contra a `main`.
    git switch -c feat/123-minha-mudanca
    ```
 
-3. **Rode o gate antes de cada commit:** `make check`. É o mesmo que o CI roda no PR.
+3. **Rode o gate antes de cada commit:** `make check`. É o mesmo que o CI roda no PR. O `web/`
+   instala o `shell-kit` e o `barte-ui-kit` do GitHub Packages da org, que são internos: fora da
+   org, o `npm ci` do `web/` falha na sua máquina. Como lidar com isso faz parte do case; no PR, o
+   CI instala os kits e roda o gate inteiro.
 4. **Empurre a branch e abra o PR** contra a `main`:
 
    ```bash
@@ -27,8 +30,10 @@ empurra a própria branch e abre PR contra a `main`.
    O título segue o Conventional Commits, em inglês (`feat: ...`, `fix: ...`), porque vira a
    mensagem do commit na `main`. No corpo, `Closes #123` liga o PR à issue.
 
-5. **Espere o CI verde e uma aprovação.** A `main` não aceita push direto nem PR sem os dois. O
-   merge é squash.
+5. **Espere o CI verde e a aprovação da equipe.** A `main` não aceita push direto, e o PR só entra
+   com o CI verde e a aprovação de um code owner (a equipe, pelo `.github/CODEOWNERS`). A
+   aprovação de um colega da turma é bem-vinda como revisão, mas não libera o merge. O merge é
+   squash.
 
 ## O que a `main` faz depois do merge
 
