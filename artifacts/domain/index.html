@@ -93,11 +93,11 @@ ol li::marker { color: var(--brand); font-weight: 700; }
 .c-check .n { font-size: 30px; } .c-check .t { color: var(--brand); }
 .c-purchasing { border-color: var(--blue); } .c-purchasing .t { color: var(--blue); }
 .c-catalog { border-color: #737373; } .c-catalog .t { color: #404040; }
-.c-rec { border-color: var(--orange); } .c-rec .t { color: #935019; }
+.c-receiving { border-color: var(--orange); } .c-receiving .t { color: #935019; }
 .c-payables { border-color: var(--purple); } .c-payables .t { color: var(--purple); }
 .c-payments { border-color: var(--green); } .c-payments .t { color: var(--green); }
 .g-catalog { background: #fbfbfb; border-color: #737373; } .g-catalog > header { color: #404040; }
-.g-rec { background: var(--orange-l); border-color: var(--orange); } .g-rec > header { color: #935019; }
+.g-receiving { background: var(--orange-l); border-color: var(--orange); } .g-receiving > header { color: #935019; }
 .g-payables { background: var(--purple-l); border-color: var(--purple); } .g-payables > header { color: var(--purple); }
 .g-payments { background: var(--green-l); border-color: var(--green); } .g-payments > header { color: var(--green); }
 .groups6 { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 20px; }
@@ -119,7 +119,7 @@ ol li::marker { color: var(--brand); font-weight: 700; }
       <div class="ctxcol">
         <div class="ctx c-purchasing"><div class="t">Suporte · ERP</div><div class="n">Compras</div><div class="r"><b>Publica:</b> ordem de compra, itens e saldo<br><b>Consome:</b> proposta aprovada</div></div>
         <div class="ctx c-catalog"><div class="t">Genérico · ERP</div><div class="n">Cadastro</div><div class="r"><b>Publica:</b> fornecedor e produto<br><b>Consome:</b> item sem cadastro, fator a corrigir</div></div>
-        <div class="ctx c-rec"><div class="t">Suporte · WMS e app · 2ª</div><div class="n">Recebimento</div><div class="r"><b>Publica:</b> itens contados<br><b>Consome:</b> ação na doca aprovada</div></div>
+        <div class="ctx c-receiving"><div class="t">Suporte · WMS e app · 2ª</div><div class="n">Recebimento</div><div class="r"><b>Publica:</b> itens contados<br><b>Consome:</b> ação na doca aprovada</div></div>
       </div>
       <div class="arr">⇄</div>
       <div class="ctx c-check"><div class="t">Núcleo · SEFAZ ou base do kit</div><div class="n">Conferência</div><div class="r">Nota fiscal · divergências · proposta · aprovação</div></div>
@@ -172,7 +172,7 @@ ol li::marker { color: var(--brand); font-weight: 700; }
       <div class="group g-catalog"><header>Cadastro</header>
         <div class="ent main"><b>Fornecedor</b><span>CNPJ · pagamento bloqueado</span></div>
         <div class="inner"><div class="ent"><b>Produto</b><span>SKU · código do fornecedor · fator de caixa</span></div></div></div>
-      <div class="group g-rec"><header>Recebimento <span class="tag2">2ª</span></header>
+      <div class="group g-receiving"><header>Recebimento <span class="tag2">2ª</span></header>
         <div class="ent main"><b>Recebimento</b><span>destino · data · canal</span></div>
         <div class="inner"><div class="ent"><b>Item recebido</b><span>produto · quantidade contada</span></div></div></div>
       <div class="group g-payables"><header>Contas a pagar</header>
@@ -275,7 +275,7 @@ ol li::marker { color: var(--brand); font-weight: 700; }
   <section>
     <h2>Oportunidades de agente</h2>
     <div class="groups">
-      <div class="group g-rec"><header>Recebimento · contagem</header>
+      <div class="group g-receiving"><header>Recebimento · contagem</header>
         <div class="ent"><b>Contagem por foto</b><span>Foto do pallet no ato da entrega. Um agente conta pela imagem e serve de contraponto à contagem do operador. Divergência entre as duas vira evidência.</span></div></div>
       <div class="group g-invoice"><header>Conferência · aprovação</header>
         <div class="ent"><b>Aprovação por agente</b><span>Sem agente, a decisão é sempre de uma pessoa. No processo agêntico, um agente aprova quando a confiança passa do limite e o critério está claro. Muda a regra 8 e pede o limite de confiança por nível.</span></div></div>
