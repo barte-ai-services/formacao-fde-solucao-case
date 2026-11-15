@@ -172,6 +172,7 @@ function BarredAmountView({ panel }: { panel: BarredAmountDto }): ReactElement {
             formatAxis={(cents) => texts.valorBarrado.axisThousands(Math.round(cents / 100_000))}
             ariaLabel={texts.valorBarrado.chartLabel(baselineLabel)}
           />
+          </div>
         </Panel>
         <Panel title={texts.valorBarrado.rankingPanel} size="sm">
           <div className="pagar-ranking">
