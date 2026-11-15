@@ -101,7 +101,7 @@ export function routeDivergences(
   supplier?: Pick<Supplier, 'paymentBlocked'>,
 ): ApprovalRoute {
   // #177: a nota E7 é compra de emergência já paga, sem ordem (E5) nem cadastro (E8) por natureza; a regra
-  // vincula ao pagamento, então esses dois não sobem o nível. E6, a linha 2 e E1 a E4 continuam valendo.
+  // #177: vincula ao pagamento, então esses dois não sobem o nível. E6, a linha 2 e E1 a E4 continuam valendo.
   const paidOutsideFlow = divergences.some((d) => d.classification === 'E7');
   const lines: ReguaLine[] = divergences
     .filter((d) => !(paidOutsideFlow && (d.classification === 'E5' || d.classification === 'E8')))
@@ -116,7 +116,7 @@ export function routeDivergences(
 /**
  * `ApprovalPolicy`: quem aprova a nota, pela régua.
  * Regra 7: o encaminhamento é o maior nível entre todas as divergências (e a linha 2, que vale para a
- * nota inteira). Pode subir, nunca descer: uma divergência a mais nunca baixa o nível.
+ * nota inteira). Pode subir, nunca descer: uma divergência a mais nunca baixa o nível, salvo o E7, que absorve E5 e E8 (#177).
  */
 export const ApprovalPolicy = {
   route(invoice: InvoiceView, supplier?: Pick<Supplier, 'paymentBlocked'>): ApprovalRoute {

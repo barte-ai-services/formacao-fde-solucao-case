@@ -260,7 +260,7 @@ Numeradas para os testes citarem.
 6. Toda divergência cita uma evidência. Com várias, vale a de maior precedência. O valor em risco
    fica entre zero e o valor da nota.
 7. O encaminhamento nunca fica abaixo do limite de aprovação, calculado sobre todas as divergências.
-   Pode subir, nunca descer.
+   Pode subir, nunca descer, salvo o E7, que absorve E5 e E8 (#177): a compra de emergência já paga não tem ordem nem cadastro por natureza.
 8. Só uma pessoa com nível igual ou acima do encaminhamento aprova, e uma vez só. Alterar exige
    justificativa. O agente nunca aprova. O match é aprovado pela regra, sem pessoa.
 
