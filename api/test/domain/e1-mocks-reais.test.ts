@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { supabaseConnectors } from '../../src/connectors/supabase-connectors.js';
 import { SupabaseRest } from '../../src/connectors/supabase-rest.js';
 import { checkFaltaFisica } from '../../src/domain/checks/e1-falta-fisica.js';
-import { assessCount, countRoute, findReceipt, unreconciledReceipts, type CheckContext } from '../../src/domain/index.js';
+import { routeDivergences } from '../../src/domain/approval-policy.js';
+import { assessCount, findReceipt, unreconciledReceipts, type CheckContext } from '../../src/domain/index.js';
 import { FakePostgrest } from '../support/fake-postgrest.js';
 import { kitTables } from '../support/kit.js';
 
@@ -64,6 +65,8 @@ describe('#69 E1 sobre os mocks do WMS', () => {
     if (!invoice) throw new Error('nota 89408 fora do kit');
     const assessment = assessCount(invoice, ctx);
     expect(assessment.status).toBe('mismatch');
-    expect(countRoute(invoice, assessment, ctx.suppliers)).toBe('diretoria');
+    invoice.check(ctx);
+    const supplier = ctx.suppliers.find((s) => s.id === invoice.supplierId);
+    expect(routeDivergences(invoice.divergences, invoice.total, supplier).level).toBe('diretoria');
   });
 });

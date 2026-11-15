@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   amountAtRiskOfMissing,
   assessCount,
-  countRoute,
   findReceipt,
   Invoice,
   Money,
@@ -17,6 +16,7 @@ import {
   type Product,
   type Receipt,
 } from '../../src/domain/index.js';
+import { routeDivergences } from '../../src/domain/approval-policy.js';
 import { checkFaltaFisica } from '../../src/domain/checks/e1-falta-fisica.js';
 import { anInvoice, emptyContext } from './fixtures.js';
 import { kitInvoice, kitProducts, kitPurchaseOrders, kitReceipts } from './kit-contagem.js';
@@ -28,6 +28,12 @@ const receipt = (id: string): Receipt => {
   const r = kitReceipts[id];
   if (!r) throw new Error(`recebimento fora da fixture: ${id}`);
   return r;
+};
+
+// #69: o encaminhamento tem uma fonte só, a régua da #63; a nota é conferida com todas as verificações.
+const routed = (invoice: Invoice, supplier?: { paymentBlocked: boolean }) => {
+  invoice.check(kitContext());
+  return routeDivergences(invoice.divergences, invoice.total, supplier).level;
 };
 
 const kitContext = () =>
@@ -295,7 +301,7 @@ describe('AC-5: o título só vai para a lista do dia depois da contagem concili
 describe('AC-6: a contagem que não bate vai ao aprovador pelos limites', () => {
   it('NF-053 (R$ 1.432,00): E1 em nota de até R$ 20 mil vai ao analista (linha 5)', () => {
     const invoice = kitInvoice('NF-053');
-    const level = countRoute(invoice, assessCount(invoice, kitContext()));
+    const level = routed(invoice);
     expect(level).toBe('analista');
     const proposal = Proposal.register({
       classification: 'E1',
@@ -310,19 +316,17 @@ describe('AC-6: a contagem que não bate vai ao aprovador pelos limites', () => 
 
   it('NF-025 (R$ 64.916,80): E1 em nota acima de R$ 20 mil vai à coordenação (linha 4)', () => {
     const invoice = kitInvoice('NF-025');
-    expect(countRoute(invoice, assessCount(invoice, kitContext()))).toBe('coordenacao');
+    expect(routed(invoice)).toBe('coordenacao');
   });
 
   it('linha 2: fornecedor com pagamento bloqueado leva a contagem que não bate à diretoria', () => {
     const invoice = kitInvoice('NF-053');
-    const blocked = [{ id: 'F11', legalName: 'Fornecedor F11', cnpj: '0', paymentBlocked: true, blockReason: 'teste' }];
-    expect(countRoute(invoice, assessCount(invoice, kitContext()), blocked)).toBe('diretoria');
+    expect(routed(invoice, { paymentBlocked: true })).toBe('diretoria');
   });
 
   it('linha 2 vem antes da 6: nem a contagem que bate segue pela regra com fornecedor bloqueado', () => {
     const invoice = kitInvoice('NF-078');
-    const blocked = [{ id: 'F05', legalName: 'Fornecedor F05', cnpj: '0', paymentBlocked: true, blockReason: 'teste' }];
-    expect(countRoute(invoice, assessCount(invoice, kitContext()), blocked)).toBe('diretoria');
+    expect(routed(invoice, { paymentBlocked: true })).toBe('diretoria');
   });
 
   it('linha 1: a nota com E6 vai a bloqueio, mesmo com a contagem batendo', () => {
@@ -335,18 +339,14 @@ describe('AC-6: a contagem que não bate vai ao aprovador pelos limites', () => 
         ],
       },
     ]);
-    expect(countRoute(invoice, assessCount(invoice, kitContext()))).toBe('bloqueio');
-  });
-
-  it('sem contagem, não há encaminhamento: a nota espera a contagem', () => {
-    expect(() => countRoute(anInvoice(), assessCount(anInvoice(), emptyContext()))).toThrow(/contagem/);
+    expect(routeDivergences(invoice.divergences, invoice.total).level).toBe('bloqueio');
   });
 });
 
 describe('AC-7: a contagem que bate segue pela regra, sem pessoa (gateway "A contagem bate?")', () => {
   it('NF-078: contagem, nota e pedido batem; o nível é regra e a proposta é aprovada sem pessoa', () => {
     const invoice = kitInvoice('NF-078');
-    const level = countRoute(invoice, assessCount(invoice, kitContext()));
+    const level = routed(invoice);
     expect(level).toBe('regra');
     const proposal = Proposal.register({
       classification: 'MATCH',
@@ -362,6 +362,6 @@ describe('AC-7: a contagem que bate segue pela regra, sem pessoa (gateway "A con
   it('NF-071: chegou a menos, então a contagem não bate e não segue pela regra', () => {
     const invoice = kitInvoice('NF-071');
     expect(assessCount(invoice, kitContext()).status).toBe('mismatch');
-    expect(countRoute(invoice, assessCount(invoice, kitContext()))).toBe('analista');
+    expect(routed(invoice)).toBe('analista');
   });
 });

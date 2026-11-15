@@ -1,7 +1,5 @@
 import { AmountAtRisk } from './amount-at-risk.js';
-import type { ApprovalLevel } from './approval-level.js';
-import type { Classification } from './classification.js';
-import type { CheckContext, Product, PurchaseOrder, Receipt, Supplier } from './context.js';
+import type { CheckContext, Product, PurchaseOrder, Receipt } from './context.js';
 import { matchByDescription } from './description-match.js';
 import { DomainError } from './errors.js';
 import type { InvoiceItem, InvoiceView } from './invoice.js';
@@ -184,40 +182,6 @@ export function assessCount(invoice: InvoiceView, ctx: CheckContext): CountAsses
     });
 
   return { status: countOk && orderOk ? 'matches' : 'mismatch', receipt, lines };
-}
-
-const DIRECTORS_FROM = Money.ofCents(10_000_000);
-const COORDINATION_FROM = Money.ofCents(2_000_000);
-const COORDINATION_CODES: readonly Classification[] = ['E5', 'E7', 'E8', 'NAO_CATALOGADA'];
-const COUNT_CODES: readonly Classification[] = ['E1', 'E2', 'E3', 'E4'];
-
-/**
- * #69/AC-6 e AC-7: o encaminhamento da nota depois da contagem, pelos limites de aprovação, na ordem
- * das 6 linhas; vale a primeira que se aplica. A contagem que não bate conta como E1 a E4.
- * 1. E6: bloqueio. 2. Nota acima de R$ 100 mil, ou fornecedor com pagamento bloqueado: diretoria.
- * 3. E5, E7, E8 ou não catalogada: coordenação. 4. E1 a E4, nota acima de R$ 20 mil: coordenação.
- * 5. E1 a E4, nota de até R$ 20 mil: analista. 6. O resto (a contagem bate): regra, sem pessoa.
- * #69: cópia provisória; quando a ApprovalPolicy da #63 entrar na main, ela substitui esta função.
- */
-export function countRoute(
-  invoice: InvoiceView,
-  assessment: CountAssessment,
-  suppliers: readonly Supplier[] = [],
-): ApprovalLevel {
-  if (assessment.status === 'no_count') {
-    throw new DomainError('Conciliação: sem contagem, a nota espera a contagem antes de ser encaminhada');
-  }
-  const found = invoice.divergences.map((d) => d.classification);
-  const has = (codes: readonly Classification[]) => found.some((c) => codes.includes(c));
-  const blocked = suppliers.some((s) => s.id === invoice.supplierId && s.paymentBlocked);
-
-  if (found.includes('E6')) return 'bloqueio';
-  if (invoice.total.compare(DIRECTORS_FROM) > 0 || blocked) return 'diretoria';
-  if (has(COORDINATION_CODES)) return 'coordenacao';
-  if (assessment.status === 'mismatch' || has(COUNT_CODES)) {
-    return invoice.total.compare(COORDINATION_FROM) > 0 ? 'coordenacao' : 'analista';
-  }
-  return 'regra';
 }
 
 /** #69/AC-5: o título só vai à lista do dia depois da contagem da sua nota conciliada. */
