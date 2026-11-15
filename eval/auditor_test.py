@@ -367,6 +367,55 @@ class MalformedInputTest(unittest.TestCase):
         self.assert_invalid(self.exit_of(self.with_field(refusals=["routing_below_regua"])))
         self.assert_invalid(self.exit_of(self.with_field(refusals=[None])))
 
+    def test_ac1_access_key_not_a_string_exits_two(self) -> None:
+        """#239/AC-1: `invoice_access_key` que não é texto (lista, objeto, número) sai 2."""
+        for bad in (["K1"], {"k": self.SENTINEL}, 7, True):
+            self.assert_invalid(self.exit_of(self.with_field(invoice_access_key=bad)))
+
+    def test_ac1_model_not_a_string_exits_two(self) -> None:
+        """#239/AC-1: `model` que não é texto nem nulo sai 2, em json e em md."""
+        for bad in ({"x": 1}, ["v"], 3, True):
+            self.assert_invalid(self.exit_of(self.with_field(model=bad)))
+
+    def test_ac1_prompt_version_not_a_string_exits_two(self) -> None:
+        """#239/AC-1: `prompt_version` que não é texto nem nulo sai 2."""
+        for bad in (["v"], {"x": 1}, 2):
+            self.assert_invalid(self.exit_of(self.with_field(prompt_version=bad)))
+
+    def test_ac1_model_of_mixed_types_across_lines_exits_two(self) -> None:
+        """#239/AC-1: `model` texto numa linha e número noutra sai 2, não falha na ordenação."""
+        lines = all_correct()
+        lines[0]["model"] = "a"
+        lines[1]["model"] = 3
+        self.assert_invalid(self.exit_of(lines))
+
+    def test_ac1_model_numbers_with_markdown_format_exits_two_and_writes_no_run(self) -> None:
+        """#239/AC-1: `model` numérico com `--format md` sai 2 e não grava rodada."""
+        lines = all_correct()
+        lines[0]["model"] = 1
+        lines[1]["model"] = 2
+        audits = self.folder / "auditorias.jsonl"
+        audits.write_text("\n".join(json.dumps(x) for x in lines) + "\n", encoding="utf-8")
+        argv = [str(audits), "--answer-key", str(self.key_file), "--runs-dir", str(self.runs_dir), "--format", "md"]
+        self.assert_invalid(run_cli(argv))
+        self.assertFalse(self.runs_dir.exists())
+
+    def test_ac1_null_model_and_prompt_version_are_accepted(self) -> None:
+        """#239/AC-1: `model` e `prompt_version` nulos continuam valendo como não informados."""
+        code, _, _ = self.exit_of(self.with_field(model=None, prompt_version=None))
+        self.assertEqual(code, 0)
+
+    def test_ac1_scalar_fields_of_any_shape_never_escape_as_an_exception(self) -> None:
+        """#239/AC-1: classificação, ação, encaminhamento, `refusal` e `reason` de qualquer forma saem 0, 1 ou 2."""
+        shapes = (None, 1, ["x"], {"x": 1}, True)
+        for shape in shapes:
+            for field in ("classification", "dock_action", "routing"):
+                self.assertIn(self.exit_of(self.with_field(**{field: shape}))[0], (0, 1, 2))
+                rule = dict(all_correct()[0]["rule"], **{field: shape})
+                self.assertIn(self.exit_of(self.with_field(rule=rule))[0], (0, 1, 2))
+            self.assertIn(self.exit_of(self.with_field(refusals=[{"refusal": shape}]))[0], (0, 1, 2))
+            self.assertIn(self.exit_of(self.with_field(not_audited={"reason": shape}))[0], (0, 1, 2))
+
     def test_ac1_answer_key_classification_outside_the_set_exits_two(self) -> None:
         """#239/AC-1: `classificacao` do gabarito fora de match/E1..E8 sai 2."""
         bad = [dict(ANSWER_KEY[0], classificacao="E9"), *ANSWER_KEY[1:]]
@@ -394,6 +443,10 @@ class MalformedInputTest(unittest.TestCase):
         (self.runs_dir / "00000000T000000Z-aaaaaaaa.json").write_text("[]", encoding="utf-8")
         self.assert_invalid(self.exit_of(all_correct()))
         (self.runs_dir / "00000000T000000Z-aaaaaaaa.json").write_text('{"x": 1}', encoding="utf-8")
+        self.assert_invalid(self.exit_of(all_correct()))
+        (self.runs_dir / "00000000T000000Z-aaaaaaaa.json").write_text("null", encoding="utf-8")
+        self.assert_invalid(self.exit_of(all_correct()))
+        (self.runs_dir / "00000000T000000Z-aaaaaaaa.json").write_text('"texto"', encoding="utf-8")
         self.assert_invalid(self.exit_of(all_correct()))
 
     def test_ac3_unreadable_earlier_run_file_exits_two(self) -> None:

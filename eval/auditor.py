@@ -47,7 +47,7 @@ def parse_lines(text: str) -> list[Record]:
             obj = json.loads(raw)
         except json.JSONDecodeError as error:
             raise InvalidInput(f"linha {number}: JSON inválido ({error.msg})") from error
-        if not isinstance(obj, dict) or not obj.get("invoice_access_key"):
+        if not isinstance(obj, dict):
             raise InvalidInput(f"linha {number}: falta `invoice_access_key`")
         _check_line_shape(obj, number)
         lines.append(obj)
@@ -56,6 +56,14 @@ def parse_lines(text: str) -> list[Record]:
 
 def _check_line_shape(obj: Record, number: int) -> None:
     """Recusa, com mensagem fixa, a linha cujos campos estruturais não têm a forma do contrato (#239)."""
+    key = obj.get("invoice_access_key")
+    if not key:
+        raise InvalidInput(f"linha {number}: falta `invoice_access_key`")
+    if not isinstance(key, str):
+        raise InvalidInput(f"linha {number}: `invoice_access_key` deve ser texto")
+    for field in ("model", "prompt_version"):  # entram em conjunto, ordenação e junção (#239)
+        if obj.get(field) is not None and not isinstance(obj[field], str):
+            raise InvalidInput(f"linha {number}: `{field}` deve ser texto")
     if not isinstance(obj.get("rule"), dict):
         raise InvalidInput(f"linha {number}: `rule` ausente ou não é objeto")
     skipped = obj.get("not_audited")
@@ -311,9 +319,12 @@ def previous_run(folder: Path, run_id: str) -> Record | None:
     if not earlier:
         return None
     try:
-        return json.loads(earlier[-1].read_text(encoding="utf-8"))
+        previous = json.loads(earlier[-1].read_text(encoding="utf-8"))
     except (OSError, ValueError) as error:
         raise InvalidInput("rodada anterior ilegível ou corrompida na pasta de rodadas") from error
+    if not isinstance(previous, dict):
+        raise InvalidInput("rodada anterior sem a forma de uma rodada na pasta de rodadas")
+    return previous
 
 
 def _read_answer_key(path: Path) -> list[Record]:
