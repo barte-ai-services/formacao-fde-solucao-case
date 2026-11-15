@@ -1,3 +1,4 @@
+import type { ReactElement } from "react";
 import {
   LineChart,
   Panel,
@@ -113,7 +114,7 @@ function isEmpty(panel: BarredAmountDto): boolean {
   return panel.barred.totalCents === 0 && panel.ifApprovedAsProposed.totalCents === 0;
 }
 
-function BarredAmountView({ panel }: { panel: BarredAmountDto }) {
+function BarredAmountView({ panel }: { panel: BarredAmountDto }): ReactElement {
   const barred = panel.barred.totalCents;
   const waiting = panel.ifApprovedAsProposed.totalCents;
   const baseline = panel.baselineCents;
@@ -177,7 +178,7 @@ function BarredAmountView({ panel }: { panel: BarredAmountDto }) {
 }
 
 /** /pagar/valor-barrado: o painel do valor barrado (#71). */
-export default function BarredAmountRoute(_props: RouteProps) {
+export default function BarredAmountRoute(_props: RouteProps): ReactElement {
   const { state, data, retry } = useLoad(
     (signal) => apiGet<BarredAmountDto>("/api/valor-barrado", { signal }),
     isEmpty,
