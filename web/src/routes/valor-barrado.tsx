@@ -143,7 +143,7 @@ function BarredAmountView({ panel }: { panel: BarredAmountDto }): ReactElement {
 
   return (
     <>
-      <StatGrid columns={3}>
+      <StatGrid columns={2}>
         <Stat
           caption={texts.valorBarrado.statAvoided.caption(monthName(panel.month))}
           value={formatBrlShort(barred)}
@@ -161,8 +161,6 @@ function BarredAmountView({ panel }: { panel: BarredAmountDto }): ReactElement {
           context={texts.valorBarrado.statDeciding.context(percentOf(waiting, baseline))}
           tone="waiting"
         />
-      </StatGrid>
-      <StatGrid columns={3}>
         <Stat
           caption={texts.valorBarrado.statDouble.caption}
           value={formatBrlShort(doubleBarred)}

@@ -1,10 +1,10 @@
 /**
- * O contrato de uma tarefa do executor do Claude (#66). Cada tarefa vive num arquivo de
+ * O contrato de uma tarefa do Claude no Worker (#66, #171). Cada tarefa vive num arquivo de
  * src/tasks/ e entra no registro de src/tasks/index.ts com uma linha. Outros planos (#65, #68)
  * acrescentam as suas sem mexer no laço (#66).
  */
-import type { Ask } from './claude.ts';
-import type { Db } from './supabase.ts';
+import type { Ask } from './client.js';
+import type { Db } from './db.js';
 
 /** #66 Um pedido pendente: a chave estável da entrada e a entrada em si. */
 export type PendingRequest<I> = { readonly key: string; readonly input: I };

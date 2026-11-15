@@ -1,14 +1,14 @@
 /**
- * Testes do laço do executor (#66): pula o que já está ok, registra erro e segue, limita a 50,
+ * Testes do laço das tarefas do Claude (#66, #171): pula o que já está ok, registra erro e segue, limita a 50,
  * retenta com teto e espera, e nunca grava o texto de um erro que não é nosso.
  */
 import { describe, expect, it } from 'vitest';
-import type { Ask } from '../src/claude.ts';
-import { ClaudeError, DEFAULT_MODEL } from '../src/claude.ts';
-import { MAX_ATTEMPTS, readConfig, runTasks, selectTasks } from '../src/main.ts';
-import type { Db, Row, SelectOptions, UpsertOptions } from '../src/supabase.ts';
-import { SupabaseError } from '../src/supabase.ts';
-import type { ClaudeTask } from '../src/task.ts';
+import type { Ask } from '../../src/claude/client.js';
+import { ClaudeError, DEFAULT_MODEL } from '../../src/claude/client.js';
+import { MAX_ATTEMPTS, runTasks } from '../../src/claude/runner.js';
+import type { Db, Row, SelectOptions, UpsertOptions } from '../../src/claude/db.js';
+import { SupabaseRestError } from '../../src/connectors/supabase-rest.js';
+import type { ClaudeTask } from '../../src/claude/task.js';
 
 type Upsert = { table: string; rows: readonly Row[]; options: UpsertOptions };
 
@@ -113,7 +113,7 @@ describe('runTasks (#66)', () => {
       ask: noAsk,
       tasks: [
         task(['a', 'b'], async (i) => {
-          if (i.n === 'a') throw new ClaudeError(long);
+          if (i.n === 'a') throw new ClaudeError('api', long);
           return { r: i.n };
         }),
       ],
@@ -150,7 +150,7 @@ describe('runTasks (#66)', () => {
   it('a tarefa em que nenhum item deu certo e algum falhou conta como falha', async () => {
     const { db } = fakeDb([]);
     const failAll = async (): Promise<{ r: string }> => {
-      throw new ClaudeError('resultado com is_error');
+      throw new ClaudeError('api', 'HTTP 500', 500);
     };
     const result = await runTasks({ db, ask: noAsk, tasks: [task(['a', 'b'], failAll)], log: () => {}, now: clock });
     expect(result.failedTasks).toEqual(['teste']);
@@ -159,7 +159,7 @@ describe('runTasks (#66)', () => {
   it('falha parcial não derruba a rodada', async () => {
     const { db } = fakeDb([]);
     const some = async (i: { n: string }): Promise<{ r: string }> => {
-      if (i.n === 'a') throw new ClaudeError('x');
+      if (i.n === 'a') throw new ClaudeError('api', 'x');
       return { r: i.n };
     };
     const result = await runTasks({ db, ask: noAsk, tasks: [task(['a', 'b'], some)], log: () => {}, now: clock });
@@ -172,11 +172,11 @@ describe('runTasks (#66)', () => {
       db,
       ask: noAsk,
       secrets: ['segredo-do-token'],
-      tasks: [task(['a'], async () => { throw new SupabaseError('select', 'kit_notas', 500, 'com segredo-do-token no meio'); })],
+      tasks: [task(['a'], async () => { throw new SupabaseRestError('select', 'kit_notas', 500, 'com segredo-do-token no meio'); })],
       log: () => {},
       now: clock,
     });
-    expect(String(upserts[0]!.rows[0]!.error)).toContain('SupabaseError');
+    expect(String(upserts[0]!.rows[0]!.error)).toContain('SupabaseRestError');
     expect(String(upserts[0]!.rows[0]!.error)).not.toContain('segredo-do-token');
   });
 
@@ -257,28 +257,43 @@ describe('runTasks (#66)', () => {
   });
 });
 
-describe('configuração do executor (#66)', () => {
-  it('falta de variável é erro que nomeia a variável e não mostra valor', () => {
-    expect(() => readConfig({ BARTE_ACADEMY_SUPABASE_SECRET_KEY: 'segredo' })).toThrow(/BARTE_ACADEMY_SUPABASE_URL/);
-    try {
-      readConfig({ BARTE_ACADEMY_SUPABASE_URL: 'https://x.supabase.co' });
-    } catch (e) {
-      expect((e as Error).message).toMatch(/BARTE_ACADEMY_SUPABASE_SECRET_KEY/);
-      expect((e as Error).message).not.toContain('x.supabase.co');
-    }
+describe('falha global do Claude (#171)', () => {
+  it('429 interrompe a rodada sem gravar linha nem gastar tentativa, e conta a falha', async () => {
+    const { db, upserts } = fakeDb([]);
+    const lines: string[] = [];
+    let calls = 0;
+    const limited = async (): Promise<{ r: string }> => {
+      calls += 1;
+      throw new ClaudeError('rate_limit', 'HTTP 429 (limite de uso)', 429);
+    };
+    const second = task(['z'], echo);
+    const result = await runTasks({ db, ask: noAsk, tasks: [task(['a', 'b', 'c'], limited), { ...second, name: 'outra' }], log: (l) => lines.push(l), now: clock });
+    expect(calls).toBe(1);
+    expect(upserts).toHaveLength(0);
+    expect(result.failedTasks).toEqual(['teste']);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('erro 1');
+    expect(lines[0]).toContain('HTTP 429');
+    expect(lines[0]).toContain('a regra decide sozinha');
   });
 
-  it('lê as tarefas pedidas em CLAUDE_TASKS', () => {
-    const config = readConfig({
-      BARTE_ACADEMY_SUPABASE_URL: 'https://x.supabase.co',
-      BARTE_ACADEMY_SUPABASE_SECRET_KEY: 's',
-      CLAUDE_TASKS: ' description-match , ',
-    });
-    expect(config.tasks).toEqual(['description-match']);
+  it('401 também interrompe a rodada', async () => {
+    const { db, upserts } = fakeDb([]);
+    const denied = async (): Promise<{ r: string }> => {
+      throw new ClaudeError('auth', 'HTTP 401 (credencial recusada)', 401);
+    };
+    const result = await runTasks({ db, ask: noAsk, tasks: [task(['a', 'b'], denied)], log: () => {}, now: clock });
+    expect(upserts).toHaveLength(0);
+    expect(result.failedTasks).toEqual(['teste']);
   });
 
-  it('sem CLAUDE_TASKS roda todas; nome desconhecido é erro', () => {
-    expect(selectTasks([]).map((t) => t.name)).toContain('description-match');
-    expect(() => selectTasks(['nao-existe'])).toThrow(/nao-existe/);
+  it('erro do item (não global) continua gravando a linha de erro e seguindo', async () => {
+    const { db, upserts } = fakeDb([]);
+    const bad = async (i: { n: string }): Promise<{ r: string }> => {
+      if (i.n === 'a') throw new ClaudeError('format', 'resposta sem tool_use');
+      return { r: i.n };
+    };
+    await runTasks({ db, ask: noAsk, tasks: [task(['a', 'b'], bad)], log: () => {}, now: clock });
+    expect(upserts).toHaveLength(2);
   });
 });

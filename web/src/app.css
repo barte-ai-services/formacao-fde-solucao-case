@@ -12,8 +12,8 @@
 .pagar-proposal { display: grid; gap: var(--spacing-xl); padding: var(--spacing-lg); }
 .pagar-badges { display: flex; gap: var(--spacing-sm); flex-wrap: wrap; }
 
-/* #123 O estado vazio das telas: ilustração, título, explicação e ação, centrados. */
-.pagar-empty { display: grid; justify-items: center; gap: var(--spacing-md); padding: var(--spacing-3xl) var(--spacing-lg); text-align: center; }
+/* #123 O estado vazio das telas: ilustração, título, explicação e ação, centrados. O `InlineEmpty` do kit alinha à esquerda e encolhe o filho; a largura cheia põe o centro na área da página. */
+.pagar-empty { width: 100%; box-sizing: border-box; display: grid; justify-items: center; gap: var(--spacing-md); padding: var(--spacing-3xl) var(--spacing-lg); text-align: center; }
 .pagar-empty-description { max-width: 48ch; color: var(--content-secondary); }
 
 /* #133 A linha da fila que a pessoa não pode decidir. */
@@ -30,9 +30,12 @@
 /* #129 A gaveta lateral 50 px mais larga que os 480 px do design system, para a chave de 44 dígitos
    caber numa linha. A medida mora no token; o resto do CSS só lê a variável. */
 :root { --pagar-drawer-width: 530px; }
-.shell-connection-panel { width: var(--pagar-drawer-width); }
-.pagar-access-key { display: inline-flex; align-items: center; gap: var(--spacing-sm); }
-.pagar-access-key__value { white-space: nowrap; overflow-wrap: normal; }
+/* O Drawer do DS fixa `width: 480px` numa classe só (.Drawer-module__drawer). Dentro do Shell a folha da zone pode
+   chegar depois da do DS, e aí a regra de uma classe perde pela ordem. Duas classes iguais vencem em qualquer ordem. */
+.shell-connection-panel.shell-connection-panel { width: var(--pagar-drawer-width); }
+.pagar-access-key { display: inline-flex; align-items: center; gap: var(--spacing-sm); max-width: 100%; min-width: 0; }
+/* A chave não passa da borda da gaveta: numa linha quando cabe, e rola dentro do próprio campo quando não cabe. */
+.pagar-access-key__value { white-space: nowrap; overflow-wrap: normal; min-width: 0; max-width: 100%; overflow-x: auto; }
 .pagar-access-key__copy { display: none; }
 @media (max-width: 600px) {
   .pagar-access-key { flex-wrap: wrap; }
@@ -42,8 +45,8 @@
 
 /* #134 O receber parcial: o item, a quantidade e o destino numa linha. */
 .pagar-partial-row { display: flex; gap: var(--spacing-sm); align-items: center; flex-wrap: wrap; }
-.pagar-partial-row > span { flex: 1 1 12rem; }
-.pagar-partial-row input { width: 6rem; }
+.pagar-partial-row > span:first-child { flex: 1 1 12rem; }
+.pagar-partial-row > div:has(input) { width: 6rem; }
 
 /* #127 As tabelas: corpo, cabeçalho, texto secundário (caption-sm) e selo no token de corpo do DS (12 px), nunca
    abaixo dele. A linha cresce com o conteúdo (a altura do DS é piso, por token) e não corta texto nem selo. */

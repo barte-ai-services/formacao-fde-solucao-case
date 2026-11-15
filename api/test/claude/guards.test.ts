@@ -1,6 +1,6 @@
-/** Testes dos guards da borda do executor do Claude (#66). */
+/** Testes dos guards da borda do Claude no Worker (#66). */
 import { describe, expect, it } from 'vitest';
-import { arrayOf, isInteger, isRecord, isString, isTimestamp, nullable, partitionRows, shaped } from '../src/guards.ts';
+import { arrayOf, isInteger, isRecord, isString, isTimestamp, nullable, partitionRows, shaped } from '../../src/claude/guards.js';
 
 describe('guards (#66)', () => {
   it('shaped confere cada campo e recusa o que não é objeto', () => {

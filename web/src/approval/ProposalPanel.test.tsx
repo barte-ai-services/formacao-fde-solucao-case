@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProposalPanel } from "./ProposalPanel";
 import type { ProposalDetailDto } from "../api/approval";
@@ -30,7 +30,7 @@ const proposal = (dockAction: unknown, extra: Record<string, unknown> = {}) =>
       { supplierCode: "A", sku: "SKU-1", description: "Arroz 5kg", quantity: { amount: 10, unit: "UN" }, unitPrice: money(1000), total: money(10_000) },
       { supplierCode: "B", sku: "SKU-2", description: "Feijão 1kg", quantity: { amount: 5, unit: "CX" }, unitPrice: money(2000), total: money(10_000) },
     ],
-    divergences: [],
+    divergences: [{ classification: "E4", exceptionCode: "E4", exceptionName: "Unidade de medida", skus: ["SKU-1", "SKU-2"], evidence: [] }],
     title: { state: "lancado", amount: money(100_000), dueOn: "2026-11-30" },
     approval: null,
     dossier: { status: "pending", reason: "x" },
@@ -90,7 +90,8 @@ describe("#134 decisão pela ação no recebimento", () => {
     await screen.findByText(/informe ao menos um item/i);
     expect(calls).toHaveLength(0);
     fireEvent.change(screen.getByLabelText("Quantidade a segurar ou devolver de Arroz 5kg"), { target: { value: "4" } });
-    fireEvent.change(screen.getByLabelText("O que fazer com Arroz 5kg"), { target: { value: "devolver" } });
+    fireEvent.click(within(screen.getByRole("group", { name: "O que fazer com Arroz 5kg" })).getByRole("combobox"));
+    fireEvent.click(screen.getByText("Devolver"));
     fireEvent.click(screen.getByRole("button", { name: /Registrar a decisão/ }));
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(calls[0]?.path).toBe(`/api/propostas/${KEY}/alterar`);
@@ -141,5 +142,32 @@ describe("#134 decisão pela ação no recebimento", () => {
     ];
     render(<ProposalPanel proposal={proposal({ kind: "receber" }, { classification: "E4", items })} />);
     expect(screen.getByText("Feijão 1kg (12 CX = 48 UN)")).toBeTruthy();
+  });
+
+  it("#176: a quantidade com vírgula (4,5) vale 4.5 e texto que não é número avisa em vez de sumir", async () => {
+    render(<ProposalPanel proposal={proposal({ kind: "receber" })} />);
+    fireEvent.click(screen.getByRole("radio", { name: /^Receber parcial/ }));
+    fireEvent.change(document.querySelector("textarea") as HTMLTextAreaElement, { target: { value: "Faltou arroz na doca" } });
+    fireEvent.change(screen.getByLabelText("Quantidade a segurar ou devolver de Arroz 5kg"), { target: { value: "abc" } });
+    fireEvent.click(screen.getByRole("button", { name: /Registrar a de/ }));
+    await screen.findByText(/precisa ser um número/);
+    fireEvent.change(screen.getByLabelText("Quantidade a segurar ou devolver de Arroz 5kg"), { target: { value: "4,5" } });
+    fireEvent.click(screen.getByRole("button", { name: /Registrar a de/ }));
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0]?.body).toMatchObject({ dockAction: { lines: [{ sku: "SKU-1", quantity: { amount: 4.5 } }] } });
+  });
+
+  it("#134: nota sem divergência (MATCH) não mostra o bloco de itens a segurar ou devolver", () => {
+    render(<ProposalPanel proposal={proposal({ kind: "receber" }, { classification: "MATCH", divergences: [] })} />);
+    expect(screen.queryByText("Receber parcial: itens a segurar ou devolver")).toBeNull();
+    // Sem item divergente o parcial não tem o que informar: a opção também some, não vira beco sem saída.
+    expect(screen.queryByRole("radio", { name: /^Receber parcial/ })).toBeNull();
+    expect(screen.getByRole("radio", { name: /^Receber(?! parcial)/ })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: /^Recusar/ })).toBeTruthy();
+  });
+
+  it("#134: nota com divergência em item mostra o bloco", () => {
+    render(<ProposalPanel proposal={proposal({ kind: "receber" })} />);
+    expect(screen.getByText("Receber parcial: itens a segurar ou devolver")).toBeTruthy();
   });
 });

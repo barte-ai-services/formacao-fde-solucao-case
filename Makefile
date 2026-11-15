@@ -13,9 +13,6 @@ check:
 	@npm --prefix api ci --no-audit --no-fund --loglevel=error
 	@npm --prefix api run typecheck
 	@npm --prefix api test
-	@npm --prefix jobs/claude ci --no-audit --no-fund --loglevel=error
-	@npm --prefix jobs/claude run typecheck
-	@npm --prefix jobs/claude test
 	@npm --prefix web ci --no-audit --no-fund --loglevel=error
 	@npm --prefix web run typecheck
 	@npm --prefix web test

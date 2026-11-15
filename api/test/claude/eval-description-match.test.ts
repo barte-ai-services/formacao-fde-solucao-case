@@ -1,6 +1,6 @@
 /** Testes do conjunto do eval do casamento de descrição (#66, AC-6): só o kit, nunca o gabarito. */
 import { describe, expect, it } from 'vitest';
-import { buildEvalDataset, narrowKit, summarize, variants } from '../src/eval-description-match.ts';
+import { buildEvalDataset, narrowKit, summarize, variants } from '../../src/claude/eval-description-match.js';
 
 const PRODUTOS = [
   { sku: 'SKU-1', descricao: 'Refrigerante cola 2 L', fornecedor_id: 'F02', codigo_fornecedor: 'F02-001' },

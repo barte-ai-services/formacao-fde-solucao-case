@@ -1,5 +1,6 @@
 import { listDescriptionSuggestions, storedDescriptionSuggester } from "../connectors/claude-suggestions";
 import { blockDuplicateTitles } from "../connectors/duplicate-settler";
+import { runClaudeRound } from "../claude/cron";
 import { supabaseConnectors } from "../connectors/supabase-connectors";
 import { SupabaseRest, SupabaseRestError } from "../connectors/supabase-rest";
 import type { RegistryCorrectionOutbox } from "../connectors/ports";
@@ -49,6 +50,9 @@ export async function tick(controller: Pick<ScheduledController, "cron">, env: E
   const dock = await publishDock(rest);
   const storeActions = await publishStoreActions(rest);
   const duplicates = await blockDuplicateTitles(rest); // #31/AC-5: o título da E6 fica bloqueado já na detecção.
+  // #171 O Claude vai por último: é periférico, e a captura (o caminho crítico) fica com os subrequests da
+  // invocação. As sugestões que ele grava aqui a próxima rodada lê. Falha fechada: a regra decide sozinha.
+  await runClaudeRound(rest, env);
   console.log(
     `cron: execução agendada (${controller.cron}); notas vistas ${result.seen}, novas ${result.inserted}, conferidas ${result.checked}, com erro ${result.failed}, propostas ${proposals.proposed}, aprovadas pela regra ${proposals.approvedByRule}, cadastro E8 ${cadastroE8}, ações publicadas na doca ${dock}, ações publicadas no app da loja ${storeActions}, títulos duplicados bloqueados ${duplicates.blocked}, com falha ${duplicates.failed}; recebimentos sem nota [${unreconciled.noKey.join(", ")}], com chave sem nota [${unreconciled.keyWithoutInvoice.join(", ")}]`,
   );
@@ -62,7 +66,7 @@ export async function tick(controller: Pick<ScheduledController, "cron">, env: E
 }
 
 /**
- * #66 As sugestões de casamento por descrição que o job claude-enrich gravou. Se a leitura falha,
+ * #66 As sugestões de casamento por descrição que a rodada do Claude (api/src/claude) gravou. Se a leitura falha,
  * registra uma linha (só o status, sem dado sensível) e a regra decide sozinha.
  */
 async function storedSuggestions(rest: SupabaseRest): Promise<DescriptionSuggester | undefined> {

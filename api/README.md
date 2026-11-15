@@ -16,9 +16,26 @@ Os segredos ficam no `api/.dev.vars`, que o git ignora, um por linha:
 
 ```
 BARTE_ACADEMY_SUPABASE_SECRET_KEY=...
+BARTE_ACADEMY_CLAUDE_CODE_OAUTH_TOKEN=...
 ACCESS_AUD=...
 ACCESS_TEAM_DOMAIN=barte-academy.cloudflareaccess.com
 ```
+
+## O Claude no Worker (#171)
+
+O Cron chama o Claude pela Messages API (`src/claude/`), no começo de cada rodada, e grava as sugestões em
+`claude_suggestions`. A regra determinística confirma cada uma; sem sugestão, decide sozinha.
+
+- **Credencial:** o setup token do Claude Code, em `BARTE_ACADEMY_CLAUDE_CODE_OAUTH_TOKEN` (`Authorization: Bearer` +
+  `anthropic-beta: oauth-2025-04-20`). A esteira (`deploy-api.yml`) o põe no Worker com `wrangler secret put`. É uso
+  da assinatura fora do Claude Code: a Anthropic pode limitar ou bloquear.
+- **Plano B:** com `BARTE_ACADEMY_ANTHROPIC_API_KEY` no Worker, o cliente usa a chave (`x-api-key`) no lugar do
+  token. Só o secret muda.
+- **Falha fechada:** sem credencial, com 429 ou 401, a rodada é interrompida, a falha é contada e logada sem
+  segredo, e nenhuma linha de erro gasta tentativa. A regra decide sozinha.
+- **Tarefas:** `src/claude/tasks/` (`description-match`, #66; `probable-order`, #65). Para acrescentar uma, crie o
+  arquivo exportando um `ClaudeTask` e uma linha em `tasks/index.ts`.
+- **Eval do casamento de descrição** (fora do gate, precisa da credencial): `npm run eval:description-match`.
 
 ## Testar
 

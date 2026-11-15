@@ -30,6 +30,32 @@ export const texts = {
       description: (baseline: string) =>
         `A perda mensal hoje é ${baseline}. O valor evitado aparece aqui assim que a primeira proposta for aprovada.`,
     },
+    queue: {
+      title: "Nenhuma proposta espera a sua decisão",
+      description: "As propostas novas aparecem aqui assim que o agente conferir a nota.",
+    },
+    todayList: {
+      title: "Nenhum título para pagar hoje",
+      description: "Eles aparecem aqui quando a regra ou uma pessoa aprova a proposta.",
+    },
+    proposal: {
+      title: "Esta nota ainda não tem proposta",
+      description: "A proposta aparece aqui assim que o agente conferir a nota.",
+    },
+    returnNotes: {
+      pendente: { // ADR-002
+        title: "Nenhuma devolução pendente de emissão",
+        description: "Quando uma nota for recusada ou recebida em parte, a devolução aparece aqui para o fiscal emitir.",
+      },
+      emitida: { // ADR-002
+        title: "Nenhuma devolução emitida",
+        description: "As devoluções aparecem aqui depois que o fiscal informa o número da NF-e de devolução.",
+      },
+      cancelada: { // ADR-002
+        title: "Nenhuma devolução cancelada",
+        description: "As devoluções canceladas aparecem aqui, com o motivo do cancelamento.",
+      },
+    },
     recebimento: {
       title: (noun: string) => `Nenhuma nota na ${noun} hoje`,
       description: (empty: string) => `${empty} Quando houver, cada caminhão aparece aqui com a ação a tomar.`,
@@ -373,6 +399,7 @@ export const texts = {
       dispositionLabel: (item: string) => `O que fazer com ${item}`,
       hold: "Segurar",
       giveBack: "Devolver",
+      invalidQty: "Receber parcial: a quantidade precisa ser um número, por exemplo 4 ou 4,5.",
       missingLines: "Receber parcial: informe ao menos um item e a quantidade a segurar ou devolver.",
     },
     needsLevel: (level: string) => `Esta proposta pede o nível ${level} ou acima.`,

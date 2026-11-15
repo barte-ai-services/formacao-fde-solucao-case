@@ -3,7 +3,7 @@
  * (AC-12) e a decisão de quem pode aprovar (AC-7 a AC-9). Usada na gaveta da fila e na rota própria.
  */
 import { useState, type JSX } from "react";
-import { Alert } from "barte-design-system";
+import { Alert, Input, Select, Text } from "barte-design-system";
 import { Block, DataList, DecisionForm, StatusBadge } from "@barte-ai-services/barte-ui-kit";
 import { ApiError } from "../api/client";
 import { approvalApi, type DecisionResultDto, type ProposalDetailDto } from "../api/approval";
@@ -63,6 +63,8 @@ export function ProposalPanel({
   const [decided, setDecided] = useState<DecisionResultDto | null>(null);
   const [partial, setPartial] = useState<Record<string, PartialInput>>({});
   const proposed = proposal.dockAction.kind;
+  /** #134 Sem divergência em item (MATCH), não há o que segurar ou devolver: o bloco do parcial some. */
+  const hasItemDivergence = proposal.divergences.some((d) => d.skus.length > 0);
   const labels = (afterCount ?? COUNTED.includes(proposal.classification)) ? texts.proposalPanel.form.afterCountOptions : texts.proposalPanel.form.options;
   const tones: Record<Choice, "positive" | "waiting" | "negative"> = { receber: "positive", receber_parcial: "waiting", recusar: "negative" };
 
@@ -71,8 +73,11 @@ export function ProposalPanel({
     return proposal.items.flatMap((i) => {
       const key = i.sku ?? i.supplierCode;
       const input = partial[key];
-      const amount = Number(input?.amount);
-      if (!input || !Number.isFinite(amount) || amount <= 0) return [];
+      if (!input || input.amount.trim() === "") return [];
+      // #176 O campo é texto (DS): a vírgula do teclado pt-BR vale como ponto. Lixo avisa, não some.
+      const amount = Number(input.amount.trim().replace(",", "."));
+      if (!Number.isFinite(amount) || amount < 0) throw new PartialInputError(texts.proposalPanel.partial.invalidQty);
+      if (amount === 0) return [];
       return [{ sku: key, quantity: { amount, unit: i.quantity.unit }, disposition: input.disposition }];
     });
   }
@@ -144,7 +149,7 @@ export function ProposalPanel({
         />
       ) : proposal.canApprove ? (
         <>
-          {proposed !== "receber_parcial" ? (
+          {proposed !== "receber_parcial" && hasItemDivergence ? (
             <Block title={texts.proposalPanel.partial.inputTitle} size="sm">
               <p>{texts.proposalPanel.partial.inputHelp}</p>
               {proposal.items
@@ -154,22 +159,24 @@ export function ProposalPanel({
                   return (
                     <div key={sku} className="pagar-partial-row">
                       <span>{texts.proposalPanel.partial.itemQty(i.description, qtyText(i.quantity), stockText(i, i.quantity.amount))}</span>
-                      <input
-                        type="number"
-                        min={0}
-                        max={i.quantity.amount}
+                      <Input
                         aria-label={texts.proposalPanel.partial.qtyLabel(i.description)}
+                        inputMode="decimal"
                         value={input.amount}
                         onChange={(e) => setPartial({ ...partial, [sku]: { ...input, amount: e.target.value } })}
                       />
-                      <select
-                        aria-label={texts.proposalPanel.partial.dispositionLabel(i.description)}
-                        value={input.disposition}
-                        onChange={(e) => setPartial({ ...partial, [sku]: { ...input, disposition: e.target.value as Disposition } })}
-                      >
-                        <option value="segurar">{texts.proposalPanel.partial.hold}</option>
-                        <option value="devolver">{texts.proposalPanel.partial.giveBack}</option>
-                      </select>
+                      <Text as="span" variant="body-sm">{i.quantity.unit}</Text>
+                      <div role="group" aria-label={texts.proposalPanel.partial.dispositionLabel(i.description)}>
+                        <Select
+                          size="sm"
+                          value={input.disposition}
+                          onChange={(value) => setPartial({ ...partial, [sku]: { ...input, disposition: value as Disposition } })}
+                          options={[
+                            { value: "segurar", label: texts.proposalPanel.partial.hold },
+                            { value: "devolver", label: texts.proposalPanel.partial.giveBack },
+                          ]}
+                        />
+                      </div>
                     </div>
                   );
                 })}
@@ -181,7 +188,8 @@ export function ProposalPanel({
             minNoteLength={10}
             onSubmit={(d) => submit(d).catch((e: unknown) => Promise.reject(e instanceof PartialInputError ? e : new Error(decisionError(e))))}
             texts={{ noteLabel: texts.proposalPanel.form.note, submit: texts.proposalPanel.form.submit, done: null }}
-            options={(["receber", "receber_parcial", "recusar"] as const).map((k) => ({
+            // #134 Sem divergência em item não há linha para segurar ou devolver: o parcial seria um beco sem saída.
+            options={(["receber", "receber_parcial", "recusar"] as const).filter((k) => k !== "receber_parcial" || hasItemDivergence || proposed === "receber_parcial").map((k) => ({
               value: k,
               label: labels[k],
               tone: tones[k],

@@ -4,6 +4,7 @@ import { DataList, StatusBadge, formatCurrency } from "@barte-ai-services/barte-
 import { ApiError } from "../api/client";
 import { returnNotesApi, type ReturnNoteDto, type ReturnNoteStatusDto } from "../api/return-notes";
 import { NotaFiscal } from "../components/NotaFiscal";
+import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
 import type { RouteProps } from "./types";
@@ -88,6 +89,13 @@ export default function ReturnNotes(_props: RouteProps) {
         status === "pendente"
           ? texts.devolucoes.emptyPending
           : texts.devolucoes.emptyOther
+      }
+      empty={
+        <EmptyState
+          title={texts.emptyState.returnNotes[status].title}
+          description={texts.emptyState.returnNotes[status].description}
+          action={status === "pendente" ? { label: texts.emptyState.action, to: "/pagar/fila" } : undefined}
+        />
       }
     >
       {() => (

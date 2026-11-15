@@ -1,15 +1,13 @@
 /**
- * Eval do casamento de descrição (#66, AC-6). Monta o conjunto só a partir do kit (data/kit/notas.json
- * e data/kit/produtos.json), nunca de data/kit/excecoes.json nem de outro gabarito, e pergunta ao
- * Claude pelo mesmo run da tarefa description-match, sem gravar nada no banco. Precisa só do
- * CLAUDE_CODE_OAUTH_TOKEN. Roda pelo workflow claude-enrich com eval = true (#66).
+ * O conjunto do eval do casamento de descrição (#66, AC-6). Monta o conjunto só a partir do kit
+ * (data/kit/notas.json e data/kit/produtos.json), nunca de data/kit/excecoes.json nem de outro gabarito,
+ * e pergunta ao Claude pelo mesmo run da tarefa description-match, sem gravar nada no banco.
+ * Sem Node: o que lê o kit e chama o Claude está em eval/description-match-claude.eval.ts (#171).
  */
-import { readFile } from 'node:fs/promises';
-import { pathToFileURL } from 'node:url';
-import { askClaude, type Ask } from './claude.ts';
-import { partitionRows } from './guards.ts';
-import { isKitNotaWithItems, isKitProduto, type KitNotaWithItems, type KitProduto } from './kit-rows.ts';
-import { descriptionMatch, sortCandidates, type DescriptionMatchInput } from './tasks/description-match.ts';
+import type { Ask } from './client.js';
+import { partitionRows } from './guards.js';
+import { isKitNotaWithItems, isKitProduto, type KitNotaWithItems, type KitProduto } from './kit-rows.js';
+import { descriptionMatch, sortCandidates, type DescriptionMatchInput } from './tasks/description-match.js';
 
 export type EvalCase = { readonly variant: string; readonly input: DescriptionMatchInput; readonly expected: string | null };
 export type EvalResult = { readonly variant: string; readonly expected: string | null; readonly answer: string | null; readonly failed: boolean };
@@ -176,11 +174,8 @@ export async function runEval(cases: readonly EvalCase[], ask: Ask, concurrency 
   return results;
 }
 
-const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
 
-async function readKit(name: string): Promise<unknown> {
-  return JSON.parse(await readFile(new URL(`../../../data/kit/${name}`, import.meta.url), 'utf8'));
-}
+export const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
 
 function asList(value: unknown, file: string): unknown[] {
   if (!Array.isArray(value)) throw new Error(`data/kit/${file} não é uma lista`);
@@ -198,27 +193,4 @@ export function narrowKit(rawInvoices: unknown, rawProducts: unknown): NarrowedK
   const invoices = partitionRows(asList(rawInvoices, 'notas.json'), isKitNotaWithItems);
   const products = partitionRows(asList(rawProducts, 'produtos.json'), isKitProduto);
   return { notas: invoices.valid, produtos: products.valid, dropped: invoices.dropped + products.dropped };
-}
-
-async function main(): Promise<void> {
-  const kit = narrowKit(await readKit('notas.json'), await readKit('produtos.json'));
-  const cases = buildEvalDataset(kit.notas, kit.produtos);
-  const results = await runEval(cases, askClaude);
-  const s = summarize(results);
-  console.log('Eval do casamento de descrição (#66, AC-6)');
-  console.log(`casos: ${s.total} (positivos ${s.positives}, negativos ${s.negatives}); linhas do kit descartadas: ${kit.dropped}`);
-  console.log(`acurácia ${pct(s.accuracy)}, precisão ${pct(s.precision)}, revocação ${pct(s.recall)}`);
-  console.log(`falsos positivos nos negativos: ${s.falsePositivesOnNegatives}; falhas do Claude: ${s.claudeFailures}`);
-  for (const [variant, v] of Object.entries(s.byVariant)) console.log(`  ${variant}: ${v.correct}/${v.total} (${pct(v.accuracy)})`);
-  const failures = results
-    .map((r, i) => ({ ...r, description: cases[i]!.input.description }))
-    .filter((r) => r.answer !== r.expected);
-  console.log(JSON.stringify({ summary: s, errors: failures }, null, 2));
-}
-
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch((error: unknown) => {
-    console.error(`eval: ${error instanceof Error ? `${error.name}: ${error.message.slice(0, 200)}` : 'falha'}`);
-    process.exitCode = 1;
-  });
 }

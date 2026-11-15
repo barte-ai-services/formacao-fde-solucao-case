@@ -110,6 +110,21 @@ describe("#71 painel do valor barrado no mês", () => {
     expect(screen.getByText("R$ 42 mil de R$ 543 mil")).toBeTruthy();
   });
 
+  it("#192/AC-1 #192/AC-4 the four cards share one two-column grid", async () => {
+    respondWith(200, NOVEMBER);
+    const { container } = renderPanel();
+    const cards = await Promise.all(
+      ["Evitado em novembro", "Perda mensal hoje", "Em decisão", "Pagamento em dobro evitado"].map(statCard),
+    );
+    const grids = Array.from(container.querySelectorAll<HTMLElement>("div")).filter(
+      (el) => el.style.getPropertyValue("--stat-columns") !== "",
+    );
+    expect(grids).toHaveLength(1);
+    const grid = grids[0]!;
+    expect(grid.style.getPropertyValue("--stat-columns")).toBe("2");
+    for (const card of cards) expect(grid.contains(card)).toBe(true);
+  });
+
   it("#170/AC-2 o acumulado volta a mostrar a linha tracejada dos R$ 543 mil, sem a série do pagamento em dobro", async () => {
     respondWith(200, NOVEMBER);
     renderPanel();

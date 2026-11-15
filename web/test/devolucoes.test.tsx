@@ -104,4 +104,11 @@ describe("#140 /devolucoes", () => {
     fireEvent.click(screen.getByRole("button", { name: "Marcar como emitida" }));
     expect(await screen.findByText("Esta nota já foi decidida por outra pessoa.")).toBeTruthy();
   });
+
+  it("#123 sem devolução pendente, mostra o estado vazio com a ação para a fila", async () => {
+    fetchMock.mockImplementationOnce(async () => Response.json({ notes: [] }));
+    renderRoute();
+    expect(await screen.findByText("Nenhuma devolução pendente de emissão")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ver a fila de aprovação" })).toBeTruthy();
+  });
 });

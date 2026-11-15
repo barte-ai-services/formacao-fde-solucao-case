@@ -5,6 +5,7 @@ import { approvalApi, type ProposalDetailDto, type QueueDto, type QueueItemDto }
 import { ProposalPanel } from "../approval/ProposalPanel";
 import { ACTION_LABEL, ACTION_TONE, LEVEL_LABEL, LEVEL_TONE, byQueueOrder } from "../approval/labels";
 import { NotaFiscal } from "../components/NotaFiscal";
+import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
 import type { RouteProps } from "./types";
@@ -42,6 +43,7 @@ export default function FilaDeAprovacao(_props: RouteProps) {
       loadingLabel={texts.fila.loading}
       errorTitle={texts.fila.error}
       emptyLabel={texts.fila.empty}
+      empty={<EmptyState title={texts.emptyState.queue.title} description={texts.emptyState.queue.description} />}
     >
       {() => (
         <>
