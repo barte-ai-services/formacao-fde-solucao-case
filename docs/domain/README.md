@@ -1,5 +1,6 @@
 # Modelo de domínio do contas a pagar da Já Chegou
 
+**[1ª]** é a conferência documental, antes da doca. **[2ª]** é a conferência física, na doca.
 
 **A pergunta que o modelo responde:** esta nota fiscal cobra uma compra que existe, ainda não foi
 paga e chegou como foi pedida?
