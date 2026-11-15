@@ -16,7 +16,7 @@ const proposal = (dockAction: unknown, extra: Record<string, unknown> = {}) =>
     store: "CD-01",
     issuedOn: "2026-11-10",
     total: money(100_000),
-    classification: "E1",
+    classification: "E4",
     level: "coordenacao",
     line: 2,
     reason: "Falta na contagem",
@@ -105,5 +105,41 @@ describe("#134 decisão pela ação no recebimento", () => {
     expect(screen.getByRole("radio", { name: /^Confirmar recebimento(?! parcial)/ })).toBeTruthy();
     expect(screen.getByRole("radio", { name: /^Confirmar recebimento parcial/ })).toBeTruthy();
     expect(screen.getByRole("radio", { name: /^Recusar/ })).toBeTruthy();
+  });
+
+  it("#176/AC-1: proposta E1 com contagem usa os rótulos de depois da contagem, sem a prop afterCount", () => {
+    render(<ProposalPanel proposal={proposal({ kind: "receber" }, { classification: "E1" })} />);
+    expect(screen.getByRole("radio", { name: /^Confirmar recebimento(?! parcial)/ })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: /^Confirmar recebimento parcial/ })).toBeTruthy();
+  });
+
+  it("#176/AC-1: proposta sem contagem (E4) continua com Receber, Receber parcial e Recusar", () => {
+    render(<ProposalPanel proposal={proposal({ kind: "receber" })} />);
+    expect(screen.getByRole("radio", { name: /^Receber(?! parcial)/ })).toBeTruthy();
+    expect(screen.queryByRole("radio", { name: /Confirmar recebimento/ })).toBeNull();
+  });
+
+  it("#176/AC-2: E4 com caixa mostra as duas unidades no receber parcial (12 CX = 48 UN)", () => {
+    const items = [
+      { supplierCode: "B", sku: "SKU-2", description: "Feijão 1kg", quantity: { amount: 12, unit: "CX" }, stockQuantity: { amount: 48, unit: "UN" }, unitPrice: money(2000), total: money(24_000) },
+    ];
+    render(
+      <ProposalPanel
+        proposal={proposal(
+          { kind: "receber_parcial", lines: [{ sku: "SKU-2", quantity: { amount: 2, unit: "CX" }, disposition: "segurar" }] },
+          { classification: "E4", items },
+        )}
+      />,
+    );
+    expect(screen.getByText(/Entra 10 CX \(40 UN\)/)).toBeTruthy();
+    expect(screen.getByText(/Segura 2 CX \(8 UN\)/)).toBeTruthy();
+  });
+
+  it("#176/AC-2: na digitação do parcial, a quantidade da nota aparece com a de estoque", () => {
+    const items = [
+      { supplierCode: "B", sku: "SKU-2", description: "Feijão 1kg", quantity: { amount: 12, unit: "CX" }, stockQuantity: { amount: 48, unit: "UN" }, unitPrice: money(2000), total: money(24_000) },
+    ];
+    render(<ProposalPanel proposal={proposal({ kind: "receber" }, { classification: "E4", items })} />);
+    expect(screen.getByText("Feijão 1kg (12 CX = 48 UN)")).toBeTruthy();
   });
 });

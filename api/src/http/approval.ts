@@ -10,7 +10,7 @@ import type { Money } from '../domain/money.js';
 import { Quantity, type Unit } from '../domain/quantity.js';
 import type { Env } from '../env.js';
 import type { Identity } from './access.js';
-import type { CheckContext } from '../domain/index.js';
+import type { CheckContext, Invoice, Product } from '../domain/index.js';
 import { dossierField, dossierReadFailed, type DossierField } from '../dossier/proposal-field.js';
 import { readDossier } from '../dossier/read-dossier.js';
 import type { DossierSource } from '../dossier/source.js';
@@ -26,6 +26,8 @@ export interface ApprovalDeps {
   today?: () => string;
   /** #68: de onde a proposta lê o dossiê do Claude. Sem ele, o dossiê aparece pendente. */
   dossier?: DossierDeps;
+  /** #176 Os produtos do cadastro, para mostrar a quantidade em unidade de estoque (fator de caixa). Sem ele, vai nula. */
+  products?: (invoiceAccessKey: string) => Promise<readonly Product[]>;
   /**
    * #43 AC-1: a caixa de saída do WMS. Aprovar ou alterar publica nela a ação na doca, depois de gravar
    * a decisão. Sem ela, a decisão fica só gravada e a varredura do Cron publica depois.
@@ -80,7 +82,7 @@ export async function approvalRoutes(
     return error(400, 'chave_invalida');
   }
   const action = match[2];
-  if (!action) return only(request, 'GET', () => proposalDetail(deps.store, key, identity, directory, deps.dossier));
+  if (!action) return only(request, 'GET', () => proposalDetail(deps.store, key, identity, directory, deps.dossier, deps.products));
   return only(request, 'POST', () => decide(request, deps, key, action, identity, directory, today()));
 }
 
@@ -136,9 +138,11 @@ async function proposalDetail(
   identity: Identity,
   directory: ApproverDirectory,
   dossier?: DossierDeps,
+  products?: ApprovalDeps['products'],
 ): Promise<Response> {
   const file = await store.find(key);
   if (!file) return error(404, 'not_found');
+  const catalog = await readProducts(key, products);
   const dossierView = await proposalDossier(key, file, dossier);
   return Response.json({
     ...summary(file, directory(identity.email)),
@@ -148,6 +152,7 @@ async function proposalDetail(
       sku: i.sku,
       description: i.description,
       quantity: { amount: i.quantity.amount, unit: i.quantity.unit },
+      stockQuantity: stockQuantity(i, file.invoice.supplierId, catalog),
       unitPrice: money(i.unitPrice),
       total: money(i.total),
     })),
@@ -161,6 +166,33 @@ async function proposalDetail(
     approval: file.approval,
     dossier: dossierView,
   });
+}
+
+/** #176 Um erro ao ler o cadastro não derruba a proposta: a unidade de estoque vai nula. */
+async function readProducts(key: string, products?: ApprovalDeps['products']): Promise<readonly Product[]> {
+  if (!products) return [];
+  try {
+    return await products(key);
+  } catch (e) {
+    console.error(`#176 cadastro da nota ${key} não lido: ${e instanceof Error ? e.message : String(e)}`);
+    return [];
+  }
+}
+
+/** #176 Regra 4: a quantidade do item em UN pelo fator de caixa do cadastro; nula se o produto não é achado. */
+function stockQuantity(
+  item: Invoice['items'][number],
+  supplierId: string,
+  catalog: readonly Product[],
+): { amount: number; unit: Unit } | null {
+  const product = catalog.find((p) => p.sku === item.sku || (p.supplierId === supplierId && p.supplierCode === item.supplierCode));
+  if (!product) return null;
+  try {
+    const units = item.quantity.toUnits(product.boxFactor);
+    return { amount: units.amount, unit: units.unit };
+  } catch {
+    return null; // #176 fator inválido no cadastro: a gaveta mostra só a unidade da nota
+  }
 }
 
 /**

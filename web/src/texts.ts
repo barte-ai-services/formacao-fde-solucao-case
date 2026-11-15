@@ -361,6 +361,8 @@ export const texts = {
     partial: {
       title: "Itens do recebimento parcial",
       item: "Item",
+      /** #176 "Feijão (12 CX = 48 UN)": a quantidade da nota e, havendo fator de caixa, a de estoque. */
+      itemQty: (item: string, qty: string, stock: string | null) => (stock ? `${item} (${qty} = ${stock})` : `${item} (${qty})`),
       enters: (qty: string) => `Entra ${qty}`,
       holds: (qty: string) => `Segura ${qty}`,
       returns: (qty: string) => `Devolve ${qty}`,

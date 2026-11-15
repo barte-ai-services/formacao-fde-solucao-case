@@ -43,6 +43,8 @@ function approvalDeps(env: Env) {
     // #135 A nota de loja vai para o app da loja.
     storeOutbox: appStoreActionOutbox(rest),
     // #68: o dossiê que o job do Claude gravou, conferido contra o contexto da nota.
+    // #176 A unidade de estoque do receber parcial vem do fator de caixa do cadastro.
+    products: () => captureDeps.registry.listProducts(),
     dossier: {
       source: new SupabaseDossierSource(rest),
       context: (key: string) => loadDossierContext(captureDeps, key),

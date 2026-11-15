@@ -35,10 +35,25 @@ type PartialInput = { amount: string; disposition: Disposition };
 
 const qtyText = (q: { amount: number; unit: string }): string => `${q.amount} ${q.unit}`;
 
+/** #176 As classificações que já têm contagem conciliada na doca: depois dela o verbo é "Confirmar recebimento". */
+const COUNTED: readonly string[] = ["E1", "E3"];
+
+type Item = ProposalDetailDto["items"][number];
+/** #176 Quantidade na unidade de estoque pelo fator do cadastro: a parte `parte` da linha, na mesma proporção. */
+const stockText = (item: Item, amount: number): string | null =>
+  item.stockQuantity && item.quantity.amount > 0 && item.stockQuantity.unit !== item.quantity.unit
+    ? `${(item.stockQuantity.amount / item.quantity.amount) * amount} ${item.stockQuantity.unit}`
+    : null;
+/** #176 "12 CX" ou, quando há fator, "12 CX (48 UN)". */
+const withStock = (item: Item, amount: number, say: (qty: string) => string): string => {
+  const stock = stockText(item, amount);
+  return say(stock ? `${amount} ${item.quantity.unit} (${stock})` : `${amount} ${item.quantity.unit}`);
+};
+
 export function ProposalPanel({
   proposal,
   onDecided,
-  afterCount = false,
+  afterCount,
 }: {
   proposal: ProposalDetailDto;
   onDecided?: (result: DecisionResultDto) => void;
@@ -48,7 +63,7 @@ export function ProposalPanel({
   const [decided, setDecided] = useState<DecisionResultDto | null>(null);
   const [partial, setPartial] = useState<Record<string, PartialInput>>({});
   const proposed = proposal.dockAction.kind;
-  const labels = afterCount ? texts.proposalPanel.form.afterCountOptions : texts.proposalPanel.form.options;
+  const labels = (afterCount ?? COUNTED.includes(proposal.classification)) ? texts.proposalPanel.form.afterCountOptions : texts.proposalPanel.form.options;
   const tones: Record<Choice, "positive" | "waiting" | "negative"> = { receber: "positive", receber_parcial: "waiting", recusar: "negative" };
 
   /** #134 As linhas do receber parcial que a pessoa informou: o item, a quantidade na unidade da nota e o destino. */
@@ -138,7 +153,7 @@ export function ProposalPanel({
                   const input = partial[sku] ?? { amount: "", disposition: "segurar" as Disposition };
                   return (
                     <div key={sku} className="pagar-partial-row">
-                      <span>{`${i.description} (${qtyText(i.quantity)})`}</span>
+                      <span>{texts.proposalPanel.partial.itemQty(i.description, qtyText(i.quantity), stockText(i, i.quantity.amount))}</span>
                       <input
                         type="number"
                         min={0}
@@ -195,11 +210,14 @@ function PartialItems({ proposal, lines }: { proposal: ProposalDetailDto; lines:
         items={proposal.items.map((i) => {
           const line = lines.find((l) => l.sku === (i.sku ?? i.supplierCode));
           const enters = line && line.quantity.unit === i.quantity.unit ? { amount: i.quantity.amount - line.quantity.amount, unit: i.quantity.unit } : i.quantity;
-          const outcome = line ? (line.disposition === "segurar" ? t.holds : t.returns)(qtyText(line.quantity)) : null;
+          const outcome = line ? (line.disposition === "segurar" ? t.holds : t.returns)(
+            // #176 A unidade de estoque só se soma quando a linha está na unidade da nota.
+            line.quantity.unit === i.quantity.unit ? withStock(i, line.quantity.amount, (q) => q) : qtyText(line.quantity),
+          ) : null;
           return {
             key: i.sku ?? i.supplierCode,
             label: i.description,
-            value: [t.enters(qtyText(line ? enters : i.quantity)), outcome].filter(Boolean).join(" · "),
+            value: [withStock(i, line ? enters.amount : i.quantity.amount, t.enters), outcome].filter(Boolean).join(" · "),
           };
         })}
       />

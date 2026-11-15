@@ -62,6 +62,8 @@ export interface ProposalDetailDto extends QueueItemDto {
     sku: string | null;
     description: string;
     quantity: { amount: number; unit: Unit };
+    /** #176 A mesma quantidade na unidade de estoque (12 CX = 48 UN); nula se o cadastro não tem o fator. */
+    stockQuantity?: { amount: number; unit: Unit } | null;
     unitPrice: MoneyDto;
     total: MoneyDto;
   }[];
