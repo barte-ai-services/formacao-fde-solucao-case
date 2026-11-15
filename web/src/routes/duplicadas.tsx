@@ -12,7 +12,7 @@ import {
 import { apiGet } from "../api";
 import type { DuplicateDto, DuplicateReason, DuplicatesResponseDto, TitleState } from "../api/contract";
 import { EmptyState } from "../components/EmptyState";
-import { NotaFiscal } from "../components/NotaFiscal";
+import { InvoiceCell } from "../components/InvoiceCell";
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
 import type { RouteProps } from "./types";
@@ -121,7 +121,7 @@ export default function NotasDuplicadas(_props: RouteProps) {
                 title: texts.duplicadas.columns.duplicate,
                 dataIndex: "duplicate",
                 render: (_, d) => (
-                  <NotaFiscal
+                  <InvoiceCell
                     number={d.duplicate.number}
                     issuedOn={d.duplicate.issuedOn}
                     bottom={`${d.duplicate.supplierId} · ${d.duplicate.total}`}
@@ -138,7 +138,7 @@ export default function NotasDuplicadas(_props: RouteProps) {
                   d.original === null ? (
                     <TwoLines top="—" bottom={NO_ORIGINAL_LABEL} />
                   ) : (
-                    <NotaFiscal number={d.original.number} bottom={d.original.status} />
+                    <InvoiceCell number={d.original.number} bottom={d.original.status} />
                   ),
               },
               {

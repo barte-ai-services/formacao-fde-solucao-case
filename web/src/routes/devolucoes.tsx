@@ -3,7 +3,7 @@ import { Alert, Button, Drawer, Input, Select, Table, Text } from "barte-design-
 import { DataList, StatusBadge, formatCurrency } from "@barte-ai-services/barte-ui-kit";
 import { ApiError } from "../api/client";
 import { returnNotesApi, type ReturnNoteDto, type ReturnNoteStatusDto } from "../api/return-notes";
-import { NotaFiscal } from "../components/NotaFiscal";
+import { InvoiceCell } from "../components/InvoiceCell";
 import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
@@ -111,7 +111,7 @@ export default function ReturnNotes(_props: RouteProps) {
                 key: "origem",
                 title: texts.devolucoes.columns.origin,
                 dataIndex: "invoiceNumber",
-                render: (_, n) => <NotaFiscal number={n.invoiceNumber ?? n.invoiceAccessKey.slice(-8)} bottom={n.supplierId ?? "—"} />,
+                render: (_, n) => <InvoiceCell number={n.invoiceNumber ?? n.invoiceAccessKey.slice(-8)} bottom={n.supplierId ?? "—"} />,
               },
               {
                 key: "itens",

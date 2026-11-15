@@ -18,7 +18,7 @@ const NUMBER_BUTTON_STYLE: CSSProperties = {
   cursor: "pointer",
 };
 
-export interface NotaFiscalProps {
+export interface InvoiceCellProps {
   number: string;
   /** #190: data de emissão em ISO; aparece depois do número, em tinta. */
   issuedOn?: string;
@@ -32,8 +32,8 @@ export interface NotaFiscalProps {
   openLabel?: string;
 }
 
-/** A célula da nota fiscal das grids: "NF <número> · <data>" em cima, o contexto cinza embaixo. O nome `NotaFiscal` vem da issue #190. */
-export function NotaFiscal({ number, issuedOn, bottom, prefix, onOpen, openLabel }: NotaFiscalProps): ReactElement {
+/** A célula da nota fiscal das grids: "NF <número> · <data>" em cima, o contexto cinza embaixo. O nome `InvoiceCell` vem da issue #190. */
+export function InvoiceCell({ number, issuedOn, bottom, prefix, onOpen, openLabel }: InvoiceCellProps): ReactElement {
   const label = `NF ${number}`;
   return (
     <span style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-2xs)" }}>
