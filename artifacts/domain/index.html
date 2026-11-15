@@ -30,12 +30,12 @@ h3 { font-size: 15px; margin: 18px 0 6px; font-weight: 700; text-transform: uppe
 .groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 20px; }
 .group { border: 3px solid; border-radius: 16px; padding: 20px; display: grid; gap: 12px; align-content: start; min-width: 0; }
 .group > header { font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; }
-.g-nota { background: var(--brand-soft); border-color: var(--brand); } .g-nota > header { color: var(--brand); }
-.g-ordem { background: var(--blue-l); border-color: var(--blue); } .g-ordem > header { color: var(--blue); }
+.g-invoice { background: var(--brand-soft); border-color: var(--brand); } .g-invoice > header { color: var(--brand); }
+.g-order { background: var(--blue-l); border-color: var(--blue); } .g-order > header { color: var(--blue); }
 .g-ent { background: var(--card); border-color: var(--line-2); } .g-ent > header { color: var(--ink-2); }
 .ent { background: var(--card); border: 2px solid var(--line-2); border-radius: 10px; padding: 12px 16px; }
 .ent.main { border-width: 3px; }
-.g-nota .ent.main { border-color: var(--brand); } .g-ordem .ent.main { border-color: var(--blue); }
+.g-invoice .ent.main { border-color: var(--brand); } .g-order .ent.main { border-color: var(--blue); }
 .ent b { font-weight: 700; font-size: 21px; }
 .ent span { display: block; font-size: 16px; color: var(--ink-3); margin-top: 2px; }
 .inner { display: grid; gap: 10px; padding-left: 20px; border-left: 3px dashed var(--line-2); }
@@ -67,8 +67,8 @@ ol li::marker { color: var(--brand); font-weight: 700; }
 .mid { display: grid; gap: 18px; justify-items: center; }
 .chain { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .chain .box { min-width: 150px; }
-.box.nota { background: var(--brand-soft); border-color: var(--brand); border-width: 3px; }
-.box.ordem { background: var(--blue-l); border-color: var(--blue); border-width: 3px; }
+.box.invoice { background: var(--brand-soft); border-color: var(--brand); border-width: 3px; }
+.box.order { background: var(--blue-l); border-color: var(--blue); border-width: 3px; }
 .link { font-size: 14px; color: var(--ink-3); text-align: center; }
 .link::after { content: "→"; display: block; font-size: 26px; color: var(--ink-2); line-height: 1; }
 .states { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
@@ -89,17 +89,17 @@ ol li::marker { color: var(--brand); font-weight: 700; }
 .ctx .t { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
 .ctx .r { font-size: 15px; color: var(--ink-2); margin-top: 6px; line-height: 1.4; }
 .ctx .r b { color: var(--ink); }
-.c-conf { background: var(--brand-soft); border-color: var(--brand); border-width: 5px; text-align: center; padding: 28px 20px; border-radius: 24px; }
-.c-conf .n { font-size: 30px; } .c-conf .t { color: var(--brand); }
-.c-comp { border-color: var(--blue); } .c-comp .t { color: var(--blue); }
-.c-cad { border-color: #737373; } .c-cad .t { color: #404040; }
+.c-check { background: var(--brand-soft); border-color: var(--brand); border-width: 5px; text-align: center; padding: 28px 20px; border-radius: 24px; }
+.c-check .n { font-size: 30px; } .c-check .t { color: var(--brand); }
+.c-purchasing { border-color: var(--blue); } .c-purchasing .t { color: var(--blue); }
+.c-catalog { border-color: #737373; } .c-catalog .t { color: #404040; }
 .c-rec { border-color: var(--orange); } .c-rec .t { color: #935019; }
-.c-cp { border-color: var(--purple); } .c-cp .t { color: var(--purple); }
-.c-pag { border-color: var(--green); } .c-pag .t { color: var(--green); }
-.g-cad { background: #fbfbfb; border-color: #737373; } .g-cad > header { color: #404040; }
+.c-payables { border-color: var(--purple); } .c-payables .t { color: var(--purple); }
+.c-payments { border-color: var(--green); } .c-payments .t { color: var(--green); }
+.g-catalog { background: #fbfbfb; border-color: #737373; } .g-catalog > header { color: #404040; }
 .g-rec { background: var(--orange-l); border-color: var(--orange); } .g-rec > header { color: #935019; }
-.g-cp { background: var(--purple-l); border-color: var(--purple); } .g-cp > header { color: var(--purple); }
-.g-pag { background: var(--green-l); border-color: var(--green); } .g-pag > header { color: var(--green); }
+.g-payables { background: var(--purple-l); border-color: var(--purple); } .g-payables > header { color: var(--purple); }
+.g-payments { background: var(--green-l); border-color: var(--green); } .g-payments > header { color: var(--green); }
 .groups6 { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 20px; }
 @media (max-width: 1100px) { .ctxmap { grid-template-columns: 1fr; } }
 @media (max-width: 1100px) { .cmap { grid-template-columns: 1fr; } .arr { transform: rotate(90deg); } }
@@ -117,16 +117,16 @@ ol li::marker { color: var(--brand); font-weight: 700; }
     <h2>Mapa de contextos</h2>
     <div class="board"><div class="ctxmap">
       <div class="ctxcol">
-        <div class="ctx c-comp"><div class="t">Suporte · ERP</div><div class="n">Compras</div><div class="r"><b>Publica:</b> ordem de compra, itens e saldo<br><b>Consome:</b> proposta aprovada</div></div>
-        <div class="ctx c-cad"><div class="t">Genérico · ERP</div><div class="n">Cadastro</div><div class="r"><b>Publica:</b> fornecedor e produto<br><b>Consome:</b> item sem cadastro, fator a corrigir</div></div>
+        <div class="ctx c-purchasing"><div class="t">Suporte · ERP</div><div class="n">Compras</div><div class="r"><b>Publica:</b> ordem de compra, itens e saldo<br><b>Consome:</b> proposta aprovada</div></div>
+        <div class="ctx c-catalog"><div class="t">Genérico · ERP</div><div class="n">Cadastro</div><div class="r"><b>Publica:</b> fornecedor e produto<br><b>Consome:</b> item sem cadastro, fator a corrigir</div></div>
         <div class="ctx c-rec"><div class="t">Suporte · WMS e app · 2ª</div><div class="n">Recebimento</div><div class="r"><b>Publica:</b> itens contados<br><b>Consome:</b> ação na doca aprovada</div></div>
       </div>
       <div class="arr">⇄</div>
-      <div class="ctx c-conf"><div class="t">Núcleo · SEFAZ ou base do kit</div><div class="n">Conferência</div><div class="r">Nota fiscal · divergências · proposta · aprovação</div></div>
+      <div class="ctx c-check"><div class="t">Núcleo · SEFAZ ou base do kit</div><div class="n">Conferência</div><div class="r">Nota fiscal · divergências · proposta · aprovação</div></div>
       <div class="arr">⇄</div>
       <div class="ctxcol">
-        <div class="ctx c-cp"><div class="t">Suporte · ERP</div><div class="n">Contas a pagar</div><div class="r"><b>Publica:</b> títulos lançados e pagos<br><b>Consome:</b> duplicidade, proposta aprovada</div></div>
-        <div class="ctx c-pag"><div class="t">Suporte · banco e ERP</div><div class="n">Pagamentos</div><div class="r"><b>Publica:</b> pagamentos, inclusive fora do fluxo<br><b>Consome:</b> nota vinculada a pagamento (E7)</div></div>
+        <div class="ctx c-payables"><div class="t">Suporte · ERP</div><div class="n">Contas a pagar</div><div class="r"><b>Publica:</b> títulos lançados e pagos<br><b>Consome:</b> duplicidade, proposta aprovada</div></div>
+        <div class="ctx c-payments"><div class="t">Suporte · banco e ERP</div><div class="n">Pagamentos</div><div class="r"><b>Publica:</b> pagamentos, inclusive fora do fluxo<br><b>Consome:</b> nota vinculada a pagamento (E7)</div></div>
       </div>
     </div><p class="syn" style="margin:14px 0 0">Cada sistema entra no seu contexto por um conector.</p></div>
   </section>
@@ -135,8 +135,8 @@ ol li::marker { color: var(--brand); font-weight: 700; }
     <div>
       <h2>A corrente da compra</h2>
       <div class="board"><div class="chain">
-        <div class="box ordem">Ordem de compra<small>itens e saldo</small></div><div class="link">cobrada por</div>
-        <div class="box nota">Nota fiscal</div><div class="link">entregue em</div>
+        <div class="box order">Ordem de compra<small>itens e saldo</small></div><div class="link">cobrada por</div>
+        <div class="box invoice">Nota fiscal</div><div class="link">entregue em</div>
         <div class="box">Recebimento<small>2ª entrega</small></div><div class="link">quitada por</div>
         <div class="box">Título e pagamento</div>
       </div><p class="syn" style="margin:12px 0 0">A ordem complementar é uma ordem ligada a outra ordem.</p></div>
@@ -158,7 +158,7 @@ ol li::marker { color: var(--brand); font-weight: 700; }
   <section>
     <h2>Entidades</h2>
     <div class="groups6">
-      <div class="group g-nota"><header>Conferência</header>
+      <div class="group g-invoice"><header>Conferência</header>
         <div class="ent main"><b>Nota fiscal</b><span>chave de acesso · classificação · valor em risco</span></div>
         <div class="inner">
           <div class="ent"><b>Item da nota</b><span>produto · quantidade · preço</span></div>
@@ -166,18 +166,18 @@ ol li::marker { color: var(--brand); font-weight: 700; }
           <div class="ent"><b>Proposta</b><span>ação na doca · encaminhamento · justificativa</span></div>
           <div class="ent"><b>Aprovação</b><span>aprovador · nível · ação final · justificativa</span></div>
         </div></div>
-      <div class="group g-ordem"><header>Compras</header>
+      <div class="group g-order"><header>Compras</header>
         <div class="ent main"><b>Ordem de compra</b><span>número · situação · ordem que complementa</span></div>
         <div class="inner"><div class="ent"><b>Item da ordem</b><span>produto · quantidade · preço · saldo</span></div></div></div>
-      <div class="group g-cad"><header>Cadastro</header>
+      <div class="group g-catalog"><header>Cadastro</header>
         <div class="ent main"><b>Fornecedor</b><span>CNPJ · pagamento bloqueado</span></div>
         <div class="inner"><div class="ent"><b>Produto</b><span>SKU · código do fornecedor · fator de caixa</span></div></div></div>
       <div class="group g-rec"><header>Recebimento <span class="tag2">2ª</span></header>
         <div class="ent main"><b>Recebimento</b><span>destino · data · canal</span></div>
         <div class="inner"><div class="ent"><b>Item recebido</b><span>produto · quantidade contada</span></div></div></div>
-      <div class="group g-cp"><header>Contas a pagar</header>
+      <div class="group g-payables"><header>Contas a pagar</header>
         <div class="ent main"><b>Título</b><span>chave da nota · valor · vencimento · lançado → pago</span></div></div>
-      <div class="group g-pag"><header>Pagamentos</header>
+      <div class="group g-payments"><header>Pagamentos</header>
         <div class="ent main"><b>Pagamento</b><span>valor · forma · fora do fluxo ou não</span></div></div>
     </div>
   </section>
@@ -277,7 +277,7 @@ ol li::marker { color: var(--brand); font-weight: 700; }
     <div class="groups">
       <div class="group g-rec"><header>Recebimento · contagem</header>
         <div class="ent"><b>Contagem por foto</b><span>Foto do pallet no ato da entrega. Um agente conta pela imagem e serve de contraponto à contagem do operador. Divergência entre as duas vira evidência.</span></div></div>
-      <div class="group g-nota"><header>Conferência · aprovação</header>
+      <div class="group g-invoice"><header>Conferência · aprovação</header>
         <div class="ent"><b>Aprovação por agente</b><span>Sem agente, a decisão é sempre de uma pessoa. No processo agêntico, um agente aprova quando a confiança passa do limite e o critério está claro. Muda a regra 8 e pede o limite de confiança por nível.</span></div></div>
     </div>
   </section>

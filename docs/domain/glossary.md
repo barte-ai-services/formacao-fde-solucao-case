@@ -80,7 +80,7 @@ O briefing pede exatamente isto: anotar os "termos que cada cargo usa com sentid
 
 | Termo (código) | Definição | Prova | Sinônimos aceitos · proibidos |
 |---|---|---|---|
-| **Proposta** (`Proposal`) | O que o agente propõe para uma nota: classificação, ação na doca, encaminhamento, valor em risco e justificativa. Estados: **registrada**, **aguardando aprovação**, **aprovada** (pela regra ou por uma pessoa), **alterada**, **recusada**. | A tool `registrar_proposta` do MCP do kit. No dossiê, "proposta" é a de pagamento | Proibido: confundir com proposta de pagamento ([pergunta 2](#perguntas-em-aberto)) |
+| **Proposta** (`Proposal`) | O que o agente propõe para uma nota: classificação, ação na doca, encaminhamento, valor em risco e justificativa. Estados: **registrada**, **aguardando aprovação**, **aprovada** (pela regra ou por uma pessoa), **alterada**. | A tool `registrar_proposta` do MCP do kit. No dossiê, "proposta" é a de pagamento | Proibido: confundir com proposta de pagamento ([pergunta 2](#perguntas-em-aberto)) |
 | **Limites de aprovação** (`ApprovalPolicy`) | Quem aprova o quê, por valor da nota e por tipo de divergência. | `regua.json`: "Régua de alçadas validada em 05/11 (R$ 5 mil, R$ 20 mil, R$ 100 mil)". O dossiê dá dois limites, "Abaixo de R$ 5 mil ele assina sem olhar; acima de R$ 100 mil quer ver cada caso", e cita "alçadas" | Aceito: **régua**, **régua de alçadas**, **alçada** (são os termos do dossiê e da base) |
 | **Nível** (`ApprovalLevel`) | Um degrau dos limites: regra, analista, coordenação, diretoria, bloqueio. | Campo `niveis` de `regua.json` | |
 | **Encaminhamento** (`Proposal.routing`) | O nível para o qual a proposta foi enviada. | Campo `encaminhamento` da proposta no MCP do kit | |

@@ -1,7 +1,5 @@
 # Modelo de domínio do contas a pagar da Já Chegou
 
-> Rascunho para aprovação (issue #4, plano #5). Ainda não há código. **[1ª]** é a conferência
-> documental, antes da doca; **[2ª]** é a conferência física, na doca.
 
 **A pergunta que o modelo responde:** esta nota fiscal cobra uma compra que existe, ainda não foi
 paga e chegou como foi pedida?
@@ -77,7 +75,7 @@ e as regras 7 e 8 só valem juntas numa transação. Tela e e-mail são só cana
 ## Glossário
 
 Os termos, com a prova no dossiê, as ambiguidades resolvidas e as perguntas em aberto, estão em
-[glossario.md](glossario.md).
+[glossary.md](glossary.md).
 
 ## Entidades
 
@@ -293,4 +291,4 @@ coordenação podem ser delegados; **bloqueio e diretoria continuam sempre com u
 Caíram: o **contexto Aprovação** (decisão 6), **entrega parcial** (agora é a regra 5, pelo saldo da ordem), **lojas sem plano de doca** e
 **diretoria sem recomendar valor** (o plano de recebimento e o valor a pagar saíram do modelo).
 
-As perguntas que o dossiê não decide estão no [glossário](glossario.md#perguntas-em-aberto).
+As perguntas que o dossiê não decide estão no [glossário](glossary.md#perguntas-em-aberto).
