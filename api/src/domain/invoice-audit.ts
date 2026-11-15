@@ -57,8 +57,8 @@ const invalid = (field: string): AuditValidation => ({ ok: false, refusal: { ref
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
-function justificationLines(value: unknown): number {
-  if (typeof value !== 'string' || value.length > MAX_JUSTIFICATION_CHARS) return 0;
+function justificationLines(value: string): number {
+  if (value.length > MAX_JUSTIFICATION_CHARS) return 0;
   return value.split('\n').filter((line) => line.trim() !== '').length;
 }
 
@@ -72,7 +72,9 @@ export function validateAudit(raw: unknown, ctx: AuditContext): AuditValidation 
   if (dockAction === undefined) return invalid('dock_action');
   const routing = APPROVAL_LEVELS.find((l) => l === raw.routing);
   if (routing === undefined) return invalid('routing');
-  const lines = justificationLines(raw.justification);
+  const justification = raw.justification;
+  if (typeof justification !== 'string') return invalid('justification');
+  const lines = justificationLines(justification);
   if (lines < MIN_JUSTIFICATION_LINES || lines > MAX_JUSTIFICATION_LINES) return invalid('justification');
   let amountAtRisk: { cents: number } | null = null;
   if (raw.amount_at_risk !== null && raw.amount_at_risk !== undefined) {
@@ -88,7 +90,7 @@ export function validateAudit(raw: unknown, ctx: AuditContext): AuditValidation 
   }
   return {
     ok: true,
-    audit: { classification, dockAction, routing, justification: raw.justification as string, amountAtRisk, model: ctx.model, auditedAt: ctx.auditedAt },
+    audit: { classification, dockAction, routing, justification, amountAtRisk, model: ctx.model, auditedAt: ctx.auditedAt },
   };
 }
 
