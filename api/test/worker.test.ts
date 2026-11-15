@@ -33,15 +33,17 @@ describe("GET /health", () => {
   });
 });
 
-describe("rota desconhecida", () => {
-  it("responde 404", async () => {
+// O 404 de rota desconhecida, com token válido, está em access.test.ts (#54).
+describe("rota desconhecida sem token", () => {
+  it("#54 responde 401 antes de procurar a rota, mesmo sem o Access configurado", async () => {
     const response = await fetchWorker("/nao-existe");
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: "unauthenticated" });
   });
 
-  it("responde 404 a um caminho com nome de propriedade herdada", async () => {
+  it("responde 401 num caminho com nome de propriedade herdada", async () => {
     const response = await fetchWorker("/constructor");
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(401);
   });
 });
 

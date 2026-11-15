@@ -1,24 +1,54 @@
+import type { Env } from "../env";
+import { authenticate, type AccessVerifier, type Identity } from "./access";
 import { health } from "./health";
+import { me } from "./me";
 
-type Handler = () => Response;
+type PublicHandler = () => Response;
+type ProtectedHandler = (identity: Identity) => Response;
 
-const routes: Record<string, Record<string, Handler>> = {
+/** Rotas abertas: não passam pelo Access. Só o `/health`, que a esteira e o monitor chamam (#54). */
+const publicRoutes: Record<string, Record<string, PublicHandler>> = {
   "/health": { GET: health },
 };
 
-/** Encaminha a requisição pela rota e pelo método. Rota desconhecida: 404. Método não aceito: 405. */
-export function route(request: Request): Response {
+/** Rotas que exigem um JWT válido do Cloudflare Access (#54). */
+const protectedRoutes: Record<string, Record<string, ProtectedHandler>> = {
+  "/me": { GET: me },
+};
+
+export interface RouterDeps {
+  verifier: AccessVerifier;
+}
+
+/**
+ * Encaminha a requisição pela rota e pelo método. Fora das rotas abertas, o Access vem antes de
+ * procurar a rota, então um caminho desconhecido sem token recebe 401, não 404 (#54).
+ * Rota desconhecida: 404. Método não aceito: 405.
+ */
+export async function route(request: Request, env: Env, deps: RouterDeps): Promise<Response> {
   const { pathname } = new URL(request.url);
-  const methods = Object.hasOwn(routes, pathname) ? routes[pathname] : undefined;
-  if (!methods) {
-    return Response.json({ error: "not_found" }, { status: 404 });
-  }
-  const handler = Object.hasOwn(methods, request.method) ? methods[request.method] : undefined;
+  const open = own(publicRoutes, pathname);
+  if (open) return dispatch(request, open, (handler) => handler());
+
+  const auth = await authenticate(request, env, deps.verifier);
+  if ("response" in auth) return auth.response;
+
+  const methods = own(protectedRoutes, pathname);
+  if (!methods) return Response.json({ error: "not_found" }, { status: 404 });
+  return dispatch(request, methods, (handler) => handler(auth.identity));
+}
+
+function own<T>(record: Record<string, T>, key: string): T | undefined {
+  return Object.hasOwn(record, key) ? record[key] : undefined;
+}
+
+function dispatch<H>(request: Request, methods: Record<string, H>, run: (handler: H) => Response): Response {
+  const handler = own(methods, request.method);
   if (!handler) {
     return Response.json(
       { error: "method_not_allowed" },
       { status: 405, headers: { Allow: Object.keys(methods).join(", ") } },
     );
   }
-  return handler();
+  return run(handler);
 }
