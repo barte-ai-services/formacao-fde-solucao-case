@@ -146,6 +146,7 @@ function BarredAmountView({ panel }: { panel: BarredAmountDto }): ReactElement {
       </StatGrid>
       <Panel title={texts.valorBarrado.monthPanel(baselineLabel)} size="sm">
         <ProgressBar
+          size="md"
           max={baseline}
           showLegend
           valueText={texts.valorBarrado.progressValue(formatBrlShort(barred + waiting), baselineLabel)}
@@ -157,6 +158,7 @@ function BarredAmountView({ panel }: { panel: BarredAmountDto }): ReactElement {
       </Panel>
       <div style={{ display: "grid", gap: "var(--spacing-xl)", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))" }}>
         <Panel title={texts.valorBarrado.cumulativePanel} size="sm">
+          <div className="pagar-line-chart">
           <LineChart
             data={daily}
             xKey="day"
@@ -172,7 +174,9 @@ function BarredAmountView({ panel }: { panel: BarredAmountDto }): ReactElement {
           />
         </Panel>
         <Panel title={texts.valorBarrado.rankingPanel} size="sm">
-          <RankingBars items={rankingByException(panel)} formatValue={formatBrlShort} tone="positive" />
+          <div className="pagar-ranking">
+            <RankingBars items={rankingByException(panel)} formatValue={formatBrlShort} tone="positive" />
+          </div>
         </Panel>
       </div>
     </>

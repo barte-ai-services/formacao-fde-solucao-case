@@ -18,3 +18,11 @@
 
 /* #133 A linha da fila que a pessoa não pode decidir. */
 .pagar-dimmed { opacity: 0.5; }
+
+/* #124 O LineChart do kit não tem margem à esquerda: o respiro vem de fora, e o SVG pode passar da caixa. */
+.pagar-line-chart { padding-inline: var(--spacing-lg) var(--spacing-sm); }
+.pagar-line-chart .recharts-wrapper, .pagar-line-chart .recharts-surface { overflow: visible; }
+
+/* #124 As barras do ranking e da barra de progresso: o kit fixa 6px; aqui sobem para o passo de espaçamento do DS. */
+.pagar-ranking { --pagar-bar-height: var(--spacing-md); }
+.pagar-ranking [class*="RankingBars-module__track"] { height: var(--pagar-bar-height); }
