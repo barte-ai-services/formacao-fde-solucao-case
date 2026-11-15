@@ -45,6 +45,9 @@ const isSweepRow = shaped<SweepRow>({ invoice_access_key: isString, raised_level
 const belowFilter = (level: ApprovalLevel): string =>
   `in.(${APPROVAL_LEVELS.filter((l) => compareLevels(l, level) < 0).join(',')})`;
 
+/** #230 SQLSTATE de violação de unicidade. */
+const UNIQUE_VIOLATION = '23505';
+
 const KEY_PATTERN = /^[A-Za-z0-9-]+$/;
 
 export class SupabaseInvoiceAudits implements InvoiceAuditPort {
@@ -83,36 +86,51 @@ export class SupabaseInvoiceAudits implements InvoiceAuditPort {
 
   /** #230 AC-1 e AC-3: a linha primeiro (a verdade); depois, só se ela entrou e há nível a subir, o PATCH guardado. */
   async save(invoiceAccessKey: string, result: AuditResult, context: AuditWriteContext): Promise<void> {
+    if (!(await this.insertAudit(invoiceAccessKey, result, context))) return;
+    const { raisedLevel } = result;
+    if (raisedLevel === null) return;
+    // #230 A linha já está gravada: se a subida falhar, o save não falha (falhar faria o caso de uso reauditar);
+    // #230 a varredura (reapplyRaisedLevels) repete a subida, que é idempotente. O alerta não leva chave nem texto.
+    try {
+      const touched = await this.raise(invoiceAccessKey, raisedLevel);
+      // #230 Nenhuma proposta tocada: já decidida ou já no nível. Vale só como alerta, sem a chave nem o texto.
+      if (touched === 0) this.log('#230 invoice-audit: a auditoria pede nível mais alto, mas a proposta não está mais à espera abaixo dele');
+    } catch {
+      this.log('#230 invoice-audit: a subida de nível falhou; a varredura repete');
+    }
+  }
+
+  /**
+   * #230 Insert simples. O PostgREST usaria a chave primária como alvo do ignore-duplicates, e on_conflict não infere
+   * um índice parcial (42P10): quem decide "já auditada" é o índice único parcial, que responde 409 com 23505.
+   * Devolve false nesse caso (no-op); o 409 de outro código (23503, chave estrangeira) segue como falha.
+   */
+  private async insertAudit(invoiceAccessKey: string, result: AuditResult, context: AuditWriteContext): Promise<boolean> {
     const { audit, agreement, raisedLevel, injectionFlag } = result;
-    const raised = raisedLevel !== null;
-    // #230 Sem on_conflict, ignore-duplicates vira ON CONFLICT DO NOTHING: o índice único parcial decide "já auditada".
-    const inserted = await this.rest.insert(
-      'invoice_audits',
-      [
-        {
-          invoice_access_key: invoiceAccessKey,
-          status: 'audited',
-          reason: null,
-          classification: audit.classification,
-          dock_action: { kind: audit.dockAction },
-          routing: audit.routing,
-          justification: audit.justification,
-          amount_at_risk_cents: audit.amountAtRisk?.cents ?? null,
-          model: audit.model,
-          audited_at: audit.auditedAt,
-          differing_fields: agreement.agrees ? [] : [...agreement.differs],
-          raised_level: raisedLevel,
-          raised_from_level: raised ? context.fromLevel : null,
-          injection_flag: injectionFlag,
-          refusals: [...context.refusals],
-        },
-      ],
-      { ignoreDuplicates: true },
-    );
-    if (inserted.length === 0 || raisedLevel === null) return;
-    const touched = await this.raise(invoiceAccessKey, raisedLevel);
-    // #230 Nenhuma proposta tocada: já decidida ou já no nível. Vale só como alerta, sem a chave nem o texto.
-    if (touched === 0) this.log('#230 invoice-audit: a auditoria pede nível mais alto, mas a proposta não está mais à espera abaixo dele');
+    const row = {
+      invoice_access_key: invoiceAccessKey,
+      status: 'audited',
+      reason: null,
+      classification: audit.classification,
+      dock_action: { kind: audit.dockAction },
+      routing: audit.routing,
+      justification: audit.justification,
+      amount_at_risk_cents: audit.amountAtRisk?.cents ?? null,
+      model: audit.model,
+      audited_at: audit.auditedAt,
+      differing_fields: agreement.agrees ? [] : [...agreement.differs],
+      raised_level: raisedLevel,
+      raised_from_level: raisedLevel === null ? null : context.fromLevel,
+      injection_flag: injectionFlag,
+      refusals: [...context.refusals],
+    };
+    try {
+      await this.rest.insert('invoice_audits', [row], { ignoreDuplicates: false });
+      return true;
+    } catch (error) {
+      if (error instanceof SupabaseRestError && error.status === 409 && error.code === UNIQUE_VIOLATION) return false;
+      throw error;
+    }
   }
 
   async saveNotAudited(invoiceAccessKey: string, outcome: NotAudited, refusals: readonly AuditRefusal[]): Promise<void> {

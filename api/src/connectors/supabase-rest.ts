@@ -41,9 +41,22 @@ export class SupabaseRestError extends Error {
     readonly table: string,
     readonly status: number,
     readonly detail: string,
+    /** #230 O `code` do PostgREST (SQLSTATE, ex.: 23505), só quando o corpo da falha o traz como texto curto. */
+    readonly code?: string,
   ) {
     super(`supabase-rest: ${operation} em ${table} falhou (HTTP ${status}) ${detail}`.trim());
     this.name = 'SupabaseRestError';
+  }
+}
+
+/** #230 O `code` do corpo de erro do PostgREST (cinco caracteres do SQLSTATE ou PGRST…), ou undefined. */
+function postgrestCode(text: string): string | undefined {
+  try {
+    const body: unknown = JSON.parse(text);
+    const code = typeof body === 'object' && body !== null && 'code' in body ? body.code : undefined;
+    return typeof code === 'string' && /^[A-Za-z0-9]{5,8}$/.test(code) ? code : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -158,7 +171,7 @@ export class SupabaseRest {
       throw new SupabaseRestError('network', table, 0, detail);
     }
     if (!response.ok) {
-      throw new SupabaseRestError(operation, table, response.status, text.slice(0, MAX_DETAIL));
+      throw new SupabaseRestError(operation, table, response.status, text.slice(0, MAX_DETAIL), postgrestCode(text));
     }
     if (!text) return [];
     let parsed: unknown;

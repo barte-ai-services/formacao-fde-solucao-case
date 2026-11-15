@@ -66,7 +66,6 @@ describe('#56 reconferir', () => {
       'outbox_return_notes',
       'approvals',
       'proposals',
-      'invoice_audits',
       'divergences',
       'titles',
     ]);

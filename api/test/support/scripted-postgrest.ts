@@ -1,5 +1,5 @@
 // #230 Um PostgREST roteirizado: cada requisição é registrada (método, tabela, parâmetros, corpo) e respondida
-// por uma função do teste. Serve para afirmar as requisições exatas, o que o fake em memória não mostra.
+// #230 por uma função do teste. Serve para afirmar as requisições exatas, o que o fake em memória não mostra.
 import { SupabaseRest, type FetchFn } from '../../src/connectors/supabase-rest.js';
 
 export type Call = {

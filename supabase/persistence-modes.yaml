@@ -31,12 +31,20 @@ tables:
     mode: append-only
     history: none
     tenant: none
-    projection: a auditoria corrente da nota = a linha mais recente por invoice_access_key
-      (order=id.desc&limit=1), lida pela API de aprovação
-    rebuild_test: teste de integração do leitor da auditoria (nao_auditada seguida de audited
-      devolve audited; só nao_auditada devolve nao_auditada com o motivo)
-    # UPDATE revogado de anon, authenticated e service_role. DELETE fica só pelo cascade de
-    # invoices, que o reset administrativo (api/src/ops/reconferir.ts) usa para apagar o domínio.
+    projection: a auditoria corrente da nota = a linha 'audited' se existe, senão a tentativa mais
+      recente, por invoice_access_key (order=status.asc,id.desc&limit=1), lida pela API de aprovação
+    rebuild_test: teste do leitor da auditoria (audited seguida de nao_auditada devolve audited;
+      nao_auditada seguida de audited devolve audited; só nao_auditada devolve nao_auditada com o motivo)
+    indexes:
+      - name: invoice_audits_audited_key
+        serves: no máximo uma auditoria feita por nota (índice único parcial, status = 'audited'); a violação (409, 23505) é o "já auditada"
+      - name: invoice_audits_key_id_idx
+        serves: a leitura da API por nota (invoice_access_key = ? order by status, id desc limit 1) e o cascade da chave estrangeira
+      - name: invoice_audits_raised_idx
+        serves: a varredura do reparo (raised_level is not null order by id), que só vê as linhas com nível elevado em vez da tabela que cresce
+    # UPDATE e DELETE revogados de anon, authenticated e service_role. A linha sai só pelo cascade
+    # de invoices (roda como dono da tabela), que o reset administrativo usa; reconferir.ts não
+    # lista a tabela.
     refusal: grant
 
   proposals:
@@ -47,5 +55,11 @@ tables:
     # que causou a subida (raised_from_level, raised_level); a decisão fica em approvals.
     history: history-table
     history_table: invoice_audits (subida de nível), approvals (decisão)
+    # PER-3: a história da subida mora em invoice_audits, gravada em requisição própria (antes) e
+    # reparada por reapplyRaisedLevels se o PATCH da proposta falhar. Decisão: gravações em ordem
+    # mais varredura é o desenho aceito; uma RPC ou gatilho que fizesse as duas gravações foi
+    # rejeitada porque mudaria duas raízes de agregado numa transação e esconderia no SQL a regra
+    # "só sobe, e só enquanto espera".
     version_column: none          # a guarda é o filtro de estado e de nível no próprio PATCH
+    # PER-4 (conhecido): coluna de versão em proposals fica para outra issue.
     tenant: none

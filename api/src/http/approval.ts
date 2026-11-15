@@ -11,6 +11,7 @@ import { Quantity, type Unit } from '../domain/quantity.js';
 import type { Env } from '../env.js';
 import type { Identity } from './access.js';
 import type { CheckContext, Invoice, Product } from '../domain/index.js';
+import type { AuditedField } from '../domain/invoice-audit.js';
 import { dossierField, dossierReadFailed, type DossierField } from '../dossier/proposal-field.js';
 import { readDossier } from '../dossier/read-dossier.js';
 import type { DossierSource } from '../dossier/source.js';
@@ -175,6 +176,9 @@ async function proposalDetail(
   });
 }
 
+/** #230 Na resposta, o campo que difere usa o camelCase das demais chaves; no banco e no domínio segue em snake_case. */
+const responseField = (field: AuditedField): string => (field === 'dock_action' ? 'dockAction' : field);
+
 /** #230 AC-7 A auditoria da nota na resposta: null (pendente), "não auditada" com o motivo, ou a auditada com a concordância. */
 function auditView(audit: StoredAudit | null) {
   if (audit === null) return null;
@@ -188,7 +192,7 @@ function auditView(audit: StoredAudit | null) {
     amountAtRisk: audit.amountAtRiskCents === null ? null : money(Money.ofCents(audit.amountAtRiskCents)),
     model: audit.model,
     auditedAt: audit.auditedAt,
-    agreement: audit.differs.length === 0 ? { agrees: true } : { agrees: false, differs: audit.differs },
+    agreement: audit.differs.length === 0 ? { agrees: true } : { agrees: false, differs: audit.differs.map(responseField) },
     raisedLevel: audit.raisedLevel,
     injectionFlag: audit.injectionFlag,
     refusals: audit.refusals,

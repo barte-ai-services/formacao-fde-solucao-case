@@ -16,8 +16,13 @@ describe('migração invoice_audits (#230)', () => {
     expect(sql).toMatch(/create index invoice_audits_key_id_idx on public\.invoice_audits \(invoice_access_key, id desc\)/);
   });
 
+  it('#230 IDX-1: a varredura do reparo tem índice parcial próprio, só das linhas com nível elevado', () => {
+    expect(sql).toMatch(/create index invoice_audits_raised_idx on public\.invoice_audits \(id\) where raised_level is not null/);
+  });
+
   it('#230: só acrescenta: UPDATE revogado de anon, authenticated e service_role; RLS ligado, sem política', () => {
     expect(sql).toMatch(/revoke update on public\.invoice_audits from anon, authenticated, service_role/);
+    expect(sql).toMatch(/revoke delete on public\.invoice_audits from anon, authenticated, service_role/);
     expect(sql).toMatch(/alter table public\.invoice_audits enable row level security/);
     expect(sql).not.toMatch(/create policy/);
   });

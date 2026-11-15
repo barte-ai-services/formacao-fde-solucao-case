@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import { readLatestAudit } from '../../src/approval/latest-audit.js';
 import { SupabaseInvoiceAudits } from '../../src/connectors/invoice-audit-store.js';
+import { SupabaseRestError } from '../../src/connectors/supabase-rest.js';
 import type { AuditResult } from '../../src/domain/index.js';
 import { scripted } from '../support/scripted-postgrest.js';
 
@@ -38,7 +39,7 @@ describe('SupabaseInvoiceAudits.save (#230)', () => {
     expect(post?.method).toBe('POST');
     expect(post?.table).toBe('invoice_audits');
     expect(post?.params.has('on_conflict')).toBe(false);
-    expect(post?.prefer).toContain('resolution=ignore-duplicates');
+    expect(post?.prefer).not.toContain('resolution=ignore-duplicates');
     expect(post?.body).toEqual([
       {
         invoice_access_key: KEY,
@@ -60,12 +61,26 @@ describe('SupabaseInvoiceAudits.save (#230)', () => {
     ]);
   });
 
-  it('#230/AC-1: a nota já auditada é no-op: o insert ignorado (nenhuma linha entrou) não sobe nível nem falha', async () => {
-    const { rest, calls } = scripted(() => ({ body: [] }));
+  it('#230/AC-1: a nota já auditada é no-op: o 409 com código 23505 (índice único parcial) não sobe nível nem falha', async () => {
+    const { rest, calls } = scripted(() => ({ status: 409, body: { code: '23505', message: SEGREDO } }));
     await expect(
       new SupabaseInvoiceAudits(rest).save(KEY, result(), { refusals: [], fromLevel: 'coordenacao' }),
     ).resolves.toBeUndefined();
     expect(calls.map((c) => c.method)).toEqual(['POST']);
+  });
+
+  it('#230/AC-1: um 409 de outro código (23503, chave estrangeira) continua falhando, com o status e o código na exceção', async () => {
+    const { rest } = scripted(() => ({ status: 409, body: { code: '23503', message: 'x' } }));
+    const outcome = await new SupabaseInvoiceAudits(rest).save(KEY, result(), { refusals: [], fromLevel: 'coordenacao' }).catch((e: unknown) => e);
+    expect(outcome).toBeInstanceOf(SupabaseRestError);
+    expect((outcome as SupabaseRestError).status).toBe(409);
+    expect((outcome as SupabaseRestError).code).toBe('23503');
+  });
+
+  it('#230/AC-1: um 23505 com outro status não é "já auditada"', async () => {
+    const { rest } = scripted(() => ({ status: 400, body: { code: '23505' } }));
+    const outcome = await new SupabaseInvoiceAudits(rest).save(KEY, result(), { refusals: [], fromLevel: 'coordenacao' }).catch((e: unknown) => e);
+    expect(outcome).toBeInstanceOf(SupabaseRestError);
   });
 
   it('#230/AC-3: quando o auditor encaminha acima, a segunda gravação sobe só proposta à espera e abaixo do nível, e nada mais', async () => {
@@ -99,13 +114,19 @@ describe('SupabaseInvoiceAudits.save (#230)', () => {
     expect(lines[0]).not.toContain(KEY);
   });
 
-  it('#230: a falha da segunda gravação sobe sem o texto do PostgREST, e a linha da auditoria já está gravada', async () => {
+  it('#230: a falha da segunda gravação não derruba o save (a linha já está gravada; a varredura repara) e o alerta não leva chave nem texto', async () => {
+    const lines: string[] = [];
     const { rest, calls } = scripted((c) =>
       c.method === 'POST' ? { body: [{ id: 1 }] } : { status: 500, body: { message: SEGREDO } },
     );
-    const outcome = await new SupabaseInvoiceAudits(rest).save(KEY, result(), { refusals: [], fromLevel: 'analista' }).catch((e: unknown) => e);
-    expect(outcome).toBeInstanceOf(Error);
+    await expect(
+      new SupabaseInvoiceAudits(rest, (l) => lines.push(l)).save(KEY, result(), { refusals: [], fromLevel: 'analista' }),
+    ).resolves.toBeUndefined();
     expect(calls).toHaveLength(2);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('#230');
+    expect(lines[0]).not.toContain(KEY);
+    expect(lines[0]).not.toContain(SEGREDO);
   });
 });
 
@@ -191,12 +212,12 @@ const EMPTY_ROW = {
 };
 
 describe('readLatestAudit (#230)', () => {
-  it('#230/AC-7: lê a linha mais recente da nota em uma requisição (id desc, limit 1)', async () => {
+  it('#230/AC-7: lê a linha mais recente da nota em uma requisição (status asc, id desc, limit 1)', async () => {
     const { rest, calls } = scripted(() => ({ body: [] }));
     expect(await readLatestAudit(rest, KEY)).toBeNull();
     expect(calls).toHaveLength(1);
     expect(calls[0]?.table).toBe('invoice_audits');
-    expect(calls[0]?.params.get('order')).toBe('id.desc');
+    expect(calls[0]?.params.get('order')).toBe('status.asc,id.desc');
     expect(calls[0]?.params.get('limit')).toBe('1');
     expect(calls[0]?.params.get('invoice_access_key')).toBe(`eq.${KEY}`);
   });
@@ -217,6 +238,22 @@ describe('readLatestAudit (#230)', () => {
       amountAtRiskCents: null, model: 'm', auditedAt: '2026-11-15T18:30:00.000Z', differs: ['classification', 'routing'],
       raisedLevel: 'coordenacao', injectionFlag: null, refusals: [],
     });
+  });
+
+  it('#230/AC-7: a auditoria feita vence uma nao_auditada posterior: a ordem põe audited antes e o limite de uma linha a pega', async () => {
+    const auditedRow = {
+      status: 'audited', reason: null, classification: 'E2', dock_action: { kind: 'recusar' }, routing: 'coordenacao',
+      justification: 'a', amount_at_risk_cents: null, model: 'm', audited_at: '2026-11-15T18:30:00Z',
+      differing_fields: [], raised_level: null, raised_from_level: null, injection_flag: null, refusals: [],
+    };
+    const later = { ...EMPTY_ROW, status: 'nao_auditada', reason: 'claude_falhou' };
+    const { rest } = scripted((c) => {
+      const order = c.params.get('order');
+      // O banco ordena por status asc ('audited' < 'nao_auditada'), depois id desc; limit 1.
+      return { body: [order === 'status.asc,id.desc' ? auditedRow : later] };
+    });
+    const latest = await readLatestAudit(rest, KEY);
+    expect(latest?.status).toBe('auditada');
   });
 
   it('#230: uma linha fora do formato falha com erro de leitura, sem os dados', async () => {

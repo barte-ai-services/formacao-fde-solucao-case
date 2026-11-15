@@ -55,11 +55,12 @@ function corrupt(detail: string): never {
   throw new SupabaseRestError('parse', 'invoice_audits', 0, detail);
 }
 
-/** #230 AC-7 A linha mais recente da nota (id desc, limit 1) como a API a lê, ou null se nunca foi tentada. */
+/** #230 AC-7 A auditoria feita da nota, ou, sem ela, a tentativa mais recente (status asc, id desc, limit 1) como a API a lê, ou null se nunca foi tentada. */
 export async function readLatestAudit(rest: SupabaseRest, invoiceAccessKey: string): Promise<StoredAudit | null> {
   const rows = await rest.select('invoice_audits', {
     filters: { invoice_access_key: `eq.${invoiceAccessKey}` },
-    order: 'id.desc',
+    // #230 'audited' vem antes de 'nao_auditada' (ordem alfabética): uma tentativa falha posterior não esconde a auditoria feita.
+    order: 'status.asc,id.desc',
     limit: 1,
   });
   const [raw] = rows;

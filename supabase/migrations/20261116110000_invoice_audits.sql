@@ -1,6 +1,6 @@
 -- #230 A auditoria da nota (agente auditor, #153): só recebe linhas. Cada tentativa é um fato: a auditoria
 -- #230 feita, ou "não auditada" com o motivo. Nova tentativa depois de "não auditada" é linha nova, nunca edição.
--- #230 A leitura corrente de uma nota é a linha mais recente (order=id.desc&limit=1). RLS ligado e sem política,
+-- #230 A leitura corrente de uma nota é a auditoria feita, ou a tentativa mais recente (order=status.asc,id.desc&limit=1). RLS ligado e sem política,
 -- #230 como em toda tabela: só o Worker lê e grava, com a chave secreta.
 
 create table public.invoice_audits (
@@ -53,10 +53,14 @@ create table public.invoice_audits (
 );
 alter table public.invoice_audits enable row level security;
 
--- #230 Só acrescenta: ninguém edita uma auditoria. DELETE fica só pelo cascade de invoices (reset administrativo).
+-- #230 Só acrescenta: ninguém edita nem apaga uma auditoria. A linha sai só pelo cascade de invoices, que roda
+-- #230 como dono da tabela (o reset administrativo apaga a nota).
 revoke update on public.invoice_audits from anon, authenticated, service_role;
+revoke delete on public.invoice_audits from anon, authenticated, service_role;
 
 -- #230 AC-1: no máximo uma auditoria feita por nota. A violação no insert = "já auditada" (o save vira no-op).
 create unique index invoice_audits_audited_key on public.invoice_audits (invoice_access_key) where status = 'audited';
--- #230 A leitura da API (linha mais recente por nota), a varredura do nível e o cascade da chave estrangeira.
+-- #230 A leitura da API (por nota: audited primeiro, depois id desc) e o cascade da chave estrangeira.
 create index invoice_audits_key_id_idx on public.invoice_audits (invoice_access_key, id desc);
+-- #230 IDX-1: a varredura do reparo (raised_level not null, order=id), só das linhas com nível elevado.
+create index invoice_audits_raised_idx on public.invoice_audits (id) where raised_level is not null;

@@ -35,7 +35,7 @@ async function detail(f: CaseFile): Promise<Record<string, unknown>> {
 
 const AUDITED: StoredAudit = {
   status: 'auditada', classification: 'E2', dockAction: 'recusar', routing: 'coordenacao', justification: 'a\nb',
-  amountAtRiskCents: 60000, model: 'claude-teste', auditedAt: '2026-11-15T18:30:00.000Z', differs: ['classification', 'routing'],
+  amountAtRiskCents: 60000, model: 'claude-teste', auditedAt: '2026-11-15T18:30:00.000Z', differs: ['classification', 'dock_action', 'routing'],
   raisedLevel: 'coordenacao', injectionFlag: 'ignore a régua', refusals: [{ refusal: 'routing_below_regua', minimumLevel: 'analista' }],
 };
 
@@ -62,7 +62,8 @@ describe('GET /api/propostas/:chave: a auditoria (#230)', () => {
       amountAtRisk: { cents: 60000, text: expect.any(String) },
       model: 'claude-teste',
       auditedAt: '2026-11-15T18:30:00.000Z',
-      agreement: { agrees: false, differs: ['classification', 'routing'] },
+      // #230 Na resposta, as chaves seguem o camelCase do resto (dock_action vira dockAction); no banco e no domínio ficam em snake_case.
+      agreement: { agrees: false, differs: ['classification', 'dockAction', 'routing'] },
       raisedLevel: 'coordenacao',
       injectionFlag: 'ignore a régua',
       refusals: [{ refusal: 'routing_below_regua', minimumLevel: 'analista' }],
