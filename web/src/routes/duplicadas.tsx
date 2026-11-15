@@ -175,8 +175,8 @@ export default function NotasDuplicadas(_props: RouteProps) {
                   );
                 },
               },
-              // #211 O sistema bloqueia a duplicada sozinho, na conferência.
-              { key: "decididoPor", title: texts.decidedBy.column, dataIndex: "reason", render: () => <DecidedBy actor="system" /> },
+              // #211 O sistema bloqueia a duplicada sozinho; título que ainda não está bloqueado não tem quem decidiu.
+              { key: "decidedBy", title: texts.decidedBy.column, dataIndex: "reason", render: (_, d) => (d.titleState === "bloqueado" ? <DecidedBy actor="system" /> : "—") },
             ]}
           />
           {open !== undefined ? <DuplicateDrawer duplicate={open} onClose={() => setOpenKey(null)} onDecided={retry} /> : null}

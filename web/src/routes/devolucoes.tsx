@@ -146,7 +146,7 @@ export default function ReturnNotes(_props: RouteProps) {
               },
               // #211 A devolução espera quem emite no ERP; depois, o nome de quem emitiu ou cancelou.
               {
-                key: "decididoPor",
+                key: "decidedBy",
                 title: texts.decidedBy.column,
                 dataIndex: "status",
                 render: (_, n) => {

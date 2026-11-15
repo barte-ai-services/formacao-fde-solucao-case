@@ -141,7 +141,7 @@ export default function FilaDeAprovacao(_props: RouteProps) {
                 render: (_, i) => dim(i, LEVEL_LABEL[i.requiredApproverLevel]),
               },
               // #211 Tudo o que está na fila espera uma pessoa; o nível a quem foi encaminhado está na coluna ao lado.
-              { key: "decididoPor", title: texts.decidedBy.column, dataIndex: "state", render: (_, i) => dim(i, <GridBadge tone="waiting">{texts.decidedBy.awaiting}</GridBadge>) },
+              { key: "decidedBy", title: texts.decidedBy.column, dataIndex: "state", render: (_, i) => dim(i, <GridBadge tone="waiting">{texts.decidedBy.awaiting}</GridBadge>) },
             ]}
           />
           {open !== null ? (
