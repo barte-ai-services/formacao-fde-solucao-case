@@ -27,7 +27,8 @@ import { Money } from '../domain/money.js';
 import { Proposal, type ProposalState } from '../domain/proposal.js';
 import { Quantity } from '../domain/quantity.js';
 import { Title, type TitleState } from '../domain/title.js';
-import { AlreadyDecidedError, type ApprovalStore, type CaseFile } from './store.js';
+import { readLatestAudit } from './latest-audit.js';
+import { AlreadyDecidedError, type ApprovalStore, type CaseFile, type StoredAudit } from './store.js';
 
 // #63 Formato das linhas, conferido na borda antes de virar domínio.
 
@@ -85,9 +86,9 @@ type TitleRow = {
 const isLevel = oneOf(...APPROVAL_LEVELS);
 
 /** #63 A chave de acesso tem 44 dígitos; validar aqui protege os filtros `in.(...)` montados com ela. */
-const isAccessKey = (v: unknown): v is string => isString(v) && /^\d{44}$/.test(v);
+export const isAccessKey = (v: unknown): v is string => isString(v) && /^\d{44}$/.test(v);
 
-const isInvoiceRow = shaped<InvoiceRow>({
+export const isInvoiceRow = shaped<InvoiceRow>({
   access_key: isAccessKey,
   number: isString,
   series: isString,
@@ -101,7 +102,7 @@ const isInvoiceRow = shaped<InvoiceRow>({
   state: oneOf('a_conferir', 'conferida', 'com_proposta', 'decidida'),
 } satisfies Shape<InvoiceRow>);
 
-const isDivergenceRow = shaped<DivergenceRow>({
+export const isDivergenceRow = shaped<DivergenceRow>({
   invoice_access_key: isString,
   seq: isInteger,
   classification: isString,
@@ -200,7 +201,7 @@ export function dockActionFromJson(raw: unknown, table: string): DockAction {
   return corrupt(table, 'ação na doca desconhecida');
 }
 
-function invoiceFromRows(row: InvoiceRow, divergences: readonly DivergenceRow[]): Invoice {
+export function invoiceFromRows(row: InvoiceRow, divergences: readonly DivergenceRow[]): Invoice {
   if (!Array.isArray(row.items)) corrupt('invoices', 'itens fora do formato');
   const invoice = Invoice.receive({
     accessKey: row.access_key,
@@ -360,7 +361,18 @@ export class SupabaseApprovalStore implements ApprovalStore {
 
   async find(invoiceAccessKey: string): Promise<CaseFile | null> {
     const [file] = await this.load({ invoice_access_key: `eq.${invoiceAccessKey}` });
-    return file ?? null;
+    if (!file) return null;
+    return { ...file, audit: await this.latestAudit(invoiceAccessKey) };
+  }
+
+  /** #230 AC-7 Um erro ao ler a auditoria não derruba a proposta: audit vai nula, e o log traz só o tipo do erro. */
+  private async latestAudit(invoiceAccessKey: string): Promise<StoredAudit | null> {
+    try {
+      return await readLatestAudit(this.rest, invoiceAccessKey);
+    } catch (e) {
+      console.error(`#230 auditoria da nota ${invoiceAccessKey} não lida: ${e instanceof Error ? e.name : 'erro'}`);
+      return null;
+    }
   }
 
   async listDecidedOn(day: string): Promise<CaseFile[]> {

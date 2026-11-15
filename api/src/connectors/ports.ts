@@ -1,5 +1,7 @@
 // Portas dos conectores (#59, AC-2): o que a conferência lê dos sistemas e o que publica para eles.
 import type {
+  ApprovalLevel,
+  AuditRefusal,
   AuditResult,
   DockAction,
   Invoice,
@@ -108,6 +110,13 @@ export type ReturnNoteOutbox = Outbox<ReturnNoteMessage>;
 export type AuditedNote = { readonly invoice: Invoice; readonly proposal: RuleProposal };
 
 /**
+ * #230 O que acompanha a auditoria na gravação: as recusas do record_audit nesta tentativa, na ordem em que
+ * aconteceram (lista vazia = aceita de primeira; insumo da avaliação da #154), e o nível que a proposta tinha
+ * quando a nota foi lida (o `raised_from_level` da linha, quando o nível sobe).
+ */
+export type AuditWriteContext = { readonly refusals: readonly AuditRefusal[]; readonly fromLevel: ApprovalLevel };
+
+/**
  * #230 O que a auditoria lê e grava por nota. São duas raízes, a auditoria e a proposta, e não há transação entre
  * elas; o contrato é o de duas gravações em ordem:
  * 1. `save` primeiro acrescenta a linha em invoice_audits, que é a verdade (a tabela só recebe linhas);
@@ -128,9 +137,9 @@ export type AuditedNote = { readonly invoice: Invoice; readonly proposal: RulePr
 export interface InvoiceAuditPort {
   /** #230 A nota capturada com a proposta da regra, ou null se a nota ou a proposta não existe. */
   loadNote(invoiceAccessKey: string): Promise<AuditedNote | null>;
-  save(invoiceAccessKey: string, result: AuditResult): Promise<void>;
-  /** #230 AC-6: a nota fica "não auditada" com o motivo; a proposta da regra segue como estava. */
-  saveNotAudited(invoiceAccessKey: string, outcome: NotAudited): Promise<void>;
+  save(invoiceAccessKey: string, result: AuditResult, context: AuditWriteContext): Promise<void>;
+  /** #230 AC-6: a nota fica "não auditada" com o motivo e as recusas que o record_audit deu antes; a proposta da regra segue como estava. */
+  saveNotAudited(invoiceAccessKey: string, outcome: NotAudited, refusals: readonly AuditRefusal[]): Promise<void>;
   /** #230 O reparo idempotente do nível (item 4 acima). */
   reapplyRaisedLevels(): Promise<void>;
 }

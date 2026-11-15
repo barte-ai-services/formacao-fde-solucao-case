@@ -19,6 +19,7 @@ export const DOMAIN_TABLES: readonly (readonly [table: string, column: string])[
   ['outbox_return_notes', 'id'],
   ['approvals', 'id'],
   ['proposals', 'id'],
+  ['invoice_audits', 'invoice_access_key'],
   ['divergences', 'invoice_access_key'],
   ['titles', 'invoice_access_key'],
 ] as const);

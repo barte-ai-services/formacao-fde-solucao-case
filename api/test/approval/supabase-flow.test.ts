@@ -127,3 +127,47 @@ describe('#63 aprovação gravada no Supabase', () => {
     expect(body.line).toBe(2);
   });
 });
+
+describe('#230 a auditoria na proposta (AC-7)', () => {
+  const AUDIT_ROW = {
+    status: 'audited', reason: null, classification: 'E5', dock_action: { kind: 'recusar' }, routing: 'diretoria',
+    justification: 'a\nb', amount_at_risk_cents: null, model: 'm', audited_at: '2026-11-15T12:00:00+00:00',
+    differing_fields: ['routing'], raised_level: 'diretoria', raised_from_level: 'coordenacao', injection_flag: null, refusals: [],
+  };
+
+  it('#230/AC-7: o detalhe traz a auditoria mais recente da nota; a anterior não auditada fica atrás', async () => {
+    const { fake, deps, call } = await captured();
+    await proposeChecked(deps);
+    fake.tables.set('invoice_audits', [
+      { id: 1, invoice_access_key: NF080, status: 'nao_auditada', reason: 'claude_falhou', refusals: [] },
+      { id: 2, invoice_access_key: NF080, ...AUDIT_ROW },
+    ]);
+    const body = (await (await call(`/api/propostas/${NF080}`, DIRETORIA)).json()) as { audit: { status: string; raisedLevel: string } };
+    expect(body.audit).toMatchObject({ status: 'auditada', raisedLevel: 'diretoria' });
+    const withoutAudit = (await (await call(`/api/propostas/${NF036}`, DIRETORIA)).json()) as { audit: unknown };
+    expect(withoutAudit.audit).toBeNull();
+  });
+
+  it('#230/AC-7: um erro ao ler a auditoria não derruba a proposta: audit nula e o log sem o texto do erro', async () => {
+    const { fake, deps } = await captured();
+    await proposeChecked(deps);
+    const failing = new SupabaseRest({
+      url: 'https://fake.supabase.co',
+      secretKey: 'sb_secret_fake',
+      fetch: async (input, init) =>
+        input.includes('/invoice_audits') ? new Response('{"message":"segredo-do-banco-xyz"}', { status: 500 }) : fake.fetch(input, init),
+    });
+    const lines: string[] = [];
+    const spy = console.error;
+    console.error = (l: unknown) => void lines.push(String(l));
+    try {
+      const file = await new SupabaseApprovalStore(failing, () => NOW).find(NF080);
+      expect(file?.proposal.level).toBe('diretoria');
+      expect(file?.audit).toBeNull();
+    } finally {
+      console.error = spy;
+    }
+    expect(lines.length).toBeGreaterThan(0);
+    expect(lines.join('\n')).not.toContain('segredo-do-banco-xyz');
+  });
+});

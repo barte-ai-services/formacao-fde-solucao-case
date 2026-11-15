@@ -1,0 +1,51 @@
+# Registro de modos de persistência (#230): uma entrada por tabela, com o modo, onde fica a
+# história e como a escrita proibida é recusada. Lido pela revisão de persistência (PER, IDX, MT).
+# Chaves em inglês (o formato do registro); descrições em português.
+#
+# mode:     append-only | upsert-with-history | ephemeral
+# history:  json-child-table | json-column | history-table | none
+#
+# Por ora só estão aqui as tabelas que a #230 cria ou altera. As demais tabelas do domínio
+# (invoices, divergences, approvals, titles, caixas de saída, claude_suggestions, automation_runs)
+# ainda não têm modo declarado: registrá-las é trabalho de outra issue.
+
+database: postgresql 17          # supabase/config.toml, major_version = 17
+migrations: supabase/migrations
+
+strategies:
+  # Sem unidade de trabalho de várias instruções: o Worker fala com o banco pelo PostgREST, e cada
+  # requisição roda numa transação própria (docs.postgrest.org, "Transactions": "every request to
+  # an API resource runs inside a transaction"). Um caso de uso com duas escritas as ordena e torna
+  # a segunda idempotente; ver invoice_audits abaixo.
+  unit_of_work: uma requisição PostgREST por escrita (api/src/connectors/supabase-rest.ts)
+  tenancy:
+    # Não há locatário: uma empresa só, e só o Worker lê e grava, com a chave secreta. RLS fica
+    # ligado e sem política em toda tabela (AC-6 da #59), o que fecha anon e authenticated.
+    strategy: none
+
+tables:
+  invoice_audits:
+    # Cada tentativa de auditoria de uma nota é um fato: a auditoria feita, ou a "não auditada"
+    # com o motivo. Uma nova tentativa depois de "não auditada" é uma linha nova, nunca uma
+    # edição. No máximo uma linha 'audited' por nota (índice único parcial).
+    mode: append-only
+    history: none
+    tenant: none
+    projection: a auditoria corrente da nota = a linha mais recente por invoice_access_key
+      (order=id.desc&limit=1), lida pela API de aprovação
+    rebuild_test: teste de integração do leitor da auditoria (nao_auditada seguida de audited
+      devolve audited; só nao_auditada devolve nao_auditada com o motivo)
+    # UPDATE revogado de anon, authenticated e service_role. DELETE fica só pelo cascade de
+    # invoices, que o reset administrativo (api/src/ops/reconferir.ts) usa para apagar o domínio.
+    refusal: grant
+
+  proposals:
+    # A proposta é uma entidade que muda de estado e de nível. A #230 só acrescenta uma escrita:
+    # subir approval_level, condicionada ao estado e ao nível atual, nunca descer.
+    mode: upsert-with-history
+    # Sem tabela de história própria: o nível anterior e o novo ficam na linha de invoice_audits
+    # que causou a subida (raised_from_level, raised_level); a decisão fica em approvals.
+    history: history-table
+    history_table: invoice_audits (subida de nível), approvals (decisão)
+    version_column: none          # a guarda é o filtro de estado e de nível no próprio PATCH
+    tenant: none
