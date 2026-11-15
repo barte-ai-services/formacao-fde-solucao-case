@@ -1,0 +1,26 @@
+/* Do Shell: as classes de Conexões que o wireframe reusa (toolbar, filtros em pílula, gaveta). */
+@import "./connections.css";
+
+.wf-screen { container-type: inline-size; padding-bottom: 96px; }
+.wf-body { display: grid; gap: var(--spacing-xl); min-width: 0; }
+.wf-two { display: flex; flex-direction: column; gap: var(--spacing-2xs); }
+.wf-drawer { display: grid; gap: var(--spacing-xl); }
+.wf-badges { display: flex; flex-wrap: wrap; gap: var(--spacing-sm); }
+.wf-select { min-width: 160px; }
+.wf-grid-2 { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--spacing-xl); }
+@container (min-width: 900px) { .wf-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.wf-proposta { --drawer-width: 560px; }
+
+/* O controle do wireframe: fora da moldura, não faz parte da tela. */
+div.wf-controls {
+  box-sizing: border-box; width: 320px;
+  position: fixed; right: 16px; bottom: 16px; z-index: 50;
+  display: grid; gap: var(--spacing-sm); max-width: min(360px, calc(100vw - 32px));
+  padding: 12px 16px;
+  background: var(--bg-primary); color: var(--content-primary);
+  border: 1px dashed var(--stroke-brand); border-radius: var(--border-radius-lg);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.12);
+  font-family: var(--bsk-font-family);
+}
+.wf-controls-title { font-size: var(--typography-label-sm-fontSize, 12px); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--content-brand, var(--content-secondary)); }
+.wf-controls-note { font-size: var(--typography-body-xs-fontSize); color: var(--content-tertiary); }

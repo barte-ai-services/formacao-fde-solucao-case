@@ -36,11 +36,16 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
-      # A URL do Supabase não é segredo, mas fica fora do git: vem da variável do repositório (#59).
-      - run: npx wrangler deploy --var "BARTE_ACADEMY_SUPABASE_URL:$BARTE_ACADEMY_SUPABASE_URL"
+      # O AUD e o domínio do time do Access (#54) e a URL do Supabase (#59) são variáveis do
+      # repositório, não segredos. Entram pelo env e são lidos no shell, sem expressão do Actions na
+      # linha de comando. Vazios, o Worker sobe fechado: fora do /health, sem token responde 401 e com
+      # token responde 503.
+      - run: npx wrangler deploy --var "ACCESS_AUD:$ACCESS_AUD" --var "ACCESS_TEAM_DOMAIN:$ACCESS_TEAM_DOMAIN" --var "BARTE_ACADEMY_SUPABASE_URL:$BARTE_ACADEMY_SUPABASE_URL"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.BARTE_ACADEMY_CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.BARTE_ACADEMY_CLOUDFLARE_ACCOUNT_ID }}
+          ACCESS_AUD: ${{ vars.BARTE_ACADEMY_ACCESS_AUD }}
+          ACCESS_TEAM_DOMAIN: ${{ vars.BARTE_ACADEMY_ACCESS_TEAM_DOMAIN }}
           BARTE_ACADEMY_SUPABASE_URL: ${{ vars.BARTE_ACADEMY_SUPABASE_URL }}
       # A chave secreta só existe no Worker: entra pela entrada padrão, sem aparecer no log nem no git (#59).
       - run: printf '%s' "$BARTE_ACADEMY_SUPABASE_SECRET_KEY" | npx wrangler secret put BARTE_ACADEMY_SUPABASE_SECRET_KEY

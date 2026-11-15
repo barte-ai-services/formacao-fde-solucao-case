@@ -1,0 +1,14 @@
+{
+  "pages": {
+    "wireframe-contas-a-pagar": {
+      "file": "index.html",
+      "title": "Wireframe do contas a pagar",
+      "home": "team",
+      "links": {
+        "team": "https://claude.ai/artifact/8ieG4o7bQQwBQmDasGknnQ"
+      },
+      "capabilities": {}
+    }
+  },
+  "publishOrder": ["wireframe-contas-a-pagar"]
+}
