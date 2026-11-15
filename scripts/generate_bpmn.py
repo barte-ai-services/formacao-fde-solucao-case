@@ -325,7 +325,7 @@ TARGET = Process(
         N("Task_LinkPayment", "serviceTask", "Vincular ao pagamento já feito", "Lane_Agent", 5, 1, tone="agent"),
         N("End_Regularized", "endEvent", "Regularizada, sem novo pagamento", "Lane_Agent", 6, 1, tone="ok"),
         N("Task_ProposeAction", "serviceTask", "Propor a ação na doca", "Lane_Agent", 6, tone="agent"),
-        N("Task_Approver", "businessRuleTask", "Definir o aprovador pela régua", "Lane_Agent", 7, tone="agent"),
+        N("Task_Approver", "businessRuleTask", "Definir o aprovador pelos limites", "Lane_Agent", 7, tone="agent"),
         N("Gateway_WhoDecides", "exclusiveGateway", "Quem decide?", "Lane_Agent", 8),
         N("Task_Confirm", "userTask", "Confirmar ou alterar a ação", "Lane_Approver", 9, tone="person"),
         N("Gateway_Join", "exclusiveGateway", "", "Lane_Dock", 10),

@@ -2,7 +2,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <style>
-/* layout: faixa preta da Barte; legenda das quatro marcações; um cartão por nó do processo-alvo, na ordem do BPMN */
+/* layout: faixa preta da Barte; legenda das quatro marcações; um cartão por nó do processo-alvo, agrupados por raia do BPMN */
 :root {
   color-scheme: light;
   --brand: #df285d; --brand-soft: #fdf0f4; --ink: #171717; --ink-2: #404040; --ink-3: #737373;
@@ -67,7 +67,7 @@ h2::before { content: ""; width: 8px; height: 30px; background: var(--brand); }
       <div class="lg k-regra"><b>Regra</b><span>Conta ou comparação exata. Mesmo dado, mesma resposta, sempre.</span></div>
       <div class="lg k-clef"><b>Clef</b><span>Decide com confiança calibrada. Abaixo do limite, devolve para a pessoa.</span></div>
       <div class="lg k-llm"><b>Agente com LLM</b><span>Entende texto ou imagem e escreve. Propõe, não decide dinheiro.</span></div>
-      <div class="lg k-pessoa"><b>Pessoa</b><span>Julgamento sem critério escrito, ou risco que o CFO não delega.</span></div>
+      <div class="lg k-pessoa"><b>Pessoa</b><span>Decide quando não há regra escrita, ou quando o risco é alto demais para entregar a um agente.</span></div>
     </div>
   </section>
 
@@ -77,17 +77,18 @@ h2::before { content: ""; width: 8px; height: 30px; background: var(--brand); }
       <div class="node"><div class="n">Capturar a nota</div><div class="chips"><span class="chip c-no">Sem agente · sistema</span></div><div class="prem"><b>Por quê</b>Integração com a SEFAZ. É transporte de dado, não decisão.</div></div>
     </div>
     <div class="lane" style="margin-top:22px"><h3>Agente</h3>
-      <div class="node hot"><div class="n">Classificar a divergência</div><div class="chips"><span class="chip c-regra">Regra</span><span class="chip c-llm">LLM</span></div><div class="prem"><b>Premissa a validar</b>Regra para conversão, quantidade e valor. LLM para casar a descrição do item com o cadastro quando o SKU vem vazio (E2, E8). Medir no eval o acerto do casamento.</div></div>
+      <div class="node hot"><div class="n">Classificar a divergência</div><div class="chips"><span class="chip c-regra">Regra</span><span class="chip c-llm">LLM</span></div><div class="prem"><b>Premissa a validar</b>Regra para conversão, quantidade e valor. LLM para casar a descrição do item com o cadastro quando o SKU vem vazio (item trocado, item sem cadastro) e para achar a ordem provável quando a nota não cita o pedido; a regra confirma. Medir no eval o acerto do casamento.</div></div>
       <div class="node"><div class="n">Duplicada?</div><div class="chips"><span class="chip c-regra">Regra</span></div><div class="prem"><b>Por quê</b>Mesma chave, mesmo número e série, ou mesma ordem com o mesmo valor. É comparação exata.</div></div>
       <div class="node"><div class="n">Bloquear o título duplicado</div><div class="chips"><span class="chip c-no">Sem agente · sistema</span></div><div class="prem"><b>Por quê</b>Consequência automática da regra anterior.</div></div>
       <div class="node"><div class="n">Já paga fora do fluxo?</div><div class="chips"><span class="chip c-regra">Regra</span></div><div class="prem"><b>Por quê</b>Fornecedor, destino, data e valor batem com um pagamento sem nota.</div></div>
-      <div class="node hot"><div class="n">Localizar a ordem sem pedido na nota</div><div class="chips"><span class="chip c-llm">LLM</span></div><div class="prem"><b>Premissa a validar</b>Achar a ordem provável pelos itens, quantidades e destino. A LLM sugere, e a regra confirma que os itens batem.</div></div>
+      <div class="node"><div class="n">Vincular ao pagamento já feito</div><div class="chips"><span class="chip c-no">Sem agente · sistema</span></div><div class="prem"><b>Por quê</b>Consequência da regra anterior: liga a nota ao pagamento, sem pagar de novo.</div></div>
       <div class="node hot"><div class="n">Propor a ação na doca</div><div class="chips"><span class="chip c-regra">Regra</span><span class="chip c-llm">LLM</span></div><div class="prem"><b>Premissa a validar</b>A ação sai da tabela por exceção (regra). A LLM escreve o dossiê para quem aprova: o que diverge, a evidência e o histórico do fornecedor.</div></div>
       <div class="node"><div class="n">Definir o aprovador pelos limites</div><div class="chips"><span class="chip c-regra">Regra</span></div><div class="prem"><b>Por quê</b>Tabela de limites de aprovação. Nunca pode depender de interpretação.</div></div>
+      <div class="node"><div class="n">Quem decide?</div><div class="chips"><span class="chip c-regra">Regra</span></div><div class="prem"><b>Por quê</b>Match vai pela regra, sem pessoa. O resto vai ao aprovador do nível.</div></div>
       <div class="node"><div class="n">Conciliar contagem, nota e pedido</div><div class="chips"><span class="chip c-regra">Regra</span></div><div class="prem"><b>Por quê</b>É conta na mesma unidade.</div></div>
     </div>
     <div class="lane" style="margin-top:22px"><h3>Aprovador da alçada</h3>
-      <div class="node hot"><div class="n">Confirmar ou alterar a ação</div><div class="chips"><span class="chip c-clef">Clef</span><span class="chip c-llm">LLM</span><span class="chip c-pessoa">Pessoa</span></div><div class="prem"><b>Premissa a validar</b>Clef confirma E1, E3 e E4 até R$ 20 mil, com confiança de 0,98 e depois de 4 semanas em modo sombra. LLM recomenda a alteração com o porquê, e a pessoa decide. Diretoria e bloqueio: sempre pessoa.</div></div>
+      <div class="node hot"><div class="n">Confirmar ou alterar a ação</div><div class="chips"><span class="chip c-clef">Clef</span><span class="chip c-llm">LLM</span><span class="chip c-pessoa">Pessoa</span></div><div class="prem"><b>Premissa a validar</b>Proposta, a validar com o CFO: o Clef confirma falta física, quantidade menor e unidade de medida até R$ 20 mil, com confiança de 0,98, depois de 4 semanas em modo sombra. LLM recomenda a alteração com o porquê, e a pessoa decide. Diretoria e bloqueio: sempre pessoa.</div></div>
     </div>
     <div class="lane" style="margin-top:22px"><h3>Doca</h3>
       <div class="node"><div class="n">Planejar o recebimento</div><div class="chips"><span class="chip c-pessoa">Pessoa</span></div><div class="prem"><b>Por quê</b>Equipe e agenda da doca. A proposta só chega antes.</div></div>
@@ -95,8 +96,9 @@ h2::before { content: ""; width: 8px; height: 30px; background: var(--brand); }
       <div class="node"><div class="n">Decisão na doca</div><div class="chips"><span class="chip c-pessoa">Pessoa</span></div><div class="prem"><b>Por quê</b>O aceite é ato jurídico: aceitar a nota é aceitar o pedido.</div></div>
     </div>
     <div class="lane" style="margin-top:22px"><h3>Contas a pagar</h3>
-      <div class="node"><div class="n">Emitir nota de devolução</div><div class="chips"><span class="chip c-no">Sem agente · sistema</span></div><div class="prem"><b>Por quê</b>Escrita no ERP, só depois da homologação.</div></div>
-      <div class="node"><div class="n">Liberar ou bloquear o título</div><div class="chips"><span class="chip c-no">Sem agente · sistema</span></div><div class="prem"><b>Por quê</b>Consequência da decisão. Dinheiro não sai por interpretação.</div></div>
+      <div class="node"><div class="n">Emitir nota de devolução da diferença</div><div class="chips"><span class="chip c-no">Sem agente · sistema</span></div><div class="prem"><b>Por quê</b>Escrita no ERP, só depois da homologação.</div></div>
+      <div class="node"><div class="n">Bloquear o título</div><div class="chips"><span class="chip c-no">Sem agente · sistema</span></div><div class="prem"><b>Por quê</b>Consequência da recusa na doca.</div></div>
+      <div class="node"><div class="n">Liberar o título para a lista do dia</div><div class="chips"><span class="chip c-no">Sem agente · sistema</span></div><div class="prem"><b>Por quê</b>Consequência da decisão. Dinheiro não sai por interpretação.</div></div>
     </div>
   </section>
 

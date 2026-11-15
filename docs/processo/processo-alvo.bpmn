@@ -80,7 +80,7 @@
       <bpmn:incoming>Flow_8</bpmn:incoming>
       <bpmn:outgoing>Flow_10</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:businessRuleTask id="Task_Approver" name="Definir o aprovador pela régua">
+    <bpmn:businessRuleTask id="Task_Approver" name="Definir o aprovador pelos limites">
       <bpmn:incoming>Flow_10</bpmn:incoming>
       <bpmn:outgoing>Flow_11</bpmn:outgoing>
     </bpmn:businessRuleTask>
