@@ -140,6 +140,21 @@ describe('#73 E3 quantidade menor: proposta e liquidação', () => {
     expect(proposeQuantidadeMenor(invoice(2_000_001), ctx(), [line(100, 75)]).level).toBe('coordenacao');
   });
 
+  it('#73/AC-2, limites de aprovação linha 2: nota acima de R$ 100 mil ou fornecedor bloqueado vai à diretoria', () => {
+    expect(proposeQuantidadeMenor(invoice(10_000_000), ctx(), [line(100, 75)]).level).toBe('coordenacao');
+    expect(proposeQuantidadeMenor(invoice(10_000_001), ctx(), [line(100, 75)]).level).toBe('diretoria');
+    const blocked = {
+      id: 'F08',
+      legalName: 'Fornecedor bloqueado',
+      cnpj: '00.000.000/0001-00',
+      paymentBlocked: true,
+      blockReason: 'pendência fiscal',
+    };
+    expect(proposeQuantidadeMenor(invoice(78_900), ctx({ suppliers: [blocked] }), [line(100, 75)]).level).toBe(
+      'diretoria',
+    );
+  });
+
   it('#73/AC-2: sem linha a menos não há proposta de E3', () => {
     expect(() => proposeQuantidadeMenor(invoice(), ctx(), [line(100, 0)])).toThrow(DomainError);
   });

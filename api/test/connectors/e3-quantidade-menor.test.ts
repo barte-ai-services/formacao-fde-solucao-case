@@ -65,7 +65,7 @@ const E3_CASES = [
   { receipt: 'RC-9241', number: '47963', code: 'F04-001', invoiced: 1432, counted: 1074, itemValue: 3565.68, level: 'analista' },
   { receipt: 'RC-9250', number: '43900', code: 'F02-003', invoiced: 336, counted: 252, itemValue: 5006.4, level: 'analista' },
   { receipt: 'RC-9268', number: '84433', code: 'F10-002', invoiced: 328, counted: 246, itemValue: 8167.2, level: 'coordenacao' },
-  { receipt: 'RC-9270', number: '89408', code: 'F03-003', invoiced: 11064, counted: 8298, itemValue: 37617.6, level: null },
+  { receipt: 'RC-9270', number: '89408', code: 'F03-003', invoiced: 11064, counted: 8298, itemValue: 37617.6, level: 'diretoria' },
 ] as const;
 
 const expectedRiskCents = (c: (typeof E3_CASES)[number]) =>
@@ -93,7 +93,7 @@ describe('#73 E3 quantidade menor nos recebimentos do kit (offline)', () => {
       expect(dockLines[0]?.disposition).toBe('devolver');
       expect(dockLines[0]?.quantity.equals(Quantity.of(c.invoiced - c.counted, 'UN'))).toBe(true);
       expect(props.amountAtRisk.amount.cents).toBe(expectedRiskCents(c));
-      if (c.level !== null) expect(props.level).toBe(c.level);
+      expect(props.level).toBe(c.level);
     });
 
     it(`#73/AC-3 e AC-4: ${c.receipt} aprovado reduz o título ao recebido e publica a devolução na caixa de saída do ERP`, async () => {
