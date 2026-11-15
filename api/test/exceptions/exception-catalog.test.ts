@@ -45,3 +45,12 @@ describe('catálogo das exceções (#128)', () => {
     }
   });
 });
+
+describe('validação das chaves de classification (#128)', () => {
+  it('uma migração posterior valida as três chaves criadas not valid', () => {
+    const sql = readFileSync(new URL('../../../supabase/migrations/20261115230000_exceptions_validate_fkeys.sql', import.meta.url), 'utf8');
+    for (const table of ['invoices', 'divergences', 'proposals']) {
+      expect(sql).toContain(`alter table public.${table} validate constraint ${table}_classification_fkey;`);
+    }
+  });
+});
