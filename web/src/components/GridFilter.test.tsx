@@ -94,7 +94,7 @@ describe("#207 GridFilter", () => {
       const text = pill.firstElementChild!;
       expect(text.className).toMatch(/Text-module__bodySm__/);
       expect(text.className).not.toMatch(/Text-module__bodyXs__/);
-      // rótulo e contador no mesmo texto, não cortados nem em outro nó.
+      // #207: rótulo e contador no mesmo texto, não cortados nem em outro nó.
       expect(text.textContent).toMatch(/^(Todas · 66|Minhas · 12)$/);
     }
   });
