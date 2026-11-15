@@ -5,7 +5,7 @@ import type { Quantity, Unit } from './quantity.js';
 // #59: snapshots read-only que as verificações recebem. Os conectores preenchem; o domínio só lê.
 
 export type PurchaseOrderItem = {
-  readonly sku: string;
+  readonly sku: string | null; // o kit traz item de ordem sem SKU, #59
   readonly supplierCode: string;
   readonly description: string;
   readonly quantity: Quantity;
@@ -78,7 +78,7 @@ export type ReceiptItem = {
 /** Recebimento físico (contagem), do WMS. */
 export type Receipt = {
   readonly id: string;
-  readonly invoiceAccessKey: string;
+  readonly invoiceAccessKey: string | null; // o kit traz recebimento sem nota, #59
   readonly purchaseOrderId: string | null;
   readonly supplierId: string;
   readonly store: string;
