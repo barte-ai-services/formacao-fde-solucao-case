@@ -22,7 +22,7 @@ const READY: DossierField = {
   model: "claude-exemplo",
 };
 
-const DEFAULT_NOTICE = "O dossiê ainda não foi gerado. Decida pelas divergências e evidências da conferência.";
+const DEFAULT_NOTICE = "Dossiê ainda não gerado. Decida pelas evidências da conferência.";
 
 describe("#38/AC-1 o dossiê pronto mostra divergência, evidência e histórico", () => {
   it("#38/AC-1 mostra o resumo, a divergência com as evidências e o histórico do fornecedor", () => {
@@ -44,7 +44,7 @@ describe("#38/AC-1 o dossiê pronto mostra divergência, evidência e histórico
 
   it("#38/AC-1 deixa claro que o Claude explica e quem decide é a regra ou a pessoa", () => {
     render(<Dossier dossier={READY} />);
-    expect(screen.getByText(/quem decide é a regra ou você/)).toBeTruthy();
+    expect(screen.getByText(/Quem decide é a regra ou você/)).toBeTruthy();
     expect(screen.getByText(/a ação, o nível e o valor vêm da regra/i)).toBeTruthy();
   });
 

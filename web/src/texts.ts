@@ -22,43 +22,41 @@ export const texts = {
     action: "Ver a fila de aprovação",
     duplicadas: {
       title: "Nenhuma nota duplicada neste mês",
-      description:
-        "Quando uma nota cobrar uma compra já cobrada, ela aparece aqui ao lado da original, com o título bloqueado.",
+      description: "As notas cobradas em dobro aparecem aqui.",
     },
     valorBarrado: {
       title: "Nada evitado neste mês ainda",
-      description: (baseline: string) =>
-        `A perda mensal hoje é ${baseline}. O valor evitado aparece aqui assim que a primeira proposta for aprovada.`,
+      description: (baseline: string) => `Perda mensal hoje: ${baseline}.`,
     },
     queue: {
       title: "Nenhuma proposta espera a sua decisão",
-      description: "As propostas novas aparecem aqui assim que o agente conferir a nota.",
+      description: "As novas chegam depois da conferência.",
     },
     todayList: {
       title: "Nenhum título para pagar hoje",
-      description: "Eles aparecem aqui quando a regra ou uma pessoa aprova a proposta.",
+      description: "Os títulos entram quando a proposta é aprovada.",
     },
     proposal: {
       title: "Esta nota ainda não tem proposta",
-      description: "A proposta aparece aqui assim que o agente conferir a nota.",
+      description: "A proposta sai depois da conferência.",
     },
     returnNotes: {
       pendente: { // ADR-002
         title: "Nenhuma devolução pendente de emissão",
-        description: "Quando uma nota for recusada ou recebida em parte, a devolução aparece aqui para o fiscal emitir.",
+        description: "Recusas e recebimentos parciais geram devolução.",
       },
       emitida: { // ADR-002
         title: "Nenhuma devolução emitida",
-        description: "As devoluções aparecem aqui depois que o fiscal informa o número da NF-e de devolução.",
+        description: "As emitidas aparecem com o número da NF-e.",
       },
       cancelada: { // ADR-002
         title: "Nenhuma devolução cancelada",
-        description: "As devoluções canceladas aparecem aqui, com o motivo do cancelamento.",
+        description: "As canceladas aparecem com a justificativa.",
       },
     },
     recebimento: {
       title: (noun: string) => `Nenhuma nota na ${noun} hoje`,
-      description: (empty: string) => `${empty} Quando houver, cada caminhão aparece aqui com a ação a tomar.`,
+      description: (empty: string) => empty,
     },
   },
 
@@ -142,7 +140,7 @@ export const texts = {
 
   proposta: {
     title: (numberOrId: string) => `Proposta da nota ${numberOrId}`,
-    subtitle: "A ação no recebimento proposta, a evidência de cada divergência e a sua decisão.",
+    subtitle: "Confira a proposta e decida.",
     loading: "Carregando a proposta…",
     error: "Não consegui ler esta proposta agora",
     empty: "Esta nota ainda não tem proposta.",
@@ -150,12 +148,11 @@ export const texts = {
 
   doca: {
     title: "Doca",
-    subtitle:
-      "Notas que chegam hoje neste destino e o que fazer com cada caminhão. Nada é descarregado antes da decisão.",
+    subtitle: "Notas que chegam hoje e o que fazer com cada caminhão.",
     noun: "doca",
     emptyIn: (shown: string | null) =>
       `Nenhuma nota com entrega prevista hoje ${shown ? `na ${shown}` : "neste destino"}.`,
-    warning: "Segure o caminhão: a ação aparece aqui assim que a pessoa decidir.",
+    warning: "Segure o caminhão até a decisão.",
     words: {
       receive: "Descarregue tudo",
       refuse: "Devolva o caminhão inteiro",
@@ -165,12 +162,11 @@ export const texts = {
 
   recebimentoLoja: {
     title: "Recebimento na loja",
-    subtitle:
-      "Notas que chegam hoje nesta loja e a ação que o app da loja recebeu para cada uma. Nada é recebido antes da decisão.",
+    subtitle: "Notas que chegam hoje e a ação para cada uma.",
     noun: "loja",
     emptyIn: (shown: string | null) =>
       `Nenhuma nota com entrega prevista hoje ${shown ? `na ${shown}` : "nesta loja"}.`,
-    warning: "Segure o recebimento: a ação aparece aqui assim que a pessoa decidir.",
+    warning: "Segure o recebimento até a decisão.",
     words: {
       receive: "Receba tudo no app",
       refuse: "Recuse a nota inteira no app",
@@ -195,13 +191,13 @@ export const texts = {
   /** #125: o painel do pagamento errado evitado, na linguagem do glossário e do CFO. */
   valorBarrado: {
     title: "Pagamento errado evitado",
-    subtitle: "O que foi evitado no mês, contra a perda de R$ 543 mil por mês.",
+    subtitle: "Evitado no mês, contra a perda de R$ 543 mil por mês.",
     loading: "Somando o pagamento errado evitado…",
     error: "Não consegui somar o pagamento errado evitado agora",
-    empty: "Nada evitado neste mês ainda. O valor aparece aqui assim que a primeira proposta for aprovada.",
+    empty: "Nada evitado neste mês ainda.",
     statAvoided: {
       caption: (month: string) => `Evitado em ${month}`,
-      context: (share: string) => `${share} da perda mensal, em propostas aprovadas que recusam ou recebem parcial`,
+      context: (share: string) => `${share} da perda mensal, em propostas aprovadas`,
     },
     statLoss: {
       caption: "Perda mensal hoje",
@@ -209,11 +205,11 @@ export const texts = {
     },
     statDeciding: {
       caption: "Em decisão",
-      context: (share: string) => `${share} da perda mensal, em propostas aguardando aprovação`,
+      context: (share: string) => `${share} da perda mensal, aguardando aprovação`,
     },
     statDouble: {
       caption: "Pagamento em dobro evitado",
-      context: "duplicidade e pago fora do fluxo, fora da comparação com a perda mensal",
+      context: "duplicidade e pago fora do fluxo, fora da perda mensal",
       decidingExtra: (amount: string) => `; mais ${amount} em decisão`,
     },
     monthPanel: (baseline: string) => `O mês contra a perda de ${baseline}`,
@@ -231,8 +227,7 @@ export const texts = {
 
   duplicadas: {
     title: "Notas duplicadas",
-    subtitle:
-      "Notas que cobram uma compra já cobrada, ao lado da original. O título fica bloqueado até a coordenação resolver.",
+    subtitle: "Notas cobradas em dobro. O título fica bloqueado até a coordenação decidir.",
     loading: "Procurando duplicidades…",
     error: "Não consegui ler as duplicidades agora",
     empty: "Nenhuma nota duplicada neste mês.",
@@ -261,10 +256,9 @@ export const texts = {
       other: (state: string) => `Título ${state}`,
     },
     alertDescription: {
-      negative: "A coordenação resolve. A nota duplicada é recusada e não vai a pagamento.",
-      waiting:
-        "O contas a pagar ainda não bloqueou o título desta nota. Até bloquear, ela pode entrar na lista do dia.",
-      info: "A nota é duplicada, mas o título dela não está bloqueado. A coordenação precisa olhar.",
+      negative: "A coordenação decide. A nota é recusada e não vai a pagamento.",
+      waiting: "O título ainda não foi bloqueado e a nota pode entrar na lista do dia.",
+      info: "O título não está bloqueado. A coordenação precisa olhar.",
     } satisfies Record<DuplicateTone, string>,
     drawerTitle: (number: string) => `NF ${number}, duplicada`,
     diffColumns: (original: string, duplicate: string): [string, string] => [`Original · NF ${original}`, `Duplicada · NF ${duplicate}`],
@@ -280,8 +274,7 @@ export const texts = {
 
   devolucoes: {
     title: "Notas de devolução",
-    subtitle:
-      "Devoluções que o fiscal emite no ERP. Marque como emitida com o número da NF-e de devolução.",
+    subtitle: "Devoluções para o fiscal emitir. Marque como emitida com o número da NF-e.",
     loading: "Carregando as notas de devolução…",
     error: "Não consegui ler as notas de devolução agora",
     emptyPending:
@@ -314,7 +307,7 @@ export const texts = {
     errors: {
       conflict: "Esta nota já foi decidida por outra pessoa.",
       notFound: "Esta nota não existe mais na fila.",
-      badRequest: "A API não aceitou o que foi preenchido. Confira os campos.",
+      badRequest: "Confira os campos preenchidos.",
       other: "Não consegui registrar agora. Tente de novo em um minuto.",
     },
     drawerTitle: (number: string) => `Devolução da NF ${number}`,
@@ -367,8 +360,7 @@ export const texts = {
     decidedDescription: (action: string, title: string) => `Ação final: ${action}. O título está ${title}.`,
     form: {
       title: "Sua decisão",
-      description:
-        "Escolha o que a doca faz com a carga. A proposta do sistema vem marcada; escolher outra pede justificativa. A decisão é registrada uma vez.",
+      description: "Escolha o que fazer com a carga. Trocar a proposta pede justificativa.",
       note: "Justificativa",
       submit: "Registrar a decisão",
       proposed: "Proposta do sistema",
@@ -394,7 +386,7 @@ export const texts = {
       returns: (qty: string) => `Devolve ${qty}`,
       enterAll: (qty: string) => `Entra ${qty}`,
       inputTitle: "Receber parcial: itens a segurar ou devolver",
-      inputHelp: "Vale só se você escolher Receber parcial. Informe a quantidade de cada item que não entra.",
+      inputHelp: "Só vale em Receber parcial. Informe quanto de cada item não entra.",
       qtyLabel: (item: string) => `Quantidade a segurar ou devolver de ${item}`,
       dispositionLabel: (item: string) => `O que fazer com ${item}`,
       hold: "Segurar",
@@ -403,13 +395,13 @@ export const texts = {
       missingLines: "Receber parcial: informe ao menos um item e a quantidade a segurar ou devolver.",
     },
     needsLevel: (level: string) => `Esta proposta pede o nível ${level} ou acima.`,
-    needsLevelDescription: "Você vê a proposta, sem aprovar. Quem tem o nível encontra a proposta na fila.",
+    needsLevelDescription: "Você só vê a proposta. Quem tem o nível decide na fila.",
   },
 
   dossier: {
     unavailableTitle: "Não há dossiê do Claude para esta proposta.",
-    notGenerated: "O dossiê ainda não foi gerado. Decida pelas divergências e evidências da conferência.",
-    ruleNote: "O Claude explica; quem decide é a regra ou você. A ação, o nível e o valor vêm da regra.",
+    notGenerated: "Dossiê ainda não gerado. Decida pelas evidências da conferência.",
+    ruleNote: "O Claude explica. Quem decide é a regra ou você. A ação, o nível e o valor vêm da regra.",
     panelTitle: "Dossiê do Claude",
     badge: "Claude",
     evidenceLabel: "Evidências do dossiê",

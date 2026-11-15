@@ -106,7 +106,7 @@ describe("#71 painel do valor barrado no mês", () => {
     renderPanel();
     const doubleCard = await statCard("Pagamento em dobro evitado");
     expect(within(doubleCard).getByText("R$ 90 mil")).toBeTruthy();
-    expect(within(doubleCard).getByText(/fora da comparação com a perda mensal; mais R\$ 25 mil em decisão/)).toBeTruthy();
+    expect(within(doubleCard).getByText(/fora da perda mensal; mais R\$ 25 mil em decisão/)).toBeTruthy();
     expect(screen.getByText("R$ 42 mil de R$ 543 mil")).toBeTruthy();
   });
 

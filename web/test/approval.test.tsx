@@ -163,7 +163,7 @@ const READY_DOSSIER = {
 };
 
 const PENDING_NOTICE =
-  "Não há dossiê para esta proposta: o dossiê ainda não foi gerado. Decida pelas divergências e evidências da conferência.";
+  "Não há dossiê para esta proposta: dossiê ainda não gerado. Decida pelas evidências da conferência.";
 
 describe("#68 dossiê do Claude na gaveta da proposta", () => {
   it("#38/AC-1 com o dossiê pronto, a gaveta mostra o Dossiê do Claude entre a evidência e a decisão", async () => {
