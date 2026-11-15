@@ -91,9 +91,9 @@ describe('#71 valor barrado: soma por exceção e mês (AC-1)', () => {
     expect(result.panel.barred).toEqual({
       totalCents: 1_305,
       byException: [
-        { classification: 'E6', cents: 1_000, count: 1 },
-        { classification: 'E1', cents: 300, count: 2 },
-        { classification: 'NAO_CATALOGADA', cents: 5, count: 1 },
+        { classification: 'E6', exceptionCode: 'E6', exceptionName: 'Duplicidade', cents: 1_000, count: 1 },
+        { classification: 'E1', exceptionCode: 'E1', exceptionName: 'Falta física', cents: 300, count: 2 },
+        { classification: 'NAO_CATALOGADA', exceptionCode: 'NAO_CATALOGADA', exceptionName: 'Divergência não catalogada', cents: 5, count: 1 },
       ],
     });
   });
@@ -167,7 +167,7 @@ describe('#71 barrado se aprovado como proposto (decisão do Tech Lead)', () => 
     );
     expect(result.panel.ifApprovedAsProposed).toEqual({
       totalCents: 100,
-      byException: [{ classification: 'E2', cents: 100, count: 2 }],
+      byException: [{ classification: 'E2', exceptionCode: 'E2', exceptionName: 'Item trocado', cents: 100, count: 2 }],
     });
     expect(result.panel.barred.totalCents).toBe(0);
   });

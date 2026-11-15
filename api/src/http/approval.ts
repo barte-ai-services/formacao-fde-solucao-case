@@ -1,4 +1,5 @@
 // #63 API da fila de aprovação, da proposta, de aprovar e alterar, e da lista do dia.
+import { exceptionFields } from '../domain/exception-catalog.js';
 import { approverDirectory, type ApproverDirectory } from '../approval/approvers.js';
 import { AlreadyDecidedError, type ApprovalStore, type CaseFile } from '../approval/store.js';
 import { approve, NotAllowedToApproveError, type Decision } from '../domain/approval.js';
@@ -106,6 +107,7 @@ function summary(file: CaseFile, level: PersonLevel | null) {
     issuedOn: invoice.issuedOn,
     total: money(invoice.total),
     classification: proposal.classification,
+    ...exceptionFields(proposal.classification),
     level: proposal.level,
     line: route.line,
     reason: route.reason,
@@ -151,6 +153,7 @@ async function proposalDetail(
     })),
     divergences: file.invoice.divergences.map((d) => ({
       classification: d.classification,
+      ...exceptionFields(d.classification),
       skus: d.skus,
       evidence: d.evidence,
     })),
@@ -302,6 +305,7 @@ async function todayList(store: ApprovalStore, day: string): Promise<Response> {
     amount: money(f.title.amount),
     invoiceTotal: money(f.invoice.total),
     dueOn: f.title.dueOn,
+    ...exceptionFields(f.proposal.classification),
     dockAction: f.proposal.dockAction.kind,
     approver: f.approval?.approver ?? null,
   }));

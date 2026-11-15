@@ -30,6 +30,8 @@ export interface QueueItemDto {
   issuedOn: string;
   total: MoneyDto;
   classification: Classification;
+  exceptionCode: Classification;
+  exceptionName: string;
   level: ApprovalLevel;
   line: number;
   reason: string;
@@ -79,6 +81,8 @@ export interface TodayDto {
     amount: MoneyDto;
     invoiceTotal: MoneyDto;
     dueOn: string;
+    exceptionCode: Classification;
+    exceptionName: string;
     dockAction: DockActionDto["kind"];
     approver: string | null;
   }[];

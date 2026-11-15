@@ -115,6 +115,8 @@ describe("#31/AC-6 o controller vê a nota duplicada, a original e o valor barra
 describe("#31/AC-6 a evidência E6 desenha os dois motivos", () => {
   const POSTED: DivergenceDto = {
     classification: "E6",
+    exceptionCode: "E6",
+    exceptionName: "Duplicidade",
     skus: ["SKU-12"],
     evidence: [
       {
@@ -127,6 +129,8 @@ describe("#31/AC-6 a evidência E6 desenha os dois motivos", () => {
   };
   const NO_BALANCE_DIVERGENCE: DivergenceDto = {
     classification: "E6",
+    exceptionCode: "E6",
+    exceptionName: "Duplicidade",
     skus: ["SKU-30"],
     evidence: [
       {
@@ -139,7 +143,7 @@ describe("#31/AC-6 a evidência E6 desenha os dois motivos", () => {
 
   it("#31/AC-6 título já lançado: o título original contra a nota nova", () => {
     render(<EvidenceView divergence={POSTED} />);
-    expect(screen.getByText("E6 · Duplicidade")).toBeTruthy();
+    expect(screen.getByText("Duplicidade")).toBeTruthy();
     expect(screen.getByText("Evidência: nota 89410 já lançada")).toBeTruthy();
     expect(screen.getAllByText(/NF 89410/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/NF 89428/).length).toBeGreaterThan(0);

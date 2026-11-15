@@ -55,6 +55,9 @@ export type EvidenceDto = Evidence;
 /** Uma exceção encontrada na conferência, com as evidências que a sustentam. */
 export interface DivergenceDto {
   classification: DivergenceCode;
+  /** #128: o código e o nome do glossário, como a API manda; a tela não traduz. */
+  exceptionCode: DivergenceCode;
+  exceptionName: string;
   skus: string[];
   evidence: EvidenceDto[];
 }

@@ -3,7 +3,7 @@
  * O que depende de dado (contagem, nome, valor) é função; o resto é texto puro. Os rótulos de
  * nível, ação e exceção ficam em `approval/labels.ts` e `evidence/labels.ts`, que lêem daqui.
  */
-import type { ApprovalLevel, DivergenceCode, DuplicateReason, EvidenceSource } from "./api/contract";
+import type { ApprovalLevel, DuplicateReason, EvidenceSource } from "./api/contract";
 
 type ActionKind = "receber" | "receber_parcial" | "recusar";
 type ReturnStatus = "pendente" | "emitida" | "cancelada";
@@ -60,19 +60,6 @@ export const texts = {
     recusar: "Recusar",
   } satisfies Record<ActionKind, string>,
 
-  /** O nome de cada exceção, como no wireframe aprovado (F3). */
-  exception: {
-    E1: "E1 · Falta física",
-    E2: "E2 · Item trocado",
-    E3: "E3 · Quantidade menor",
-    E4: "E4 · Unidade de medida",
-    E5: "E5 · Nota sem ordem",
-    E6: "E6 · Duplicidade",
-    E7: "E7 · Pago fora do fluxo",
-    E8: "E8 · Item sem cadastro",
-    NAO_CATALOGADA: "Não catalogada",
-  } satisfies Record<DivergenceCode, string>,
-
   /** O sistema de onde vem cada evidência. */
   source: {
     sefaz: "Nota da SEFAZ",
@@ -97,12 +84,12 @@ export const texts = {
     columns: {
       invoice: "Nota fiscal",
       classification: "Exceção",
+      code: "Código",
       action: "Ação no recebimento",
       level: "Nível",
       risk: "Valor em risco",
       forwardedTo: "Encaminhada a",
     },
-    match: "Confere",
     filterLabel: "Filtrar a fila",
     filterAll: "Todas",
     filterMine: "Minhas",
@@ -123,7 +110,7 @@ export const texts = {
     statToPay: { caption: "A pagar", context: "soma dos títulos" },
     statByRule: { caption: "Liberados pela regra", context: "sem pessoa" },
     tableEmpty: "Nenhum título.",
-    columns: { invoice: "Nota fiscal", action: "Ação no recebimento", approver: "Aprovado por", amount: "A pagar" },
+    columns: { invoice: "Nota fiscal", classification: "Exceção", code: "Código", action: "Ação no recebimento", approver: "Aprovado por", amount: "A pagar" },
     rule: "Regra",
   },
 

@@ -10,15 +10,15 @@ const NOVEMBER: BarredAmountDto = {
   barred: {
     totalCents: 12_000_000,
     byException: [
-      { classification: "E6", cents: 9_000_000, count: 2 },
-      { classification: "E1", cents: 3_000_000, count: 1 },
+      { classification: "E6", exceptionCode: "E6", exceptionName: "Duplicidade", cents: 9_000_000, count: 2 },
+      { classification: "E1", exceptionCode: "E1", exceptionName: "Falta física", cents: 3_000_000, count: 1 },
     ],
   },
   ifApprovedAsProposed: {
     totalCents: 3_700_000,
     byException: [
-      { classification: "E6", cents: 2_500_000, count: 1 },
-      { classification: "E2", cents: 1_200_000, count: 1 },
+      { classification: "E6", exceptionCode: "E6", exceptionName: "Duplicidade", cents: 2_500_000, count: 1 },
+      { classification: "E2", exceptionCode: "E2", exceptionName: "Item trocado", cents: 1_200_000, count: 1 },
     ],
   },
   daily: [
@@ -69,12 +69,12 @@ describe("#71 painel do valor barrado no mês", () => {
     renderPanel();
     const title = await screen.findByRole("heading", { name: "Valor em risco por exceção" });
     const ranking = title.closest("section") ?? title.parentElement!.parentElement!.parentElement!;
-    const e6 = await within(ranking).findByText("E6 · Duplicidade");
+    const e6 = await within(ranking).findByText("Duplicidade");
     expect(e6).toBeTruthy();
     const barredByException = NOVEMBER.barred.byException.reduce((sum, item) => sum + item.cents, 0);
     expect(barredByException).toBe(NOVEMBER.barred.totalCents);
-    expect(within(ranking).getByText("E1 · Falta física")).toBeTruthy();
-    expect(within(ranking).getByText("E2 · Item trocado")).toBeTruthy();
+    expect(within(ranking).getByText("Falta física")).toBeTruthy();
+    expect(within(ranking).getByText("Item trocado")).toBeTruthy();
     expect(within(ranking).getByText("R$ 115 mil")).toBeTruthy();
     expect(within(ranking).getByText("R$ 30 mil")).toBeTruthy();
     expect(within(ranking).getByText("R$ 12 mil")).toBeTruthy();

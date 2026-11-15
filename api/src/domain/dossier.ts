@@ -50,6 +50,8 @@ export type DossierEvidence = {
 
 export type DossierDivergence = {
   readonly classification: string;
+  /** #128: o nome do glossário, posto pela API; ausente se o código não é catalogado. */
+  readonly exceptionName?: string;
   readonly whatDiverges: string;
   readonly evidence: readonly DossierEvidence[];
 };

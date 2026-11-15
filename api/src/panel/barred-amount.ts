@@ -1,5 +1,6 @@
 // Valor barrado no mês contra a linha de base de R$ 543 mil (#71, história #39). Função pura, sem rede.
 import { Money } from '../domain/money.js';
+import { exceptionFields } from '../domain/exception-catalog.js';
 import { PRECEDENCE, type Classification } from '../domain/classification.js';
 import type { DockAction } from '../domain/dock-action.js';
 import type { ProposalState } from '../domain/proposal.js';
@@ -25,7 +26,13 @@ export type ProposalRecord = {
   readonly approvedAt: string | null;
 };
 
-export type ExceptionTotal = { readonly classification: Classification; readonly cents: number; readonly count: number };
+export type ExceptionTotal = {
+  readonly classification: Classification;
+  readonly exceptionCode: Classification;
+  readonly exceptionName: string;
+  readonly cents: number;
+  readonly count: number;
+};
 export type Breakdown = { readonly totalCents: number; readonly byException: readonly ExceptionTotal[] };
 export type DailyPoint = {
   readonly day: string;
@@ -119,7 +126,7 @@ function breakdown(events: readonly Event[]): Breakdown {
     if (mine.length === 0) continue;
     const cents = sum(mine);
     total = total.add(cents);
-    byException.push({ classification, cents: cents.cents, count: mine.length });
+    byException.push({ classification, ...exceptionFields(classification), cents: cents.cents, count: mine.length });
   }
   return { totalCents: total.cents, byException };
 }

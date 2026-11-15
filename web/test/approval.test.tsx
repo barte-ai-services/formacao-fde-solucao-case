@@ -16,6 +16,8 @@ const item = (overrides: Record<string, unknown> = {}) => ({
   issuedOn: "2026-11-10",
   total: money(771_120),
   classification: "E6",
+  exceptionCode: "E6",
+  exceptionName: "Duplicidade",
   level: "bloqueio",
   line: 1,
   reason: "Duplicidade (E6): ninguém paga até a coordenação resolver",
@@ -32,7 +34,7 @@ const detail = (overrides: Record<string, unknown> = {}) => ({
   justification: "Duplicidade: a mesma compra já foi cobrada",
   items: [],
   divergences: [
-    { classification: "E6", skus: ["SKU-1"], evidence: [{ source: "erp_contas_a_pagar", reference: "NF-77", description: "Mesma ordem já lançada" }] },
+    { classification: "E6", exceptionCode: "E6", exceptionName: "Duplicidade", skus: ["SKU-1"], evidence: [{ source: "erp_contas_a_pagar", reference: "NF-77", description: "Mesma ordem já lançada" }] },
   ],
   title: { state: "lancado", amount: money(771_120), dueOn: "2026-11-10" },
   approval: null,
@@ -83,6 +85,25 @@ describe("#63 fila de aprovação", () => {
   });
 });
 
+describe("#128 exceção pelo nome na fila", () => {
+  it("AC-1 e AC-2: o selo mostra o nome e o código fica na coluna Código", async () => {
+    respond = () => Response.json({ approver: { email: "c", level: "coordenacao" }, items: [item()] });
+    renderAt("/pagar/fila");
+    const row = (await screen.findByText("NF 80 · F12")).closest("tr") as HTMLElement;
+    expect(within(row).getByText("Duplicidade")).toBeTruthy();
+    expect(within(row).getByText("E6")).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Código" })).toBeTruthy();
+  });
+
+  it("AC-4: a tela mostra o nome que a API mandou, sem traduzir o código", async () => {
+    respond = () =>
+      Response.json({ approver: { email: "c", level: "coordenacao" }, items: [item({ exceptionName: "Nome da API" })] });
+    renderAt("/pagar/fila");
+    expect(await screen.findByText("Nome da API")).toBeTruthy();
+    expect(screen.queryByText("Duplicidade")).toBeNull();
+  });
+});
+
 describe("#63 proposta e decisão", () => {
   it("AC-8 e AC-11: aprovar chama a API e mostra a decisão registrada", async () => {
     respond = (method) =>
@@ -124,6 +145,8 @@ const READY_DOSSIER = {
   divergences: [
     {
       classification: "E6",
+      exceptionCode: "E6",
+      exceptionName: "Duplicidade",
       whatDiverges: "A ordem já tem nota lançada.",
       evidence: [{ key: "historico.notas_lancadas.quantidade", label: "Notas lançadas", value: "1", source: "history" }],
     },
@@ -165,7 +188,7 @@ describe("#63 lista do dia", () => {
       Response.json({
         day: "2026-11-15",
         items: [
-          { invoiceAccessKey: KEY, number: "36", supplierId: "F03", amount: money(96_916), invoiceTotal: money(96_916), dueOn: "2026-11-10", dockAction: "receber", approver: "regra" },
+          { invoiceAccessKey: KEY, number: "36", supplierId: "F03", amount: money(96_916), invoiceTotal: money(96_916), dueOn: "2026-11-10", dockAction: "receber", approver: "regra", exceptionCode: "MATCH", exceptionName: "Confere" },
         ],
         total: { cents: 96_916 },
       });
@@ -173,6 +196,22 @@ describe("#63 lista do dia", () => {
     const row = (await screen.findByText("NF 36 · F03")).closest("tr");
     expect(row).toBeTruthy();
     expect(within(row as HTMLElement).getByText("Regra")).toBeTruthy();
+  });
+
+  it("#128/AC-1 e AC-2: a exceção aparece pelo nome, e o código numa coluna Código", async () => {
+    respond = () =>
+      Response.json({
+        day: "2026-11-15",
+        items: [
+          { invoiceAccessKey: KEY, number: "36", supplierId: "F03", amount: money(1), invoiceTotal: money(1), dueOn: "2026-11-10", dockAction: "receber", approver: "regra", exceptionCode: "E4", exceptionName: "Unidade de medida" },
+        ],
+        total: { cents: 1 },
+      });
+    renderAt("/pagar/hoje");
+    const row = (await screen.findByText("NF 36 · F03")).closest("tr") as HTMLElement;
+    expect(within(row).getByText("Unidade de medida")).toBeTruthy();
+    expect(within(row).getByText("E4")).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Código" })).toBeTruthy();
   });
 });
 

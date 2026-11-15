@@ -47,6 +47,17 @@ export default function ListaDoDia(_props: RouteProps) {
             columns={[
               { key: "nota", title: texts.listaDoDia.columns.invoice, dataIndex: "number", render: (_, i) => `NF ${i.number} · ${i.supplierId}` },
               {
+                key: "excecao",
+                title: texts.listaDoDia.columns.classification,
+                dataIndex: "exceptionName",
+                render: (_, i) => (
+                  <StatusBadge size="sm" tone="neutral">
+                    {i.exceptionName}
+                  </StatusBadge>
+                ),
+              },
+              { key: "codigo", title: texts.listaDoDia.columns.code, dataIndex: "exceptionCode" },
+              {
                 key: "acao",
                 title: texts.listaDoDia.columns.action,
                 dataIndex: "dockAction",

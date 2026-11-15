@@ -19,7 +19,7 @@ const COMPRAS: DivergenceDto["evidence"][number] = {
 };
 
 function e5(evidence: DivergenceDto["evidence"], skus: string[] = []): DivergenceDto {
-  return { classification: "E5", skus, evidence };
+  return { classification: "E5", exceptionCode: "E5", exceptionName: "Nota sem ordem", skus, evidence };
 }
 
 describe("#65 evidência da nota sem ordem", () => {
@@ -61,7 +61,7 @@ describe("#65 evidência da nota sem ordem", () => {
   it("#65 sem evidência da SEFAZ nem de Compras cai no genérico", () => {
     render(<EvidenceView divergence={e5([])} />);
     expect(screen.queryByText("Nota sem ordem de compra")).toBeNull();
-    expect(screen.getByText("E5 · Nota sem ordem")).toBeTruthy();
+    expect(screen.getByText("Nota sem ordem")).toBeTruthy();
     expect(screen.getByText("Nenhuma evidência veio com esta divergência.")).toBeTruthy();
   });
 });

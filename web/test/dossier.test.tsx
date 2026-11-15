@@ -9,6 +9,7 @@ const READY: DossierField = {
   divergences: [
     {
       classification: "E3",
+      exceptionName: "Quantidade menor",
       whatDiverges: "Faltam 2 caixas do item da ordem.",
       evidence: [
         { key: "qtd_nota", label: "Quantidade na nota", value: "10 caixas", source: "invoice" },
@@ -29,7 +30,7 @@ describe("#38/AC-1 o dossiê pronto mostra divergência, evidência e histórico
     expect(screen.getByText("Dossiê do Claude")).toBeTruthy();
     expect(screen.getByText("Claude")).toBeTruthy();
     expect(screen.getByText(READY.summary)).toBeTruthy();
-    expect(screen.getByText("E3 · Quantidade menor")).toBeTruthy();
+    expect(screen.getByText("Quantidade menor")).toBeTruthy();
     expect(screen.getByText("Faltam 2 caixas do item da ordem.")).toBeTruthy();
     expect(screen.getByText("Quantidade na nota")).toBeTruthy();
     expect(screen.getByText("10 caixas")).toBeTruthy();

@@ -2,7 +2,6 @@ import { Panel, ReconciliationDiff, type ComparisonField } from "@barte-ai-servi
 import { Alert } from "barte-design-system";
 import type { EvidenceDto } from "../api/contract";
 import { GenericEvidence } from "./GenericEvidence";
-import { divergenceLabel } from "./labels";
 import { registerEvidence, type EvidenceProps } from "./registry";
 
 /** #66: o que a frase da evidência do checkItemSemCadastro (#35) diz do item; o que não casa fica null. */
@@ -92,7 +91,7 @@ function UnregisteredItemEvidence({ divergence }: EvidenceProps) {
 
   return (
     <Panel
-      title={divergenceLabel("E8")}
+      title={divergence.exceptionName}
       description={`Evidência: Cadastro do ERP ${record.reference ?? ""}`}
       size="sm"
       padding="md"

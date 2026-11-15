@@ -1,7 +1,6 @@
 import { Panel, ReconciliationDiff, type ComparisonField } from "@barte-ai-services/barte-ui-kit";
 import type { EvidenceDto } from "../api/contract";
 import { GenericEvidence } from "./GenericEvidence";
-import { divergenceLabel } from "./labels";
 import { registerEvidence, type EvidenceProps } from "./registry";
 
 /** #44: um item que não aparece na contagem, como a evidência do WMS o descreve (#69). */
@@ -65,7 +64,7 @@ function FaltaFisicaEvidence({ divergence }: EvidenceProps) {
 
   return (
     <Panel
-      title={divergenceLabel("E1")}
+      title={divergence.exceptionName}
       description={`Evidência: recebimento ${count.reference}`}
       size="sm"
       padding="md"

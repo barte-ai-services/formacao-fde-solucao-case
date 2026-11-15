@@ -95,6 +95,45 @@ describe('GET /api/fila', () => {
   });
 });
 
+describe('exceptionCode e exceptionName (#128/AC-4)', () => {
+  it('a fila devolve o código e o nome da exceção de cada proposta', async () => {
+    const { call, key } = seeded();
+    const body = (await (await call('/api/fila', ANALISTA)).json()) as {
+      items: { invoiceAccessKey: string; exceptionCode: string; exceptionName: string }[];
+    };
+    const item = (k: Parameters<typeof key>[0]) => body.items.find((i) => i.invoiceAccessKey === key(k));
+    expect(item('analista')).toMatchObject({ exceptionCode: 'E4', exceptionName: 'Unidade de medida' });
+    expect(item('bloqueio')).toMatchObject({ exceptionCode: 'E6', exceptionName: 'Duplicidade' });
+  });
+
+  it('a proposta devolve o nome também em cada divergência', async () => {
+    const { call, key } = seeded();
+    const body = (await (await call(`/api/propostas/${key('bloqueio')}`, ANALISTA)).json()) as {
+      exceptionCode: string;
+      exceptionName: string;
+      divergences: { exceptionCode: string; exceptionName: string }[];
+    };
+    expect(body).toMatchObject({ exceptionCode: 'E6', exceptionName: 'Duplicidade' });
+    expect(body.divergences.length).toBeGreaterThan(0);
+    for (const d of body.divergences) expect(d).toMatchObject({ exceptionCode: 'E6', exceptionName: 'Duplicidade' });
+  });
+});
+
+describe('GET /api/hoje (#128)', () => {
+  it('cada título da lista do dia leva o código e o nome da exceção', async () => {
+    const { files, call } = seeded();
+    const f = files.analista;
+    await call(`/api/propostas/${f.invoice.accessKey}/aprovar`, DIRETORIA, { method: 'POST', body: {} });
+    const body = (await (await call(`/api/hoje?dia=${TODAY}`, ANALISTA)).json()) as {
+      items: { invoiceAccessKey: string; exceptionCode: string; exceptionName: string }[];
+    };
+    expect(body.items.find((i) => i.invoiceAccessKey === f.invoice.accessKey)).toMatchObject({
+      exceptionCode: 'E4',
+      exceptionName: 'Unidade de medida',
+    });
+  });
+});
+
 describe('GET /api/propostas/:chave', () => {
   it('chave com escape malformado é 400', async () => {
     const { call } = seeded();

@@ -2,7 +2,6 @@ import { AiSourceBadge, Block, DataList, Panel } from "@barte-ai-services/barte-
 import { Alert, Text } from "barte-design-system";
 import type { JSX } from "react";
 import type { DossierField } from "../api/contract";
-import { divergenceLabel } from "../evidence/labels";
 import { texts } from "../texts";
 
 /** #68: o dossiê pronto, como o domínio o define. */
@@ -48,7 +47,7 @@ export function Dossier({ dossier }: DossierProps): JSX.Element {
         return (
           <Block
             key={`${divergence?.classification ?? ""}-${index}`}
-            title={divergenceLabel(String(divergence?.classification ?? ""))}
+            title={divergence?.exceptionName ?? String(divergence?.classification ?? "")}
             description={divergence?.whatDiverges}
             size="sm"
             headingLevel={4}

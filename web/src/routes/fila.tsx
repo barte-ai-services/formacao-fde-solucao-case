@@ -6,7 +6,6 @@ import { ProposalPanel } from "../approval/ProposalPanel";
 import { ACTION_LABEL, ACTION_TONE, LEVEL_LABEL, LEVEL_TONE, byQueueOrder } from "../approval/labels";
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
-import { divergenceLabel } from "../evidence/labels";
 import type { RouteProps } from "./types";
 import { texts } from "../texts";
 
@@ -82,15 +81,16 @@ export default function FilaDeAprovacao(_props: RouteProps) {
               {
                 key: "classificacao",
                 title: texts.fila.columns.classification,
-                dataIndex: "classification",
+                dataIndex: "exceptionName",
                 render: (_, i) =>
                   dim(
                     i,
                     <StatusBadge size="sm" tone="neutral">
-                      {i.classification === "MATCH" ? texts.fila.match : divergenceLabel(i.classification)}
+                      {i.exceptionName}
                     </StatusBadge>,
                   ),
               },
+              { key: "codigo", title: texts.fila.columns.code, dataIndex: "exceptionCode" },
               {
                 key: "acao",
                 title: texts.fila.columns.action,

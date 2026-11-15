@@ -14,13 +14,14 @@ import type { Cents, DivergenceCode } from "../api/contract";
 import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
-import { divergenceLabel } from "../evidence/labels";
 import type { RouteProps } from "./types";
 import { texts } from "../texts";
 
 /** #71: a soma de uma exceção no mês, como `GET /api/valor-barrado` entrega. */
 export interface BarredExceptionDto {
   classification: DivergenceCode;
+  exceptionCode: DivergenceCode;
+  exceptionName: string;
   cents: Cents;
   count: number;
 }
@@ -97,16 +98,16 @@ function dayLabel(day: string): string {
 
 /** #71/AC-1: barrado e aguardando, somados por exceção em centavos inteiros. */
 export function rankingByException(panel: BarredAmountDto): RankingItem[] {
-  const totals = new Map<DivergenceCode, { cents: Cents; count: number }>();
+  const totals = new Map<DivergenceCode, { name: string; cents: Cents; count: number }>();
   for (const item of [...panel.barred.byException, ...panel.ifApprovedAsProposed.byException]) {
-    const sum = totals.get(item.classification) ?? { cents: 0, count: 0 };
-    totals.set(item.classification, { cents: sum.cents + item.cents, count: sum.count + item.count });
+    const sum = totals.get(item.exceptionCode) ?? { name: item.exceptionName, cents: 0, count: 0 };
+    totals.set(item.exceptionCode, { name: item.exceptionName, cents: sum.cents + item.cents, count: sum.count + item.count });
   }
   return [...totals]
     .filter(([, sum]) => sum.cents > 0)
     .map(([code, sum]) => ({
       key: code,
-      label: divergenceLabel(code),
+      label: sum.name,
       value: sum.cents,
       meta: texts.common.noteWord(sum.count),
     }));
