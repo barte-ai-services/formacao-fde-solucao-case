@@ -14,7 +14,7 @@ export interface ScreenProps {
   loadingLabel: string;
   errorTitle: string;
   emptyLabel: ReactNode;
-  /** O vazio com ilustração, título e ação (`EmptyState`); no lugar do `emptyLabel` quando a carga vem vazia. */
+  /** #123 O vazio com ilustração, título e ação (`EmptyState`); no lugar do `emptyLabel` quando a carga vem vazia. */
   empty?: ReactNode;
   /** O "Tentar de novo" do erro. Normalmente o `retry` do `useLoad`. */
   onRetry: () => void;
