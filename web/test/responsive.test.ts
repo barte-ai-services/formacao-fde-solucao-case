@@ -27,10 +27,16 @@ describe("#222 a grid rola na própria caixa e não alarga a página", () => {
   });
 });
 
-describe("#222 a faixa de automação empilha no celular", () => {
-  it("o alerta quebra linha e a ação ocupa a linha de baixo", () => {
-    expect(css).toMatch(/@media \(max-width: 600px\)[\s\S]*Alert-module__alert[\s\S]*flex-wrap:\s*wrap/);
-    expect(css).toMatch(/Alert-module__actions[\s\S]*flex-basis:\s*100%/);
+describe("#222 #242 a faixa de automação empilha no celular", () => {
+  it("abaixo de 600 px a ação desce para baixo do texto, alinhada a ele, sem mirar classes internas do kit", () => {
+    expect(css).toMatch(/@media \(max-width: 600px\)[\s\S]*grid-template-areas:\s*"i t" "\. a"/);
+    expect(css).toMatch(/pagar-automation-band__action\s*\{[^}]*grid-area:\s*a/);
+    expect(css).not.toMatch(/Alert-module__/);
+  });
+  it("a faixa só usa tokens do design system, nenhuma cor fixa", () => {
+    const rules = css.match(/\.pagar-automation-band[^{]*\{[^}]*\}/g) ?? [];
+    expect(rules.length).toBeGreaterThan(0);
+    for (const rule of rules) expect(rule).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/);
   });
 });
 
