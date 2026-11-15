@@ -6,13 +6,13 @@ import { checkItemSemCadastro } from '../../src/domain/checks/e8-item-sem-cadast
 import { checkItemTrocado } from '../../src/domain/checks/e2-item-trocado.js';
 import { checkUnidadeDeMedida } from '../../src/domain/checks/e4-unidade-de-medida.js';
 import { checkFaltaFisica } from '../../src/domain/checks/e1-falta-fisica.js';
-import { checkQuantidadeMenor } from '../../src/domain/checks/e3-quantidade-menor.js';
 import { checkNaoCatalogada } from '../../src/domain/checks/nao-catalogada.js';
 import { matchByDescription, reconcile } from '../../src/domain/index.js';
 import { anInvoice, emptyContext } from './fixtures.js';
 
 // #59: este teste é o contrato das histórias. Quando a sua história preencher uma verificação,
 // (planos #62 a #73) troque o caso dela aqui pelos testes da história; não mude o nome nem a assinatura.
+// #73: checkQuantidadeMenor saiu daqui; os casos dele estão em e3-quantidade-menor.test.ts.
 const contract = {
   checkDuplicidade,
   checkPagoForaDoFluxo,
@@ -21,7 +21,6 @@ const contract = {
   checkItemTrocado,
   checkUnidadeDeMedida,
   checkFaltaFisica,
-  checkQuantidadeMenor,
   checkNaoCatalogada,
 };
 
