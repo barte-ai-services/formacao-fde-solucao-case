@@ -8,7 +8,10 @@ import type { DockInvoice, DockInvoiceItem } from './dock-board.js';
 export interface DockSource {
   /** #72 As notas emitidas na data (AAAA-MM-DD), de todos os destinos. */
   invoicesOn(date: string): Promise<DockInvoice[]>;
-  /** #72 As ações publicadas na caixa de saída do WMS, em ordem de id. */
+  /**
+   * #72 As ações publicadas na caixa de saída do WMS, em ordem de id. Lê a tabela inteira, porque o
+   * conector ainda não filtra pelas chaves do dia; o filtro fica para um ajuste no conector.
+   */
   published(): Promise<Published<DockActionMessage>[]>;
 }
 

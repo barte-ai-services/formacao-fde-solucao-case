@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { AccessVerifier } from '../../src/http/access.js';
 import { SupabaseRest } from '../../src/connectors/supabase-rest.js';
 import { wmsDockActionOutbox } from '../../src/connectors/wms-dock-action.js';
@@ -118,7 +118,8 @@ describe('GET /api/doca (#72)', () => {
     expect(await response.json()).toEqual({ error: 'supabase_not_configured' });
   });
 
-  it('falha do Supabase responde 502 sem detalhe', async () => {
+  it('falha do Supabase responde 502 sem detalhe e registra só operação, tabela e status', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     const worker = createWorker({
       verifier,
       dock: {
@@ -134,6 +135,9 @@ describe('GET /api/doca (#72)', () => {
     const text = await response.text();
     expect(JSON.parse(text)).toEqual({ error: 'supabase_unavailable' });
     expect(text).not.toContain('segredo');
+    expect(log).toHaveBeenCalledWith('doca: leitura do Supabase falhou', expect.objectContaining({ operation: 'select', status: 500 }));
+    expect(JSON.stringify(log.mock.calls)).not.toContain('segredo');
+    log.mockRestore();
   });
 
   it('sem token responde 401 antes de ler o Supabase', async () => {

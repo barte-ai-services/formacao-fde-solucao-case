@@ -5,7 +5,7 @@
  * AAAA-MM-DD; omitida, é hoje em America/Sao_Paulo. Parâmetro fora do formato responde 400 sem ecoar
  * o valor. Sem as credenciais do Supabase, 503; falha do Supabase, 502 sem detalhe.
  */
-import { SupabaseRest } from "../connectors/supabase-rest";
+import { SupabaseRest, SupabaseRestError } from "../connectors/supabase-rest";
 import { dockBoard } from "../dock/dock-board";
 import { supabaseDockSource } from "../dock/dock-source";
 import type { Env } from "../env";
@@ -40,6 +40,19 @@ function isCalendarDate(value: string): boolean {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
+/**
+ * Registra a falha do Supabase com a operação, a tabela e o status. O detalhe fica de fora, porque
+ * traz o corpo da resposta; e nada disso sai para quem chamou.
+ */
+function logFailure(error: unknown): null {
+  const summary =
+    error instanceof SupabaseRestError
+      ? { operation: error.operation, table: error.table, status: error.status }
+      : { error: error instanceof Error ? error.name : "desconhecido" };
+  console.error("doca: leitura do Supabase falhou", summary);
+  return null;
+}
+
 const invalid = () => Response.json({ error: "invalid_query" }, { status: 400 });
 
 export function dockHandler(deps: DockDeps = {}) {
@@ -57,12 +70,9 @@ export function dockHandler(deps: DockDeps = {}) {
     if (!rest) return Response.json({ error: "supabase_not_configured" }, { status: 503 });
 
     const source = supabaseDockSource(rest);
-    // O erro do PostgREST traz a tabela e o corpo da resposta; nada disso sai para quem chamou.
-    const loaded = await Promise.all([source.invoicesOn(date), source.published()]).catch(() => null);
+    const loaded = await Promise.all([source.invoicesOn(date), source.published()]).catch(logFailure);
     if (!loaded) return Response.json({ error: "supabase_unavailable" }, { status: 502 });
     const [invoices, published] = loaded;
-    const days = dockBoard({ invoices, published, destination: null, date }).destinations;
-    const destination = requested ?? days[0] ?? null;
-    return Response.json(dockBoard({ invoices, published, destination, date }));
+    return Response.json(dockBoard({ invoices, published, destination: requested, date }));
   };
 }

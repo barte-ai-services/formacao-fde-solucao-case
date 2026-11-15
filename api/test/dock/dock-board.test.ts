@@ -46,7 +46,7 @@ describe('dockBoard: a doca de um destino num dia (#72)', () => {
     expect(board.rows[0]?.status).toEqual({ kind: 'acao', action: { kind: 'receber' }, publishedAt: '2026-11-11T09:00:00.000Z' });
   });
 
-  it('#43/AC-1 regra 8: depois da alteração vale a publicação mais nova (maior id)', () => {
+  it('#43/AC-1 com mais de uma proposta publicada para a nota, vale a de maior id', () => {
     const published = [publish(first, DockAction.refuse()), publish(first, DockAction.receive())].reverse();
     const board = dockBoard({ invoices, published, destination: 'CD-03', date: DATE });
 
@@ -101,6 +101,12 @@ describe('dockBoard: a doca de um destino num dia (#72)', () => {
       date: DATE,
     });
     expect(board.awaiting).toBe(3);
+  });
+
+  it('#43/AC-4 sem destino, abre no primeiro destino do dia', () => {
+    const board = dockBoard({ invoices, published: [], destination: null, date: DATE });
+    expect(board.destination).toBe(board.destinations[0]);
+    expect(board.rows.length).toBeGreaterThan(0);
   });
 
   it('dia sem notas devolve doca vazia', () => {

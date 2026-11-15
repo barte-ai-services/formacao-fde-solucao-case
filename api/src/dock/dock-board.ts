@@ -56,6 +56,7 @@ export type DockBoard = {
 export type DockBoardInput = {
   readonly invoices: readonly DockInvoice[];
   readonly published: readonly Published<DockActionMessage>[];
+  /** Nulo: o primeiro destino do dia. */
   readonly destination: string | null;
   readonly date: string;
 };
@@ -73,7 +74,10 @@ function view(action: DockAction): DockActionView {
   };
 }
 
-/** #72 Regra 8: a alteração publica de novo; vale a publicação de maior id de cada nota. */
+/**
+ * #72 Se mais de uma proposta da nota foi publicada, vale a de maior id. Publicar de novo uma ação
+ * idêntica não grava linha nova: a caixa de saída deduplica pela nota e pelo payload.
+ */
 function latestByInvoice(published: readonly Published<DockActionMessage>[]): Map<string, Published<DockActionMessage>> {
   const latest = new Map<string, Published<DockActionMessage>>();
   for (const p of published) {
@@ -91,10 +95,11 @@ function statusOf(published: Published<DockActionMessage> | undefined): DockStat
 
 const byNumber = (a: DockInvoice, b: DockInvoice) => a.number.localeCompare(b.number, 'pt-BR', { numeric: true });
 
-/** #43 AC-4: as notas do dia do destino, ordenadas pelo número, com a ação de cada uma. */
-export function dockBoard({ invoices, published, destination, date }: DockBoardInput): DockBoard {
+/** #43 AC-4: as notas do dia do destino (ou do primeiro destino do dia), ordenadas pelo número, com a ação de cada uma. */
+export function dockBoard({ invoices, published, destination: requested, date }: DockBoardInput): DockBoard {
   const ofDay = invoices.filter((i) => i.issuedOn === date);
   const destinations = [...new Set(ofDay.map((i) => i.store))].sort();
+  const destination = requested ?? destinations[0] ?? null;
   const latest = latestByInvoice(published);
   const rows: DockRow[] = ofDay
     .filter((i) => i.store === destination)
