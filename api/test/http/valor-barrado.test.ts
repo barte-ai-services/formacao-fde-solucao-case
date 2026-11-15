@@ -91,8 +91,8 @@ describe('GET /api/valor-barrado', () => {
       barred: { totalCents: 120_000, byException: [{ classification: 'E6', exceptionCode: 'E6', exceptionName: 'Duplicidade', cents: 120_000, count: 1 }] },
       ifApprovedAsProposed: { totalCents: 3_000, byException: [{ classification: 'E1', exceptionCode: 'E1', exceptionName: 'Falta física', cents: 3_000, count: 1 }] },
       daily: [
-        { day: '2026-11-04', barredCumulativeCents: 0, proposedCumulativeCents: 3_000 },
-        { day: '2026-11-30', barredCumulativeCents: 120_000, proposedCumulativeCents: 3_000 },
+        { day: '2026-11-04', barredCumulativeCents: 0, proposedCumulativeCents: 3_000, doublePaymentCumulativeCents: 0 },
+        { day: '2026-11-30', barredCumulativeCents: 0, proposedCumulativeCents: 3_000, doublePaymentCumulativeCents: 120_000 },
       ],
     });
   });

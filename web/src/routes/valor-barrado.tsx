@@ -36,6 +36,8 @@ export interface BarredDailyPointDto {
   day: string;
   barredCumulativeCents: Cents;
   proposedCumulativeCents: Cents;
+  /** #170: E6 e E7 decididos, acumulados; fora da comparação com a linha de base. */
+  doublePaymentCumulativeCents: Cents;
 }
 
 /** #71: `GET /api/valor-barrado`, o painel do valor barrado no mês contra a linha de base. */
@@ -135,6 +137,7 @@ function BarredAmountView({ panel }: { panel: BarredAmountDto }): ReactElement {
     day: dayLabel(point.day),
     barred: point.barredCumulativeCents,
     proposed: point.proposedCumulativeCents,
+    baseline,
   }));
   const baselineLabel = formatBrlShort(baseline);
 
@@ -188,11 +191,12 @@ function BarredAmountView({ panel }: { panel: BarredAmountDto }): ReactElement {
               series={[
                 { key: "barred", label: texts.valorBarrado.seriesAvoided },
                 { key: "proposed", label: texts.valorBarrado.seriesDeciding, color: toneColor.waiting },
+                { key: "baseline", label: texts.valorBarrado.seriesBaseline(baselineLabel), dashed: true, color: toneColor.negative },
               ]}
               height={220}
               formatValue={formatBrl}
               formatAxis={(cents) => texts.valorBarrado.axisThousands(Math.round(cents / 100_000))}
-              ariaLabel={texts.valorBarrado.chartLabel}
+              ariaLabel={texts.valorBarrado.chartLabel(baselineLabel)}
             />
           </div>
         </Panel>

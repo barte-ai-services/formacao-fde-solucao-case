@@ -31,12 +31,15 @@ atrás do Cloudflare Access.
   "baselineCents": 54300000,
   "barred": { "totalCents": 120000, "byException": [{ "classification": "E6", "cents": 120000, "count": 1 }] },
   "ifApprovedAsProposed": { "totalCents": 3000, "byException": [{ "classification": "E1", "cents": 3000, "count": 1 }] },
-  "daily": [{ "day": "2026-11-04", "barredCumulativeCents": 0, "proposedCumulativeCents": 3000 }]
+  "daily": [{ "day": "2026-11-04", "barredCumulativeCents": 0, "proposedCumulativeCents": 3000, "doublePaymentCumulativeCents": 0 }]
 }
 ```
 
 `byException` segue a precedência de `domain/classification.ts` e lista só as exceções com ao menos
-uma proposta. `daily` traz o acumulado do mês nos dias com movimento, para o gráfico da tela.
+uma proposta. `daily` traz o acumulado do mês nos dias com movimento, para o gráfico da tela, em duas
+séries (#170): `barredCumulativeCents` e `proposedCumulativeCents` sem E6 e E7 (o último ponto do
+primeiro bate com o "Evitado"), e `doublePaymentCumulativeCents` com o E6 e E7 decididos, fora da
+comparação com a linha de base.
 
 | Situação | Resposta |
 |---|---|

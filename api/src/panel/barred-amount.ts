@@ -36,8 +36,12 @@ export type ExceptionTotal = {
 export type Breakdown = { readonly totalCents: number; readonly byException: readonly ExceptionTotal[] };
 export type DailyPoint = {
   readonly day: string;
+  /** #170/AC-1: decidido acumulado sem E6 e E7; o último ponto bate com o "Evitado". */
   readonly barredCumulativeCents: number;
+  /** #170: aguardando acumulado, também sem E6 e E7. */
   readonly proposedCumulativeCents: number;
+  /** #170/AC-3: E6 e E7 decididos acumulados, fora da comparação com a linha de base. */
+  readonly doublePaymentCumulativeCents: number;
 };
 
 export type BarredAmountPanel = {
@@ -131,14 +135,27 @@ function breakdown(events: readonly Event[]): Breakdown {
   return { totalCents: total.cents, byException };
 }
 
+/** #125 pergunta 5: E6 e E7 são pagar duas vezes, e não pagar sem mercadoria (P1). */
+const DOUBLE_PAYMENT: ReadonlySet<Classification> = new Set(['E6', 'E7']);
+
 function daily(barred: readonly Event[], proposed: readonly Event[]): DailyPoint[] {
   const days = [...new Set([...barred, ...proposed].map((e) => e.day))].sort();
   let barredSoFar = Money.zero();
   let proposedSoFar = Money.zero();
+  let doubleSoFar = Money.zero();
   return days.map((day) => {
-    barredSoFar = barredSoFar.add(sum(barred.filter((e) => e.day === day)));
-    proposedSoFar = proposedSoFar.add(sum(proposed.filter((e) => e.day === day)));
-    return { day, barredCumulativeCents: barredSoFar.cents, proposedCumulativeCents: proposedSoFar.cents };
+    const barredToday = barred.filter((e) => e.day === day);
+    barredSoFar = barredSoFar.add(sum(barredToday.filter((e) => !DOUBLE_PAYMENT.has(e.classification))));
+    doubleSoFar = doubleSoFar.add(sum(barredToday.filter((e) => DOUBLE_PAYMENT.has(e.classification))));
+    proposedSoFar = proposedSoFar.add(
+      sum(proposed.filter((e) => e.day === day && !DOUBLE_PAYMENT.has(e.classification))),
+    );
+    return {
+      day,
+      barredCumulativeCents: barredSoFar.cents,
+      proposedCumulativeCents: proposedSoFar.cents,
+      doublePaymentCumulativeCents: doubleSoFar.cents,
+    };
   });
 }
 

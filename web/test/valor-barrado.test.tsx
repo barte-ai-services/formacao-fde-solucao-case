@@ -22,8 +22,8 @@ const NOVEMBER: BarredAmountDto = {
     ],
   },
   daily: [
-    { day: "2026-11-03", barredCumulativeCents: 3_000_000, proposedCumulativeCents: 1_200_000 },
-    { day: "2026-11-10", barredCumulativeCents: 12_000_000, proposedCumulativeCents: 3_700_000 },
+    { day: "2026-11-03", barredCumulativeCents: 3_000_000, proposedCumulativeCents: 1_200_000, doublePaymentCumulativeCents: 0 },
+    { day: "2026-11-10", barredCumulativeCents: 12_000_000, proposedCumulativeCents: 3_700_000, doublePaymentCumulativeCents: 9_000_000 },
   ],
 };
 
@@ -108,6 +108,15 @@ describe("#71 painel do valor barrado no mês", () => {
     expect(within(doubleCard).getByText("R$ 90 mil")).toBeTruthy();
     expect(within(doubleCard).getByText(/fora da comparação com a perda mensal; mais R\$ 25 mil em decisão/)).toBeTruthy();
     expect(screen.getByText("R$ 42 mil de R$ 543 mil")).toBeTruthy();
+  });
+
+  it("#170/AC-2 o acumulado volta a mostrar a linha tracejada dos R$ 543 mil, sem a série do pagamento em dobro", async () => {
+    respondWith(200, NOVEMBER);
+    renderPanel();
+    await statCard("Evitado em novembro");
+    expect(screen.getAllByText("R$ 543 mil por mês").length).toBeGreaterThan(0);
+    expect(screen.getByLabelText(/contra R\$ 543 mil/)).toBeTruthy();
+    expect(screen.queryByText(/dobro.*acumulado|Pagamento em dobro, acumulado/)).toBeNull();
   });
 
   it("#71/AC-4 o total exibido bate com a soma das exceções da resposta", async () => {

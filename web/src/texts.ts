@@ -198,7 +198,8 @@ export const texts = {
     seriesAvoided: "Valor em risco, aprovado",
     seriesDeciding: "Valor em risco, em decisão",
     axisThousands: (n: number) => `${n} mil`,
-    chartLabel: "Valor em risco acumulado por dia, com duplicidade e pago fora do fluxo",
+    seriesBaseline: (baseline: string) => `${baseline} por mês`,
+    chartLabel: (baseline: string) => `Valor em risco acumulado por dia, sem duplicidade e pago fora do fluxo, contra ${baseline}`,
     rankingPanel: "Valor em risco por exceção",
   },
 
