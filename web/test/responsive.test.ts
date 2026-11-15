@@ -33,3 +33,9 @@ describe("#222 a faixa de automação empilha no celular", () => {
     expect(css).toMatch(/Alert-module__actions[\s\S]*flex-basis:\s*100%/);
   });
 });
+
+describe("#222 as células da grid ficam compactas no celular", () => {
+  it("o respiro lateral da célula vem de token abaixo de 600 px", () => {
+    expect(css).toMatch(/@media \(max-width: 600px\)[\s\S]*pagar-row-table table td[\s\S]*padding-inline:\s*var\(--spacing-sm\)/);
+  });
+});

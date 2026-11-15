@@ -118,3 +118,8 @@ table [class*="StatusBadge-module__label"] {
   .pagar-automation-band [class*="Alert-module__alert"] { flex-wrap: wrap; }
   .pagar-automation-band [class*="Alert-module__actions"] { flex-basis: 100%; }
 }
+
+/* #222 No celular as células perdem o respiro lateral para o selo de status caber mais perto da NF e do valor. */
+@media (max-width: 600px) {
+  .pagar-row-table table td, .pagar-row-table table th { padding-inline: var(--spacing-sm); }
+}
