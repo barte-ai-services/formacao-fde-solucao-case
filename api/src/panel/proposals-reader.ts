@@ -48,14 +48,13 @@ const isApprovalRow = shaped<ApprovalRow>({
  * banco: a decisão de um mês pode ser de uma proposta criada antes, e a data vem de outra tabela.
  */
 export async function readProposalRecords(rest: SupabaseRest): Promise<ProposalRecord[]> {
-  const [proposals, approvals] = await Promise.all([
-    rest.select('proposals', {
-      select: 'id,classification,dock_action,amount_at_risk_cents,state,created_at',
-      filters: { state: `in.(${PANEL_STATES.join(',')})` },
-      order: 'id',
-    }),
-    rest.select('approvals', { select: 'proposal_id,approved_at', order: 'proposal_id' }),
-  ]);
+  const proposals = await rest.select('proposals', {
+    select: 'id,classification,dock_action,amount_at_risk_cents,state,created_at',
+    filters: { state: `in.(${PANEL_STATES.join(',')})` },
+    order: 'id',
+  });
+  // #71: approvals depois de proposals, em sequência, para a decidida não chegar sem a data.
+  const approvals = await rest.select('approvals', { select: 'proposal_id,approved_at', order: 'proposal_id' });
   const approvedAt = new Map(
     parseRows(approvals, isApprovalRow, 'approvals').map((a) => [a.proposal_id, a.approved_at]),
   );

@@ -8,7 +8,7 @@ import type { Identity } from "./access";
  * GET /api/valor-barrado?mes=AAAA-MM (#71, história #39): o valor barrado no mês, por exceção,
  * contra a linha de base de R$ 543 mil. Sem `mes`, o mês corrente em Brasília.
  */
-export async function valorBarrado(_identity: Identity, request: Request, env: Env): Promise<Response> {
+export async function barredAmount(_identity: Identity, request: Request, env: Env): Promise<Response> {
   const param = new URL(request.url).searchParams.get("mes");
   const month = param === null ? currentMonth(new Date()) : parseMonth(param);
   if (!month) return Response.json({ error: "mes_invalido" }, { status: 400 });

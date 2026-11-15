@@ -6,7 +6,7 @@ atrás do Cloudflare Access.
 
 - `barred-amount.ts`: a soma, pura, sem rede.
 - `proposals-reader.ts`: lê `proposals` e `approvals` pelo PostgREST, valida cada linha e junta.
-- `../http/valor-barrado.ts`: a rota.
+- `../http/barred-amount.ts`: a rota.
 
 ## O que conta
 
@@ -49,3 +49,7 @@ uma proposta. `daily` traz o acumulado do mês nos dias com movimento, para o gr
 O leitor traz todas as propostas não registradas e todas as aprovações, sem filtro de data no
 banco, porque a decisão de um mês pode ser de uma proposta criada antes e a data vem de outra
 tabela. Serve para o volume da Já Chegou; se crescer, o caminho é uma view no banco.
+
+As duas leituras não formam um snapshot. `approvals` é lida depois de `proposals`, então uma
+aprovação que grave a linha em `approvals` antes de trocar o estado, ou na mesma transação,
+nunca aparece como decidida sem a data.

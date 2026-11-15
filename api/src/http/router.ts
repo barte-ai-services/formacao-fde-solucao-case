@@ -2,7 +2,7 @@ import type { Env } from "../env";
 import { authenticate, type AccessVerifier, type Identity } from "./access";
 import { health } from "./health";
 import { me } from "./me";
-import { valorBarrado } from "./valor-barrado";
+import { barredAmount } from "./barred-amount";
 
 type PublicHandler = () => Response;
 type ProtectedHandler = (identity: Identity, request: Request, env: Env) => Response | Promise<Response>;
@@ -15,7 +15,7 @@ const publicRoutes: Record<string, Record<string, PublicHandler>> = {
 /** Rotas que exigem um JWT válido do Cloudflare Access (#54). */
 const protectedRoutes: Record<string, Record<string, ProtectedHandler>> = {
   "/me": { GET: me },
-  "/api/valor-barrado": { GET: valorBarrado },
+  "/api/valor-barrado": { GET: barredAmount },
 };
 
 export interface RouterDeps {
