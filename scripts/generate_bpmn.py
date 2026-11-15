@@ -338,9 +338,11 @@ TARGET = Process(
         N("Gateway_DockDecision", "exclusiveGateway", "Decisão na doca", "Lane_Dock", 17),
         N("Task_ReturnNote", "task", "Emitir nota de devolução da diferença", "Lane_Payables", 18, 1, tone="neutral"),
         N("Task_Block", "task", "Bloquear o título", "Lane_Payables", 18, 2, tone="block"),
-        N("Task_Release", "task", "Liberar o título para a lista do dia", "Lane_Payables", 19, 0, tone="ok"),
-        N("End_Refused", "endEvent", "Recusado, título bloqueado", "Lane_Payables", 19, 2, tone="block"),
-        N("End_OnList", "endEvent", "Na lista do dia, conferido", "Lane_Payables", 20, 0, tone="ok"),
+        N("Task_AskReturnNote", "serviceTask", "Pedir ao fornecedor a nota de devolução", "Lane_Payables", 19, 1, tone="agent"),
+        N("Task_AskCancel", "serviceTask", "Pedir ao fornecedor o cancelamento", "Lane_Payables", 19, 2, tone="agent"),
+        N("Task_Release", "task", "Liberar o título para a lista do dia", "Lane_Payables", 20, 0, tone="ok"),
+        N("End_Refused", "endEvent", "Recusado, título bloqueado", "Lane_Payables", 20, 2, tone="block"),
+        N("End_OnList", "endEvent", "Na lista do dia, conferido", "Lane_Payables", 21, 0, tone="ok"),
     ],
     flows=[
         F("Start_InvoiceIssued", "Task_Capture"),
@@ -368,9 +370,11 @@ TARGET = Process(
         F("Gateway_DockDecision", "Task_Release", "receber", tone="ok"),
         F("Gateway_DockDecision", "Task_ReturnNote", "receber parcial"),
         F("Gateway_DockDecision", "Task_Block", "recusar", exit="bottom", tone="block"),
-        F("Task_ReturnNote", "Task_Release", tone="ok"),
+        F("Task_ReturnNote", "Task_AskReturnNote"),
+        F("Task_AskReturnNote", "Task_Release", tone="ok"),
         F("Task_Release", "End_OnList", tone="ok"),
-        F("Task_Block", "End_Refused", tone="block"),
+        F("Task_Block", "Task_AskCancel", tone="block"),
+        F("Task_AskCancel", "End_Refused", tone="block"),
     ],
 )
 

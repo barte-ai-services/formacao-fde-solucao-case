@@ -1342,6 +1342,8 @@ body { background: #f9f9f9; color: var(--ink); font: 16px "Inter", system-ui, sa
       <bpmn:lane id="Lane_Payables" name="Contas a pagar">
         <bpmn:flowNodeRef>Task_ReturnNote</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_Block</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AskReturnNote</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AskCancel</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_Release</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>End_Refused</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>End_OnList</bpmn:flowNodeRef>
@@ -1444,18 +1446,26 @@ body { background: #f9f9f9; color: var(--ink); font: 16px "Inter", system-ui, sa
     </bpmn:task>
     <bpmn:task id="Task_Block" name="Bloquear o título">
       <bpmn:incoming>Flow_25</bpmn:incoming>
-      <bpmn:outgoing>Flow_28</bpmn:outgoing>
+      <bpmn:outgoing>Flow_29</bpmn:outgoing>
     </bpmn:task>
-    <bpmn:task id="Task_Release" name="Liberar o título para a lista do dia">
-      <bpmn:incoming>Flow_23</bpmn:incoming>
+    <bpmn:serviceTask id="Task_AskReturnNote" name="Pedir ao fornecedor a nota de devolução">
       <bpmn:incoming>Flow_26</bpmn:incoming>
       <bpmn:outgoing>Flow_27</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_AskCancel" name="Pedir ao fornecedor o cancelamento">
+      <bpmn:incoming>Flow_29</bpmn:incoming>
+      <bpmn:outgoing>Flow_30</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:task id="Task_Release" name="Liberar o título para a lista do dia">
+      <bpmn:incoming>Flow_23</bpmn:incoming>
+      <bpmn:incoming>Flow_27</bpmn:incoming>
+      <bpmn:outgoing>Flow_28</bpmn:outgoing>
     </bpmn:task>
     <bpmn:endEvent id="End_Refused" name="Recusado, título bloqueado">
-      <bpmn:incoming>Flow_28</bpmn:incoming>
+      <bpmn:incoming>Flow_30</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:endEvent id="End_OnList" name="Na lista do dia, conferido">
-      <bpmn:incoming>Flow_27</bpmn:incoming>
+      <bpmn:incoming>Flow_28</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_InvoiceIssued" targetRef="Task_Capture" />
     <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_Capture" targetRef="Task_Classify" />
@@ -1482,29 +1492,31 @@ body { background: #f9f9f9; color: var(--ink); font: 16px "Inter", system-ui, sa
     <bpmn:sequenceFlow id="Flow_23" name="receber" sourceRef="Gateway_DockDecision" targetRef="Task_Release" />
     <bpmn:sequenceFlow id="Flow_24" name="receber parcial" sourceRef="Gateway_DockDecision" targetRef="Task_ReturnNote" />
     <bpmn:sequenceFlow id="Flow_25" name="recusar" sourceRef="Gateway_DockDecision" targetRef="Task_Block" />
-    <bpmn:sequenceFlow id="Flow_26" sourceRef="Task_ReturnNote" targetRef="Task_Release" />
-    <bpmn:sequenceFlow id="Flow_27" sourceRef="Task_Release" targetRef="End_OnList" />
-    <bpmn:sequenceFlow id="Flow_28" sourceRef="Task_Block" targetRef="End_Refused" />
+    <bpmn:sequenceFlow id="Flow_26" sourceRef="Task_ReturnNote" targetRef="Task_AskReturnNote" />
+    <bpmn:sequenceFlow id="Flow_27" sourceRef="Task_AskReturnNote" targetRef="Task_Release" />
+    <bpmn:sequenceFlow id="Flow_28" sourceRef="Task_Release" targetRef="End_OnList" />
+    <bpmn:sequenceFlow id="Flow_29" sourceRef="Task_Block" targetRef="Task_AskCancel" />
+    <bpmn:sequenceFlow id="Flow_30" sourceRef="Task_AskCancel" targetRef="End_Refused" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="Diagram_AccountsPayable_Target">
     <bpmndi:BPMNPlane id="Plane_AccountsPayable_Target" bpmnElement="Collab_AccountsPayable_Target">
       <bpmndi:BPMNShape id="Part_AccountsPayable_Target_di" bpmnElement="Part_AccountsPayable_Target" isHorizontal="true" color:background-color="#fefefe" color:border-color="#171717">
-        <dc:Bounds x="60" y="60" width="3630" height="1200" />
+        <dc:Bounds x="60" y="60" width="3800" height="1200" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_Capture_di" bpmnElement="Lane_Capture" isHorizontal="true" color:background-color="#f4fbfe" color:border-color="#a3a3a3">
-        <dc:Bounds x="90" y="60" width="3600" height="150" />
+        <dc:Bounds x="90" y="60" width="3770" height="150" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_Agent_di" bpmnElement="Lane_Agent" isHorizontal="true" color:background-color="#fef8fa" color:border-color="#a3a3a3">
-        <dc:Bounds x="90" y="210" width="3600" height="300" />
+        <dc:Bounds x="90" y="210" width="3770" height="300" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_Dock_di" bpmnElement="Lane_Dock" isHorizontal="true" color:background-color="#fffaf3" color:border-color="#a3a3a3">
-        <dc:Bounds x="90" y="510" width="3600" height="150" />
+        <dc:Bounds x="90" y="510" width="3770" height="150" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_Approver_di" bpmnElement="Lane_Approver" isHorizontal="true" color:background-color="#fffaf3" color:border-color="#a3a3a3">
-        <dc:Bounds x="90" y="660" width="3600" height="150" />
+        <dc:Bounds x="90" y="660" width="3770" height="150" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_Payables_di" bpmnElement="Lane_Payables" isHorizontal="true" color:background-color="#fbfbfb" color:border-color="#a3a3a3">
-        <dc:Bounds x="90" y="810" width="3600" height="450" />
+        <dc:Bounds x="90" y="810" width="3770" height="450" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Start_InvoiceIssued_di" bpmnElement="Start_InvoiceIssued" color:background-color="#e1f7ff" color:border-color="#00749e">
         <dc:Bounds x="185" y="125" width="40" height="40" />
@@ -1585,16 +1597,22 @@ body { background: #f9f9f9; color: var(--ink); font: 16px "Inter", system-ui, sa
       <bpmndi:BPMNShape id="Task_Block_di" bpmnElement="Task_Block" color:background-color="#f7e0e0" color:border-color="#c62828">
         <dc:Bounds x="3200" y="1157" width="130" height="76" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AskReturnNote_di" bpmnElement="Task_AskReturnNote" color:background-color="#fdf0f4" color:border-color="#df285d">
+        <dc:Bounds x="3370" y="1007" width="130" height="76" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AskCancel_di" bpmnElement="Task_AskCancel" color:background-color="#fdf0f4" color:border-color="#df285d">
+        <dc:Bounds x="3370" y="1157" width="130" height="76" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_Release_di" bpmnElement="Task_Release" color:background-color="#d2fff1" color:border-color="#12805c">
-        <dc:Bounds x="3370" y="857" width="130" height="76" />
+        <dc:Bounds x="3540" y="857" width="130" height="76" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="End_Refused_di" bpmnElement="End_Refused" color:background-color="#f7e0e0" color:border-color="#c62828">
-        <dc:Bounds x="3415" y="1175" width="40" height="40" />
-        <bpmndi:BPMNLabel><dc:Bounds x="3375" y="1221" width="120" height="28" /></bpmndi:BPMNLabel>
+        <dc:Bounds x="3585" y="1175" width="40" height="40" />
+        <bpmndi:BPMNLabel><dc:Bounds x="3545" y="1221" width="120" height="28" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="End_OnList_di" bpmnElement="End_OnList" color:background-color="#d2fff1" color:border-color="#12805c">
-        <dc:Bounds x="3585" y="875" width="40" height="40" />
-        <bpmndi:BPMNLabel><dc:Bounds x="3545" y="921" width="120" height="28" /></bpmndi:BPMNLabel>
+        <dc:Bounds x="3755" y="875" width="40" height="40" />
+        <bpmndi:BPMNLabel><dc:Bounds x="3715" y="921" width="120" height="28" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_1_di" bpmnElement="Flow_1" color:border-color="#404040">
         <di:waypoint x="225" y="145" />
@@ -1705,10 +1723,10 @@ body { background: #f9f9f9; color: var(--ink); font: 16px "Inter", system-ui, sa
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_23_di" bpmnElement="Flow_23" color:border-color="#12805c">
         <di:waypoint x="3121" y="595" />
-        <di:waypoint x="3350" y="595" />
-        <di:waypoint x="3350" y="895" />
-        <di:waypoint x="3370" y="895" />
-        <bpmndi:BPMNLabel><dc:Bounds x="3266" y="873" width="80" height="18" /></bpmndi:BPMNLabel>
+        <di:waypoint x="3520" y="595" />
+        <di:waypoint x="3520" y="895" />
+        <di:waypoint x="3540" y="895" />
+        <bpmndi:BPMNLabel><dc:Bounds x="3436" y="873" width="80" height="18" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_24_di" bpmnElement="Flow_24" color:border-color="#404040">
         <di:waypoint x="3121" y="595" />
@@ -1723,19 +1741,27 @@ body { background: #f9f9f9; color: var(--ink); font: 16px "Inter", system-ui, sa
         <di:waypoint x="3200" y="1195" />
         <bpmndi:BPMNLabel><dc:Bounds x="3101" y="629" width="80" height="18" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_26_di" bpmnElement="Flow_26" color:border-color="#12805c">
+      <bpmndi:BPMNEdge id="Flow_26_di" bpmnElement="Flow_26" color:border-color="#404040">
         <di:waypoint x="3330" y="1045" />
-        <di:waypoint x="3350" y="1045" />
-        <di:waypoint x="3350" y="895" />
-        <di:waypoint x="3370" y="895" />
+        <di:waypoint x="3370" y="1045" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_27_di" bpmnElement="Flow_27" color:border-color="#12805c">
-        <di:waypoint x="3500" y="895" />
-        <di:waypoint x="3585" y="895" />
+        <di:waypoint x="3500" y="1045" />
+        <di:waypoint x="3520" y="1045" />
+        <di:waypoint x="3520" y="895" />
+        <di:waypoint x="3540" y="895" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_28_di" bpmnElement="Flow_28" color:border-color="#c62828">
+      <bpmndi:BPMNEdge id="Flow_28_di" bpmnElement="Flow_28" color:border-color="#12805c">
+        <di:waypoint x="3670" y="895" />
+        <di:waypoint x="3755" y="895" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_29_di" bpmnElement="Flow_29" color:border-color="#c62828">
         <di:waypoint x="3330" y="1195" />
-        <di:waypoint x="3415" y="1195" />
+        <di:waypoint x="3370" y="1195" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_30_di" bpmnElement="Flow_30" color:border-color="#c62828">
+        <di:waypoint x="3500" y="1195" />
+        <di:waypoint x="3585" y="1195" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

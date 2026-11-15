@@ -54,6 +54,14 @@ h2::before { content: ""; width: 8px; height: 30px; background: var(--brand); }
 .no { background: var(--card); border: 2px solid var(--line-2); border-radius: 12px; padding: 14px 18px; }
 .no b { display: block; font-size: 20px; }
 .no span { font-size: 16px; color: var(--ink-2); }
+.groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.grp { background: var(--black); color: #fefefe; border-radius: 14px; padding: 18px 20px; border-top: 6px solid var(--brand); display: grid; gap: 6px; align-content: start; }
+.grp .g { color: #fbcad3; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+.grp b { font-size: 21px; line-height: 1.25; }
+.grp span { font-size: 15px; color: #e5e5e5; }
+.grp .where { font-size: 14px; color: #a3a3a3; margin-top: 4px; }
+.grp .where em { color: #fefefe; font-style: normal; font-weight: 600; }
+.note { font-size: 16px; color: var(--ink-3); margin: 14px 0 0; }
 .rule { background: var(--black); color: #fefefe; border-radius: 14px; padding: 22px 26px; font-size: 22px; font-weight: 600; line-height: 1.45; }
 .rule em { color: #fbcad3; font-style: normal; }
 @media (max-width: 900px) { .node { grid-template-columns: 1fr; } body { font-size: 16px; } }
@@ -62,10 +70,22 @@ h2::before { content: ""; width: 8px; height: 30px; background: var(--brand); }
 <div class="top"><div class="in">
   <div class="eyebrow">Já Chegou · processo-alvo</div>
   <h1>Onde entra agente no processo</h1>
-  <p class="q">Cada nó do BPMN com quem deve executá-lo, e a premissa que precisa ser validada antes de pôr um agente ali.</p>
+  <p class="q">Cada nó do BPMN com quem deve executá-lo, e os cinco agentes que a turma constrói no case: um por grupo.</p>
 </div></div>
 
 <div class="wrap">
+  <section>
+    <h2>Os cinco agentes do case, um por grupo</h2>
+    <div class="groups">
+      <div class="grp"><div class="g">Grupo 1 · Clef</div><b>Motor de decisão</b><span>A cascata regra → Clef → pessoa: em modo sombra, depois aprovando sozinho a unidade de medida, a falta física e a quantidade menor até R$ 20 mil, com confiança de 0,98. Aprende com as decisões do analista.</span><div class="where">Entra em <em>Aprovar a proposta</em> e <em>Aprovar com a contagem</em></div></div>
+      <div class="grp"><div class="g">Grupo 2 · MCP</div><b>Decisão dentro do Claude</b><span>O MCP do motor e o MCP App: o analista vê a fila, abre a proposta com a evidência, decide e delega ao motor sem sair do Claude.</span><div class="where">Entra em <em>Aprovar a proposta</em>, como o canal da pessoa</div></div>
+      <div class="grp"><div class="g">Grupo 3 · LLM</div><b>Dossiê pelo Claude</b><span>Explica para quem aprova o que diverge, a evidência e o histórico do fornecedor, com cada número tirado do banco. Pedido na hora, na gaveta.</span><div class="where">Entra em <em>Propor a ação na doca</em></div></div>
+      <div class="grp"><div class="g">Grupo 4 · LLM</div><b>Agente auditor de notas</b><span>O auditor de domingo dentro da solução: classifica, decide o recebimento e define o aprovador em paralelo à regra, e alerta quando discorda. Só sobe o nível, nunca desce.</span><div class="where">Entra em <em>Classificar a divergência</em></div></div>
+      <div class="grp"><div class="g">Grupo 5 · LLM</div><b>Tratativa com o fornecedor</b><span>Escreve ao fornecedor o pedido de cada nota decidida (devolução, cancelamento, pedido, cadastro); uma pessoa revisa e envia. Lê a resposta e prepara a cobrança.</span><div class="where">Entra em <em>Pedir ao fornecedor</em>, depois da decisão na doca</div></div>
+    </div>
+    <p class="note">A distribuição dos agentes entre os grupos pode mudar no sorteio; o que não muda é um agente por grupo.</p>
+  </section>
+
   <section>
     <h2>Quatro jeitos de executar um nó</h2>
     <div class="legend">
@@ -82,29 +102,31 @@ h2::before { content: ""; width: 8px; height: 30px; background: var(--brand); }
       <div class="node"><div class="n">Capturar a nota</div><div class="chips"><span class="chip c-no">Sem agente · sistema</span></div><div class="prem"><b>Por quê</b>Integração com a SEFAZ. É transporte de dado, não decisão.</div></div>
     </div>
     <div class="lane" style="margin-top:22px"><h3>Agente</h3>
-      <div class="node hot"><div class="n">Classificar a divergência</div><div class="chips"><span class="chip c-regra">Regra</span><span class="chip c-llm">LLM</span></div><div class="prem"><b>Premissa a validar</b>Regra para conversão, quantidade e valor. LLM para casar a descrição do item com o cadastro quando o SKU vem vazio (item trocado, item sem cadastro) e para achar a ordem provável quando a nota não cita o pedido; a regra confirma. Medir no eval o acerto do casamento.</div></div>
+      <div class="node star"><div class="n"><span class="badge">Grupo 4 · Agente auditor</span>Classificar a divergência</div><div class="chips"><span class="chip c-regra">Regra</span><span class="chip c-llm">LLM</span></div><div class="prem"><b>Premissa a validar</b>Regra para conversão, quantidade e valor. LLM para casar a descrição do item com o cadastro quando o SKU vem vazio (item trocado, item sem cadastro) e para achar a ordem provável quando a nota não cita o pedido; a regra confirma. O agente auditor audita a nota inteira em paralelo à regra e alerta quando discorda. Medir no eval o acerto contra o gabarito.</div></div>
       <div class="node"><div class="n">Duplicada?</div><div class="chips"><span class="chip c-regra">Regra</span></div><div class="prem"><b>Por quê</b>Mesma chave, mesmo número e série, ou mesma ordem com o mesmo valor. É comparação exata.</div></div>
       <div class="node"><div class="n">Bloquear o título duplicado</div><div class="chips"><span class="chip c-no">Sem agente · sistema</span></div><div class="prem"><b>Por quê</b>Consequência automática da regra anterior.</div></div>
       <div class="node"><div class="n">Já paga fora do fluxo?</div><div class="chips"><span class="chip c-regra">Regra</span></div><div class="prem"><b>Por quê</b>Fornecedor, destino, data e valor batem com um pagamento sem nota.</div></div>
       <div class="node"><div class="n">Vincular ao pagamento já feito</div><div class="chips"><span class="chip c-no">Sem agente · sistema</span></div><div class="prem"><b>Por quê</b>Consequência da regra anterior: liga a nota ao pagamento, sem pagar de novo.</div></div>
-      <div class="node hot"><div class="n">Propor a ação na doca</div><div class="chips"><span class="chip c-regra">Regra</span><span class="chip c-llm">LLM</span></div><div class="prem"><b>Premissa a validar</b>A ação sai da tabela por exceção (regra). A LLM escreve o dossiê para quem aprova: o que diverge, a evidência e o histórico do fornecedor.</div></div>
+      <div class="node star"><div class="n"><span class="badge">Grupo 3 · Dossiê pelo Claude</span>Propor a ação na doca</div><div class="chips"><span class="chip c-regra">Regra</span><span class="chip c-llm">LLM</span></div><div class="prem"><b>Premissa a validar</b>A ação sai da tabela por exceção (regra). A LLM escreve o dossiê para quem aprova: o que diverge, a evidência e o histórico do fornecedor.</div></div>
       <div class="node"><div class="n">Definir o aprovador pelos limites</div><div class="chips"><span class="chip c-regra">Regra</span></div><div class="prem"><b>Por quê</b>Tabela de limites de aprovação. Nunca pode depender de interpretação.</div></div>
       <div class="node"><div class="n">Quem decide?</div><div class="chips"><span class="chip c-regra">Regra</span></div><div class="prem"><b>Por quê</b>Match vai pela regra, sem pessoa. O resto vai ao aprovador do nível.</div></div>
       <div class="node"><div class="n">Conciliar contagem, nota e pedido</div><div class="chips"><span class="chip c-regra">Regra</span></div><div class="prem"><b>Por quê</b>É conta na mesma unidade.</div></div>
       <div class="node"><div class="n">A contagem bate?</div><div class="chips"><span class="chip c-regra">Regra</span></div><div class="prem"><b>Por quê</b>Se bate, segue direto para a doca, sem pessoa. Só a contagem que não bate vai para aprovação.</div></div>
     </div>
     <div class="lane" style="margin-top:22px"><h3>Aprovador da alçada</h3>
-      <div class="node star"><div class="n"><span class="badge">Agente que iremos construir</span>Aprovar a proposta</div><div class="chips"><span class="chip c-clef">Clef</span><span class="chip c-llm">LLM</span><span class="chip c-pessoa">Pessoa</span></div><div class="prem"><b>Premissa validada</b>O Clef valida contra os dados no banco (nota, ordem de compra e cadastro) e confirma antes da doca o que já dá para confirmar, como unidade de medida, até R$ 20 mil, com confiança de 0,98, depois de 4 semanas em modo sombra. LLM recomenda a alteração com o porquê, e a pessoa decide. Diretoria e bloqueio: sempre pessoa.</div></div>
-      <div class="node hot"><div class="n">Aprovar com a contagem</div><div class="chips"><span class="chip c-clef">Clef</span><span class="chip c-llm">LLM</span><span class="chip c-pessoa">Pessoa</span></div><div class="prem"><b>Premissa validada</b>O mesmo agente, só quando a contagem não bate: confirma falta física e quantidade menor com a contagem no banco, com as mesmas travas. Diretoria e bloqueio: sempre pessoa.</div></div>
+      <div class="node star"><div class="n"><span class="badge">Grupo 1 · Motor de decisão</span><span class="badge">Grupo 2 · Decisão no Claude</span>Aprovar a proposta</div><div class="chips"><span class="chip c-clef">Clef</span><span class="chip c-llm">LLM</span><span class="chip c-pessoa">Pessoa</span></div><div class="prem"><b>Premissa validada</b>O Clef valida contra os dados no banco (nota, ordem de compra e cadastro) e confirma antes da doca o que já dá para confirmar, como unidade de medida, até R$ 20 mil, com confiança de 0,98, depois de 4 semanas em modo sombra. LLM recomenda a alteração com o porquê, e a pessoa decide, também de dentro do Claude, pelo MCP App. Diretoria e bloqueio: sempre pessoa.</div></div>
+      <div class="node star"><div class="n"><span class="badge">Grupo 1 · Motor de decisão</span>Aprovar com a contagem</div><div class="chips"><span class="chip c-clef">Clef</span><span class="chip c-llm">LLM</span><span class="chip c-pessoa">Pessoa</span></div><div class="prem"><b>Premissa validada</b>O mesmo agente, só quando a contagem não bate: confirma falta física e quantidade menor com a contagem no banco, com as mesmas travas. Diretoria e bloqueio: sempre pessoa.</div></div>
     </div>
     <div class="lane" style="margin-top:22px"><h3>Doca</h3>
       <div class="node"><div class="n">Planejar o recebimento</div><div class="chips"><span class="chip c-pessoa">Pessoa</span></div><div class="prem"><b>Por quê</b>Equipe e agenda da doca. A proposta só chega antes.</div></div>
-      <div class="node hot"><div class="n">Contar a mercadoria</div><div class="chips"><span class="chip c-llm">LLM com visão</span><span class="chip c-pessoa">Pessoa</span></div><div class="prem"><b>Premissa a validar</b>Foto padronizada do pallet no ato da entrega. O agente conta como contraponto ao operador. Medir a acurácia contra a contagem antes de confiar.</div></div>
+      <div class="node hot"><div class="n">Contar a mercadoria</div><div class="chips"><span class="chip c-llm">LLM com visão</span><span class="chip c-pessoa">Pessoa</span></div><div class="prem"><b>Premissa a validar · fora do case</b>Foto padronizada do pallet no ato da entrega. O agente conta como contraponto ao operador. Medir a acurácia contra a contagem antes de confiar. Fica para depois: o kit não tem as fotos.</div></div>
       <div class="node"><div class="n">Decisão na doca</div><div class="chips"><span class="chip c-pessoa">Pessoa</span></div><div class="prem"><b>Por quê</b>A doca executa a ação confirmada. O aceite é ato jurídico: aceitar a nota é aceitar o pedido.</div></div>
     </div>
     <div class="lane" style="margin-top:22px"><h3>Contas a pagar</h3>
       <div class="node"><div class="n">Emitir nota de devolução da diferença</div><div class="chips"><span class="chip c-no">Sem agente · sistema</span></div><div class="prem"><b>Por quê</b>Escrita no ERP, só depois da homologação.</div></div>
+      <div class="node star"><div class="n"><span class="badge">Grupo 5 · Tratativa com o fornecedor</span>Pedir ao fornecedor a nota de devolução</div><div class="chips"><span class="chip c-llm">LLM</span><span class="chip c-pessoa">Pessoa</span></div><div class="prem"><b>Premissa a validar</b>O agente escreve o pedido com a evidência e o valor tirados do banco; uma pessoa revisa e envia. Ele lê a resposta e prepara a cobrança de quem não respondeu no prazo. Nada sai sem a pessoa, e nenhuma resposta muda a decisão.</div></div>
       <div class="node"><div class="n">Bloquear o título</div><div class="chips"><span class="chip c-no">Sem agente · sistema</span></div><div class="prem"><b>Por quê</b>Consequência da recusa na doca.</div></div>
+      <div class="node star"><div class="n"><span class="badge">Grupo 5 · Tratativa com o fornecedor</span>Pedir ao fornecedor o cancelamento</div><div class="chips"><span class="chip c-llm">LLM</span><span class="chip c-pessoa">Pessoa</span></div><div class="prem"><b>Premissa a validar</b>O mesmo agente, quando a nota é recusada ou duplicada: pede o cancelamento ou a nota de devolução da mercadoria recusada, e acompanha a resposta.</div></div>
       <div class="node"><div class="n">Liberar o título para a lista do dia</div><div class="chips"><span class="chip c-no">Sem agente · sistema</span></div><div class="prem"><b>Por quê</b>Consequência da decisão. Dinheiro não sai por interpretação.</div></div>
     </div>
   </section>
