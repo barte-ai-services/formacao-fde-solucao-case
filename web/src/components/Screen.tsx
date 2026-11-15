@@ -14,7 +14,7 @@ export interface ScreenProps {
   loadingLabel: string;
   errorTitle: string;
   emptyLabel: ReactNode;
-  /** #123 O vazio com ilustração, título e ação (`EmptyState`); no lugar do `emptyLabel` quando a carga vem vazia. */
+  /** #123 O vazio com ilustração, título e ação (`EmptyState`); desenhado no lugar do `LoadFeedback` quando a carga vem vazia. */
   empty?: ReactNode;
   /** O "Tentar de novo" do erro. Normalmente o `retry` do `useLoad`. */
   onRetry: () => void;
@@ -40,6 +40,10 @@ export function Screen({
   return (
     <div className="shell-home pagar-screen">
       <PageTitleBar variant="compact" title={title} subtitle={subtitle} actions={actions} />
+      {state === "empty" && empty ? (
+        // #123 Fora do `LoadFeedback`: o `InlineEmpty` dele é flex alinhado à esquerda e encolhe o filho ao conteúdo.
+        empty
+      ) : (
       <LoadFeedback
         state={state}
         size="page"
@@ -48,10 +52,11 @@ export function Screen({
         errorDescription={ERROR_DESCRIPTION}
         retryLabel={RETRY_LABEL}
         onRetry={onRetry}
-        emptyLabel={state === "empty" && empty ? empty : emptyLabel}
+        emptyLabel={emptyLabel}
       >
         {() => <div className="pagar-body">{typeof children === "function" ? children() : children}</div>}
       </LoadFeedback>
+      )}
     </div>
   );
 }
