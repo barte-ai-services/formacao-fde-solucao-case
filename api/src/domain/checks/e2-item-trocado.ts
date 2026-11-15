@@ -134,7 +134,7 @@ export function amountAtRiskItemTrocado(invoice: InvoiceView, ctx: CheckContext)
   return AmountAtRisk.of(sum, invoice.total);
 }
 
-/** #36/AC-3, tabela de regras de aprovação linhas 4 e 5: até R$ 20 mil, analista; acima, coordenação. */
+/** #36/AC-3: o nível vem da régua (linhas 2, 4 e 5): até R$ 20 mil, analista; acima, coordenação; acima de R$ 100 mil, diretoria. */
 export function approvalLevelItemTrocado(invoice: InvoiceView): ApprovalLevel { // ADR-002
   // #110: a régua (#63) é a fonte única do encaminhamento; não há limite de valor aqui.
   return routeDivergences([{ classification: 'E2' }], invoice.total).level; // ADR-002
