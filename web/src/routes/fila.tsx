@@ -71,6 +71,7 @@ export default function FilaDeAprovacao(_props: RouteProps) {
                     i,
                     <NotaFiscal
                       number={i.number}
+                      issuedOn={i.issuedOn}
                       bottom={i.supplierId}
                       prefix={
                         i.canApprove ? null : (

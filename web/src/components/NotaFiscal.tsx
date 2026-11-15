@@ -1,16 +1,16 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, ReactElement, ReactNode } from "react";
 import { Text } from "barte-design-system";
 import { formatIsoDate } from "@barte-ai-services/barte-ui-kit";
 
-/** O número da nota: rosa e sublinhado, com ou sem clique, para a nota ter uma cara só em toda grid. */
-const NUMERO: CSSProperties = {
+/** #190: o número da nota: rosa e sublinhado, com ou sem clique, para a nota ter uma cara só em toda grid. */
+const NUMBER_STYLE: CSSProperties = {
   color: "var(--content-brand)",
   textDecoration: "underline",
 };
 
-/** O número como botão: alcançável pelo teclado, sem a moldura do botão do navegador. */
-const NUMERO_BOTAO: CSSProperties = {
-  ...NUMERO,
+/** #190: o número como botão: alcançável pelo teclado, sem a moldura do botão do navegador. */
+const NUMBER_BUTTON_STYLE: CSSProperties = {
+  ...NUMBER_STYLE,
   background: "none",
   border: 0,
   padding: 0,
@@ -20,20 +20,20 @@ const NUMERO_BOTAO: CSSProperties = {
 
 export interface NotaFiscalProps {
   number: string;
-  /** Data de emissão em ISO; aparece depois do número, em tinta. */
+  /** #190: data de emissão em ISO; aparece depois do número, em tinta. */
   issuedOn?: string;
-  /** A segunda linha, cinza: o contexto da nota na grid (fornecedor, valor, situação). */
+  /** #190: a segunda linha, cinza: o contexto da nota na grid (fornecedor, valor, situação). */
   bottom?: ReactNode;
-  /** Algo que vem antes do número, como o cadeado de quem não pode aprovar. */
+  /** #190: algo que vem antes do número, como o cadeado de quem não pode aprovar. */
   prefix?: ReactNode;
-  /** Quando a grid abre a nota pelo número, o número vira botão; o clique não chega à linha. */
+  /** #190: quando a grid abre a nota pelo número, o número vira botão; o clique não chega à linha. */
   onOpen?: () => void;
-  /** O rótulo do botão para leitor de tela. */
+  /** #190: o rótulo do botão para leitor de tela. */
   openLabel?: string;
 }
 
-/** A célula da nota fiscal das grids: "NF <número> · <data>" em cima, o contexto cinza embaixo. */
-export function NotaFiscal({ number, issuedOn, bottom, prefix, onOpen, openLabel }: NotaFiscalProps) {
+/** A célula da nota fiscal das grids: "NF <número> · <data>" em cima, o contexto cinza embaixo. O nome `NotaFiscal` vem da issue #190. */
+export function NotaFiscal({ number, issuedOn, bottom, prefix, onOpen, openLabel }: NotaFiscalProps): ReactElement {
   const label = `NF ${number}`;
   return (
     <span style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-2xs)" }}>
@@ -44,16 +44,16 @@ export function NotaFiscal({ number, issuedOn, bottom, prefix, onOpen, openLabel
             type="button"
             aria-label={openLabel}
             onClick={(event) => {
-              // A linha também abre no clique do mouse: o botão não deixa abrir duas vezes.
+              // #190: a linha também abre no clique do mouse: o botão não deixa abrir duas vezes.
               event.stopPropagation();
               onOpen();
             }}
-            style={NUMERO_BOTAO}
+            style={NUMBER_BUTTON_STYLE}
           >
             {label}
           </button>
         ) : (
-          <span style={NUMERO}>{label}</span>
+          <span style={NUMBER_STYLE}>{label}</span>
         )}
         {issuedOn ? ` · ${formatIsoDate(issuedOn)}` : null}
       </Text>

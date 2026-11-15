@@ -77,6 +77,12 @@ describe("#63 fila de aprovação", () => {
     expect(screen.getByText("Sua decisão")).toBeTruthy();
   });
 
+  it("#190/AC-1: a fila mostra a data de emissão da nota em tinta, depois do número", async () => {
+    respond = () => Response.json({ approver: { email: "c", level: "coordenacao" }, items: [item()] });
+    renderAt("/pagar/fila");
+    expect(await screen.findByText(/· 10\/11\/2026/)).toBeTruthy();
+  });
+
   it("AC-7: quem está abaixo do nível vê a proposta e o aviso, sem o formulário", async () => {
     respond = () => Response.json(detail({ canApprove: false }));
     renderAt(`/pagar/fila/${KEY}`);

@@ -6,9 +6,9 @@ import { NotaFiscal } from "./NotaFiscal";
 describe("#190 NotaFiscal", () => {
   it("AC-1: desenha o número em rosa sublinhado, a data e a segunda linha", () => {
     render(<NotaFiscal number="1234" issuedOn="2026-03-05" bottom="Fornecedor · R$ 10,00" onOpen={() => {}} />);
-    const numero = screen.getByText("NF 1234");
-    expect(numero.style.color).toBe("var(--content-brand)");
-    expect(numero.style.textDecoration).toBe("underline");
+    const numberText = screen.getByText("NF 1234");
+    expect(numberText.style.color).toBe("var(--content-brand)");
+    expect(numberText.style.textDecoration).toBe("underline");
     expect(screen.getByText(/· 05\/03\/2026/)).toBeTruthy();
     expect(screen.getByText("Fornecedor · R$ 10,00")).toBeTruthy();
   });
@@ -21,9 +21,9 @@ describe("#190 NotaFiscal", () => {
   it("AC-2: sem onOpen, o número tem o mesmo estilo e não é botão", () => {
     render(<NotaFiscal number="77" bottom="x" />);
     expect(screen.queryByRole("button")).toBeNull();
-    const numero = screen.getByText("NF 77");
-    expect(numero.style.color).toBe("var(--content-brand)");
-    expect(numero.style.textDecoration).toBe("underline");
+    const numberText = screen.getByText("NF 77");
+    expect(numberText.style.color).toBe("var(--content-brand)");
+    expect(numberText.style.textDecoration).toBe("underline");
   });
 
   it("AC-2: com onOpen, é botão rotulado e o clique não chega à linha", () => {
@@ -34,9 +34,9 @@ describe("#190 NotaFiscal", () => {
         <NotaFiscal number="77" onOpen={onOpen} openLabel="Abrir a nota 77" />
       </div>,
     );
-    const botao = screen.getByRole("button", { name: "Abrir a nota 77" });
-    expect(botao.getAttribute("type")).toBe("button");
-    fireEvent.click(botao);
+    const button = screen.getByRole("button", { name: "Abrir a nota 77" });
+    expect(button.getAttribute("type")).toBe("button");
+    fireEvent.click(button);
     expect(onOpen).toHaveBeenCalledTimes(1);
     expect(onRow).not.toHaveBeenCalled();
   });
