@@ -39,7 +39,7 @@ describe('#211 AC-1 o tick grava a rodada', () => {
     expect(runs[0]?.proposed).toBeGreaterThan(0);
     expect(Date.parse(String(runs[0]?.finished_at))).toBeGreaterThanOrEqual(Date.parse(String(runs[0]?.started_at)));
     expect(Object.keys(runs[0] ?? {}).sort()).toEqual([
-      'approved_by_rule', 'cadastro_e8', 'checked', 'dock_published', 'duplicates_blocked', 'error', 'failed',
+      'approved_by_rule', 'cadastro_e8', 'checked', 'dock_published', 'duplicates_blocked', 'engine_approved', 'engine_evaluated', 'error', 'failed',
       'finished_at', 'inserted', 'proposed', 'seen', 'started_at', 'status', 'store_published',
     ]);
   });
@@ -76,7 +76,7 @@ describe('#211 GET /api/automacao', () => {
   };
   const run = (id: number, startedAt: string, status: 'ok' | 'failed') => ({
     id, started_at: startedAt, finished_at: startedAt, status, seen: 12, inserted: 12, checked: 12, failed: 0,
-    proposed: 11, approved_by_rule: 7, cadastro_e8: 0, dock_published: 5, store_published: 0, duplicates_blocked: 0, error: null,
+    proposed: 11, approved_by_rule: 7, cadastro_e8: 0, dock_published: 5, store_published: 0, duplicates_blocked: 0, engine_evaluated: 0, engine_approved: 0, error: null,
   });
 
   it('exige o Access', async () => {
@@ -115,15 +115,50 @@ describe('#211 GET /api/automacao', () => {
       invoices: [{ access_key: 'A', captured_at: '2026-11-16T13:00:00Z' }, { access_key: 'B', captured_at: '2026-11-16T13:00:00Z' }],
       proposals: [{ id: 1, invoice_access_key: 'A', created_at: 'x' }, { id: 2, invoice_access_key: 'B', created_at: 'x' }],
       approvals: [
-        { proposal_id: 1, approver_level: 'regra', approved_at: '2026-11-16T13:01:00Z' },
-        { proposal_id: 2, approver_level: 'analista', approved_at: '2026-11-16T14:00:00Z' },
+        { proposal_id: 1, approver: 'regra', approver_level: 'regra', approved_at: '2026-11-16T13:01:00Z' },
+        { proposal_id: 2, approver: 'ana', approver_level: 'analista', approved_at: '2026-11-16T14:00:00Z' },
       ],
     });
     const body = (await (await call(fake)).json()) as Record<string, any>;
     expect(body.indicators.day).toEqual({
-      date: '2026-11-16', decided: 2, byRule: 1, withoutPersonPct: 50,
+      date: '2026-11-16', decided: 2, byRule: 1, byEngine: 0, withoutPersonPct: 50,
       medianSeconds: { withoutPerson: 60, withPerson: 3600 },
     });
+  });
+
+  // #42 O motor grava approver_level = 'analista'; quem diz que foi ele é approved_by (ou, sem a coluna, approver).
+  const engineTables = (approvals: Record<string, unknown>[]) => ({
+    invoices: ['A', 'B', 'C'].map((k) => ({ access_key: k, captured_at: '2026-11-16T13:00:00Z' })),
+    proposals: ['A', 'B', 'C'].map((k, i) => ({ id: i + 1, invoice_access_key: k, created_at: 'x' })),
+    approvals,
+  });
+  const engineExpected = {
+    date: '2026-11-16', decided: 3, byRule: 1, byEngine: 1, withoutPersonPct: 67,
+    medianSeconds: { withoutPerson: 90, withPerson: 3600 },
+  };
+
+  it('#42 a aprovação do motor (approved_by = engine) conta como sem pessoa, em byEngine', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-16T15:00:00Z'));
+    const fake = new FakePostgrest(engineTables([
+      { proposal_id: 1, approver: 'regra', approver_level: 'regra', approved_by: 'rule', approved_at: '2026-11-16T13:01:00Z' },
+      { proposal_id: 2, approver: 'motor', approver_level: 'analista', approved_by: 'engine', approved_at: '2026-11-16T13:02:00Z' },
+      { proposal_id: 3, approver: 'ana', approver_level: 'analista', approved_by: 'person', approved_at: '2026-11-16T14:00:00Z' },
+    ]));
+    const body = (await (await call(fake)).json()) as Record<string, any>;
+    expect(body.indicators.day).toEqual(engineExpected);
+  });
+
+  it('#42 sem approved_by (banco sem a migração), recua para approver_level e o aprovador do motor', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-16T15:00:00Z'));
+    const fake = new FakePostgrest(engineTables([
+      { proposal_id: 1, approver: 'regra', approver_level: 'regra', approved_at: '2026-11-16T13:01:00Z' },
+      { proposal_id: 2, approver: 'motor', approver_level: 'analista', approved_at: '2026-11-16T13:02:00Z' },
+      { proposal_id: 3, approver: 'ana', approver_level: 'analista', approved_at: '2026-11-16T14:00:00Z' },
+    ]));
+    const body = (await (await call(fake)).json()) as Record<string, any>;
+    expect(body.indicators.day).toEqual(engineExpected);
   });
 });
 

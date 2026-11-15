@@ -12,6 +12,7 @@ import { me } from "./me";
 import { adminRoutes } from "./admin";
 import { automation } from "./automation";
 import { barredAmount } from "./barred-amount";
+import { engineAgreement } from "./engine";
 import { returnNoteRoutes, type ReturnNotesDeps } from "./return-notes";
 
 type PublicHandler = () => Response;
@@ -34,6 +35,7 @@ function protectedRoutes(deps: RouterDeps): Record<string, Record<string, Protec
     "/me": { GET: me },
     "/api/valor-barrado": { GET: barredAmount },
     "/api/automacao": { GET: automation },
+    "/api/motor/acerto": { GET: engineAgreement },
     "/api/doca": { GET: (_identity, request, env) => dock(request, env) },
     "/api/recebimento-loja": { GET: (_identity, request, env) => storeReceiving(request, env) },
     "/api/duplicates": { GET: (_identity, _request, env) => listDuplicates(duplicates(env)) },
@@ -70,7 +72,7 @@ function defaultDuplicates(env: Env): DuplicatesReader {
  * Rota desconhecida: a tela (#60), se for um GET ou HEAD fora de `/api/` e os arquivos dela
  * existirem; senão 404. Método não aceito: 405.
  */
-export async function route(request: Request, env: Env, deps: RouterDeps): Promise<Response> {
+export async function route(request: Request, env: Env, deps: RouterDeps, ctx?: ExecutionContext): Promise<Response> {
   const { pathname } = new URL(request.url);
   const open = own(publicRoutes, pathname);
   if (open) return dispatch(request, open, (handler) => handler());
@@ -85,10 +87,12 @@ export async function route(request: Request, env: Env, deps: RouterDeps): Promi
     typeof deps.approval === "function"
       ? deps.approval(env)
       : (deps.approval ?? { store: new MemoryApprovalStore() }),
+    // #130 O dossiê pedido na gaveta roda depois da resposta, pelo waitUntil do Worker.
+    ctx ? (work) => ctx.waitUntil(work) : undefined,
   );
   if (approval) return approval;
 
-  const admin = await adminRoutes(request, auth.identity, env);
+  const admin = await adminRoutes(request, auth.identity, env, ctx ? (work) => ctx.waitUntil(work) : undefined);
   if (admin) return admin;
 
   const returnNotes = await returnNoteRoutes(request, auth.identity, env, deps.returnNotes ?? {}, supabaseFromEnv);

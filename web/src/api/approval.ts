@@ -8,7 +8,8 @@ import type {
   Classification,
   DivergenceDto,
   DockActionDto,
-  DossierField,
+  DossierGeneratingDto,
+  ProposalDossierDto,
   ProposalState,
   TitleState,
   Unit,
@@ -71,7 +72,7 @@ export interface ProposalDetailDto extends QueueItemDto {
   title: { state: TitleState; amount: MoneyDto; dueOn: string };
   approval: ApprovalDto | null;
   /** #68: o dossiê do Claude, já conferido pelo Worker; sem ele, o motivo e o aviso (#38/AC-4). */
-  dossier: DossierField;
+  dossier: ProposalDossierDto; // #130 também `generating`, quando a pessoa pediu na gaveta
   /** #211 Os passos da nota, em ordem. */
   timeline?: TimelineStepDto[];
 }
@@ -115,4 +116,22 @@ export const approvalApi = {
   alter: (key: string, dockAction: DockActionDto, justification: string) =>
     apiPost<DecisionResultDto>(`/api/propostas/${encodeURIComponent(key)}/alterar`, { dockAction, justification }),
   today: (signal?: AbortSignal) => apiGet<TodayDto>("/api/hoje", { signal }),
+  requestDossier,
 };
+
+/** #130 O 202 do pedido: o Worker responde em snake_case; a tela usa a forma do GET da proposta. */
+interface DossierRequestedBody {
+  status: "generating";
+  trigger: "on_demand";
+  requested_by: string;
+  requested_at: string;
+}
+
+/**
+ * #130 `POST /api/propostas/:chave/dossie`: pede o dossiê ao Claude só para esta proposta. 202 vira o estado
+ * Gerando; 409 (já em geração) e 429 (limite) chegam como `ApiError`.
+ */
+export async function requestDossier(accessKey: string): Promise<DossierGeneratingDto> {
+  const body = await apiPost<DossierRequestedBody>(`/api/propostas/${encodeURIComponent(accessKey)}/dossie`, {});
+  return { status: "generating", trigger: "on_demand", requestedBy: body.requested_by, requestedAt: body.requested_at };
+}

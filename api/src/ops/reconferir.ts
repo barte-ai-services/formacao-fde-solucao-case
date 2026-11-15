@@ -1,13 +1,13 @@
 // #56 Reconferir: apaga o que a conferência gravou e roda a captura e a conferência completas de novo.
 // Só as tabelas do domínio; nenhuma kit_* (a base do kit é a fonte e fica intacta).
-import { tick, type TickSummary } from '../cron/tick.js';
+import { tick, type Defer, type TickSummary } from "../cron/tick.js";
 import type { SupabaseRest } from '../connectors/supabase-rest.js';
 import type { Env } from '../env.js';
 
 /**
  * #56 As tabelas do domínio, com uma coluna `not null` de cada uma: o PostgREST exige filtro para
  * apagar, e `not.is.null` pega todas. A nota vai primeiro: o `on delete cascade` leva divergências,
- * propostas, aprovações e títulos no mesmo comando, e uma rodada do Cron no meio não deixa filha
+ * propostas, aprovações, auditorias (a tabela só recebe linhas, sem DELETE; sai só pelo cascade) e títulos no mesmo comando, e uma rodada do Cron no meio não deixa filha
  * órfã. As caixas de saída não têm chave para a nota e vão logo depois; as filhas ficam na lista
  * para o caso de uma linha sem nota.
  */
@@ -37,7 +37,8 @@ export async function resetDomain(rest: SupabaseRest, tables = DOMAIN_TABLES): P
 export async function reconferir(
   rest: SupabaseRest,
   env: Env,
-  runTick: (env: Env) => Promise<TickSummary | null | void> = (e) => tick({ cron: 'reconferir' }, e),
+  defer: Defer = (work) => void work,
+  runTick: (env: Env) => Promise<TickSummary | null | void> = (e) => tick({ cron: "reconferir" }, e, defer),
 ): Promise<TickSummary | null> {
   await resetDomain(rest);
   return (await runTick(env)) ?? null;

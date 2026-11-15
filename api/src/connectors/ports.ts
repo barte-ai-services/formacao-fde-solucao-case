@@ -1,5 +1,7 @@
 // Portas dos conectores (#59, AC-2): o que a conferência lê dos sistemas e o que publica para eles.
 import type {
+  ApprovalLevel,
+  AuditRefusal,
   AuditResult,
   DockAction,
   Invoice,
@@ -108,17 +110,25 @@ export type ReturnNoteOutbox = Outbox<ReturnNoteMessage>;
 export type AuditedNote = { readonly invoice: Invoice; readonly proposal: RuleProposal };
 
 /**
+ * #230 O que acompanha a auditoria na gravação: as recusas do record_audit nesta tentativa, na ordem em que
+ * aconteceram (lista vazia = aceita de primeira; insumo da avaliação da #154), e o nível que a proposta tinha
+ * quando a nota foi lida (o `requested_from_level` da linha, quando o auditor pede subida).
+ */
+export type AuditWriteContext = { readonly refusals: readonly AuditRefusal[]; readonly fromLevel: ApprovalLevel };
+
+/**
  * #230 O que a auditoria lê e grava por nota. São duas raízes, a auditoria e a proposta, e não há transação entre
  * elas; o contrato é o de duas gravações em ordem:
  * 1. `save` primeiro acrescenta a linha em invoice_audits, que é a verdade (a tabela só recebe linhas);
- * 2. se `raisedLevel` vier, depois sobe proposals.approval_level só onde state = aguardando_aprovacao e o
- *    nível atual é menor que `raisedLevel`; não subir nada é válido (a nota pode ter sido decidida desde o
+ * 2. se `raisedLevel` vier, depois chama a função raise_proposal_level, que numa transação sobe
+ *    proposals.approval_level só onde state = aguardando_aprovacao e o nível atual é menor que `raisedLevel`, e
+ *    grava a subida em proposal_level_changes (a história; a API lê o nível aplicado dali); não subir nada é válido (a nota pode ter sido decidida desde o
  *    `loadNote`);
  * 3. janela: entre as duas gravações, ou se a segunda falhar, a proposta pode ficar sem o nível até a próxima
  *    rodada do Cron;
- * 4. reparo: `reapplyRaisedLevels` é uma varredura idempotente que reaplica raised_level das linhas de auditoria
- *    cuja proposta ainda está aguardando e abaixo desse nível. Quem a roda é a tarefa, em `pending`, no começo
- *    de cada rodada; custa no máximo 2 subrequests (uma leitura e uma gravação em lote) e a falha dela não
+ * 4. reparo: `reapplyRaisedLevels` é uma varredura idempotente que repete o pedido (requested_level) das linhas de
+ *    auditoria cuja proposta ainda está aguardando e abaixo desse nível, de uma nota por rodada. Quem a roda é a tarefa, em `pending`, no começo
+ *    de cada rodada; custa no máximo 2 subrequests (uma leitura e uma chamada da função) e a falha dela não
  *    impede a auditoria.
  * Idempotência por chave de acesso: um segundo `save` para chave que já tem linha auditada é um no-op (a
  * camada seguinte impõe com índice único parcial em invoice_access_key onde status = 'audited' e trata a
@@ -128,9 +138,9 @@ export type AuditedNote = { readonly invoice: Invoice; readonly proposal: RulePr
 export interface InvoiceAuditPort {
   /** #230 A nota capturada com a proposta da regra, ou null se a nota ou a proposta não existe. */
   loadNote(invoiceAccessKey: string): Promise<AuditedNote | null>;
-  save(invoiceAccessKey: string, result: AuditResult): Promise<void>;
-  /** #230 AC-6: a nota fica "não auditada" com o motivo; a proposta da regra segue como estava. */
-  saveNotAudited(invoiceAccessKey: string, outcome: NotAudited): Promise<void>;
+  save(invoiceAccessKey: string, result: AuditResult, context: AuditWriteContext): Promise<void>;
+  /** #230 AC-6: a nota fica "não auditada" com o motivo e as recusas que o record_audit deu antes; a proposta da regra segue como estava. */
+  saveNotAudited(invoiceAccessKey: string, outcome: NotAudited, refusals: readonly AuditRefusal[]): Promise<void>;
   /** #230 O reparo idempotente do nível (item 4 acima). */
   reapplyRaisedLevels(): Promise<void>;
 }

@@ -83,7 +83,7 @@ function okSuggestion(invoice: Invoice): Record<string, unknown> {
     status: 'ok',
     model: 'claude-opus-5-5',
     error: null,
-    generated_at: '2026-11-15T12:00:00.000Z',
+    updated_at: '2026-11-15T12:00:00.000Z',
   };
 }
 
@@ -139,7 +139,7 @@ describe('GET /api/propostas/:chave com o dossiê', () => {
         status: 'ok',
         model: 'claude-opus-5-5',
         error: null,
-        generated_at: '2026-11-15T12:00:00.000Z',
+        updated_at: '2026-11-15T12:00:00.000Z',
       },
     ]);
     const item = invoice.items[0]!;

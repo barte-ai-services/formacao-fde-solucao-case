@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Frame } from "../src/App";
 import { fallbackContext } from "../src/shell/context";
+import { texts } from "../src/texts";
 
 // #63 As telas da aprovação contra uma API falsa, com o formato de api/src/http/approval.ts.
 
@@ -181,9 +182,10 @@ describe("#68 dossiê do Claude na gaveta da proposta", () => {
     respond = () =>
       Response.json({ ...detail(), dossier: { status: "unavailable", reason: "pending", notice: PENDING_NOTICE, generatedAt: null } });
     renderAt(`/pagar/fila/${KEY}`);
-    expect(await screen.findByText("Não há dossiê do Claude para esta proposta.")).toBeTruthy();
-    expect(screen.getByText(PENDING_NOTICE)).toBeTruthy();
-    expect(screen.queryByText("Dossiê do Claude")).toBeNull();
+    // #130 A gaveta convida a pedir o dossiê ao Claude, em vez do aviso de "não há dossiê".
+    expect(await screen.findByText(texts.dossier.notYet)).toBeTruthy();
+    expect(screen.getByRole("button", { name: texts.dossier.ask })).toBeTruthy();
+    expect(screen.queryByText("Não há dossiê do Claude para esta proposta.")).toBeNull();
     expect(screen.getByText("Sua decisão")).toBeTruthy();
   });
 });

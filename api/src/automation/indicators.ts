@@ -1,11 +1,16 @@
 // #211 AC-5 Os indicadores, calculados na API: % resolvido sem pessoa e mediana da captura à decisão.
+// #42 Sem pessoa é a regra ou o motor; `byRule` segue só com a regra e `byEngine` conta o motor.
 import { todayInBrasilia } from '../http/approval.js';
 
-export type DecisionRecord = { readonly capturedAt: string; readonly decidedAt: string; readonly byRule: boolean };
+/** #42 Quem decidiu: a regra, o motor (modo delegado) ou uma pessoa. Regra e motor são "sem pessoa". */
+export type DecidedBy = 'rule' | 'engine' | 'person';
+
+export type DecisionRecord = { readonly capturedAt: string; readonly decidedAt: string; readonly by: DecidedBy };
 
 export type PeriodIndicators = {
   decided: number;
   byRule: number;
+  byEngine: number;
   withoutPersonPct: number | null;
   medianSeconds: { withoutPerson: number | null; withPerson: number | null };
 };
@@ -20,14 +25,15 @@ function median(values: number[]): number | null {
 
 function period(records: readonly DecisionRecord[]): PeriodIndicators {
   const seconds = (r: DecisionRecord) => Math.max(0, (Date.parse(r.decidedAt) - Date.parse(r.capturedAt)) / 1000);
-  const rule = records.filter((r) => r.byRule);
+  const withoutPerson = records.filter((r) => r.by !== 'person');
   return {
     decided: records.length,
-    byRule: rule.length,
-    withoutPersonPct: records.length === 0 ? null : Math.round((rule.length / records.length) * 100),
+    byRule: records.filter((r) => r.by === 'rule').length,
+    byEngine: records.filter((r) => r.by === 'engine').length,
+    withoutPersonPct: records.length === 0 ? null : Math.round((withoutPerson.length / records.length) * 100),
     medianSeconds: {
-      withoutPerson: median(rule.map(seconds)),
-      withPerson: median(records.filter((r) => !r.byRule).map(seconds)),
+      withoutPerson: median(withoutPerson.map(seconds)),
+      withPerson: median(records.filter((r) => r.by === 'person').map(seconds)),
     },
   };
 }

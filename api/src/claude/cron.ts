@@ -10,9 +10,18 @@ import { runTasks, type RunResult } from './runner.js';
 import { tasksFor } from './tasks/index.js';
 
 /**
- * #171 Pedidos por tarefa a cada rodada. Cada pedido custa 2 subrequests (a Messages API e o upsert) e a rodada
- * lê umas 7 vezes antes: 2 tarefas × 5 × 2 + 7 = 27, dentro dos 50 do plano gratuito. A rodada vai depois da captura.
- * #230 O auditor (invoice-audit, `maxPerRun` 1) soma 22 no pior caso, 27 + 22 = 49; a conta está em tasks/invoice-audit.ts.
+ * #171 Pedidos por tarefa a cada rodada. Cada pedido custa 2 subrequests (a Messages API e o upsert).
+ * #38 A conta honesta do tick (tick.ts), medida no kit com o FakePostgrest: a rodada quieta, sem nota nova, faz
+ * umas 59 chamadas ao Supabase antes do Claude (a captura, as propostas, o E8, a doca, o app da loja e os títulos
+ * duplicados; cada leitura de propostas do store custa 6) e 1 depois (automation_runs). Ou seja: no plano gratuito
+ * (50 subrequests) o tick já passa do teto antes da rodada do Claude, e o que a rodada chama depois disso falha.
+ * No plano pago o teto é 1000. A rodada do Claude vai por último para o que estourar não ser a captura.
+ * Custo da rodada do Claude: 1 leitura de claude_suggestions por tarefa no laço, mais o pending() de cada uma.
+ * O do dossiê: as propostas que esperam (6 leituras, 1 se não há nenhuma), 1 leitura das próprias chaves e, havendo
+ * candidata, 1 dos pedidos da gaveta em andamento (#130); só
+ * havendo chave nova ou pronta para nova tentativa vêm o contexto (7) e até 5 × 2. Sem nada novo: 7 a 8, sem chamar
+ * o Claude. Com as três tarefas cheias: as outras duas leem umas 7, o laço 3, o dossiê 7 + 7, e 3 × 5 × 2 = 54.
+ * #230 O auditor (invoice-audit, `maxPerRun` 1) soma 22 no pior caso; a conta está em tasks/invoice-audit.ts.
  */
 export const CRON_LIMIT = 5;
 

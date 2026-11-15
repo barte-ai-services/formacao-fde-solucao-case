@@ -34,6 +34,18 @@ export type {
   Unit,
 };
 
+/** #130 O dossiê pedido na gaveta, ainda em geração (`api/src/dossier/proposal-field.ts`). */
+export interface DossierGeneratingDto {
+  status: "generating";
+  /** #38 `event`: começou quando a nota chegou; #130 `on_demand`: a pessoa pediu na gaveta. */
+  trigger: "event" | "on_demand";
+  requestedBy: string;
+  requestedAt: string;
+}
+
+/** #130 O campo `dossier` da proposta na gaveta: pronto, indisponível ou em geração. */
+export type ProposalDossierDto = DossierField | DossierGeneratingDto;
+
 /** Toda classificação que é uma divergência: as oito exceções e a não catalogada. */
 export type DivergenceCode = Exclude<Classification, "MATCH">;
 

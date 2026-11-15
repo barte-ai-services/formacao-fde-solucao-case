@@ -460,5 +460,32 @@ export const texts = {
       receipt: "Recebimento",
       history: "Histórico",
     },
+    // #130 Os estados da gaveta, como no wireframe da issue.
+    generating: "O Claude está lendo a nota, a ordem e o cadastro…",
+    requestedAt: (time: string) => `Pedido por você às ${time}`,
+    // #38 O dossiê disparado pelo evento: ninguém pediu, começou quando a nota chegou.
+    startedAt: (time: string) => `Começou quando a nota chegou, às ${time}`,
+    // #130 AC-4 "Gerar de novo": o anterior fica na tela até o novo ficar pronto.
+    renewing: "✦ O Claude está escrevendo uma versão nova. Esta continua valendo até lá.",
+    renewFailed: "O Claude não conseguiu escrever a versão nova. Esta continua valendo.",
+    // #130 O teto da espera chegou com o Claude ainda em generating.
+    renewTimedOut: "O Claude ainda está escrevendo; tente de novo em alguns minutos.",
+    writtenAt: (time: string) => `Escrito pelo Claude às ${time}. Os números vêm do banco.`,
+    notYet: "Esta proposta ainda não tem dossiê. O Claude lê a nota, a ordem e o cadastro e explica o que diverge. Quem decide é você.",
+    ask: "✦ Pedir ao Claude",
+    again: "↻ Gerar de novo",
+    retry: "↻ Tentar de novo",
+    stillValid: "A proposta continua valendo e você pode decidir sem ele.",
+    failed: {
+      claude_failed: "O Claude não conseguiu escrever o dossiê agora.",
+      timeout: "O Claude demorou demais para responder.",
+      number_mismatch: "O dossiê citava um número que não bate com o banco, por isso não foi mostrado.",
+      invalid_shape: "A resposta do Claude veio fora do formato, por isso não foi mostrada.",
+    },
+    request: {
+      inFlight: "O Claude já está escrevendo este dossiê.",
+      limit: "Muitos pedidos para esta proposta. Tente de novo em alguns minutos.",
+      other: "Não consegui pedir o dossiê agora. Tente de novo.",
+    },
   },
 };

@@ -8,8 +8,8 @@ import { ClaudeError, type Converse, type ConverseOptions } from '../../src/clau
 import type { Db, Row } from '../../src/claude/db.js';
 import { runTasks, storedError } from '../../src/claude/runner.js';
 import { invoiceAuditTask, AUDIT_TOOL_NAMES, INVOICE_AUDIT_TASK, type InvoiceAuditInput } from '../../src/claude/tasks/invoice-audit.js';
-import type { AuditReadsPort, InvoiceAuditPort, AuditedNote } from '../../src/connectors/ports.js';
-import { Invoice, Money, Quantity, type AuditResult, type NotAudited, type RuleProposal } from '../../src/domain/index.js';
+import type { AuditReadsPort, AuditWriteContext, InvoiceAuditPort, AuditedNote } from '../../src/connectors/ports.js';
+import { Invoice, Money, Quantity, type AuditRefusal, type AuditResult, type NotAudited, type RuleProposal } from '../../src/domain/index.js';
 import { anInvoice } from '../domain/fixtures.js';
 
 const KEY = '35261100000000000000550010000012341000012345';
@@ -29,8 +29,9 @@ const proposal = (overrides: Partial<RuleProposal> = {}): RuleProposal => ({
 type Doubles = {
   audits: InvoiceAuditPort;
   reads: AuditReadsPort;
-  saved: { key: string; result: AuditResult }[];
+  saved: { key: string; result: AuditResult; context: AuditWriteContext }[];
   notAuditedRows: { key: string; outcome: NotAudited }[];
+  notAuditedRefusals: (readonly AuditRefusal[])[];
   readCalls: string[];
   sweeps: { count: number };
 };
@@ -38,6 +39,7 @@ type Doubles = {
 function doubles(note: AuditedNote | null, failing: Partial<Record<keyof AuditReadsPort, boolean>> = {}): Doubles {
   const saved: Doubles['saved'] = [];
   const notAuditedRows: Doubles['notAuditedRows'] = [];
+  const notAuditedRefusals: Doubles['notAuditedRefusals'] = [];
   const readCalls: string[] = [];
   const sweeps = { count: 0 };
   const read = (name: keyof AuditReadsPort) => async () => {
@@ -60,11 +62,11 @@ function doubles(note: AuditedNote | null, failing: Partial<Record<keyof AuditRe
   };
   const audits: InvoiceAuditPort = {
     loadNote: async () => note,
-    save: async (key, result) => void saved.push({ key, result }),
-    saveNotAudited: async (key, outcome) => void notAuditedRows.push({ key, outcome }),
+    save: async (key, result, context) => void saved.push({ key, result, context }),
+    saveNotAudited: async (key, outcome, refusals) => void (notAuditedRows.push({ key, outcome }), notAuditedRefusals.push(refusals)),
     reapplyRaisedLevels: async () => void (sweeps.count += 1),
   };
-  return { audits, reads, saved, notAuditedRows, readCalls, sweeps };
+  return { audits, reads, saved, notAuditedRows, notAuditedRefusals, readCalls, sweeps };
 }
 
 /** #230 Como o cliente real: a falha do handler volta ao modelo como erro genérico, sem o texto dela. */
@@ -478,5 +480,40 @@ describe('invoice-audit no laço das tarefas (#230)', () => {
     expect(result.failedTasks).toEqual([INVOICE_AUDIT_TASK]);
     expect(upserts[0]?.rows[0]).toMatchObject({ status: 'error', attempts: 1 });
     expect(d.notAuditedRows).toHaveLength(1);
+  });
+});
+
+describe('invoice-audit: as recusas do record_audit seguem com a gravação (#230, avaliação da #154)', () => {
+  it('#230/AC-3: aceita de primeira grava a lista de recusas vazia, com o nível que a proposta tinha', async () => {
+    const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
+    await task(d).run(input, noAsk, auditing());
+    expect(d.saved[0]?.context).toEqual({ refusals: [], fromLevel: 'coordenacao' });
+  });
+
+  it('#230/AC-3: as recusas saem na ordem em que aconteceram e vão com a auditoria aceita depois', async () => {
+    const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
+    await task(d).run(input, noAsk, async (options) => {
+      await callTool(options, 'record_audit', validAudit({ routing: 'analista' }));
+      await callTool(options, 'record_audit', validAudit({ justification: 'uma linha' }));
+      await callTool(options, 'record_audit', validAudit());
+      return { recorded: true };
+    });
+    expect(d.saved).toHaveLength(1);
+    expect(d.saved[0]?.context.refusals).toEqual([
+      { refusal: 'routing_below_regua', minimumLevel: 'coordenacao' },
+      { refusal: 'invalid_field', field: 'justification' },
+    ]);
+  });
+
+  it('#230/AC-6: a nota que ficou não auditada leva as recusas vistas antes da falha', async () => {
+    const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
+    await task(d)
+      .run(input, noAsk, async (options) => {
+        await callTool(options, 'record_audit', validAudit({ routing: 'analista' }));
+        throw new ClaudeError('api', 'falhou');
+      })
+      .catch(() => undefined);
+    expect(d.notAuditedRows).toEqual([{ key: KEY, outcome: { audited: false, reason: 'claude_falhou' } }]);
+    expect(d.notAuditedRefusals).toEqual([[{ refusal: 'routing_below_regua', minimumLevel: 'coordenacao' }]]);
   });
 });

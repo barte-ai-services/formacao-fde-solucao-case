@@ -11,6 +11,7 @@ import type { PartialLineDto } from "../api/contract";
 import { AccessKey } from "../components/AccessKey";
 import { Dossier } from "../components/Dossier";
 import { ProposalTimeline } from "./ProposalTimeline";
+import { useDossier } from "./useDossier";
 import { EvidenceView } from "../evidence";
 import { partialPrefill, type Disposition, type PartialInput } from "./partial-prefill";
 import { ACTION_LABEL, ACTION_TONE, LEVEL_LABEL, LEVEL_TONE, type DockActionKind } from "./labels";
@@ -66,6 +67,8 @@ export function ProposalPanel({
   // #203 Já preenchidos com a diferença da evidência; o que a pessoa digita fica aqui ao trocar de opção.
   const [partial, setPartial] = useState<Record<string, PartialInput>>(() => partialPrefill(proposal));
   const proposed = proposal.dockAction.kind;
+  // #130 O dossiê da gaveta: pedir ao Claude e ler de novo enquanto ele escreve.
+  const dossier = useDossier(proposal.invoiceAccessKey, proposal.dossier);
   /** #134 Sem divergência em item (MATCH), não há o que segurar ou devolver: o bloco do parcial some. */
   const hasItemDivergence = proposal.divergences.some((d) => d.skus.length > 0);
   const labels = (afterCount ?? COUNTED.includes(proposal.classification)) ? texts.proposalPanel.form.afterCountOptions : texts.proposalPanel.form.options;
@@ -152,7 +155,7 @@ export function ProposalPanel({
         )}
       </Block>
       {proposal.dockAction.kind === "receber_parcial" ? <PartialItems proposal={proposal} lines={proposal.dockAction.lines} /> : null}
-      <Dossier dossier={proposal.dossier} />
+      <Dossier dossier={dossier.dossier} onRequest={() => void dossier.request()} message={dossier.message} busy={dossier.busy} renewing={dossier.renewing} />
       <ProposalTimeline steps={proposal.timeline ?? []} />
       {decided ?? proposal.approval ? (
         <Alert

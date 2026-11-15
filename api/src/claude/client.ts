@@ -42,6 +42,15 @@ export type AskOptions = {
 /** #171 A pergunta ao Claude, injetável: as tarefas recebem um Ask e os testes passam um falso. */
 export type Ask = <T>(options: AskOptions) => Promise<T>;
 
+/** #38 Tokens gastos numa chamada, somados de todas as respostas da Messages API (o laço pode ter várias voltas). */
+export type Usage = { readonly input_tokens: number; readonly output_tokens: number };
+
+/** #38 A resposta com o uso. `usage` é nulo quando nenhuma resposta trouxe o campo. */
+export type Answered<T> = { readonly value: T; readonly usage: Usage | null };
+
+/** #38 A variante do Ask que devolve também o uso, para o dossiê gravar em claude_suggestions.usage. */
+export type AskWithUsage = <T>(options: AskOptions) => Promise<Answered<T>>;
+
 /** #171 Uma tool do laço: a descrição e o schema vão ao modelo; o handler roda no Worker. */
 export type Tool = {
   readonly name: string;
@@ -67,6 +76,9 @@ export type ClaudeErrorKind = 'rate_limit' | 'auth' | 'api' | 'network' | 'timeo
 
 /** #171 Falha da chamada ao Claude. A mensagem diz o tipo e o status, nunca segredo nem texto do modelo. */
 export class ClaudeError extends Error {
+  /** #38 O uso já gasto quando a falha veio depois de alguma resposta; nulo se nenhuma resposta chegou. */
+  usage: Usage | null = null;
+
   constructor(
     readonly kind: ClaudeErrorKind,
     detail: string,
@@ -110,6 +122,24 @@ export type ClaudeClientConfig = {
 type Block = Record<string, unknown>;
 type Message = { readonly role: 'user' | 'assistant'; readonly content: string | Block[] };
 
+/** #38 O uso que o erro carrega: o do ClaudeError que veio depois de alguma resposta; qualquer outro, nulo. */
+export function spentUsage(error: unknown): Usage | null {
+  return error instanceof ClaudeError ? error.usage : null;
+}
+
+/** #38 O campo `usage` de uma resposta, se vier com os dois números. */
+function readUsage(parsed: Record<string, unknown>): Usage | null {
+  const u = parsed.usage;
+  if (!isRecord(u) || typeof u.input_tokens !== 'number' || typeof u.output_tokens !== 'number') return null;
+  return { input_tokens: u.input_tokens, output_tokens: u.output_tokens };
+}
+
+function addUsage(total: Usage | null, more: Usage | null): Usage | null {
+  if (!more) return total;
+  if (!total) return more;
+  return { input_tokens: total.input_tokens + more.input_tokens, output_tokens: total.output_tokens + more.output_tokens };
+}
+
 function classify(status: number): ClaudeError {
   if (status === 429) return new ClaudeError('rate_limit', 'HTTP 429 (limite de uso)', status);
   if (status === 401 || status === 403) return new ClaudeError('auth', `HTTP ${status} (credencial recusada)`, status);
@@ -134,14 +164,28 @@ export class ClaudeClient {
   }
 
   /** #171 O `Ask` das tarefas: pergunta com saída estruturada e sem tools. */
-  readonly ask: Ask = <T>(options: AskOptions): Promise<T> => this.converse(options) as Promise<T>;
+  readonly ask: Ask = async <T>(options: AskOptions): Promise<T> => (await this.askWithUsage<T>(options)).value;
+
+  /** #38 O mesmo pedido do `ask`, devolvendo também o uso de tokens; quem usa é o dossiê (evento e sob demanda). */
+  readonly askWithUsage: AskWithUsage = <T>(options: AskOptions): Promise<Answered<T>> =>
+    this.converseWithUsage(options) as Promise<Answered<T>>;
+
+  /** #171 O laço de tool use, devolvendo só o valor; ver `converseWithUsage`. */
+  async converse(options: ConverseOptions): Promise<unknown> {
+    return (await this.converseWithUsage(options)).value;
+  }
 
   /**
    * #171 O laço de tool use. A saída estruturada é a própria tool `responder`, com o schema da tarefa:
    * o modelo a chama para terminar. Enquanto chamar outras tools, o handler roda e o resultado volta
    * ao modelo; passar de `maxTurns` ou terminar sem `responder` é falha. O prazo vale para o laço todo.
+   * #38 Soma o `usage` de cada resposta. Na falha, o ClaudeError leva o uso já gasto (nulo se nada chegou).
    */
-  async converse(options: ConverseOptions): Promise<unknown> {
+  async converseWithUsage(options: ConverseOptions): Promise<Answered<unknown>> {
+    let usage: Usage | null = null;
+    const record = (more: Usage | null) => {
+      usage = addUsage(usage, more);
+    };
     const tools = options.tools ?? [];
     const maxTurns = options.maxTurns ?? (tools.length === 0 ? 1 : MAX_TURNS);
     const signal = AbortSignal.timeout(this.timeoutMs);
@@ -156,10 +200,11 @@ export class ClaudeClient {
         const content = await this.post(
           { model: options.model ?? DEFAULT_MODEL, max_tokens: MAX_TOKENS, system: this.system(options.system), tools: toolDefs, tool_choice: toolChoice, messages },
           signal,
+          record,
         );
         const uses = content.filter((b) => b.type === 'tool_use');
         const answer = uses.find((b) => b.name === ANSWER_TOOL);
-        if (answer) return answer.input;
+        if (answer) return { value: answer.input, usage };
         if (uses.length === 0) throw new ClaudeError('format', 'resposta sem tool_use');
         messages.push({ role: 'assistant', content });
         messages.push({ role: 'user', content: await this.runTools(uses, tools) });
@@ -167,12 +212,16 @@ export class ClaudeClient {
       throw new ClaudeError('format', `sem resposta final em ${maxTurns} voltas`);
     } catch (error) {
       this.failures += 1;
-      if (error instanceof ClaudeError) throw error;
       // #171 O erro original pode trazer URL ou cabeçalhos; fica só o tipo da falha.
       const timedOut = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
-      throw timedOut
-        ? new ClaudeError('timeout', `sem resposta em ${this.timeoutMs / 1000} s`)
-        : new ClaudeError('network', 'falha de rede');
+      const failure =
+        error instanceof ClaudeError
+          ? error
+          : timedOut
+            ? new ClaudeError('timeout', `sem resposta em ${this.timeoutMs / 1000} s`)
+            : new ClaudeError('network', 'falha de rede');
+      failure.usage = usage;
+      throw failure;
     }
   }
 
@@ -188,7 +237,7 @@ export class ClaudeClient {
     return { ...base, authorization: `Bearer ${this.credentials.token}`, 'anthropic-beta': OAUTH_BETA };
   }
 
-  private async post(body: unknown, signal: AbortSignal): Promise<Block[]> {
+  private async post(body: unknown, signal: AbortSignal, record: (usage: Usage | null) => void): Promise<Block[]> {
     this.calls += 1;
     const response = await this.doFetch(this.url, { method: 'POST', headers: this.headers(), body: JSON.stringify(body), signal });
     if (!response.ok) throw classify(response.status);
@@ -198,6 +247,7 @@ export class ClaudeClient {
     } catch {
       throw new ClaudeError('format', 'a resposta não é JSON', response.status);
     }
+    if (isRecord(parsed)) record(readUsage(parsed)); // #38 conta antes de validar: a resposta já foi cobrada.
     if (!isRecord(parsed) || !Array.isArray(parsed.content)) throw new ClaudeError('format', 'resposta sem content', response.status);
     return parsed.content.filter(isRecord);
   }

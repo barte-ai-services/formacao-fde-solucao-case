@@ -69,7 +69,8 @@ export type Dossier = {
 export type DossierUnavailableReason =
   | 'claude_failed' // #68
   | 'number_mismatch' // #68
-  | 'invalid_shape'; // #68
+  | 'invalid_shape' // #68
+  | 'timeout'; // #130 o Claude passou do prazo
 
 export type DossierUnavailable = {
   readonly status: 'unavailable'; // #68
@@ -342,6 +343,7 @@ const REASON_TEXT: Readonly<Record<DossierNoticeReason, string>> = {
   claude_failed: 'o Claude não respondeu',
   number_mismatch: 'um número do texto do Claude não conferiu com o banco',
   invalid_shape: 'a resposta do Claude veio fora do formato',
+  timeout: 'o Claude demorou demais para responder',
   pending: 'o dossiê ainda não foi gerado',
   read_failed: 'não foi possível ler o dossiê agora',
 };

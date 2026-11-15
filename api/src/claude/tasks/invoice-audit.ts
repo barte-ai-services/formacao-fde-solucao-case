@@ -24,6 +24,7 @@ import {
   injectionFlagOf,
   notAudited,
   validateAudit,
+  type AuditRefusal,
   type NotAuditedReason,
 } from '../../domain/index.js';
 
@@ -120,7 +121,13 @@ const RECORD_AUDIT_SCHEMA = {
 };
 
 /** #230 O que corre numa tentativa de auditoria, lido depois da conversa para decidir o desfecho. */
-type Attempt = { recorded: boolean; systemError: boolean; reads: number };
+type Attempt = {
+  recorded: boolean;
+  systemError: boolean;
+  reads: number;
+  /** #230 As recusas do record_audit nesta tentativa, na ordem em que aconteceram (insumo da avaliação da #154). */
+  refusals: AuditRefusal[];
+};
 
 function readArgs(input: unknown, spec: ToolSpec): Args | { refusal: 'invalid_field'; field: string } {
   const raw = isRecord(input) ? input : {};
@@ -180,9 +187,12 @@ function buildTools(deps: InvoiceAuditDeps, key: string, note: NonNullable<Await
         model,
         auditedAt: now().toISOString(),
       });
-      if (!validation.ok) return validation.refusal;
+      if (!validation.ok) {
+        attempt.refusals.push(validation.refusal);
+        return validation.refusal;
+      }
       const result = applyAudit(validation.audit, note.proposal, injectionFlagOf(note.invoice));
-      await guarded(() => deps.audits.save(key, result));
+      await guarded(() => deps.audits.save(key, result, { refusals: attempt.refusals, fromLevel: note.proposal.level }));
       attempt.recorded = true;
       return { recorded: true };
     },
@@ -229,7 +239,7 @@ export const invoiceAuditTask = (deps: InvoiceAuditDeps): ClaudeTask<InvoiceAudi
     const key = input.invoiceAccessKey;
     const note = await deps.audits.loadNote(key);
     if (note === null) throw new InvoiceAuditError('sem_auditoria');
-    const attempt: Attempt = { recorded: false, systemError: false, reads: 0 };
+    const attempt: Attempt = { recorded: false, systemError: false, reads: 0, refusals: [] };
     let failure: unknown;
     try {
       if (!converse) throw new Error('invoice-audit: sem laço de tool use');
@@ -248,7 +258,7 @@ export const invoiceAuditTask = (deps: InvoiceAuditDeps): ClaudeTask<InvoiceAudi
     if (attempt.recorded) return { audited: true };
     const reason: NotAuditedReason = failure !== undefined && !attempt.systemError ? 'claude_falhou' : attempt.systemError ? 'erro_de_tool' : 'sem_auditoria';
     try {
-      await deps.audits.saveNotAudited(key, notAudited(reason));
+      await deps.audits.saveNotAudited(key, notAudited(reason), attempt.refusals);
     } catch {
       // #230 Gravar o estado também falhou: o erro abaixo sobe e a próxima rodada tenta de novo.
     }

@@ -162,3 +162,43 @@ table [class*="StatusBadge-module__label"] {
 @media (max-width: 600px) {
   .pagar-row-table table td, .pagar-row-table table th { padding-inline: var(--spacing-sm); }
 }
+
+/* #130 O bloco "Dossiê do Claude": a borda com o gradiente de IA e o brilho nas linhas enquanto ele escreve.
+   #130 TODO: trocar pelo gradiente de IA do kit (o barte-design-system 0.1.69 não expõe token de gradiente). */
+.pagar-dossier-ai {
+  --pagar-ai-gradient: linear-gradient(135deg, var(--accent-purple, #7c3aed), var(--accent-blue, #2563eb));
+  padding: 1px;
+  border-radius: 12px;
+  background: var(--pagar-ai-gradient);
+}
+.pagar-dossier-ai > * {
+  border-radius: 11px;
+}
+.pagar-dossier-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.pagar-dossier-shimmer {
+  display: grid;
+  gap: 6px;
+}
+.pagar-dossier-shimmer span {
+  display: block;
+  height: 10px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--accent-grey-light, #eee) 25%, var(--accent-purple-light, #ede9fe) 50%, var(--accent-grey-light, #eee) 75%);
+  background-size: 200% 100%;
+  animation: pagar-dossier-shimmer 1.6s linear infinite;
+}
+.pagar-dossier-shimmer span:nth-child(2) {
+  width: 70%;
+}
+@keyframes pagar-dossier-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pagar-dossier-shimmer span {
+    animation: none;
+  }
+}

@@ -27,4 +27,9 @@ export type ClaudeTask<I, O> = {
    * #230 `converse` é o laço de tool use, só para a tarefa que oferece tools; sem ele, ela falha fechada.
    */
   run(input: I, ask: Ask, converse?: Converse): Promise<O>;
+  /**
+   * #130 Colunas a mais da linha gravada pelo laço, a partir do resultado (`error` ausente é ok). Opcional:
+   * só o dossiê grava `trigger`, `reason` e `latency_ms`; as outras tarefas deixam essas colunas nulas.
+   */
+  rowFields?(outcome: { readonly error?: unknown; readonly latencyMs: number }): Readonly<Record<string, unknown>>;
 };
