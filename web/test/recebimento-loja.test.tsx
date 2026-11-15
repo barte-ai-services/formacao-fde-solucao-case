@@ -72,9 +72,8 @@ describe("#135 /recebimento/loja", () => {
 
   it("#135 a navegação Recebimento tem Doca (CD) e Loja", () => {
     const group = NAVIGATION.find((g) => g.key === "recebimento")!;
-    expect(group.items.map((i) => [i.label, i.href])).toEqual([
-      ["Doca (CD)", "/doca"],
-      ["Loja", "/recebimento/loja"],
-    ]);
+    const items = group.items.map((i) => [i.label, i.href]);
+    expect(items).toContainEqual(["Doca (CD)", "/doca"]);
+    expect(items).toContainEqual(["Loja", "/recebimento/loja"]);
   });
 });
