@@ -1,11 +1,24 @@
 // Caixa de saída para o WMS: a ação na doca aprovada (outbox_dock_actions) (#59, AC-4).
 import { DockAction, Quantity, type PartialLine } from '../domain/index.js';
+import { arrayOf, isNumber, isString, oneOf, optional, shaped, type Shape } from './guards.js';
 import { SupabaseOutbox } from './outbox.js';
 import type { DockActionMessage, DockActionOutbox } from './ports.js';
 import type { SupabaseRest } from './supabase-rest.js';
 
 type EncodedLine = { sku: string; amount: number; unit: 'UN' | 'CX'; disposition: PartialLine['disposition'] };
 type EncodedAction = { kind: DockAction['kind']; lines?: EncodedLine[] };
+
+const isEncodedLine = shaped<EncodedLine>({
+  sku: isString,
+  amount: isNumber,
+  unit: oneOf('UN', 'CX'),
+  disposition: oneOf('segurar', 'devolver'),
+} satisfies Shape<EncodedLine>);
+
+const isEncodedAction = shaped<EncodedAction>({
+  kind: oneOf('receber', 'receber_parcial', 'recusar'),
+  lines: optional(arrayOf(isEncodedLine)),
+} satisfies Shape<EncodedAction>);
 
 function encode(message: DockActionMessage): EncodedAction {
   const { action } = message;
@@ -21,8 +34,7 @@ function encode(message: DockActionMessage): EncodedAction {
   };
 }
 
-function decode(invoiceAccessKey: string, payload: unknown): DockActionMessage {
-  const p = payload as EncodedAction;
+function decode(invoiceAccessKey: string, p: EncodedAction): DockActionMessage {
   const action =
     p.kind === 'receber'
       ? DockAction.receive()
@@ -39,5 +51,5 @@ function decode(invoiceAccessKey: string, payload: unknown): DockActionMessage {
 }
 
 export function wmsDockActionOutbox(rest: SupabaseRest): DockActionOutbox {
-  return new SupabaseOutbox<DockActionMessage>(rest, 'outbox_dock_actions', { encode, decode });
+  return new SupabaseOutbox(rest, 'outbox_dock_actions', { encode, isEncoded: isEncodedAction, decode });
 }

@@ -57,3 +57,30 @@ describe('#59/AC-1 cliente PostgREST', () => {
     await expect(rest.update('t', {}, { v: 1 })).rejects.toBeInstanceOf(SupabaseRestError);
   });
 });
+
+describe('#59 REL-1 tempo máximo da requisição', () => {
+  it('um fetch que nunca responde vira erro de rede, sem a chave na mensagem', async () => {
+    const never = (_input: string, init?: RequestInit): Promise<Response> =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+      });
+    const rest = new SupabaseRest({ url: 'https://x', secretKey: SECRET, fetch: never, timeoutMs: 20 });
+    const error = await rest.select('t').catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(SupabaseRestError);
+    expect(error).toMatchObject({ operation: 'network', table: 't', status: 0 });
+    expect(String(error)).toContain('sem resposta em 20 ms');
+    expect(String(error)).not.toContain(SECRET);
+  });
+
+  it('a falha de rede vira o mesmo tipo de erro', async () => {
+    const rest = new SupabaseRest({ url: 'https://x', secretKey: SECRET, fetch: () => Promise.reject(new TypeError('boom')) });
+    await expect(rest.select('t')).rejects.toMatchObject({ operation: 'network', detail: 'falha de rede' });
+  });
+});
+
+describe('#59 validação na borda', () => {
+  it('resposta que não é lista vira erro de parse', async () => {
+    const rest = new SupabaseRest({ url: 'https://x', secretKey: SECRET, fetch: async () => new Response('{"a":1}') });
+    await expect(rest.select('t')).rejects.toMatchObject({ operation: 'parse' });
+  });
+});

@@ -8,8 +8,7 @@ import {
   type KitNotaLancadaItem,
   type KitOrdem,
   type KitOrdemItem,
-  type KitProduto,
-} from './kit-rows.js';
+  type KitProduto, isKitNotaItemRow, isKitNotaLancadaRow, isKitOrdemItemRow, isKitOrdemRow, isKitProdutoRow, readRows } from './kit-rows.js';
 import type { PurchasingPort } from './ports.js';
 import type { SupabaseRest } from './supabase-rest.js';
 
@@ -51,11 +50,11 @@ export class ErpPurchasingConnector implements PurchasingPort {
 
   async listPurchaseOrders(): Promise<PurchaseOrder[]> {
     const [ordens, orderItems, postedInvoices, postedItems, products] = await Promise.all([
-      this.rest.select<KitOrdem>('kit_ordens', { order: 'ordem_id' }),
-      this.rest.select<KitOrdemItem>('kit_ordem_itens', { order: 'ordem_id,codigo_fornecedor' }),
-      this.rest.select<KitNotaLancada>('kit_notas_lancadas', { order: 'chave' }),
-      this.rest.select<KitNotaLancadaItem>('kit_nota_lancada_itens', { order: 'chave,codigo_fornecedor' }),
-      this.rest.select<KitProduto>('kit_produtos', { order: 'sku' }),
+      readRows(this.rest, 'kit_ordens', isKitOrdemRow, { order: 'ordem_id' }),
+      readRows(this.rest, 'kit_ordem_itens', isKitOrdemItemRow, { order: 'ordem_id,codigo_fornecedor' }),
+      readRows(this.rest, 'kit_notas_lancadas', isKitNotaLancadaRow, { order: 'chave' }),
+      readRows(this.rest, 'kit_nota_lancada_itens', isKitNotaItemRow, { order: 'chave,codigo_fornecedor' }),
+      readRows(this.rest, 'kit_produtos', isKitProdutoRow, { order: 'sku' }),
     ]);
     const balances = deriveBalances({ orderItems, postedInvoices, postedItems, products });
     const itemsByOrder = groupBy(orderItems, (i) => i.ordem_id);

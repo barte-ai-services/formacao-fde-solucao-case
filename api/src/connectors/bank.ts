@@ -1,6 +1,6 @@
 // Conector Banco: os pagamentos (kit_pagamentos), inclusive os fora do fluxo (#59).
 import type { Payment } from '../domain/index.js';
-import { money, type KitPagamento } from './kit-rows.js';
+import { money, type KitPagamento, isKitPagamentoRow, readRows } from './kit-rows.js';
 import type { BankPort } from './ports.js';
 import type { SupabaseRest } from './supabase-rest.js';
 
@@ -8,7 +8,7 @@ export class BankConnector implements BankPort {
   constructor(private readonly rest: SupabaseRest) {}
 
   async listPayments(): Promise<Payment[]> {
-    const rows = await this.rest.select<KitPagamento>('kit_pagamentos', { order: 'pagamento_id' });
+    const rows = await readRows(this.rest, 'kit_pagamentos', isKitPagamentoRow, { order: 'pagamento_id' });
     return rows.map((p) => ({
       id: p.pagamento_id,
       supplierId: p.fornecedor_id,

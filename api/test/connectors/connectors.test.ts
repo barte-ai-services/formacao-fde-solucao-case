@@ -4,6 +4,8 @@ import { deriveBalances } from '../../src/connectors/erp-purchasing.js';
 import type { KitNotaLancada, KitNotaLancadaItem, KitOrdemItem, KitProduto } from '../../src/connectors/kit-rows.js';
 import { supabaseConnectors } from '../../src/connectors/supabase-connectors.js';
 import { SupabaseRest } from '../../src/connectors/supabase-rest.js';
+import { idempotencyKey } from '../../src/connectors/outbox.js';
+import { SupabaseRestError } from '../../src/connectors/supabase-rest.js';
 import { FakePostgrest } from '../support/fake-postgrest.js';
 import { kitCounts, kitTables } from '../support/kit.js';
 
@@ -113,5 +115,57 @@ describe('#59/AC-4 cada caixa de saída grava e lê de volta (offline)', () => {
     const [back] = await returnNotes.list();
     expect(back?.reason).toBe('avaria');
     expect(back?.lines[0]?.quantity.equals(Quantity.of(5, 'UN'))).toBe(true);
+  });
+});
+
+describe('#59 validação na borda: linha malformada vira erro com a tabela e o índice, nunca os dados', () => {
+  it('kit_notas com valor_total que não é número', async () => {
+    const tables = kitTables();
+    const notas = tables.kit_notas ?? [];
+    tables.kit_notas = notas.map((n, i) => (i === 3 ? { ...n, valor_total: 'segredo-nao-numerico' } : n));
+    const fake = new FakePostgrest(tables);
+    const { captureDeps } = supabaseConnectors(new SupabaseRest({ url: 'https://f', secretKey: 'sb_secret_fake', fetch: fake.fetch }));
+    const error = await captureDeps.sefaz.listIssuedInvoices().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(SupabaseRestError);
+    expect(error).toMatchObject({ operation: 'parse', table: 'kit_notas' });
+    expect(String(error)).toMatch(/linha \d+ fora do formato esperado/);
+    expect(String(error)).not.toContain('segredo-nao-numerico');
+  });
+
+  it('payload de caixa de saída fora do formato vira erro na leitura', async () => {
+    const fake = new FakePostgrest({
+      outbox_return_notes: [{ id: 1, invoice_access_key: 'K', payload: { lines: 'x' }, published_at: 'agora', idempotency_key: 'K:1' }],
+    });
+    const { returnNotes } = supabaseConnectors(new SupabaseRest({ url: 'https://f', secretKey: 'sb_secret_fake', fetch: fake.fetch }));
+    await expect(returnNotes.list()).rejects.toMatchObject({ operation: 'parse', table: 'outbox_return_notes' });
+  });
+});
+
+describe('#59 idempotência das caixas de saída', () => {
+  it('publicar duas vezes a mesma mensagem deixa uma linha e devolve o mesmo id', async () => {
+    const { dockActions, registryCorrections, returnNotes, fake } = offline();
+    const action = DockAction.partial([{ sku: 'SKU-1', quantity: Quantity.of(3, 'CX'), disposition: 'devolver' }]);
+    const a = await dockActions.publish({ invoiceAccessKey: 'K1', action });
+    const b = await dockActions.publish({ invoiceAccessKey: 'K1', action });
+    expect(b.id).toBe(a.id);
+    expect(fake.rows('outbox_dock_actions')).toHaveLength(1);
+
+    const correction = { invoiceAccessKey: 'K1', kind: 'E4_fator_de_caixa' as const, supplierCode: 'A', sku: 'SKU-1', detail: 'fator' };
+    await registryCorrections.publish(correction);
+    await registryCorrections.publish({ ...correction });
+    expect(fake.rows('outbox_registry_corrections')).toHaveLength(1);
+
+    const note = { invoiceAccessKey: 'K1', lines: [{ supplierCode: 'A', quantity: Quantity.of(1, 'UN') }], reason: 'avaria' };
+    await returnNotes.publish(note);
+    await returnNotes.publish(note);
+    await returnNotes.publish({ ...note, reason: 'outra' });
+    expect(fake.rows('outbox_return_notes')).toHaveLength(2);
+  });
+
+  it('a chave é a nota mais o sha256 do JSON canônico: a ordem das chaves não muda o hash', async () => {
+    const one = await idempotencyKey('K1', { b: 1, a: [1, { d: 2, c: 3 }] });
+    const two = await idempotencyKey('K1', { a: [1, { c: 3, d: 2 }], b: 1 });
+    expect(one).toBe(two);
+    expect(one).toMatch(/^K1:[0-9a-f]{64}$/);
   });
 });

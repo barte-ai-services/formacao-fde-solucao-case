@@ -1,5 +1,6 @@
 // Gravação das notas capturadas e do resultado da conferência (invoices, divergences) (#59, AC-5).
 import type { Invoice } from '../domain/index.js';
+import { isString, parseRows, shaped, type Shape } from './guards.js';
 import type { SupabaseRest } from './supabase-rest.js';
 
 export interface InvoiceStore {
@@ -7,7 +8,7 @@ export interface InvoiceStore {
   insertNew(invoices: readonly Invoice[]): Promise<string[]>;
   /** #59 Chaves das notas ainda a conferir. */
   listPendingKeys(): Promise<string[]>;
-  /** #59 Grava estado, classificação e divergências das notas conferidas, numa leva só. */
+  /** #59 Grava divergências e depois estado e classificação das notas conferidas (REL-3). */
   saveChecked(invoices: readonly Invoice[], checkedAt: string): Promise<void>;
 }
 
@@ -33,34 +34,34 @@ function baseRow(invoice: Invoice): Record<string, unknown> {
   };
 }
 
+// #59 Só a chave de acesso volta do PostgREST nas leituras desta loja; o guard a confere.
+type InvoiceKeyRow = { access_key: string };
+const isInvoiceKeyRow = shaped<InvoiceKeyRow>({ access_key: isString } satisfies Shape<InvoiceKeyRow>);
+
 export class SupabaseInvoiceStore implements InvoiceStore {
   constructor(private readonly rest: SupabaseRest) {}
 
   async insertNew(invoices: readonly Invoice[]): Promise<string[]> {
     const rows = invoices.map((i) => ({ ...baseRow(i), state: i.state }));
-    const inserted = await this.rest.insert<{ access_key: string }>('invoices', rows, {
-      onConflict: 'access_key',
-      ignoreDuplicates: true,
-    });
-    return inserted.map((r) => r.access_key);
+    const inserted = await this.rest.insert('invoices', rows, { onConflict: 'access_key', ignoreDuplicates: true });
+    return parseRows(inserted, isInvoiceKeyRow, 'invoices').map((r) => r.access_key);
   }
 
   async listPendingKeys(): Promise<string[]> {
-    const rows = await this.rest.select<{ access_key: string }>('invoices', {
+    const rows = await this.rest.select('invoices', {
       select: 'access_key',
       filters: { state: 'eq.a_conferir' },
       order: 'access_key',
     });
-    return rows.map((r) => r.access_key);
+    return parseRows(rows, isInvoiceKeyRow, 'invoices').map((r) => r.access_key);
   }
 
+  /**
+   * #59 REL-3: as divergências vão primeiro (upsert idempotente) e o estado depois. Se as divergências
+   * falham, a nota segue a_conferir e a próxima rodada a confere de novo.
+   */
   async saveChecked(invoices: readonly Invoice[], checkedAt: string): Promise<void> {
     if (invoices.length === 0) return;
-    await this.rest.upsert(
-      'invoices',
-      invoices.map((i) => ({ ...baseRow(i), state: i.state, classification: i.classification, checked_at: checkedAt })),
-      'access_key',
-    );
     const divergences = invoices.flatMap((i) =>
       i.divergences.map((d, seq) => ({
         invoice_access_key: i.accessKey,
@@ -71,5 +72,10 @@ export class SupabaseInvoiceStore implements InvoiceStore {
       })),
     );
     await this.rest.upsert('divergences', divergences, 'invoice_access_key,seq');
+    await this.rest.upsert(
+      'invoices',
+      invoices.map((i) => ({ ...baseRow(i), state: i.state, classification: i.classification, checked_at: checkedAt })),
+      'access_key',
+    );
   }
 }

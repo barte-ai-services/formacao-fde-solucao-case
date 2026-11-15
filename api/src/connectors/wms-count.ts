@@ -1,6 +1,6 @@
 // Conector WMS (contagem): os recebimentos (kit_recebimentos, kit_recebimento_itens) (#59).
 import type { Receipt } from '../domain/index.js';
-import { groupBy, quantity, type KitRecebimento, type KitRecebimentoItem } from './kit-rows.js';
+import { groupBy, quantity, type KitRecebimento, type KitRecebimentoItem, isKitRecebimentoItemRow, isKitRecebimentoRow, readRows } from './kit-rows.js';
 import type { WmsCountPort } from './ports.js';
 import type { SupabaseRest } from './supabase-rest.js';
 
@@ -9,8 +9,8 @@ export class WmsCountConnector implements WmsCountPort {
 
   async listReceipts(): Promise<Receipt[]> {
     const [recebimentos, itens] = await Promise.all([
-      this.rest.select<KitRecebimento>('kit_recebimentos', { order: 'recebimento_id' }),
-      this.rest.select<KitRecebimentoItem>('kit_recebimento_itens', { order: 'recebimento_id,codigo_fornecedor' }),
+      readRows(this.rest, 'kit_recebimentos', isKitRecebimentoRow, { order: 'recebimento_id' }),
+      readRows(this.rest, 'kit_recebimento_itens', isKitRecebimentoItemRow, { order: 'recebimento_id,codigo_fornecedor' }),
     ]);
     const itemsById = groupBy(itens, (i) => i.recebimento_id);
     return recebimentos.map((r) => ({

@@ -1,6 +1,6 @@
 // Conector SEFAZ: as notas da base do kit (kit_notas, kit_nota_itens) viram Invoice a conferir (#59).
 import { Invoice } from '../domain/index.js';
-import { groupBy, money, quantity, type KitNota, type KitNotaItem } from './kit-rows.js';
+import { groupBy, money, quantity, type KitNota, type KitNotaItem, isKitNotaItemRow, isKitNotaRow, readRows } from './kit-rows.js';
 import type { SefazPort } from './ports.js';
 import type { SupabaseRest } from './supabase-rest.js';
 
@@ -9,8 +9,8 @@ export class SefazConnector implements SefazPort {
 
   async listIssuedInvoices(): Promise<Invoice[]> {
     const [notas, itens] = await Promise.all([
-      this.rest.select<KitNota>('kit_notas', { order: 'chave' }),
-      this.rest.select<KitNotaItem>('kit_nota_itens', { order: 'chave,codigo_fornecedor' }),
+      readRows(this.rest, 'kit_notas', isKitNotaRow, { order: 'chave' }),
+      readRows(this.rest, 'kit_nota_itens', isKitNotaItemRow, { order: 'chave,codigo_fornecedor' }),
     ]);
     const itemsByKey = groupBy(itens, (i) => i.chave);
     return notas.map((n) =>

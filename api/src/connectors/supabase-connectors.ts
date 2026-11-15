@@ -7,12 +7,20 @@ import { ErpPurchasingConnector } from './erp-purchasing.js';
 import { ErpPayablesConnector } from './erp-payables.js';
 import { erpReturnNoteOutbox } from './erp-return-note.js';
 import { SupabaseInvoiceStore } from './invoice-store.js';
+import type { DockActionOutbox, RegistryCorrectionOutbox, ReturnNoteOutbox } from './ports.js';
 import { SefazConnector } from './sefaz.js';
 import type { SupabaseRest } from './supabase-rest.js';
 import { wmsDockActionOutbox } from './wms-dock-action.js';
 import { WmsCountConnector } from './wms-count.js';
 
-export function supabaseConnectors(rest: SupabaseRest) {
+export type SupabaseConnectors = {
+  readonly captureDeps: CaptureDeps;
+  readonly dockActions: DockActionOutbox;
+  readonly registryCorrections: RegistryCorrectionOutbox;
+  readonly returnNotes: ReturnNoteOutbox;
+};
+
+export function supabaseConnectors(rest: SupabaseRest): SupabaseConnectors {
   const captureDeps: CaptureDeps = {
     sefaz: new SefazConnector(rest),
     purchasing: new ErpPurchasingConnector(rest),

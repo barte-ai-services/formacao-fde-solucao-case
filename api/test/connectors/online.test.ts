@@ -3,13 +3,40 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { DockAction, Quantity } from '../../src/domain/index.js';
 import { supabaseConnectors } from '../../src/connectors/supabase-connectors.js';
-import { SupabaseRest } from '../../src/connectors/supabase-rest.js';
+import { arrayOf, isString, nullable, optional, parseRows, shaped, type Shape } from '../../src/connectors/guards.js';
+import { SupabaseRest, SupabaseRestError } from '../../src/connectors/supabase-rest.js';
 import { captureInvoices } from '../../src/cron/capture.js';
 import { kitCounts } from '../support/kit.js';
 
-const URL_ = process.env.BARTE_ACADEMY_SUPABASE_URL as string | undefined;
-const KEY = process.env.BARTE_ACADEMY_SUPABASE_SECRET_KEY as string | undefined;
+function env(name: string): string | undefined {
+  const value: unknown = Reflect.get(process.env, name);
+  return typeof value === 'string' && value !== '' ? value : undefined;
+}
+
+const URL_ = env('BARTE_ACADEMY_SUPABASE_URL');
+const KEY = env('BARTE_ACADEMY_SUPABASE_SECRET_KEY');
 const ONLINE = Boolean(URL_ && KEY);
+
+// #59 As caixas de saída só gravam depois que a esteira aplicar 20261115140000_outbox_idempotency no merge.
+async function outboxHasIdempotencyKey(): Promise<boolean> {
+  if (!ONLINE) return false;
+  const rest = new SupabaseRest({ url: URL_ ?? '', secretKey: KEY ?? '' });
+  try {
+    await rest.select('outbox_dock_actions', { select: 'idempotency_key', filters: { id: 'eq.0' } });
+    return true;
+  } catch (error) {
+    if (error instanceof SupabaseRestError && /42703|PGRST/.test(error.detail)) return false;
+    throw error;
+  }
+}
+const HAS_IDEMPOTENCY = await outboxHasIdempotencyKey();
+
+type ApiKey = { type?: string; name?: string | null; api_key: string };
+const isApiKeys = arrayOf(
+  shaped<ApiKey>({ type: optional(isString), name: optional(nullable(isString)), api_key: isString } satisfies Shape<ApiKey>),
+);
+type InvoiceStateRow = { access_key: string; state: string };
+const isInvoiceStateRow = shaped<InvoiceStateRow>({ access_key: isString, state: isString } satisfies Shape<InvoiceStateRow>);
 
 const DOMAIN_TABLES = [
   'invoices',
@@ -23,15 +50,16 @@ const DOMAIN_TABLES = [
 ];
 
 async function publishableKey(): Promise<string | undefined> {
-  const direct = process.env.BARTE_ACADEMY_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+  const direct = env('BARTE_ACADEMY_SUPABASE_PUBLISHABLE_KEY');
   if (direct) return direct;
-  const token = process.env.BARTE_ACADEMY_SUPABASE_ACCESS_TOKEN as string | undefined;
-  const project = process.env.BARTE_ACADEMY_SUPABASE_PROJECT_ID as string | undefined;
+  const token = env('BARTE_ACADEMY_SUPABASE_ACCESS_TOKEN');
+  const project = env('BARTE_ACADEMY_SUPABASE_PROJECT_ID');
   if (!token || !project) return undefined;
   const response = await fetch(`https://api.supabase.com/v1/projects/${project}/api-keys`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  const keys = (await response.json()) as { type?: string; name?: string; api_key: string }[];
+  const keys: unknown = await response.json();
+  if (!isApiKeys(keys)) throw new Error('api-keys: resposta fora do formato esperado');
   return (keys.find((k) => k.type === 'publishable') ?? keys.find((k) => k.type === 'legacy' && k.name === 'anon'))?.api_key;
 }
 
@@ -66,13 +94,18 @@ describe.skipIf(!ONLINE)('#59 online, no Supabase real', () => {
     for (const [table, n] of Object.entries(found)) expect(n, table).toBe(counts[table]);
   });
 
-  it('#59/AC-4 cada caixa de saída grava e lê de volta', async () => {
+  it.skipIf(!HAS_IDEMPOTENCY)('#59/AC-4 cada caixa de saída grava e lê de volta, uma vez só por mensagem', async () => {
     const key = `teste-ac4-${Date.now()}`;
     const dock = await connectors.dockActions.publish({
       invoiceAccessKey: key,
       action: DockAction.partial([{ sku: 'SKU-1001', quantity: Quantity.of(2, 'CX'), disposition: 'segurar' }]),
     });
     written.push({ table: 'outbox_dock_actions', id: dock.id });
+    const again = await connectors.dockActions.publish({
+      invoiceAccessKey: key,
+      action: DockAction.partial([{ sku: 'SKU-1001', quantity: Quantity.of(2, 'CX'), disposition: 'segurar' }]),
+    });
+    expect(again.id).toBe(dock.id);
     const correction = await connectors.registryCorrections.publish({
       invoiceAccessKey: key, kind: 'E4_fator_de_caixa', supplierCode: 'F01-001', sku: 'SKU-1001', detail: 'fator 12',
     });
@@ -94,7 +127,7 @@ describe.skipIf(!ONLINE)('#59 online, no Supabase real', () => {
     const second = await captureInvoices(connectors.captureDeps);
     console.log(`  AC-5 online: 1ª ${JSON.stringify(first)} 2ª ${JSON.stringify(second)}`);
     expect(second).toEqual({ seen: 80, inserted: 0, checked: 0 });
-    const keys = await rest.select<{ access_key: string; state: string }>('invoices', { select: 'access_key,state' });
+    const keys = parseRows(await rest.select('invoices', { select: 'access_key,state' }), isInvoiceStateRow, 'invoices');
     expect(keys).toHaveLength(80);
     expect(new Set(keys.map((k) => k.access_key)).size).toBe(80);
     expect(keys.every((k) => k.state !== 'a_conferir')).toBe(true);
@@ -108,7 +141,8 @@ describe.skipIf(!ONLINE)('#59 online, no Supabase real', () => {
       const headers: Record<string, string> = { apikey: pub };
       if (!pub.startsWith('sb_')) headers.Authorization = `Bearer ${pub}`;
       const response = await fetch(`${(URL_ ?? '').replace(/\/+$/, '')}/rest/v1/${table}?select=*`, { headers });
-      const body = response.ok ? ((await response.json()) as unknown[]) : [];
+      const parsed: unknown = response.ok ? await response.json() : [];
+      const body: unknown[] = Array.isArray(parsed) ? parsed : [parsed];
       console.log(`  AC-6 ${table}: HTTP ${response.status}, ${body.length} linhas`);
       expect([200, 401, 403]).toContain(response.status);
       expect(body).toEqual([]);

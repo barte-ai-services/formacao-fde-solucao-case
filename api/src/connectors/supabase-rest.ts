@@ -8,6 +8,8 @@ export type SupabaseRestConfig = {
   readonly fetch?: FetchFn;
   /** #59 Linhas por página no select. */
   readonly pageSize?: number;
+  /** #59 REL-1: tempo máximo de cada requisição, em milissegundos. */
+  readonly timeoutMs?: number;
 };
 
 export type Row = Record<string, unknown>;
@@ -28,9 +30,9 @@ export type InsertOptions = {
   readonly ignoreDuplicates?: boolean;
 };
 
-export type RestOperation = 'select' | 'insert' | 'upsert' | 'update' | 'delete' | 'network';
+export type RestOperation = 'select' | 'insert' | 'upsert' | 'update' | 'delete' | 'network' | 'parse';
 
-/** #59 Falha do PostgREST. A mensagem diz a operação, a tabela e o status; nunca a chave. */
+/** #59 Falha do PostgREST. A mensagem diz a operação, a tabela e o status; nunca a chave nem os dados. */
 export class SupabaseRestError extends Error {
   constructor(
     readonly operation: RestOperation,
@@ -44,6 +46,7 @@ export class SupabaseRestError extends Error {
 }
 
 const DEFAULT_PAGE_SIZE = 1000;
+const DEFAULT_TIMEOUT_MS = 10_000;
 const MAX_DETAIL = 300;
 
 export class SupabaseRest {
@@ -51,22 +54,24 @@ export class SupabaseRest {
   private readonly secretKey: string;
   private readonly doFetch: FetchFn;
   private readonly pageSize: number;
+  private readonly timeoutMs: number;
 
   constructor(config: SupabaseRestConfig) {
     this.base = config.url.replace(/\/+$/, '') + '/rest/v1/';
     this.secretKey = config.secretKey;
     this.doFetch = config.fetch ?? ((input, init) => fetch(input, init));
     this.pageSize = config.pageSize ?? DEFAULT_PAGE_SIZE;
+    this.timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }
 
-  /** #59 Lê a tabela inteira, paginando pelo cabeçalho Range. */
-  async select<T = Row>(table: string, options: SelectOptions = {}): Promise<T[]> {
+  /** #59 Lê a tabela inteira, paginando pelo cabeçalho Range. As linhas saem sem tipo: quem lê valida. */
+  async select(table: string, options: SelectOptions = {}): Promise<unknown[]> {
     const params = new URLSearchParams({ select: options.select ?? '*' });
     if (options.order) params.set('order', options.order);
     for (const [column, expr] of Object.entries(options.filters ?? {})) params.append(column, expr);
-    const rows: T[] = [];
+    const rows: unknown[] = [];
     for (let start = 0; ; start += this.pageSize) {
-      const page = await this.request<T[]>('select', table, 'GET', params, undefined, {
+      const page = await this.request('select', table, 'GET', params, undefined, {
         'Range-Unit': 'items',
         Range: `${start}-${start + this.pageSize - 1}`,
       });
@@ -79,34 +84,34 @@ export class SupabaseRest {
    * #59 Insere e devolve só as linhas que entraram de fato. Com ignoreDuplicates (o padrão), a linha
    * que bate na restrição de onConflict é ignorada sem erro.
    */
-  async insert<T = Row>(table: string, rows: readonly Row[], options: InsertOptions = {}): Promise<T[]> {
+  async insert(table: string, rows: readonly Row[], options: InsertOptions = {}): Promise<unknown[]> {
     if (rows.length === 0) return [];
     const params = new URLSearchParams();
     if (options.onConflict) params.set('on_conflict', options.onConflict);
     const prefer = ['return=representation'];
     if (options.ignoreDuplicates ?? true) prefer.push('resolution=ignore-duplicates');
-    return this.request<T[]>('insert', table, 'POST', params, rows, { Prefer: prefer.join(',') });
+    return this.request('insert', table, 'POST', params, rows, { Prefer: prefer.join(',') });
   }
 
   /** #59 Insere ou atualiza pela restrição de onConflict (resolution=merge-duplicates). */
-  async upsert<T = Row>(table: string, rows: readonly Row[], onConflict: string): Promise<T[]> {
+  async upsert(table: string, rows: readonly Row[], onConflict: string): Promise<unknown[]> {
     if (rows.length === 0) return [];
     const params = new URLSearchParams({ on_conflict: onConflict });
-    return this.request<T[]>('upsert', table, 'POST', params, rows, {
+    return this.request('upsert', table, 'POST', params, rows, {
       Prefer: 'return=representation,resolution=merge-duplicates',
     });
   }
 
   /** #59 Atualiza as linhas que passam nos filtros. Exige ao menos um filtro. */
-  async update<T = Row>(table: string, filters: Filters, patch: Row): Promise<T[]> {
+  async update(table: string, filters: Filters, patch: Row): Promise<unknown[]> {
     const params = this.requireFilters('update', table, filters);
-    return this.request<T[]>('update', table, 'PATCH', params, patch, { Prefer: 'return=representation' });
+    return this.request('update', table, 'PATCH', params, patch, { Prefer: 'return=representation' });
   }
 
   /** #59 Apaga as linhas que passam nos filtros. Exige ao menos um filtro. */
   async delete(table: string, filters: Filters): Promise<void> {
     const params = this.requireFilters('delete', table, filters);
-    await this.request<unknown>('delete', table, 'DELETE', params, undefined, { Prefer: 'return=minimal' });
+    await this.request('delete', table, 'DELETE', params, undefined, { Prefer: 'return=minimal' });
   }
 
   private requireFilters(operation: RestOperation, table: string, filters: Filters): URLSearchParams {
@@ -117,33 +122,48 @@ export class SupabaseRest {
     return new URLSearchParams(entries);
   }
 
-  private async request<T>(
+  private async request(
     operation: RestOperation,
     table: string,
     method: string,
     params: URLSearchParams,
     body: unknown,
     extra: Record<string, string>,
-  ): Promise<T> {
+  ): Promise<unknown[]> {
     const headers: Record<string, string> = { apikey: this.secretKey, 'Content-Type': 'application/json', ...extra };
     // #59 Chave nova (sb_...) vai só no apikey; a legada (JWT) também vai no Authorization.
     if (!this.secretKey.startsWith('sb_')) headers.Authorization = `Bearer ${this.secretKey}`;
     const query = params.toString();
     const url = `${this.base}${table}${query ? `?${query}` : ''}`;
     let response: Response;
+    let text: string;
     try {
       response = await this.doFetch(url, {
         method,
         headers,
         body: body === undefined ? undefined : JSON.stringify(body),
+        signal: AbortSignal.timeout(this.timeoutMs),
       });
-    } catch {
-      throw new SupabaseRestError('network', table, 0, 'falha de rede');
+      text = await response.text();
+    } catch (error) {
+      // #59 REL-1: o aborto por tempo e a falha de rede viram o mesmo tipo de erro, sem a chave.
+      const timedOut = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
+      const detail = timedOut ? `sem resposta em ${this.timeoutMs} ms` : 'falha de rede';
+      throw new SupabaseRestError('network', table, 0, detail);
     }
-    const text = await response.text();
     if (!response.ok) {
       throw new SupabaseRestError(operation, table, response.status, text.slice(0, MAX_DETAIL));
     }
-    return (text ? JSON.parse(text) : []) as T;
+    if (!text) return [];
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      throw new SupabaseRestError('parse', table, response.status, 'a resposta não é JSON');
+    }
+    if (!Array.isArray(parsed)) {
+      throw new SupabaseRestError('parse', table, response.status, 'a resposta não é uma lista');
+    }
+    return parsed;
   }
 }
