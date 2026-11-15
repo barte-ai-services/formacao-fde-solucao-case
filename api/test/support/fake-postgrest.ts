@@ -36,14 +36,17 @@ export class FakePostgrest {
       if (order) {
         const cols = order.split(',');
         result = [...result].sort((a, b) => {
-          for (const c of cols) {
+          for (const spec of cols) {
+            const [c = '', dir] = spec.split('.');
             const x = String(a[c] ?? '');
             const y = String(b[c] ?? '');
-            if (x !== y) return x < y ? -1 : 1;
+            if (x !== y) return (x < y ? -1 : 1) * (dir === 'desc' ? -1 : 1);
           }
           return 0;
         });
       }
+      const limit = params.get('limit');
+      if (limit) result = result.slice(0, Number(limit));
       const range = headers.Range;
       if (range) {
         const [from, to] = range.split('-').map(Number) as [number, number];
@@ -116,7 +119,7 @@ export class FakePostgrest {
 
   private matches(row: Row, params: URLSearchParams): boolean {
     for (const [col, expr] of params) {
-      if (['select', 'order', 'on_conflict'].includes(col)) continue;
+      if (['select', 'order', 'on_conflict', 'limit'].includes(col)) continue;
       // #71 e #63: in.(a,"b") do PostgREST, valores separados por vírgula, aspas opcionais.
       const inList = /^in\.\((.*)\)$/.exec(expr);
       if (inList) {
@@ -127,6 +130,10 @@ export class FakePostgrest {
       // #56 not.is.null: o filtro que pega todas as linhas de uma coluna not null.
       if (expr === 'not.is.null') {
         if (row[col] === null || row[col] === undefined) return false;
+        continue;
+      }
+      if (expr.startsWith('gte.')) {
+        if (Date.parse(String(row[col])) < Date.parse(expr.slice(4))) return false;
         continue;
       }
       if (!expr.startsWith('eq.')) throw new Error(`fake: filtro não suportado ${col}=${expr}`);

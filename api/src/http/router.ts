@@ -10,6 +10,7 @@ import { listDuplicates, noDuplicates, type DuplicatesReader } from "./duplicate
 import { health } from "./health";
 import { me } from "./me";
 import { adminRoutes } from "./admin";
+import { automation } from "./automation";
 import { barredAmount } from "./barred-amount";
 import { returnNoteRoutes, type ReturnNotesDeps } from "./return-notes";
 
@@ -32,6 +33,7 @@ function protectedRoutes(deps: RouterDeps): Record<string, Record<string, Protec
   return {
     "/me": { GET: me },
     "/api/valor-barrado": { GET: barredAmount },
+    "/api/automacao": { GET: automation },
     "/api/doca": { GET: (_identity, request, env) => dock(request, env) },
     "/api/recebimento-loja": { GET: (_identity, request, env) => storeReceiving(request, env) },
     "/api/duplicates": { GET: (_identity, _request, env) => listDuplicates(duplicates(env)) },

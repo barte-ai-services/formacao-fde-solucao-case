@@ -18,6 +18,8 @@ import type { DockActionOutbox, StoreActionOutbox } from '../connectors/ports.js
 import { SupabaseRestError } from '../connectors/supabase-rest.js';
 import { publishApprovedDockAction } from '../dock/publish-approved-dock-action.js';
 import { publishApprovedStoreAction } from '../dock/publish-approved-store-action.js';
+import { buildTimeline } from '../automation/timeline.js';
+import type { TimelineSource } from '../automation/readers.js';
 import { receivingPlace } from '../dock/receiving-place.js';
 
 export interface ApprovalDeps {
@@ -35,6 +37,8 @@ export interface ApprovalDeps {
   dockOutbox?: DockActionOutbox;
   /** #135 A caixa de saída do app da loja: a ação da nota de loja (`LJ-*`) vai para ela, não para o WMS. */
   storeOutbox?: StoreActionOutbox;
+  /** #211 Os horários da linha do tempo da nota. Sem ele, `timeline` vai vazia. */
+  timeline?: TimelineSource;
 }
 
 /** #68: a fonte do dossiê e o contexto da nota, para conferir os números contra o banco. */
@@ -82,7 +86,7 @@ export async function approvalRoutes(
     return error(400, 'chave_invalida');
   }
   const action = match[2];
-  if (!action) return only(request, 'GET', () => proposalDetail(deps.store, key, identity, directory, deps.dossier, deps.products));
+  if (!action) return only(request, 'GET', () => proposalDetail(deps.store, key, identity, directory, deps.dossier, deps.products, deps.timeline));
   return only(request, 'POST', () => decide(request, deps, key, action, identity, directory, today()));
 }
 
@@ -139,6 +143,7 @@ async function proposalDetail(
   directory: ApproverDirectory,
   dossier?: DossierDeps,
   products?: ApprovalDeps['products'],
+  timeline?: TimelineSource,
 ): Promise<Response> {
   const file = await store.find(key);
   if (!file) return error(404, 'not_found');
@@ -165,7 +170,28 @@ async function proposalDetail(
     title: { state: file.title.state, amount: money(file.title.amount), dueOn: file.title.dueOn },
     approval: file.approval,
     dossier: dossierView,
+    timeline: await proposalTimeline(key, file, timeline),
   });
+}
+
+/** #211 AC-4 Um erro ao ler os horários não derruba a proposta: a linha do tempo vai vazia. */
+async function proposalTimeline(key: string, file: CaseFile, source?: TimelineSource) {
+  if (!source) return [];
+  try {
+    return buildTimeline(
+      {
+        classification: file.proposal.classification,
+        level: file.proposal.level,
+        line: file.route.line,
+        state: file.proposal.state,
+        approval: file.approval,
+      },
+      await source.find(key),
+    );
+  } catch (e) {
+    console.error(`#211 linha do tempo da nota ${key} não lida: ${e instanceof Error ? e.name : 'erro'}`);
+    return [];
+  }
 }
 
 /** #176 Um erro ao ler o cadastro não derruba a proposta: a unidade de estoque vai nula. */

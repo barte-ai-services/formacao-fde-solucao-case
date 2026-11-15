@@ -11,6 +11,7 @@ import { findUnreconciledReceipts } from "./unreconciled-receipts";
 import { proposeChecked } from "../approval/propose-checked";
 import { SupabaseApprovalStore } from "../approval/supabase-store";
 import { publishDecidedDockActions, publishDecidedStoreActions } from "../dock/publish-decided";
+import { NO_FIGURES, recordRun, type RunFigures } from "../automation/runs";
 import { lastDaysUtc, publishApprovedUnregistered } from "./publish-approved-e8";
 
 /** #66 A janela, em dias, das decisões que o Cron manda ao Cadastro; ver `lastDaysUtc`. */
@@ -27,6 +28,7 @@ export interface TickSummary {
 
 /** Execução agendada: captura e confere as notas (#59). Registra uma linha, sem dado sensível. */
 export async function tick(controller: Pick<ScheduledController, "cron">, env: Env): Promise<TickSummary | null> {
+  const startedAt = new Date();
   const url = env.BARTE_ACADEMY_SUPABASE_URL;
   const secretKey = env.BARTE_ACADEMY_SUPABASE_SECRET_KEY;
   if (!url || !secretKey) {
@@ -34,6 +36,39 @@ export async function tick(controller: Pick<ScheduledController, "cron">, env: E
     return null;
   }
   const rest = new SupabaseRest({ url, secretKey });
+  try {
+    const { summary, figures } = await runRound(controller, env, rest);
+    await recordRunSafely(rest, { startedAt, status: "ok", figures });
+    return summary;
+  } catch (error) {
+    // #211 AC-1 A rodada que falha também fica gravada, só com a classe do erro.
+    await recordRunSafely(rest, { startedAt, status: "failed", figures: NO_FIGURES, error: errorClass(error) });
+    throw error;
+  }
+}
+
+function errorClass(error: unknown): string {
+  return error instanceof Error ? error.name : "Error";
+}
+
+/** #211 O registro da rodada é observação: se falha, uma linha no log e o Cron segue. */
+async function recordRunSafely(
+  rest: SupabaseRest,
+  run: { startedAt: Date; status: "ok" | "failed"; figures: RunFigures; error?: string },
+): Promise<void> {
+  try {
+    await recordRun(rest, { ...run, finishedAt: new Date() });
+  } catch (error) {
+    const status = error instanceof SupabaseRestError ? `HTTP ${error.status}` : "falha na gravação";
+    console.log(`cron: rodada não registrada (${status})`);
+  }
+}
+
+async function runRound(
+  controller: Pick<ScheduledController, "cron">,
+  env: Env,
+  rest: SupabaseRest,
+): Promise<{ summary: TickSummary; figures: RunFigures }> {
   const { captureDeps, registryCorrections } = supabaseConnectors(rest);
   const descriptions = await storedSuggestions(rest);
   const result = await captureInvoices(descriptions ? { ...captureDeps, descriptions } : captureDeps);
@@ -56,13 +91,22 @@ export async function tick(controller: Pick<ScheduledController, "cron">, env: E
   console.log(
     `cron: execução agendada (${controller.cron}); notas vistas ${result.seen}, novas ${result.inserted}, conferidas ${result.checked}, com erro ${result.failed}, propostas ${proposals.proposed}, aprovadas pela regra ${proposals.approvedByRule}, cadastro E8 ${cadastroE8}, ações publicadas na doca ${dock}, ações publicadas no app da loja ${storeActions}, títulos duplicados bloqueados ${duplicates.blocked}, com falha ${duplicates.failed}; recebimentos sem nota [${unreconciled.noKey.join(", ")}], com chave sem nota [${unreconciled.keyWithoutInvoice.join(", ")}]`,
   );
-  return {
+  const summary = {
     seen: result.seen,
     inserted: result.inserted,
     checked: result.checked,
     failed: result.failed,
     proposed: proposals.proposed,
   };
+  const figures: RunFigures = {
+    ...summary,
+    approvedByRule: proposals.approvedByRule,
+    cadastroE8,
+    dockPublished: dock,
+    storePublished: storeActions,
+    duplicatesBlocked: duplicates.blocked,
+  };
+  return { summary, figures };
 }
 
 /**

@@ -21,6 +21,8 @@ export type SelectOptions = {
   readonly select?: string;
   readonly order?: string;
   readonly filters?: Filters;
+  /** #211 Só as primeiras N linhas (uma requisição, sem paginar). */
+  readonly limit?: number;
 };
 
 export type InsertOptions = {
@@ -69,6 +71,10 @@ export class SupabaseRest {
     const params = new URLSearchParams({ select: options.select ?? '*' });
     if (options.order) params.set('order', options.order);
     for (const [column, expr] of Object.entries(options.filters ?? {})) params.append(column, expr);
+    if (options.limit !== undefined) {
+      params.set('limit', String(options.limit));
+      return this.request('select', table, 'GET', params, undefined, {});
+    }
     const rows: unknown[] = [];
     for (let start = 0; ; start += this.pageSize) {
       const page = await this.request('select', table, 'GET', params, undefined, {

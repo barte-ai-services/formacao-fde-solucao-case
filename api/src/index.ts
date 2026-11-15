@@ -8,6 +8,7 @@ import { SupabaseRest } from "./connectors/supabase-rest";
 import { supabaseConnectors } from "./connectors/supabase-connectors";
 import { loadDossierContext } from "./dossier/context";
 import { SupabaseDossierSource } from "./dossier/source";
+import { SupabaseTimelineSource } from "./automation/readers";
 import { appStoreActionOutbox } from "./connectors/store-action";
 import { wmsDockActionOutbox } from "./connectors/wms-dock-action";
 
@@ -45,6 +46,7 @@ function approvalDeps(env: Env) {
     // #68: o dossiê que o job do Claude gravou, conferido contra o contexto da nota.
     // #176 A unidade de estoque do receber parcial vem do fator de caixa do cadastro.
     products: () => captureDeps.registry.listProducts(),
+    timeline: new SupabaseTimelineSource(rest, new SupabaseDossierSource(rest)),
     dossier: {
       source: new SupabaseDossierSource(rest),
       context: (key: string) => loadDossierContext(captureDeps, key),
