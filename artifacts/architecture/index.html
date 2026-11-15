@@ -229,12 +229,12 @@ td b { font-size: 17px; }
           <div class="box cf opt"><b>Servidor MCP</b><span class="tag">ja-chegou-mcp · opcional</span><span>Tools só de leitura. Para quando o modelo precisa explorar, como achar a ordem provável entre várias.</span></div>
         </div></div>
       </div>
-      <div class="wire"><span>RLS com o JWT da pessoa</span><span>o Cron grava como o usuário <code>agente</code></span><span>URL assinada do XML, do PDF e da foto</span><span><code>/api</code> → LiteLLM, com a chave virtual do backend</span></div>
+      <div class="wire"><span>RLS com o JWT da pessoa</span><span>o Cron propõe como <code>agente</code> e confirma como <code>agente-aprovacao</code></span><span>URL assinada do XML, do PDF e da foto</span><span><code>/api</code> → LiteLLM, com a chave virtual do backend</span></div>
       <div class="band b-data">
         <div class="bl">Dados<small>Supabase</small></div>
         <div class="bc"><div class="cols3">
-          <div class="box sb"><b>Auth</b><span>Login das pessoas e do <code>agente</code>. O papel vai no JWT.</span></div>
-          <div class="box sb"><b>Banco com RLS</b><span>Um schema por contexto. Notas, ordens, contagens, propostas, recomendações, aprovações e auditoria. As travas moram aqui: nível nunca desce, ninguém aprova a própria proposta, o <code>agente</code> só confirma.</span></div>
+          <div class="box sb"><b>Auth</b><span>Login das pessoas, do <code>agente</code> e do <code>agente-aprovacao</code>. O papel vai no JWT.</span></div>
+          <div class="box sb"><b>Banco com RLS</b><span>Um schema por contexto. Notas, ordens, contagens, propostas, recomendações, aprovações e auditoria. As travas moram aqui: nível nunca desce, ninguém aprova a própria proposta, o <code>agente</code> só propõe e o <code>agente-aprovacao</code> só confirma.</span></div>
           <div class="box sb"><b>Storage</b><span>XML e PDF das notas, e as fotos da doca. Privado.</span></div>
         </div></div>
       </div>
@@ -246,7 +246,7 @@ td b { font-size: 17px; }
       <div class="band b-out">
         <div class="bl">Fora</div>
         <div class="bc"><div class="cols3">
-          <div class="box ext llm"><b>Claude</b><span class="tag">anthropic/claude-opus-5-5</span><span>Recebe o contexto pronto e devolve a recomendação. Não vê o banco.</span></div>
+          <div class="box ext llm"><b>Claude</b><span class="tag">anthropic/claude-opus-5-5</span><span>Recebe o contexto pronto e devolve a recomendação. No caminho padrão, não vê o banco.</span></div>
           <div class="box ext clef"><b>Clef, da Cloudflare</b><span class="tag">cloudflare/clef</span><span>Modelo de decisão. Devolve a escolha, as probabilidades e a confiança.</span></div>
           <div class="box ext"><b>Base do kit · Resend</b><span>A base simula a SEFAZ, o ERP, o WMS e o banco: trocar pela fonte real muda só a anticorrupção. O Resend leva o e-mail a quem aprova.</span></div>
         </div></div>
@@ -312,7 +312,7 @@ td b { font-size: 17px; }
         <div class="cascade-wrap">
           <div class="cs r"><span class="num">1 · Regra · código nosso</span><b>A conta fecha?</b><span>Duplicidade, limites de aprovação e a conta na mesma unidade. Decide sozinha quando há regra escrita, sem chamar o Clef.</span></div>
           <div class="gap">→</div>
-          <div class="cs c"><span class="num">2 · Clef · pelo LiteLLM</span><b>Confirmar ou devolver?</b><span>Só quando a casa da matriz permite o agente e a conta não decide. O servidor lê a confiança: abaixo de 0,98, vai para a pessoa. O Clef nunca altera.</span></div>
+          <div class="cs c"><span class="num">2 · Clef · pelo LiteLLM</span><b>Confirmar ou devolver?</b><span>Só quando a casa da matriz permite o agente e a conta não decide. O servidor lê a confiança: abaixo de 0,98, vai para a pessoa. Acima, confirma como <code>agente-aprovacao</code>, nunca como quem propôs. O Clef nunca altera.</span></div>
           <div class="gap">→</div>
           <div class="cs p"><span class="num">3 · Pessoa da alçada</span><b>Confirma ou altera</b><span>Vê a recomendação do Claude, pelo LiteLLM, com o porquê. A decisão é dela e final: o Clef não roda de novo.</span></div>
         </div>
@@ -388,7 +388,7 @@ rec = Recomendacao.model_validate_json(texto)  <span class="c"># falhou: pessoa<
       <div class="ck"><b>Saída estruturada com o <code>claude-opus-5-5</code>.</b> O LiteLLM converte o <code>response_format</code> e manda um header beta de saída estruturada. Conferir que o modelo aceita, e que o <code>reasoning_effort</code> chega como esforço.</div>
       <div class="ck"><b>Onde o proxy roda.</b> A imagem do LiteLLM num container da Cloudflare, com as duas chaves como secret e o Postgres do Supabase para os logs.</div>
       <div class="ck"><b>O MCP pelo LiteLLM.</b> Só para o caminho de exploração. O padrão não depende dele.</div>
-      <div class="ck"><b>Recurso novo da API chega com atraso pelo LiteLLM.</b> Não afeta chat com saída estruturada, que é tudo o que a solução usa.</div>
+      <div class="ck"><b>Recurso novo da API chega com atraso pelo LiteLLM.</b> Não afeta o caminho padrão, chat com saída estruturada. O esforço e o MCP ficam nas verificações 2 e 4.</div>
     </div>
   </section>
 
@@ -398,6 +398,7 @@ rec = Recomendacao.model_validate_json(texto)  <span class="c"># falhou: pessoa<
       <div class="chg mod"><span class="st">Decisão do Fernando</span><b>O Clef é o da Cloudflare</b><span>Um serviço consultado pelo LiteLLM, não código nosso. A regra roda antes, em código nosso.</span></div>
       <div class="chg mod"><span class="st">Decisão do Fernando</span><b>Todo modelo pelo LiteLLM</b><span>No lugar da chamada direta com o SDK <code>anthropic</code>. O backend usa só <code>httpx</code>.</span></div>
       <div class="chg keep"><span class="st">Conferido</span><b>O cliente HTTP roda no Python Worker</b><span>O <code>httpx</code> assíncrono fez a chamada dentro do <code>pywrangler dev</code>. Falta conferir num deploy.</span></div>
+      <div class="chg mod"><span class="st">Ajuste</span><b>A cascata roda no Cron, não num agente por nota</b><span>O Clef é um portão que o servidor consulta. Um backend só basta para a aula; um agente da Cloudflare por nota fica para quando o volume pedir.</span></div>
       <div class="chg mod"><span class="st">Ajuste</span><b>A chamada roda no Cron</b><span>Uma chamada com raciocínio leva segundos. Fica fora da requisição da tela e do webhook do banco.</span></div>
       <div class="chg mod"><span class="st">Ajuste</span><b>A confiança do Claude não decide</b><span>É autodeclarada e vai para a tela. Quem decide pelo limite é a confiança do Clef.</span></div>
       <div class="chg mod"><span class="st">Ajuste</span><b>O MCP só lê</b><span>Na referência, ele registrava a proposta. Aqui, quem grava é o backend, depois de validar.</span></div>
