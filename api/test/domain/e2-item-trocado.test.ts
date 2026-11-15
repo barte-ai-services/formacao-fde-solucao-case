@@ -161,9 +161,19 @@ describe('#36 E2 item trocado', () => {
     expect(d?.evidence.map((e) => [e.source, e.reference])).toEqual([
       ['erp_compras', 'OC-2026-42328'],
       ['erp_cadastro', 'SKU-1005'],
+      ['sefaz', '35261174055489000148550010000438941174512643'],
     ]);
     expect(d?.evidence[0]?.description).toContain('Suco de uva integral 1 L');
     expect(d?.evidence[0]?.description).toContain('Água mineral 1,5 L');
+  });
+
+  it('#97/AC-1 #97/AC-2 (#94, #36/AC-2): a evidência da SEFAZ cita o item que a nota cobra e o valor dele (NF-001)', () => {
+    const [d] = checkItemTrocado(nf001(), ctxF02());
+    expect(d?.evidence[2]).toEqual({
+      source: 'sefaz',
+      reference: '35261174055489000148550010000438941174512643',
+      description: 'Nota cobra Água mineral 1,5 L (F02-001) por R$ 535,68',
+    });
   });
 
   it('#36/AC-1 regra 6: nota sem ordem referenciada não é E2 (é a E5)', () => {

@@ -121,6 +121,12 @@ export const checkItemTrocado: Check = (invoice, ctx) => { // ADR-002
           reference: product.sku,
           description: `${item.supplierCode} é ${product.description} no cadastro do fornecedor ${invoice.supplierId}, fora da ordem`,
         },
+        {
+          // #97: o DivergenceDto não leva valor; a nota da SEFAZ diz o item que veio e quanto ele custa.
+          source: 'sefaz', // ADR-002
+          reference: invoice.accessKey,
+          description: `Nota cobra ${item.description} (${item.supplierCode}) por ${item.total.toString()}`,
+        },
       ],
     }),
   );
