@@ -1,0 +1,14 @@
+{
+  "pages": {
+    "architecture": {
+      "file": "index.html",
+      "title": "Arquitetura de solução",
+      "home": "team",
+      "links": {
+        "team": "https://claude.ai/artifact/SdJZ9LkqBLqKs3zMAMRzvV"
+      },
+      "capabilities": {}
+    }
+  },
+  "publishOrder": ["architecture"]
+}
