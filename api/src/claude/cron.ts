@@ -9,8 +9,11 @@ import { restDb } from './db.js';
 import { runTasks, type RunResult } from './runner.js';
 import { tasksFor } from './tasks/index.js';
 
-/** #171 Pedidos por tarefa a cada rodada de 15 minutos; também cabe nos 50 subrequests do plano gratuito. O resto fica para a próxima. */
-export const CRON_LIMIT = 10;
+/**
+ * #171 Pedidos por tarefa a cada rodada. Cada pedido custa 2 subrequests (a Messages API e o upsert) e a rodada
+ * lê umas 7 vezes antes: 2 tarefas × 5 × 2 + 7 = 27, dentro dos 50 do plano gratuito. A rodada vai depois da captura.
+ */
+export const CRON_LIMIT = 5;
 
 /** #171 Orçamento da rodada: o Claude é periférico e a captura é o caminho crítico, então a rodada para cedo. */
 export const ROUND_BUDGET_MS = 2 * 60_000;

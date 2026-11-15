@@ -35,8 +35,6 @@ export async function tick(controller: Pick<ScheduledController, "cron">, env: E
   }
   const rest = new SupabaseRest({ url, secretKey });
   const { captureDeps, registryCorrections } = supabaseConnectors(rest);
-  // #171 Primeiro o Claude grava as sugestões novas, depois a captura as lê. Falha fechada: a regra decide sozinha.
-  await runClaudeRound(rest, env);
   const descriptions = await storedSuggestions(rest);
   const result = await captureInvoices(descriptions ? { ...captureDeps, descriptions } : captureDeps);
   const unreconciled = await findUnreconciledReceipts(captureDeps);
@@ -52,6 +50,9 @@ export async function tick(controller: Pick<ScheduledController, "cron">, env: E
   const dock = await publishDock(rest);
   const storeActions = await publishStoreActions(rest);
   const duplicates = await blockDuplicateTitles(rest); // #31/AC-5: o título da E6 fica bloqueado já na detecção.
+  // #171 O Claude vai por último: é periférico, e a captura (o caminho crítico) fica com os subrequests da
+  // invocação. As sugestões que ele grava aqui a próxima rodada lê. Falha fechada: a regra decide sozinha.
+  await runClaudeRound(rest, env);
   console.log(
     `cron: execução agendada (${controller.cron}); notas vistas ${result.seen}, novas ${result.inserted}, conferidas ${result.checked}, com erro ${result.failed}, propostas ${proposals.proposed}, aprovadas pela regra ${proposals.approvedByRule}, cadastro E8 ${cadastroE8}, ações publicadas na doca ${dock}, ações publicadas no app da loja ${storeActions}, títulos duplicados bloqueados ${duplicates.blocked}, com falha ${duplicates.failed}; recebimentos sem nota [${unreconciled.noKey.join(", ")}], com chave sem nota [${unreconciled.keyWithoutInvoice.join(", ")}]`,
   );
