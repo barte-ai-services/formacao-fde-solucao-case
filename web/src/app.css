@@ -42,8 +42,8 @@
 
 /* #134 O receber parcial: o item, a quantidade e o destino numa linha. */
 .pagar-partial-row { display: flex; gap: var(--spacing-sm); align-items: center; flex-wrap: wrap; }
-.pagar-partial-row > span { flex: 1 1 12rem; }
-.pagar-partial-row input { width: 6rem; }
+.pagar-partial-row > span:first-child { flex: 1 1 12rem; }
+.pagar-partial-row > div:has(input) { width: 6rem; }
 
 /* #127 As tabelas: corpo, cabeçalho, texto secundário (caption-sm) e selo no token de corpo do DS (12 px), nunca
    abaixo dele. A linha cresce com o conteúdo (a altura do DS é piso, por token) e não corta texto nem selo. */

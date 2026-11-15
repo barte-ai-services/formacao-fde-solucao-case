@@ -373,6 +373,7 @@ export const texts = {
       dispositionLabel: (item: string) => `O que fazer com ${item}`,
       hold: "Segurar",
       giveBack: "Devolver",
+      invalidQty: "Receber parcial: a quantidade precisa ser um número, por exemplo 4 ou 4,5.",
       missingLines: "Receber parcial: informe ao menos um item e a quantidade a segurar ou devolver.",
     },
     needsLevel: (level: string) => `Esta proposta pede o nível ${level} ou acima.`,

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProposalPanel } from "./ProposalPanel";
 import type { ProposalDetailDto } from "../api/approval";
@@ -90,7 +90,8 @@ describe("#134 decisão pela ação no recebimento", () => {
     await screen.findByText(/informe ao menos um item/i);
     expect(calls).toHaveLength(0);
     fireEvent.change(screen.getByLabelText("Quantidade a segurar ou devolver de Arroz 5kg"), { target: { value: "4" } });
-    fireEvent.change(screen.getByLabelText("O que fazer com Arroz 5kg"), { target: { value: "devolver" } });
+    fireEvent.click(within(screen.getByRole("group", { name: "O que fazer com Arroz 5kg" })).getByRole("combobox"));
+    fireEvent.click(screen.getByText("Devolver"));
     fireEvent.click(screen.getByRole("button", { name: /Registrar a decisão/ }));
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(calls[0]?.path).toBe(`/api/propostas/${KEY}/alterar`);
@@ -141,5 +142,18 @@ describe("#134 decisão pela ação no recebimento", () => {
     ];
     render(<ProposalPanel proposal={proposal({ kind: "receber" }, { classification: "E4", items })} />);
     expect(screen.getByText("Feijão 1kg (12 CX = 48 UN)")).toBeTruthy();
+  });
+
+  it("#176: a quantidade com vírgula (4,5) vale 4.5 e texto que não é número avisa em vez de sumir", async () => {
+    render(<ProposalPanel proposal={proposal({ kind: "receber" })} />);
+    fireEvent.click(screen.getByRole("radio", { name: /^Receber parcial/ }));
+    fireEvent.change(document.querySelector("textarea") as HTMLTextAreaElement, { target: { value: "Faltou arroz na doca" } });
+    fireEvent.change(screen.getByLabelText("Quantidade a segurar ou devolver de Arroz 5kg"), { target: { value: "abc" } });
+    fireEvent.click(screen.getByRole("button", { name: /Registrar a de/ }));
+    await screen.findByText(/precisa ser um número/);
+    fireEvent.change(screen.getByLabelText("Quantidade a segurar ou devolver de Arroz 5kg"), { target: { value: "4,5" } });
+    fireEvent.click(screen.getByRole("button", { name: /Registrar a de/ }));
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0]?.body).toMatchObject({ dockAction: { lines: [{ sku: "SKU-1", quantity: { amount: 4.5 } }] } });
   });
 });
