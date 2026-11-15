@@ -5,6 +5,7 @@ import { InvoiceDrawer } from "../approval/InvoiceDrawer";
 import { RowTable } from "../components/RowTable";
 import { ACTION_LABEL, ACTION_TONE, codeLabel } from "../approval/labels";
 import { AutomationIndicators } from "../components/AutomationIndicators";
+import { DecidedBy } from "../components/DecidedBy";
 import { GridBadge } from "../components/GridBadge";
 import { InvoiceCell } from "../components/InvoiceCell";
 import { EmptyState } from "../components/EmptyState";
@@ -84,7 +85,7 @@ export default function ListaDoDia(_props: RouteProps) {
                   </GridBadge>
                 ),
               },
-              { key: "quem", title: texts.listaDoDia.columns.approver, dataIndex: "approver", render: (_, i) => (i.approver === "regra" ? texts.listaDoDia.rule : (i.approver ?? "—")) },
+              { key: "quem", title: texts.listaDoDia.columns.approver, dataIndex: "approver", render: (_, i) => (i.approver === null ? "—" : <DecidedBy actor={i.approver === "regra" ? "rule" : "person"} name={i.approver === "regra" ? null : i.approver} />) },
               { key: "valor", title: texts.listaDoDia.columns.amount, dataIndex: "amount", align: "right", render: (_, i) => `${i.amount.text} de ${i.invoiceTotal.text}` },
             ]}
           />

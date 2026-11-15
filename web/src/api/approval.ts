@@ -72,6 +72,17 @@ export interface ProposalDetailDto extends QueueItemDto {
   approval: ApprovalDto | null;
   /** #68: o dossiê do Claude, já conferido pelo Worker; sem ele, o motivo e o aviso (#38/AC-4). */
   dossier: DossierField;
+  /** #211 Os passos da nota, em ordem. */
+  timeline?: TimelineStepDto[];
+}
+
+/** #211 Um passo de "Como esta nota andou", montado pela API do que o banco guarda. */
+export interface TimelineStepDto {
+  at: string;
+  kind: string;
+  step: string;
+  actor: "system" | "rule" | "claude" | "engine" | "person";
+  actor_name: string;
 }
 
 export interface TodayDto {

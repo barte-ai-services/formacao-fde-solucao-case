@@ -9,6 +9,7 @@ import { InvoiceCell } from "../components/InvoiceCell";
 import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
 import { InvoiceDrawer } from "../approval/InvoiceDrawer";
+import { DecidedBy } from "../components/DecidedBy";
 import { RowTable } from "../components/RowTable";
 import { useLoad } from "../components/useLoad";
 import type { RouteProps } from "./types";
@@ -142,6 +143,16 @@ export default function ReturnNotes(_props: RouteProps) {
                     }
                   />
                 ),
+              },
+              // #211 A devolução espera quem emite no ERP; depois, o nome de quem emitiu ou cancelou.
+              {
+                key: "decididoPor",
+                title: texts.decidedBy.column,
+                dataIndex: "status",
+                render: (_, n) => {
+                  const who = n.emitted?.by ?? n.cancelled?.by;
+                  return who ? <DecidedBy actor="person" name={who} /> : <GridBadge tone="waiting">{texts.decidedBy.awaiting}</GridBadge>;
+                },
               },
             ]}
           />

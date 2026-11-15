@@ -4,6 +4,7 @@ import { Stat, StatGrid } from "@barte-ai-services/barte-ui-kit";
 import { approvalApi, type QueueDto, type QueueItemDto } from "../api/approval";
 import { InvoiceDrawer } from "../approval/InvoiceDrawer";
 import { ACTION_LABEL, ACTION_TONE, LEVEL_LABEL, LEVEL_TONE, byQueueOrder, codeLabel } from "../approval/labels";
+import { DecidedBy } from "../components/DecidedBy";
 import { GridBadge } from "../components/GridBadge";
 import { RowTable } from "../components/RowTable";
 import { GridFilter } from "../components/GridFilter";
@@ -139,6 +140,8 @@ export default function FilaDeAprovacao(_props: RouteProps) {
                 dataIndex: "requiredApproverLevel",
                 render: (_, i) => dim(i, LEVEL_LABEL[i.requiredApproverLevel]),
               },
+              // #211 Tudo o que está na fila espera uma pessoa; o nível a quem foi encaminhado está na coluna ao lado.
+              { key: "decididoPor", title: texts.decidedBy.column, dataIndex: "state", render: (_, i) => dim(i, <GridBadge tone="waiting">{texts.decidedBy.awaiting}</GridBadge>) },
             ]}
           />
           {open !== null ? (

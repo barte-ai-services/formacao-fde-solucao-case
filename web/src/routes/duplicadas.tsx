@@ -15,6 +15,7 @@ import { GridBadge } from "../components/GridBadge";
 import { InvoiceCell } from "../components/InvoiceCell";
 import { Screen } from "../components/Screen";
 import { InvoiceDrawer } from "../approval/InvoiceDrawer";
+import { DecidedBy } from "../components/DecidedBy";
 import { RowTable } from "../components/RowTable";
 import { useLoad } from "../components/useLoad";
 import type { RouteProps } from "./types";
@@ -174,6 +175,8 @@ export default function NotasDuplicadas(_props: RouteProps) {
                   );
                 },
               },
+              // #211 O sistema bloqueia a duplicada sozinho, na conferência.
+              { key: "decididoPor", title: texts.decidedBy.column, dataIndex: "reason", render: () => <DecidedBy actor="system" /> },
             ]}
           />
           {open !== undefined ? <DuplicateDrawer duplicate={open} onClose={() => setOpenKey(null)} onDecided={retry} /> : null}

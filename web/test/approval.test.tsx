@@ -201,7 +201,7 @@ describe("#63 lista do dia", () => {
     renderAt("/pagar/hoje");
     const row = (await screen.findByText("NF 36")).closest("tr");
     expect(row).toBeTruthy();
-    expect(within(row as HTMLElement).getByText("Regra")).toBeTruthy();
+    expect(within(row as HTMLElement).getByText("⚙ Regra")).toBeTruthy();
   });
 
   it("#128/AC-1 e AC-2: a exceção aparece pelo nome, e o código numa coluna Código", async () => {

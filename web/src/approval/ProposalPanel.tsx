@@ -10,6 +10,7 @@ import { approvalApi, type DecisionResultDto, type ProposalDetailDto } from "../
 import type { PartialLineDto } from "../api/contract";
 import { AccessKey } from "../components/AccessKey";
 import { Dossier } from "../components/Dossier";
+import { ProposalTimeline } from "./ProposalTimeline";
 import { EvidenceView } from "../evidence";
 import { partialPrefill, type Disposition, type PartialInput } from "./partial-prefill";
 import { ACTION_LABEL, ACTION_TONE, LEVEL_LABEL, LEVEL_TONE, type DockActionKind } from "./labels";
@@ -152,6 +153,7 @@ export function ProposalPanel({
       </Block>
       {proposal.dockAction.kind === "receber_parcial" ? <PartialItems proposal={proposal} lines={proposal.dockAction.lines} /> : null}
       <Dossier dossier={proposal.dossier} />
+      <ProposalTimeline steps={proposal.timeline ?? []} />
       {decided ?? proposal.approval ? (
         <Alert
           variant="success"

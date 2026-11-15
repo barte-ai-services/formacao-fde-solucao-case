@@ -120,6 +120,21 @@ export const texts = {
     wms: "WMS · recebimento",
   } satisfies Record<EvidenceSource, string>,
 
+  decidedBy: {
+    system: "Automático",
+    rule: "Regra",
+    claude: "Claude",
+    engine: "Motor",
+    person: "Pessoa",
+    awaiting: "Aguardando pessoa",
+    column: "Decidido por",
+  },
+
+  timeline: {
+    title: "Como esta nota andou",
+    empty: "Ainda não há passos registrados para esta nota.",
+  },
+
   grid: {
     /** #209 O rótulo da linha da grid para leitor de tela. */
     openInvoice: (number: string) => `Abrir a nota ${number}`,
@@ -166,7 +181,7 @@ export const texts = {
     statToPay: { caption: "A pagar", context: "soma dos títulos" },
     statByRule: { caption: "Liberados pela regra", context: "sem pessoa" },
     tableEmpty: "Nenhum título.",
-    columns: { invoice: "Nota fiscal", classification: "Exceção", code: "Código", action: "Ação no recebimento", approver: "Aprovado por", amount: "A pagar" },
+    columns: { invoice: "Nota fiscal", classification: "Exceção", code: "Código", action: "Ação no recebimento", approver: "Decidido por", amount: "A pagar" },
     rule: "Regra",
   },
 
