@@ -28,7 +28,9 @@ import {
   MEU_NIVEL,
   NIVEL,
   NIVEL_TOM,
-  NOTAS,
+  notasDe,
+  linhaDoLimite,
+  resumo,
   SITUACAO,
   SITUACAO_TOM,
   dia,
@@ -182,8 +184,9 @@ const riscoCol: ColumnDefinition<Nota> = {
 
 type FiltroNivel = "todos" | Nivel;
 
-export function FilaDeAprovacao({ state }: { state: LoadState }) {
-  const fila = useMemo(() => NOTAS.filter((n) => n.situacao === "aguardando").sort(naOrdemDaFila), []);
+export function FilaDeAprovacao({ state, aprovadas }: { state: LoadState; aprovadas: boolean }) {
+  const NOTAS = useMemo(() => notasDe(aprovadas), [aprovadas]);
+  const fila = useMemo(() => NOTAS.filter((n) => n.situacao === "aguardando").sort(naOrdemDaFila), [NOTAS]);
   const [filtro, setFiltro] = useState<FiltroNivel>("todos");
   const [busca, setBusca] = useState("");
   const [aberta, setAberta] = useState<string | null>(null);
@@ -250,25 +253,29 @@ function evidencia(n: Nota): { fonte: string; campos: ComparisonField[] } {
   const item = n.itens[0];
   const ordem = n.ordem ?? null;
   switch (n.classificacao) {
-    case "E2":
+    case "E2": {
+      const troca = /troca (.+?) \(pedido\) por (.+?) \(não pedido\)/.exec(n.explicacao);
       return {
         fonte: `Ordem ${ordem}`,
         campos: [
           { label: "Ordem de compra", a: ordem, b: ordem, state: "match" },
-          { label: "Item", a: "Suco de uva integral 1 L", b: n.itens.at(-1)?.desc, state: "divergent", note: "item trocado" },
-          { label: "Valor do item", a: "—", b: reais(n.itens.at(-1)?.valor ?? 0), state: "divergent" },
+          { label: "Item", a: troca?.[1], b: troca?.[2], state: "divergent", note: "item trocado" },
+          { label: "Valor do item trocado", a: null, b: reais(n.risco), state: "divergent" },
         ],
       };
+    }
     case "E3":
-    case "E1":
+    case "E1": {
+      const conta = /Chegaram (\d+) de (\d+) \S+ de (.+?):/.exec(n.explicacao);
       return {
         fonte: `Recebimento da ${n.destino}`,
         campos: [
-          { label: "Item", a: item?.desc, b: item?.desc, state: "match" },
-          { label: "Quantidade", a: "contado na doca", b: `${item?.qtd} ${item?.un}`, state: "divergent" },
-          { label: "Valor a devolver", a: reais(n.risco), b: "—", state: "divergent" },
+          { label: "Item", a: conta?.[3] ?? item?.desc, b: conta?.[3] ?? item?.desc, state: "match" },
+          { label: "Quantidade", a: conta ? `${conta[1]} recebidas` : "contado na doca", b: conta ? `${conta[2]} cobradas` : `${item?.qtd} ${item?.un}`, state: "divergent" },
+          { label: "Valor a devolver", a: reais(n.risco), b: null, state: "divergent" },
         ],
       };
+    }
     case "E4":
       return {
         fonte: `Ordem ${ordem} e cadastro do produto`,
@@ -343,7 +350,7 @@ function Dossie({ nota }: { nota: Nota }) {
       <DataList
         size="sm"
         items={[
-          { label: "Regra aplicada", value: `Limites de aprovação, linha ${nota.nivel === "bloqueio" ? 1 : nota.nivel === "diretoria" ? 2 : 3}` },
+          { label: "Regra aplicada", value: `Limites de aprovação, linha ${linhaDoLimite(nota)}` },
           { label: "Fontes", value: "Nota da SEFAZ, ordem de compra, títulos do contas a pagar" },
         ]}
       />
@@ -427,8 +434,9 @@ function PropostaAberta({ nota, onClose }: { nota: Nota; onClose: () => void }) 
 
 type FiltroDia = "todas" | "aguardando" | "decididas" | "regra";
 
-export function ListaDoDia({ state }: { state: LoadState }) {
-  const notas = useMemo(() => NOTAS.filter((n) => n.data === HOJE), []);
+export function ListaDoDia({ state, aprovadas }: { state: LoadState; aprovadas: boolean }) {
+  const NOTAS = useMemo(() => notasDe(aprovadas), [aprovadas]);
+  const notas = useMemo(() => NOTAS.filter((n) => n.data === HOJE), [NOTAS]);
   const [filtro, setFiltro] = useState<FiltroDia>("todas");
   const de = (f: FiltroDia) =>
     notas.filter(
@@ -499,8 +507,9 @@ export function ListaDoDia({ state }: { state: LoadState }) {
 
 // ———————————————————————————————————————— Notas duplicadas
 
-export function NotasDuplicadas({ state }: { state: LoadState }) {
-  const duplicadas = useMemo(() => NOTAS.filter((n) => n.classificacao === "E6" && n.original), []);
+export function NotasDuplicadas({ state, aprovadas }: { state: LoadState; aprovadas: boolean }) {
+  const NOTAS = useMemo(() => notasDe(aprovadas), [aprovadas]);
+  const duplicadas = useMemo(() => NOTAS.filter((n) => n.classificacao === "E6" && n.original), [NOTAS]);
   const [aberta, setAberta] = useState<string | null>(null);
   const barrado = duplicadas.reduce((s, n) => s + n.risco, 0);
   const nota = duplicadas.find((n) => n.id === aberta);
@@ -594,8 +603,9 @@ export function NotasDuplicadas({ state }: { state: LoadState }) {
 
 // ———————————————————————————————————————— Doca
 
-export function Doca({ state }: { state: LoadState }) {
-  const destinos = useMemo(() => [...new Set(NOTAS.filter((n) => n.data >= "2026-11-11").map((n) => n.destino))].sort(), []);
+export function Doca({ state, aprovadas }: { state: LoadState; aprovadas: boolean }) {
+  const NOTAS = useMemo(() => notasDe(aprovadas), [aprovadas]);
+  const destinos = useMemo(() => [...new Set(NOTAS.filter((n) => n.data >= "2026-11-11").map((n) => n.destino))].sort(), [NOTAS]);
   const [destino, setDestino] = useState("CD-03");
   const notas = NOTAS.filter((n) => n.data >= "2026-11-11" && n.destino === destino).sort((a, b) => a.numero - b.numero);
   const aguardando = notas.filter((n) => n.situacao === "aguardando").length;
@@ -660,11 +670,11 @@ export function Doca({ state }: { state: LoadState }) {
                     </StatusBadge>
                   }
                   bottom={
-                    n.acao === "receber_parcial"
-                      ? `Segure ou devolva: ${n.itens.at(-1)?.desc}`
-                      : n.acao === "recusar"
-                        ? "Devolva o caminhão inteiro"
-                        : "Descarregue tudo"
+                    n.acao === "recusar"
+                      ? "Devolva o caminhão inteiro"
+                      : n.acao === "receber"
+                        ? "Descarregue tudo"
+                        : resumo(n)
                   }
                 />
               ),
@@ -677,21 +687,26 @@ export function Doca({ state }: { state: LoadState }) {
 
 // ———————————————————————————————————————— Valor barrado
 
-export function ValorBarrado({ state }: { state: LoadState }) {
+export function ValorBarrado({ state, aprovadas }: { state: LoadState; aprovadas: boolean }) {
+  const NOTAS = useMemo(() => notasDe(aprovadas), [aprovadas]);
   const decididas = NOTAS.filter((n) => n.situacao === "aprovada" || n.situacao === "alterada");
   const barrado = decididas.reduce((s, n) => s + n.risco, 0);
   const emRisco = NOTAS.filter((n) => n.situacao === "aguardando").reduce((s, n) => s + n.risco, 0);
+  const propostas = NOTAS.filter((n) => n.nivel !== "regra");
   const porDia = useMemo(() => {
-    const dias = [...new Set(decididas.map((n) => n.data))].sort();
-    let acumulado = 0;
+    const dias = [...new Set(propostas.map((n) => n.data))].sort();
+    let barradoAte = 0;
+    let propostoAte = 0;
     return dias.map((d) => {
-      acumulado += decididas.filter((n) => n.data === d).reduce((s, n) => s + n.risco, 0);
-      return { dia: dia(d), barrado: Math.round(acumulado), meta: META_MES };
+      const doDia = propostas.filter((n) => n.data === d);
+      barradoAte += doDia.filter((n) => n.situacao === "aprovada").reduce((s, n) => s + n.risco, 0);
+      propostoAte += doDia.filter((n) => n.situacao === "aguardando").reduce((s, n) => s + n.risco, 0);
+      return { dia: dia(d), barrado: Math.round(barradoAte), proposto: Math.round(propostoAte), meta: META_MES };
     });
-  }, [decididas]);
+  }, [propostas]);
   const porExcecao = (["E6", "E7", "E5", "E8", "E2", "E1", "E3", "E4"] as const)
     .map((c) => {
-      const notas = decididas.filter((n) => n.classificacao === c);
+      const notas = propostas.filter((n) => n.classificacao === c);
       return { key: c, label: EXCECAO[c], value: notas.reduce((s, n) => s + n.risco, 0), meta: `${notas.length} notas` };
     })
     .filter((item) => item.value > 0);
@@ -706,8 +721,8 @@ export function ValorBarrado({ state }: { state: LoadState }) {
       emptyLabel="Nada barrado neste mês ainda. O valor aparece aqui assim que a primeira proposta for aprovada."
     >
       <StatGrid columns={3}>
-        <Stat caption="Barrado em novembro" value={reaisCurto(barrado)} context="propostas aprovadas ou alteradas" tone="positive" />
-        <Stat caption="Contra o pagar errado" value={`${Math.round((barrado / META_MES) * 100)}%`} context={`de ${reaisCurto(META_MES)} por mês`} />
+        <Stat caption="Barrado em novembro" value={reaisCurto(barrado)} context="propostas aprovadas" tone="positive" />
+        <Stat caption="Contra o pagar errado" value={`${Math.round((barrado / META_MES) * 100)}%`} context={`de ${reaisCurto(META_MES)} por mês; ${Math.round(((barrado + emRisco) / META_MES) * 100)}% com tudo aprovado`} />
         <Stat caption="Ainda em risco" value={reaisCurto(emRisco)} context="aguardando aprovação" tone="waiting" />
       </StatGrid>
       <Panel title="O mês contra os R$ 543 mil" size="sm">
@@ -722,12 +737,13 @@ export function ValorBarrado({ state }: { state: LoadState }) {
         />
       </Panel>
       <div className="wf-grid-2">
-        <Panel title="Barrado acumulado no mês" size="sm">
+        <Panel title="Acumulado no mês" size="sm">
           <LineChart
             data={porDia}
             xKey="dia"
             series={[
-              { key: "barrado", label: "Barrado acumulado" },
+              { key: "barrado", label: "Barrado (aprovado)" },
+              { key: "proposto", label: "Proposto, aguardando aprovação", color: toneColor.waiting },
               { key: "meta", label: "R$ 543 mil por mês", dashed: true, color: toneColor.negative },
             ]}
             height={220}
@@ -736,7 +752,7 @@ export function ValorBarrado({ state }: { state: LoadState }) {
             ariaLabel="Valor barrado acumulado por dia, contra R$ 543 mil"
           />
         </Panel>
-        <Panel title="Por tipo de divergência" size="sm">
+        <Panel title="Valor em risco por tipo de divergência" size="sm">
           <RankingBars items={porExcecao} formatValue={reaisCurto} tone="positive" />
         </Panel>
       </div>

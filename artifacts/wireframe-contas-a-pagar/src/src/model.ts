@@ -50,19 +50,29 @@ export const HOJE = "2026-11-12";
 export const META_MES = 543_000;
 
 /**
- * A situação da proposta, para o wireframe: o nível regra já sai aprovado; o que chegou nos dois
- * últimos dias espera uma pessoa; o resto já foi decidido (uma em cada sete, alterada).
+ * O kit não traz decisões, só as propostas do gabarito. Antes da aprovação, toda proposta acima da
+ * regra espera uma pessoa. No cenário "após aprovar", cada uma foi aprovada como o agente propôs.
  */
-function situacaoDe(nota: Omit<Nota, "situacao">, index: number): Situacao {
-  if (nota.nivel === "regra") return "regra";
-  if (nota.data >= "2026-11-11") return index % 3 === 0 ? "aprovada" : "aguardando";
-  return index % 7 === 3 ? "alterada" : "aprovada";
+const BASE = data.notas as Omit<Nota, "situacao">[];
+
+export function notasDe(aprovadas: boolean): Nota[] {
+  return BASE.map((nota) => ({
+    ...nota,
+    situacao: nota.nivel === "regra" ? "regra" : aprovadas ? "aprovada" : "aguardando",
+  }));
 }
 
-export const NOTAS: Nota[] = (data.notas as Omit<Nota, "situacao">[]).map((nota, index) => ({
-  ...nota,
-  situacao: situacaoDe(nota, index),
-}));
+/** A linha dos limites de aprovação que vale para a nota (docs/domain, "Limites de aprovação"). */
+export function linhaDoLimite(n: Pick<Nota, "nivel" | "classificacao">): number {
+  if (n.nivel === "bloqueio") return 1;
+  if (n.nivel === "diretoria") return 2;
+  if (n.nivel === "coordenacao") return ["E5", "E7", "E8"].includes(n.classificacao) ? 3 : 4;
+  if (n.nivel === "analista") return 5;
+  return 6;
+}
+
+/** A primeira frase da explicação do gabarito, até os dois-pontos ou o ponto. */
+export const resumo = (n: Pick<Nota, "explicacao">) => n.explicacao.split(/[:.](\s|$)/)[0];
 
 export const EXCECAO: Record<Classificacao, string> = {
   match: "Confere",

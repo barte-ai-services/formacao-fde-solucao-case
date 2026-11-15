@@ -39,26 +39,26 @@ const CONTEXT: ShellContext = {
   sidebar: "expanded",
 };
 
-const SCREENS: Record<string, { label: string; render: (state: LoadState) => JSX.Element; nota: string }> = {
+const SCREENS: Record<string, { label: string; render: (state: LoadState, aprovadas: boolean) => JSX.Element; nota: string }> = {
   "/pagar/fila": {
     label: "Fila de aprovação",
-    render: (state) => <FilaDeAprovacao state={state} />,
+    render: (state, aprovadas) => <FilaDeAprovacao state={state} aprovadas={aprovadas} />,
     nota: "Clique numa linha para abrir a proposta (#32, #38).",
   },
-  "/pagar/hoje": { label: "Lista do dia", render: (state) => <ListaDoDia state={state} />, nota: "Todas as notas de hoje (#32)." },
+  "/pagar/hoje": { label: "Lista do dia", render: (state, aprovadas) => <ListaDoDia state={state} aprovadas={aprovadas} />, nota: "Todas as notas de hoje (#32)." },
   "/pagar/duplicadas": {
     label: "Notas duplicadas",
-    render: (state) => <NotasDuplicadas state={state} />,
+    render: (state, aprovadas) => <NotasDuplicadas state={state} aprovadas={aprovadas} />,
     nota: "Clique numa linha para ver a duplicada ao lado da original (#31).",
   },
   "/pagar/valor-barrado": {
     label: "Valor barrado",
-    render: (state) => <ValorBarrado state={state} />,
+    render: (state, aprovadas) => <ValorBarrado state={state} aprovadas={aprovadas} />,
     nota: "O mês contra os R$ 543 mil (#39).",
   },
   "/doca": {
     label: "Doca",
-    render: (state) => <Doca state={state} />,
+    render: (state, aprovadas) => <Doca state={state} aprovadas={aprovadas} />,
     nota: "Quem opera a doca vê só este item no menu (#43).",
   },
 };
@@ -73,16 +73,27 @@ const STATES: { value: LoadState; label: string }[] = [
 function App() {
   const path = usePathname();
   const [state, setState] = useState<LoadState>("ready");
+  const [cenario, setCenario] = useState<"antes" | "depois">("antes");
   const screen = SCREENS[path] ?? SCREENS["/pagar/fila"]!;
   return (
     <>
       <ShellFrame context={CONTEXT} zone="pagar">
-        {screen.render(state)}
+        {screen.render(state, cenario === "depois")}
       </ShellFrame>
       <div className="wf-controls" role="region" aria-label="Controles do wireframe">
         <span className="wf-controls-title">Wireframe · {screen.label}</span>
         <SegmentedFilter<LoadState> size="sm" ariaLabel="Estado da tela" options={STATES} value={state} onChange={setState} />
-        <span className="wf-controls-note">{screen.nota}</span>
+        <SegmentedFilter<"antes" | "depois">
+          size="sm"
+          ariaLabel="Cenário das propostas"
+          options={[
+            { value: "antes", label: "Antes de aprovar" },
+            { value: "depois", label: "Após aprovar" },
+          ]}
+          value={cenario}
+          onChange={setCenario}
+        />
+        <span className="wf-controls-note">{screen.nota} Todo número vem do kit: as propostas são as do gabarito; "após aprovar" é cada uma aprovada como o agente propôs.</span>
       </div>
     </>
   );
