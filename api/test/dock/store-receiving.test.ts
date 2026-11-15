@@ -15,6 +15,7 @@ import { kitTables } from '../support/kit.js';
 
 const NOW = new Date('2026-11-15T12:00:00Z');
 const ACCESS: Env = { ACCESS_AUD: 'aud', ACCESS_TEAM_DOMAIN: 'time.cloudflareaccess.com' };
+// #135 Contexto mínimo do Worker: os testes só chamam `fetch`, e o resto do contexto não é lido.
 const ctx = { waitUntil: () => {}, passThroughOnException: () => {}, props: {} } as unknown as ExecutionContext;
 const verifier: AccessVerifier = { verify: async () => ({ ok: true, identity: { email: 'loja@jachegou.test' } }) };
 

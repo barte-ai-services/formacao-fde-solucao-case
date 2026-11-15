@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import { Alert, Select, Table, Text } from "barte-design-system";
 import { StatusBadge } from "@barte-ai-services/barte-ui-kit";
 import { dockApi, type DockBoardDto, type DockRowDto } from "../api/dock";
@@ -90,7 +90,7 @@ export default function Doca(_props: RouteProps) {
 }
 
 /** #135 O quadro de recebimento, o mesmo para a doca do CD e para a loja; cada um passa o seu texto e a sua leitura. */
-export function ReceivingBoard({ title, subtitle, load, words, noun, emptyIn, warning }: ReceivingBoardProps) {
+export function ReceivingBoard({ title, subtitle, load, words, noun, emptyIn, warning }: ReceivingBoardProps): ReactElement {
   const [destination, setDestination] = useState<string | null>(null);
   const { state, data, retry } = useLoad(
     (signal): Promise<DockBoardDto> => load(destination, signal),

@@ -60,7 +60,7 @@ const invalid = () => Response.json({ error: "invalid_query" }, { status: 400 })
  * #135 O mesmo handler serve a doca do CD (`destino`, `/api/doca`) e o recebimento na loja (`loja`,
  * `/api/recebimento-loja`). Cada um recusa, com 400, o destino do outro lugar.
  */
-export function dockHandler(deps: DockDeps = {}, place: ReceivingPlace = "doca_cd") {
+export function dockHandler(deps: DockDeps = {}, place: ReceivingPlace = "doca_cd"): (request: Request, env: Env) => Promise<Response> {
   const supabase = deps.supabase ?? supabaseFromEnv;
   const today = deps.today ?? (() => todayInSaoPaulo());
 

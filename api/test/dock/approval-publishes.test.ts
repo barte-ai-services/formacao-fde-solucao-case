@@ -132,11 +132,21 @@ describe('#43 AC-1 o que a regra aprova sem pessoa também chega à doca', () =>
 });
 
 describe('#135 AC-1 a pessoa aprova e a ação vai para o lugar do destino', () => {
-  it('#135/AC-1 aprovar publica em uma caixa só: loja no app da loja, CD no WMS', async () => {
+  it('#135/AC-1 aprovar nota de loja publica só no app da loja', async () => {
+    const { fake, rest, call } = await proposed();
+    const waiting = (await new SupabaseApprovalStore(rest, () => NOW).listAwaiting()).map((f) => f.invoice);
+    const note = waiting.find((i) => i.store.startsWith('LJ-'));
+    if (!note) throw new Error('o kit não tem nota de loja aguardando aprovação');
+    expect((await call(`/api/propostas/${note.accessKey}/aprovar`, { method: 'POST' })).status).toBe(200);
+    expect(fake.rows('outbox_store_actions').filter((r) => r.invoice_access_key === note.accessKey)).toHaveLength(1);
+    expect(fake.rows('outbox_dock_actions').filter((r) => r.invoice_access_key === note.accessKey)).toHaveLength(0);
+  });
+
+  it('#135/AC-1 aprovar nota de CD publica só no WMS', async () => {
     const { fake, call } = await proposed();
     expect((await call(`/api/propostas/${NF080.accessKey}/aprovar`, { method: 'POST' })).status).toBe(200);
-    const inStore = fake.rows('outbox_store_actions').filter((r) => r.invoice_access_key === NF080.accessKey);
-    const inDock = fake.rows('outbox_dock_actions').filter((r) => r.invoice_access_key === NF080.accessKey);
-    expect(NF080.store.startsWith('LJ-') ? [inStore.length, inDock.length] : [inDock.length, inStore.length]).toEqual([1, 0]);
+    expect(NF080.store).toMatch(/^CD-/);
+    expect(fake.rows('outbox_dock_actions').filter((r) => r.invoice_access_key === NF080.accessKey)).toHaveLength(1);
+    expect(fake.rows('outbox_store_actions').filter((r) => r.invoice_access_key === NF080.accessKey)).toHaveLength(0);
   });
 });
