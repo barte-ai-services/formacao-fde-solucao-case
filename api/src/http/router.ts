@@ -9,6 +9,7 @@ import { dockHandler, supabaseFromEnv, type DockDeps } from "./dock";
 import { listDuplicates, noDuplicates, type DuplicatesReader } from "./duplicates";
 import { health } from "./health";
 import { me } from "./me";
+import { adminRoutes } from "./admin";
 import { barredAmount } from "./barred-amount";
 import { returnNoteRoutes, type ReturnNotesDeps } from "./return-notes";
 
@@ -84,6 +85,9 @@ export async function route(request: Request, env: Env, deps: RouterDeps): Promi
       : (deps.approval ?? { store: new MemoryApprovalStore() }),
   );
   if (approval) return approval;
+
+  const admin = await adminRoutes(request, auth.identity, env);
+  if (admin) return admin;
 
   const returnNotes = await returnNoteRoutes(request, auth.identity, env, deps.returnNotes ?? {}, supabaseFromEnv);
   if (returnNotes) return returnNotes;

@@ -15,13 +15,22 @@ import { lastDaysUtc, publishApprovedUnregistered } from "./publish-approved-e8"
 /** #66 A janela, em dias, das decisões que o Cron manda ao Cadastro; ver `lastDaysUtc`. */
 const PUBLISH_WINDOW_DAYS = 7;
 
+/** #174 O que uma rodada fez, para a reconferência devolver. Nulo quando a rodada foi pulada. */
+export interface TickSummary {
+  vistas: number;
+  novas: number;
+  conferidas: number;
+  comErro: number;
+  propostas: number;
+}
+
 /** Execução agendada: captura e confere as notas (#59). Registra uma linha, sem dado sensível. */
-export async function tick(controller: Pick<ScheduledController, "cron">, env: Env): Promise<void> {
+export async function tick(controller: Pick<ScheduledController, "cron">, env: Env): Promise<TickSummary | null> {
   const url = env.BARTE_ACADEMY_SUPABASE_URL;
   const secretKey = env.BARTE_ACADEMY_SUPABASE_SECRET_KEY;
   if (!url || !secretKey) {
     console.log(`cron: execução agendada (${controller.cron}); sem credenciais do Supabase, captura pulada`);
-    return;
+    return null;
   }
   const rest = new SupabaseRest({ url, secretKey });
   const { captureDeps, registryCorrections } = supabaseConnectors(rest);
@@ -43,6 +52,13 @@ export async function tick(controller: Pick<ScheduledController, "cron">, env: E
   console.log(
     `cron: execução agendada (${controller.cron}); notas vistas ${result.seen}, novas ${result.inserted}, conferidas ${result.checked}, com erro ${result.failed}, propostas ${proposals.proposed}, aprovadas pela regra ${proposals.approvedByRule}, cadastro E8 ${cadastroE8}, ações publicadas na doca ${dock}, ações publicadas no app da loja ${storeActions}, títulos duplicados bloqueados ${duplicates.blocked}, com falha ${duplicates.failed}; recebimentos sem nota [${unreconciled.noKey.join(", ")}], com chave sem nota [${unreconciled.keyWithoutInvoice.join(", ")}]`,
   );
+  return {
+    vistas: result.seen,
+    novas: result.inserted,
+    conferidas: result.checked,
+    comErro: result.failed,
+    propostas: proposals.proposed,
+  };
 }
 
 /**

@@ -52,7 +52,9 @@ jobs:
       # token responde 503.
       # O nível de cada pessoa que aprova (#63) também é variável do repositório: um JSON de e-mail
       # para nível. Vazio, ninguém aprova (fail-closed): a fila aparece e o formulário não.
-      - run: npx wrangler deploy --var "ACCESS_AUD:$ACCESS_AUD" --var "ACCESS_TEAM_DOMAIN:$ACCESS_TEAM_DOMAIN" --var "BARTE_ACADEMY_SUPABASE_URL:$BARTE_ACADEMY_SUPABASE_URL" --var "APPROVER_LEVELS:$APPROVER_LEVELS"
+      # Os administradores (#174) são variável do repositório: um JSON de lista de e-mails. Vazio, ninguém
+      # reconfere (fail-closed).
+      - run: npx wrangler deploy --var "ACCESS_AUD:$ACCESS_AUD" --var "ACCESS_TEAM_DOMAIN:$ACCESS_TEAM_DOMAIN" --var "BARTE_ACADEMY_SUPABASE_URL:$BARTE_ACADEMY_SUPABASE_URL" --var "APPROVER_LEVELS:$APPROVER_LEVELS" --var "BARTE_ACADEMY_ADMIN_EMAILS:$BARTE_ACADEMY_ADMIN_EMAILS"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.BARTE_ACADEMY_CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.BARTE_ACADEMY_CLOUDFLARE_ACCOUNT_ID }}
@@ -60,6 +62,7 @@ jobs:
           ACCESS_TEAM_DOMAIN: ${{ vars.BARTE_ACADEMY_ACCESS_TEAM_DOMAIN }}
           BARTE_ACADEMY_SUPABASE_URL: ${{ vars.BARTE_ACADEMY_SUPABASE_URL }}
           APPROVER_LEVELS: ${{ vars.BARTE_ACADEMY_APPROVER_LEVELS }}
+          BARTE_ACADEMY_ADMIN_EMAILS: ${{ vars.BARTE_ACADEMY_ADMIN_EMAILS }}
       # A chave secreta só existe no Worker: entra pela entrada padrão, sem aparecer no log nem no git (#59).
       - run: printf '%s' "$BARTE_ACADEMY_SUPABASE_SECRET_KEY" | npx wrangler secret put BARTE_ACADEMY_SUPABASE_SECRET_KEY
         env:

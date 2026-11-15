@@ -24,4 +24,9 @@ export interface Env {
    * `diretoria`). Não é segredo: a esteira passa com `wrangler deploy --var`. Vazio: ninguém aprova.
    */
   APPROVER_LEVELS?: string;
+  /**
+   * #174 E-mails dos administradores, um JSON de lista (`["ana@jachegou.com.br"]`). Não é segredo: a
+   * esteira passa com `wrangler deploy --var`. Vazio: ninguém administra (fail-closed).
+   */
+  BARTE_ACADEMY_ADMIN_EMAILS?: string;
 }
