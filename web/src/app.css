@@ -1,0 +1,9 @@
+/* A casca das telas: a mesma medida do wireframe aprovado (F3) e do `.shell-home` do Shell. */
+.shell-home {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2xl);
+  container-type: inline-size;
+}
+.pagar-screen { padding-bottom: 96px; }
+.pagar-body { display: grid; gap: var(--spacing-xl); min-width: 0; }

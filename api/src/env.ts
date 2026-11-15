@@ -14,4 +14,9 @@ export interface Env {
    * com `wrangler deploy --var`. Aceita `https://` na frente e barra no fim. Vazio: o Worker fecha.
    */
   ACCESS_TEAM_DOMAIN?: string;
+  /**
+   * Os arquivos da tela (web/dist, #60), servidos depois do Access. Ausente nos testes e num Worker
+   * publicado sem a tela: aí todo caminho fora das rotas da API responde 404.
+   */
+  ASSETS?: Fetcher;
 }

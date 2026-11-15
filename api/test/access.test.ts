@@ -246,6 +246,65 @@ describe("Cloudflare Access no Worker", () => {
     expect(response.headers.get("allow")).toBe("GET");
   });
 
+  describe("#60 a tela servida pelo Worker, atrás do Access", () => {
+    function withAssets() {
+      const fetch = vi.fn(async (_request: Request) => new Response("<!doctype html>", { status: 200 }));
+      return { fetch, env: { ...env, ASSETS: { fetch } as unknown as Fetcher } };
+    }
+
+    it("GET de um caminho da tela, com token válido, vem dos arquivos da tela", async () => {
+      const assets = withAssets();
+      const response = await call("/pagar/fila", { token: await sign(claims()), env: assets.env });
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe("<!doctype html>");
+      expect(assets.fetch).toHaveBeenCalledOnce();
+    });
+
+    it("HEAD de um caminho da tela, com token válido, também", async () => {
+      const assets = withAssets();
+      await call("/doca", { token: await sign(claims()), env: assets.env, method: "HEAD" });
+      expect(assets.fetch).toHaveBeenCalledOnce();
+    });
+
+    it("sem token recebe 401 e nenhum arquivo da tela sai", async () => {
+      const assets = withAssets();
+      const response = await call("/pagar/fila", { env: assets.env });
+      expect(response.status).toBe(401);
+      expect(assets.fetch).not.toHaveBeenCalled();
+    });
+
+    it("token inválido recebe 403 e nenhum arquivo da tela sai", async () => {
+      const assets = withAssets();
+      const response = await call("/assets/index.js", { token: "lixo", env: assets.env });
+      expect(response.status).toBe(403);
+      expect(assets.fetch).not.toHaveBeenCalled();
+    });
+
+    for (const path of ["/api/x", "/api"]) {
+      it(`${path} com token é 404 JSON mesmo com a tela`, async () => {
+        const assets = withAssets();
+        const response = await call(path, { token: await sign(claims()), env: assets.env });
+        expect(response.status).toBe(404);
+        expect(await response.json()).toEqual({ error: "not_found" });
+        expect(assets.fetch).not.toHaveBeenCalled();
+      });
+    }
+
+    it("POST num caminho da tela é 404", async () => {
+      const assets = withAssets();
+      const response = await call("/pagar/fila", { token: await sign(claims()), env: assets.env, method: "POST" });
+      expect(response.status).toBe(404);
+      expect(assets.fetch).not.toHaveBeenCalled();
+    });
+
+    it("/me continua sendo a API, com a tela presente", async () => {
+      const assets = withAssets();
+      const response = await call("/me", { token: await sign(claims()), env: assets.env });
+      expect(await response.json()).toEqual({ email: EMAIL });
+      expect(assets.fetch).not.toHaveBeenCalled();
+    });
+  });
+
   it("não registra nada em log ao negar", async () => {
     const spies = (["log", "info", "warn", "error", "debug"] as const).map((m) =>
       vi.spyOn(console, m).mockImplementation(() => {}),

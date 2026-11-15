@@ -1,0 +1,53 @@
+import { useEffect } from "react";
+import { ShellFrame, type ShellContext } from "@barte-ai-services/shell-kit";
+import { LoadFeedback } from "@barte-ai-services/barte-ui-kit";
+import { NotFound } from "./components/NotFound";
+import { ERROR_DESCRIPTION, RETRY_LABEL } from "./components/Screen";
+import { useLoad } from "./components/useLoad";
+import { matchRoute, navigate, usePathname } from "./router";
+import { REDIRECTS, ROUTES } from "./routes";
+import { loadShellContext, ZONE } from "./shell/context";
+
+/** A rota do caminho atual, na moldura. `/` leva à fila; caminho desconhecido, "Página não encontrada". */
+function CurrentRoute() {
+  const pathname = usePathname();
+  const redirect = Object.hasOwn(REDIRECTS, pathname) ? REDIRECTS[pathname] : undefined;
+  useEffect(() => {
+    if (redirect) navigate(redirect, { replace: true });
+  }, [redirect]);
+  if (redirect) return null;
+  const matched = matchRoute(ROUTES, pathname);
+  if (!matched) return <NotFound />;
+  const Route = matched.route.component;
+  return <Route key={pathname} params={matched.params} />;
+}
+
+export function Frame({ context }: { context: ShellContext }) {
+  useEffect(() => {
+    document.documentElement.dataset.theme = context.theme;
+  }, [context.theme]);
+  return (
+    <ShellFrame context={context} zone={ZONE}>
+      <CurrentRoute />
+    </ShellFrame>
+  );
+}
+
+export function App({ loadContext = loadShellContext }: { loadContext?: () => Promise<ShellContext> }) {
+  const { state, data, retry } = useLoad(() => loadContext());
+  if (state !== "ready" || !data) {
+    // Enquanto o contexto chega, o carregando de página, e não uma tela branca.
+    return (
+      <LoadFeedback
+        state={state === "ready" ? "loading" : state}
+        size="page"
+        loadingLabel="Abrindo o contas a pagar…"
+        errorTitle="Não consegui abrir o contas a pagar agora"
+        errorDescription={ERROR_DESCRIPTION}
+        retryLabel={RETRY_LABEL}
+        onRetry={retry}
+      />
+    );
+  }
+  return <Frame context={data} />;
+}

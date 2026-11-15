@@ -5,6 +5,8 @@ on:
 
 permissions:
   contents: read
+  # Os kits do web/ (#60) saem do GitHub Packages da org.
+  packages: read
 
 jobs:
   check:
@@ -18,5 +20,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: api/package-lock.json
+          cache-dependency-path: |
+            api/package-lock.json
+            web/package-lock.json
       - run: make check
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

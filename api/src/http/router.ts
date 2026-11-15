@@ -23,7 +23,8 @@ export interface RouterDeps {
 /**
  * Encaminha a requisição pela rota e pelo método. Fora das rotas abertas, o Access vem antes de
  * procurar a rota, então um caminho desconhecido sem token recebe 401, não 404 (#54).
- * Rota desconhecida: 404. Método não aceito: 405.
+ * Rota desconhecida: a tela (#60), se for um GET ou HEAD fora de `/api/` e os arquivos dela
+ * existirem; senão 404. Método não aceito: 405.
  */
 export async function route(request: Request, env: Env, deps: RouterDeps): Promise<Response> {
   const { pathname } = new URL(request.url);
@@ -34,8 +35,16 @@ export async function route(request: Request, env: Env, deps: RouterDeps): Promi
   if ("response" in auth) return auth.response;
 
   const methods = own(protectedRoutes, pathname);
-  if (!methods) return Response.json({ error: "not_found" }, { status: 404 });
-  return dispatch(request, methods, (handler) => handler(auth.identity));
+  if (methods) return dispatch(request, methods, (handler) => handler(auth.identity));
+  if (env.ASSETS && isScreenRequest(request.method, pathname)) return env.ASSETS.fetch(request);
+  return Response.json({ error: "not_found" }, { status: 404 });
+}
+
+/** Um pedido da tela: só leitura, e nunca sob `/api/`, que é da API mesmo quando a rota não existe. */
+function isScreenRequest(method: string, pathname: string): boolean {
+  const reading = method === "GET" || method === "HEAD";
+  const api = pathname === "/api" || pathname.startsWith("/api/");
+  return reading && !api;
 }
 
 function own<T>(record: Record<string, T>, key: string): T | undefined {

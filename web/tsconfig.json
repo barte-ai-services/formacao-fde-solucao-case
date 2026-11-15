@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["vite/client", "node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "paths": {
+      // O shell-kit é TS fonte e importa `next/navigation`. A tela não usa o Next: o tsc e o Vite
+      // apontam para o stand-in em src/router, em cima da History API.
+      "next/navigation": ["./src/router/navigation.ts"],
+      // O contrato do domínio (F4) vem da API, só como tipo: o fio é dado simples.
+      "@domain": ["../api/src/domain/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx", "vite.config.ts"]
+}

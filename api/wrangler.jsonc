@@ -4,6 +4,14 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-10-31",
   "observability": { "enabled": true },
+  // A tela (web/, #60). O Worker roda antes de qualquer arquivo, então o Cloudflare Access vale
+  // também para o index.html e os assets. Caminho de tela desconhecido devolve o index.html.
+  "assets": {
+    "directory": "../web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
+  },
   "triggers": {
     // O Cron roda a cada 15 minutos e, por enquanto, só registra que rodou.
     "crons": ["*/15 * * * *"]
