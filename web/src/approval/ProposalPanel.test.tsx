@@ -35,7 +35,7 @@ const proposal = (dockAction: unknown, extra: Record<string, unknown> = {}) =>
     approval: null,
     dossier: { status: "pending", reason: "x" },
     ...extra,
-  }) as unknown as ProposalDetailDto; // a fixture é parcial: o DTO real traz campos que estes testes não leem
+  }) as unknown as ProposalDetailDto; // #134 a fixture é parcial: o DTO real traz campos que estes testes não leem
 
 let calls: { path: string; body: unknown }[] = [];
 beforeEach(() => {
