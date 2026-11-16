@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { InvoiceDrawer } from "../src/approval/InvoiceDrawer";
 
 // #231 O bloco "Agente auditor" na gaveta da nota: concorda, discorda, subiu, aviso de injeção, não auditada e pendente.
-// #231 Esqueleto vermelho do wireframe docs/wireframes/auditor-gaveta.md: o bloco ainda não existe na gaveta.
+// #231 Prova do wireframe docs/wireframes/auditor-gaveta.md, um teste por critério de aceitação.
 
 const KEY = "35261100000000000000550010000080001000080001";
 const money = (cents: number) => ({ cents, text: `R$ ${(cents / 100).toFixed(2)}` });
