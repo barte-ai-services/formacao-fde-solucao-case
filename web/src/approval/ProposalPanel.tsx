@@ -15,6 +15,7 @@ import { useDossier } from "./useDossier";
 import { EvidenceView } from "../evidence";
 import { partialPrefill, type Disposition, type PartialInput } from "./partial-prefill";
 import { ACTION_LABEL, ACTION_TONE, LEVEL_LABEL, LEVEL_TONE, type DockActionKind } from "./labels";
+import type { AuditDto } from "./audit-view";
 import { texts } from "../texts";
 
 const STATE_LABEL: Record<ProposalDetailDto["state"], string> = texts.proposalPanel.state;
@@ -55,11 +56,14 @@ export function ProposalPanel({
   proposal,
   onDecided,
   afterCount,
+  audit,
 }: {
   proposal: ProposalDetailDto;
   onDecided?: (result: DecisionResultDto) => void;
   /** #134 Depois da contagem (2ª entrega) o verbo é "Confirmar recebimento"; antes da doca, "Receber". */
   afterCount?: boolean;
+  /** #231 A auditoria da nota; sem ela (undefined) o bloco "Agente auditor" não aparece. */
+  audit?: AuditDto | null;
 }): JSX.Element {
   const [decided, setDecided] = useState<DecisionResultDto | null>(null);
   // #203 A opção marcada é do DecisionForm, mas a gaveta a conhece (value/onValueChange) para mostrar os itens só no parcial.
