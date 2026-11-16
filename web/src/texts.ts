@@ -462,9 +462,9 @@ export const texts = {
     raisedTo: (level: string) => `A proposta subiu para ${level}.`,
     auditedBy: (model: string, time: string) => `Auditado por ${model} às ${time}.`,
     notAuditedReason: {
-      claude_falhou: "O Claude não conseguiu auditar esta nota.",
-      erro_de_tool: "Uma ferramenta falhou durante a auditoria.",
-      sem_auditoria: "Esta nota não teve auditoria.",
+      claude_falhou: "O Claude não conseguiu auditar esta nota.", // ADR-002
+      erro_de_tool: "Uma ferramenta falhou durante a auditoria.", // ADR-002
+      sem_auditoria: "Esta nota não teve auditoria.", // ADR-002
     },
   },
 

@@ -5,7 +5,7 @@ import { texts } from "../texts";
 
 /** #231 A auditoria como a API a devolve (`auditView` em api/src/http/approval.ts): a camada de contrato a pendura na proposta. */
 export type AuditDto =
-  | { status: "nao_auditada"; reason: "claude_falhou" | "erro_de_tool" | "sem_auditoria"; refusals: readonly unknown[] }
+  | { status: "nao_auditada"; reason: "claude_falhou" | "erro_de_tool" | "sem_auditoria"; refusals: readonly unknown[] } // ADR-002
   | {
       status: "auditada";
       classification: Classification;
