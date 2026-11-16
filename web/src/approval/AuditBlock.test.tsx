@@ -89,6 +89,7 @@ describe("#231 AuditBlock", () => {
   ])("#231 acessibilidade (%s): uma região nomeada Agente auditor, sem controle interativo", (_name, view) => {
     render(<AuditBlock view={view} />);
     expect(screen.getAllByRole("region", { name: "Agente auditor" })).toHaveLength(1);
+    expect(screen.getAllByRole("heading", { name: "Agente auditor", level: 3 })).toHaveLength(1);
     expect(screen.queryAllByRole("button")).toHaveLength(0);
     expect(screen.queryAllByRole("link")).toHaveLength(0);
   });

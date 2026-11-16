@@ -19,14 +19,12 @@ export type AuditBlockView =
 
 const TONE_VARIANT = { positive: "success", alert: "warning" } as const;
 
-/** #231 A moldura do bloco: uma região nomeada "Agente auditor", só leitura, sem controle. */
+/** #231 A moldura do bloco: a região nomeada "Agente auditor" que o próprio Block desenha, só leitura, sem controle. */
 function Frame({ children }: { children: ReactNode }): JSX.Element {
   return (
-    <section aria-label={texts.auditor.title}>
-      <Block title={texts.auditor.title} size="sm">
-        {children}
-      </Block>
-    </section>
+    <Block title={texts.auditor.title} size="sm">
+      {children}
+    </Block>
   );
 }
 
