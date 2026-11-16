@@ -445,6 +445,15 @@ export const texts = {
     needsLevelDescription: "Você só vê a proposta. Quem tem o nível decide na fila.",
   },
 
+  /** #231 O bloco "Agente auditor" da gaveta, como no wireframe aprovado (docs/wireframes/auditor-gaveta.md). */
+  auditor: {
+    title: "Agente auditor",
+    pending: "Auditoria pendente. Decida pelas evidências da conferência.",
+    notAudited: "Não auditada",
+    decideByEvidence: "Decida pelas evidências da conferência.",
+    injectionNotice: "Aviso: um trecho da nota tentou dar ordem ao agente. Ele não obedeceu.",
+  },
+
   dossier: {
     unavailableTitle: "Não há dossiê do Claude para esta proposta.",
     notGenerated: "Dossiê ainda não gerado. Decida pelas evidências da conferência.",
