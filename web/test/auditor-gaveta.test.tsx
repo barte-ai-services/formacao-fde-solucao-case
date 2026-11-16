@@ -32,17 +32,22 @@ const base = {
   dossier: { status: "unavailable", reason: "pending", notice: "", generatedAt: null },
 };
 
-// #230 AC-7 O contrato real de `auditView` (api/src/http/approval.ts): a auditada traz a concordância.
-// #230 Alcançável pela API (applyAudit, api/src/domain/invoice-audit.ts): `routing` entra em `differs` só quando o
-// encaminhamento do auditor difere do nível da proposta; a regra 7 (validateAudit) proíbe encaminhar abaixo dele, então
-// difere sempre para cima. A subida (`raisedLevel`) só se aplica com a proposta em `aguardando_aprovacao`; em outro
-// estado a discordância fica só em `differs`. `injectionFlag` é texto (`string | null`) que começa na ordem achada (findInjection).
+/**
+ * #230 AC-7 O contrato real de `auditView` (api/src/http/approval.ts): a auditada traz a concordância.
+ * Alcançável pela API (applyAudit, api/src/domain/invoice-audit.ts): `routing` entra em `differs` só quando o
+ * encaminhamento do auditor difere do nível da proposta; a regra 7 (validateAudit) proíbe encaminhar abaixo dele,
+ * então difere sempre para cima. A subida (`raisedLevel`) só se aplica com a proposta em `aguardando_aprovacao`; em
+ * outro estado a discordância fica só em `differs`. `injectionFlag` é texto (`string | null`) que começa na ordem
+ * achada (findInjection). A justificativa tem ao menos 2 linhas não vazias (validateAudit).
+ */
+const LINES = ["A ordem de compra confirma a quantidade da nota.", "O preço bate com o pedido."];
+const JUSTIFICATION = LINES.join("\n");
 const audited = (over: Record<string, unknown> = {}) => ({
   status: "auditada",
   classification: "E4",
   dockAction: { kind: "receber" },
   routing: "coordenacao",
-  justification: "A ordem de compra confirma a quantidade da nota.",
+  justification: JUSTIFICATION,
   amountAtRisk: money(0),
   model: "claude-exemplo",
   auditedAt: "2026-11-15T17:32:00Z",
@@ -63,24 +68,29 @@ const block = async () => {
   await screen.findByText("Nota 80");
   return screen.findByText("Agente auditor");
 };
+/** #231 Cada linha da justificativa aparece dentro do bloco, sem prescrever como o componente as quebra. */
+const expectJustification = (heading: HTMLElement) => {
+  const region = heading.closest("section, aside, article, [role=region]") ?? heading.parentElement;
+  for (const line of LINES) expect(region?.textContent).toContain(line);
+};
 afterEach(() => vi.unstubAllGlobals());
 
 describe("#231 bloco Agente auditor na gaveta", () => {
   it("#231/AC-1 concorda: veredito, justificativa e rodapé", async () => {
     serve(audited());
     open();
-    await block();
+    const heading = await block();
     expect(screen.getByText("Concorda com a regra")).toBeTruthy();
-    expect(screen.getByText("A ordem de compra confirma a quantidade da nota.")).toBeTruthy();
+    expectJustification(heading);
     expect(screen.getByText("Auditado por claude-exemplo às 14:32.")).toBeTruthy();
   });
 
   it("#231/AC-2 discorda em um campo: classificação", async () => {
     serve(audited({ classification: "E2", agreement: { agrees: false, differs: ["classification"] } }));
     open();
-    await block();
+    const heading = await block();
     expect(screen.getByText("Discorda: classifica como E2, não E4")).toBeTruthy();
-    expect(screen.getByText("A ordem de compra confirma a quantidade da nota.")).toBeTruthy();
+    expectJustification(heading);
     expect(screen.queryByText("Concorda com a regra")).toBeNull();
   });
 
@@ -112,7 +122,10 @@ describe("#231 bloco Agente auditor na gaveta", () => {
   });
 
   it("#231/AC-3 discorda e a proposta subiu: avisa o nível", async () => {
-    serve(audited({ routing: "diretoria", raisedLevel: "diretoria", agreement: { agrees: false, differs: ["routing"] } }));
+    serve(
+      audited({ routing: "diretoria", raisedLevel: "diretoria", agreement: { agrees: false, differs: ["routing"] } }),
+      { level: "diretoria", requiredApproverLevel: "diretoria" },
+    );
     open();
     await block();
     expect(screen.getByText("Discorda: encaminha para Diretoria")).toBeTruthy();
