@@ -6,7 +6,7 @@ import { useState, type JSX } from "react";
 import { Alert, Input, Select, Text } from "barte-design-system";
 import { Block, DataList, DecisionForm, StatusBadge } from "@barte-ai-services/barte-ui-kit";
 import { ApiError } from "../api/client";
-import { approvalApi, type AuditDto, type DecisionResultDto, type ProposalDetailDto } from "../api/approval";
+import { approvalApi, type DecisionResultDto, type ProposalDetailDto } from "../api/approval";
 import type { PartialLineDto } from "../api/contract";
 import { AccessKey } from "../components/AccessKey";
 import { Dossier } from "../components/Dossier";
@@ -57,14 +57,11 @@ export function ProposalPanel({
   proposal,
   onDecided,
   afterCount,
-  audit,
 }: {
   proposal: ProposalDetailDto;
   onDecided?: (result: DecisionResultDto) => void;
   /** #134 Depois da contagem (2ª entrega) o verbo é "Confirmar recebimento"; antes da doca, "Receber". */
   afterCount?: boolean;
-  /** #231 A auditoria da nota; sem ela (undefined) o bloco "Agente auditor" não aparece. */
-  audit?: AuditDto | null;
 }): JSX.Element {
   const [decided, setDecided] = useState<DecisionResultDto | null>(null);
   // #203 A opção marcada é do DecisionForm, mas a gaveta a conhece (value/onValueChange) para mostrar os itens só no parcial.
@@ -160,7 +157,7 @@ export function ProposalPanel({
         )}
       </Block>
       {proposal.dockAction.kind === "receber_parcial" ? <PartialItems proposal={proposal} lines={proposal.dockAction.lines} /> : null}
-      {audit === undefined ? null : <AuditBlock view={auditBlockView(audit, proposal)} />}
+      {proposal.audit === undefined ? null : <AuditBlock view={auditBlockView(proposal.audit, proposal)} />}
       <Dossier dossier={dossier.dossier} onRequest={() => void dossier.request()} message={dossier.message} busy={dossier.busy} renewing={dossier.renewing} />
       <ProposalTimeline steps={proposal.timeline ?? []} />
       {decided ?? proposal.approval ? (
