@@ -15,7 +15,8 @@ import { useDossier } from "./useDossier";
 import { EvidenceView } from "../evidence";
 import { partialPrefill, type Disposition, type PartialInput } from "./partial-prefill";
 import { ACTION_LABEL, ACTION_TONE, LEVEL_LABEL, LEVEL_TONE, type DockActionKind } from "./labels";
-import type { AuditDto } from "./audit-view";
+import { AuditBlock } from "./AuditBlock";
+import { auditBlockView, type AuditDto } from "./audit-view";
 import { texts } from "../texts";
 
 const STATE_LABEL: Record<ProposalDetailDto["state"], string> = texts.proposalPanel.state;
@@ -159,6 +160,7 @@ export function ProposalPanel({
         )}
       </Block>
       {proposal.dockAction.kind === "receber_parcial" ? <PartialItems proposal={proposal} lines={proposal.dockAction.lines} /> : null}
+      {audit === undefined ? null : <AuditBlock view={auditBlockView(audit, proposal)} />}
       <Dossier dossier={dossier.dossier} onRequest={() => void dossier.request()} message={dossier.message} busy={dossier.busy} renewing={dossier.renewing} />
       <ProposalTimeline steps={proposal.timeline ?? []} />
       {decided ?? proposal.approval ? (
