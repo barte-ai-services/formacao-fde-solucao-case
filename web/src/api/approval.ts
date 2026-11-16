@@ -56,6 +56,24 @@ export interface ApprovalDto {
   decidedOn: string;
 }
 
+/** #231 A auditoria da nota como a API a devolve (`auditView` em api/src/http/approval.ts); nula enquanto a nota não foi auditada. */
+export type AuditDto =
+  | { status: "nao_auditada"; reason: "claude_falhou" | "erro_de_tool" | "sem_auditoria"; refusals: readonly unknown[] } // ADR-002
+  | {
+      status: "auditada";
+      classification: Classification;
+      dockAction: { kind: DockActionDto["kind"] };
+      routing: ApprovalLevel;
+      justification: string;
+      amountAtRisk: MoneyDto | null;
+      model: string;
+      auditedAt: string;
+      agreement: { agrees: true } | { agrees: false; differs: readonly ("classification" | "dockAction" | "routing")[] };
+      raisedLevel: ApprovalLevel | null;
+      injectionFlag: string | null;
+      refusals: readonly unknown[];
+    };
+
 export interface ProposalDetailDto extends QueueItemDto {
   justification: string;
   items: {
@@ -75,6 +93,8 @@ export interface ProposalDetailDto extends QueueItemDto {
   dossier: ProposalDossierDto; // #130 também `generating`, quando a pessoa pediu na gaveta
   /** #211 Os passos da nota, em ordem. */
   timeline?: TimelineStepDto[];
+  /** #231 A auditoria: nula é "pendente"; ausente (resposta sem o campo) o bloco não mostra. */
+  audit?: AuditDto | null;
 }
 
 /** #211 Um passo de "Como esta nota andou", montado pela API do que o banco guarda. */

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { auditBlockView, type AuditDto } from "./audit-view";
+import type { AuditDto } from "../api/approval";
+import { auditBlockView } from "./audit-view";
 
 // #231 A derivação da auditoria da API no modelo de visão do bloco, um teste por estado do wireframe.
 

@@ -6,7 +6,7 @@ import { useState, type JSX } from "react";
 import { Alert, Input, Select, Text } from "barte-design-system";
 import { Block, DataList, DecisionForm, StatusBadge } from "@barte-ai-services/barte-ui-kit";
 import { ApiError } from "../api/client";
-import { approvalApi, type DecisionResultDto, type ProposalDetailDto } from "../api/approval";
+import { approvalApi, type AuditDto, type DecisionResultDto, type ProposalDetailDto } from "../api/approval";
 import type { PartialLineDto } from "../api/contract";
 import { AccessKey } from "../components/AccessKey";
 import { Dossier } from "../components/Dossier";
@@ -16,7 +16,7 @@ import { EvidenceView } from "../evidence";
 import { partialPrefill, type Disposition, type PartialInput } from "./partial-prefill";
 import { ACTION_LABEL, ACTION_TONE, LEVEL_LABEL, LEVEL_TONE, type DockActionKind } from "./labels";
 import { AuditBlock } from "./AuditBlock";
-import { auditBlockView, type AuditDto } from "./audit-view";
+import { auditBlockView } from "./audit-view";
 import { texts } from "../texts";
 
 const STATE_LABEL: Record<ProposalDetailDto["state"], string> = texts.proposalPanel.state;

@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProposalPanel } from "./ProposalPanel";
 import type { ProposalDetailDto } from "../api/approval";
-import type { AuditDto } from "./audit-view";
+import type { AuditDto } from "../api/approval";
 
 // #134 A decisão pela ação no recebimento: Receber, Receber parcial e Recusar.
 
@@ -262,7 +262,7 @@ const follows = (a: HTMLElement, b: HTMLElement) => Boolean(a.compareDocumentPos
 
 describe("#231 bloco Agente auditor no painel", () => {
   it("#231/AC-2 auditada: o bloco vem depois das Evidências e antes do Dossiê do Claude", () => {
-    render(<ProposalPanel proposal={proposal({ kind: "receber" })} audit={AUDITED} />);
+    render(<ProposalPanel proposal={proposal({ kind: "receber" }, { audit: AUDITED })} />);
     const block = screen.getByRole("region", { name: "Agente auditor" });
     expect(screen.getByText("Discorda: classifica como E2, não E4")).toBeTruthy();
     expect(follows(screen.getByText("Evidência por divergência"), block)).toBe(true);
@@ -270,23 +270,23 @@ describe("#231 bloco Agente auditor no painel", () => {
   });
 
   it("#231/AC-2 com os itens do receber parcial, o bloco vem depois deles", () => {
-    const p = proposal({ kind: "receber_parcial", lines: [{ sku: "SKU-1", quantity: { amount: 3, unit: "UN" }, disposition: "segurar" }] });
-    render(<ProposalPanel proposal={p} audit={AUDITED} />);
+    const p = proposal({ kind: "receber_parcial", lines: [{ sku: "SKU-1", quantity: { amount: 3, unit: "UN" }, disposition: "segurar" }] }, { audit: AUDITED });
+    render(<ProposalPanel proposal={p} />);
     expect(follows(screen.getByText("Itens do recebimento parcial"), screen.getByRole("region", { name: "Agente auditor" }))).toBe(true);
   });
 
   it("#231/AC-5 não auditada: o bloco diz o motivo", () => {
-    render(<ProposalPanel proposal={proposal({ kind: "receber" })} audit={{ status: "nao_auditada", reason: "erro_de_tool", refusals: [] }} />);
+    render(<ProposalPanel proposal={proposal({ kind: "receber" }, { audit: { status: "nao_auditada", reason: "erro_de_tool", refusals: [] } })} />);
     expect(screen.getByText("Não auditada")).toBeTruthy();
     expect(screen.getByText("Uma ferramenta falhou durante a auditoria.")).toBeTruthy();
   });
 
   it("#231/AC-5 auditoria nula: o bloco diz que está pendente", () => {
-    render(<ProposalPanel proposal={proposal({ kind: "receber" })} audit={null} />);
+    render(<ProposalPanel proposal={proposal({ kind: "receber" }, { audit: null })} />);
     expect(screen.getByText("Auditoria pendente. Decida pelas evidências da conferência.")).toBeTruthy();
   });
 
-  it("#231 sem auditoria informada, o bloco não aparece e o resto do painel segue igual", () => {
+  it("#231 sem o campo audit na proposta, o bloco não aparece e o resto do painel segue igual", () => {
     render(<ProposalPanel proposal={proposal({ kind: "receber" })} />);
     expect(screen.queryByText("Agente auditor")).toBeNull();
     expect(screen.getByText("Dossiê do Claude")).toBeTruthy();
