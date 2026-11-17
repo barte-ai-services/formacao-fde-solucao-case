@@ -1,11 +1,11 @@
 import type { AuditDto } from "../api/approval";
-import type { Classification } from "../api/contract";
+import type { Classification, ProposalState } from "../api/contract";
 import type { AuditBlockView } from "./AuditBlock";
 import { ACTION_LABEL, LEVEL_LABEL, type DockActionKind } from "./labels";
 import { texts } from "../texts";
 
-/** #231 Os valores da própria proposta, de onde vem o "não X" do veredito. */
-export type AuditProposal = { classification: Classification; dockAction: { kind: DockActionKind } };
+/** #231 Os valores da própria proposta, de onde vem o "não X" do veredito. #264 O estado diz se a ação ainda é a da regra. */
+export type AuditProposal = { classification: Classification; dockAction: { kind: DockActionKind }; state: ProposalState };
 
 const CLOCK = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "America/Sao_Paulo" });
 /** #231 "14:32": a hora de Brasília, onde a Já Chegou paga. */
@@ -18,6 +18,8 @@ const ORDER: readonly Field[] = ["classification", "dockAction", "routing"];
 function phrase(field: Field, audit: Extract<AuditDto, { status: "auditada" }>, proposal: AuditProposal): string {
   const t = texts.auditor.differs;
   if (field === "classification") return t.classification(audit.classification, proposal.classification);
+  // #264 Alterada: a ação atual é a da pessoa, não a da regra que o auditor comparou; o "não X" seria falso.
+  if (field === "dockAction" && proposal.state === "alterada") return t.dockActionAltered(ACTION_LABEL[audit.dockAction.kind]);
   if (field === "dockAction") return t.dockAction(ACTION_LABEL[audit.dockAction.kind], ACTION_LABEL[proposal.dockAction.kind]);
   return t.routing(LEVEL_LABEL[audit.routing]);
 }

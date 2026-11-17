@@ -457,6 +457,7 @@ export const texts = {
     differs: {
       classification: (auditor: string, proposed: string) => `classifica como ${auditor}, não ${proposed}`,
       dockAction: (auditor: string, proposed: string) => `ação na doca: ${auditor}, não ${proposed}`,
+      dockActionAltered: (auditor: string) => `ação na doca: ${auditor}`,
       routing: (level: string) => `encaminha para ${level}`,
     },
     raisedTo: (level: string) => `A proposta subiu para ${level}.`,

@@ -4,7 +4,7 @@ import { auditBlockView } from "./audit-view";
 
 // #231 A derivação da auditoria da API no modelo de visão do bloco, um teste por estado do wireframe.
 
-const proposal = { classification: "E4", dockAction: { kind: "receber" } } as const;
+const proposal = { classification: "E4", dockAction: { kind: "receber" }, state: "aguardando_aprovacao" } as const;
 const JUSTIFICATION = "A ordem de compra confirma a quantidade da nota.\nO preço bate com o pedido.";
 
 const audited = (over: Partial<Extract<AuditDto, { status: "auditada" }>> = {}): AuditDto => ({
@@ -23,7 +23,7 @@ const audited = (over: Partial<Extract<AuditDto, { status: "auditada" }>> = {}):
   ...over,
 });
 const differs = (...fields: ("classification" | "dockAction" | "routing")[]) => ({ agreement: { agrees: false, differs: fields } }) as const;
-const view = (audit: AuditDto | null) => auditBlockView(audit, proposal);
+const view = (audit: AuditDto | null, state: "aguardando_aprovacao" | "alterada" = proposal.state) => auditBlockView(audit, { ...proposal, state });
 
 describe("#231 auditBlockView", () => {
   it("#231/AC-1 concorda: tom positivo, veredito, justificativa e rodapé em Brasília", () => {
@@ -53,6 +53,11 @@ describe("#231 auditBlockView", () => {
     expect(v).toMatchObject({
       verdict: "Discorda: classifica como E2, não E4 · ação na doca: Recusar, não Receber · encaminha para Coordenação",
     });
+  });
+
+  it("#264/AC-4 proposta alterada: a ação na doca sai sem o não X, que seria o valor já trocado", () => {
+    const v = view(audited({ dockAction: { kind: "recusar" }, ...differs("dockAction") }), "alterada");
+    expect(v).toMatchObject({ verdict: "Discorda: ação na doca: Recusar" });
   });
 
   it("#231/AC-3 subiu: a linha diz para qual nível", () => {
