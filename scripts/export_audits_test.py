@@ -4,6 +4,7 @@ Sem rede: a leitura entra por uma função injetada. O formato de saída é conf
 próprio eval/auditor.py sobre o arquivo exportado.
 """
 import contextlib
+import http.client
 import io
 import json
 import os
@@ -13,6 +14,8 @@ import sys
 import tempfile
 import unittest
 import urllib.error
+import urllib.request
+import urllib.response
 from typing import Any
 from unittest import mock
 
@@ -169,6 +172,16 @@ class ExportReadsOnlyAuditAndProposalTest(unittest.TestCase):
         self.assertIn(ea.KEY_VAR, ea.describe(caught.exception))
 
 
+    def test_non_https_url_is_refused_before_any_request(self) -> None:
+        """#264/AC-2: http:// é recusado antes de qualquer pedido."""
+        with mock.patch.object(ea._OPENER, "open") as opened:
+            with self.assertRaises(ea.ExportError) as caught:
+                ea.reader_from_env({ea.URL_VAR: "http://exemplo.invalid", ea.KEY_VAR: TEST_KEY})
+        self.assertEqual(caught.exception.operation, "config_scheme")
+        self.assertNotIn(TEST_KEY, ea.describe(caught.exception))
+        opened.assert_not_called()
+
+
 class EvalAcceptsTheExportTest(unittest.TestCase):
     def test_auditor_eval_accepts_the_exported_file(self) -> None:
         """#240/AC-1 e AC-3: o eval/auditor.py roda sobre o arquivo; sem auditoria e não auditada contam como erro."""
@@ -249,7 +262,7 @@ class ReadFailureTest(unittest.TestCase):
     def test_http_error_from_the_network_layer_becomes_a_read_error(self) -> None:
         """#240/AC-2: HTTPError 401 do urllib vira ExportError read com o status."""
         failure = urllib.error.HTTPError("https://exemplo.invalid", 401, "x", {}, None)  # type: ignore[arg-type]
-        with mock.patch("urllib.request.urlopen", side_effect=failure):
+        with mock.patch.object(ea._OPENER, "open", side_effect=failure):
             with self.assertRaises(ea.ExportError) as caught:
                 reader_with().read_all("invoice_audits", "id")
         self.assertEqual((caught.exception.operation, caught.exception.status), ("read", 401))
@@ -257,10 +270,57 @@ class ReadFailureTest(unittest.TestCase):
 
     def test_unreachable_server_becomes_a_network_error(self) -> None:
         """#240/AC-2: URLError vira ExportError network, sem o texto do erro."""
-        with mock.patch("urllib.request.urlopen", side_effect=urllib.error.URLError("segredo")):
+        with mock.patch.object(ea._OPENER, "open", side_effect=urllib.error.URLError("segredo")):
             with self.assertRaises(ea.ExportError) as caught:
                 reader_with().read_all("invoice_audits", "id")
         self.assertEqual(caught.exception.operation, "network")
+        self.assertNotIn("segredo", ea.describe(caught.exception))
+
+    def test_redirect_becomes_a_read_error_without_a_second_request(self) -> None:
+        """#264/AC-1: um 302 vira ExportError read com o status e o segundo pedido não é aberto."""
+        opened: list[str] = []
+
+        class Seen(urllib.request.BaseHandler):
+            handler_order = 100
+
+            def http_open(self, request: urllib.request.Request) -> Any:
+                opened.append(request.full_url)
+                headers = http.client.HTTPMessage()
+                headers["Location"] = "http://outro.invalid/rest/v1/x"
+                response = urllib.response.addinfourl(io.BytesIO(b""), headers, request.full_url, 302)
+                response.msg = "Found"  # type: ignore[attr-defined]
+                return response
+
+            https_open = http_open
+
+        opener = urllib.request.build_opener(ea._NoRedirect, Seen)
+        with mock.patch.object(ea, "_OPENER", opener):
+            with self.assertRaises(ea.ExportError) as caught:
+                reader_with().read_all("invoice_audits", "id")
+        self.assertEqual((caught.exception.operation, caught.exception.status), ("read", 302))
+        self.assertEqual(len(opened), 1)
+        self.assertNotIn(TEST_KEY, ea.describe(caught.exception))
+
+    def test_timeout_becomes_a_network_error(self) -> None:
+        """#264/AC-3: TimeoutError (OSError) vira ExportError network, sem o texto do erro."""
+        with mock.patch.object(ea._OPENER, "open", side_effect=TimeoutError("segredo")):
+            with self.assertRaises(ea.ExportError) as caught:
+                reader_with().read_all("invoice_audits", "id")
+        self.assertEqual(caught.exception.operation, "network")
+        self.assertNotIn("segredo", ea.describe(caught.exception))
+
+    def test_http_protocol_error_becomes_a_network_error(self) -> None:
+        """#264/AC-3: HTTPException vira ExportError network."""
+        with mock.patch.object(ea._OPENER, "open", side_effect=http.client.IncompleteRead(b"x")):
+            with self.assertRaises(ea.ExportError) as caught:
+                reader_with().read_all("invoice_audits", "id")
+        self.assertEqual(caught.exception.operation, "network")
+
+    def test_body_that_is_not_json_becomes_a_payload_error(self) -> None:
+        """#264/AC-3: um 200 com HTML vira ExportError payload, sem o corpo."""
+        with self.assertRaises(ea.ExportError) as caught:
+            reader_with(lambda path, start: (200, b"<html>segredo")).read_all("invoice_audits", "id")
+        self.assertEqual((caught.exception.operation, caught.exception.table), ("payload", "invoice_audits"))
         self.assertNotIn("segredo", ea.describe(caught.exception))
 
     def test_main_prints_the_fixed_line_and_writes_no_file(self) -> None:

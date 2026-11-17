@@ -11,6 +11,7 @@ recente. Nota sem nenhuma linha de auditoria fica fora do arquivo; o eval a cont
 Variáveis: BARTE_ACADEMY_SUPABASE_URL e BARTE_ACADEMY_SUPABASE_SECRET_KEY, do ambiente ou do
 .env na raiz. Nunca imprime a chave, os cabeçalhos nem o corpo das respostas.
 """
+import http.client
 import json
 import os
 import sys
@@ -43,6 +44,8 @@ OPERATION_LABELS = {
     "pagination": "paginação sem fim: o servidor ignorou o Range",
     "table": "tabela fora da exportação",
     "proposal": "auditoria sem proposta da regra",
+    "config_scheme": "a URL do Supabase precisa ser https",
+    "payload": "resposta fora do formato",
     "config": f"defina {URL_VAR} e {KEY_VAR}",
 }
 
@@ -67,6 +70,17 @@ def describe(error: ExportError) -> str:
     return ", ".join(parts)
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Não segue redirecionamento: o urllib copiaria apikey e Authorization para o novo host (#264)."""
+
+    def redirect_request(self, *args: Any, **kwargs: Any) -> None:
+        return None
+
+
+# Um 3xx sobe como HTTPError e vira ExportError("read", tabela, status) (#264).
+_OPENER = urllib.request.build_opener(_NoRedirect)
+
+
 def rest_url(url: str) -> str:
     return url.rstrip("/") + "/rest/v1/"
 
@@ -85,11 +99,11 @@ class Reader:
         request = urllib.request.Request(self.base + path, method="GET", headers=headers)
         table = path.split("?")[0]
         try:
-            with urllib.request.urlopen(request, timeout=60) as response:
+            with _OPENER.open(request, timeout=60) as response:
                 return response.status, response.read()
         except urllib.error.HTTPError as error:
             return error.code, b""
-        except urllib.error.URLError:
+        except (urllib.error.URLError, http.client.HTTPException, OSError):
             raise ExportError("network", table=table) from None
 
     def read_all(self, table: str, order: str) -> list[Row]:
@@ -104,7 +118,10 @@ class Reader:
             status, body = self._get(path, start)
             if status >= 300:
                 raise ExportError("read", table, status)
-            page = json.loads(body)
+            try:
+                page = json.loads(body)
+            except ValueError:
+                raise ExportError("payload", table, status) from None
             if not page:
                 return rows
             if len(page) > PAGE_SIZE or page == previous:
@@ -201,6 +218,8 @@ def reader_from_env(env: Mapping[str, str]) -> Reader:
     url, key = env.get(URL_VAR), env.get(KEY_VAR)
     if not url or not key:
         raise ExportError("config")
+    if urllib.parse.urlsplit(url).scheme != "https":
+        raise ExportError("config_scheme")
     return Reader(url, key)
 
 
