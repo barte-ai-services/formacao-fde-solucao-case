@@ -16,6 +16,7 @@ import unittest
 import urllib.error
 import urllib.request
 import urllib.response
+from collections.abc import Callable
 from typing import Any
 from unittest import mock
 
@@ -324,8 +325,7 @@ class PaginationTest(unittest.TestCase):
 TEST_KEY = "chave-de-teste-secreta"
 
 
-# Any: cada teste passa o dublê de _get com a assinatura que precisa (#240).
-def reader_with(get: Any = None) -> ea.Reader:
+def reader_with(get: Callable[[str, int], tuple[int, bytes]] | None = None) -> ea.Reader:
     """Um Reader de teste; `get` troca o _get, para a página vir de onde o teste quiser."""
     reader = ea.Reader("https://exemplo.invalid", TEST_KEY)
     if get is not None:
