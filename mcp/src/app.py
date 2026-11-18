@@ -7,6 +7,7 @@ from typing import Optional
 
 from api_client import ApiClient
 from errors import Log
+import resources
 from json_types import JsonObject
 from protocol import HttpRequest, HttpResponse, Server, ServerInfo, Settings
 from tools import UNTRUSTED_TEXT_NOTICE, create_tools
@@ -15,12 +16,15 @@ INFO = ServerInfo(
     "formacao-fde-solucao-case-mcp",
     "0.1.0",
     "Fila de aprovação da Já Chegou, para o analista decidir. Todo número vem destas tools, nunca do texto. "
+    "Para mostrar a fila na tela, chame open_approval_app. "
     "Só chame decide_proposal quando a pessoa pedir, e não contorne uma recusa. " + UNTRUSTED_TEXT_NOTICE,
 )
 
 
 def create_server(settings: Settings = Settings()) -> Server:
-    return Server(INFO, create_tools(), settings)
+    server = Server(INFO, create_tools(), settings)
+    resources.register(server)
+    return server
 
 
 def log_to_console(fields: JsonObject) -> None:

@@ -122,12 +122,12 @@ class LockedDependenciesTest(unittest.TestCase):
     def lock_packages(self) -> JsonObject:
         return json.loads((MCP_DIR / "package-lock.json").read_text(encoding="utf-8"))["packages"]
 
-    def test_ac7_o_wrangler_e_a_unica_dependencia_e_tem_versao_exata(self) -> None:  # ADR-002
-        """#272/AC-7 e SUP-1"""
+    def test_ac7_so_o_wrangler_e_o_jsdom_do_teste_da_tela_sao_dependencias_e_tem_versao_exata(self) -> None:  # ADR-002
+        """#272/AC-7 e SUP-1; #274: o jsdom roda o teste da tela (mcp/ui), nunca o Worker."""
         package = self.package()
         self.assertEqual(self.lock_packages()[""]["devDependencies"], package["devDependencies"])
         self.assertTrue(package["private"])
-        self.assertEqual(package["devDependencies"], {"wrangler": "4.156.0"})
+        self.assertEqual(package["devDependencies"], {"jsdom": "31.0.1", "wrangler": "4.156.0"})
         self.assertNotIn("dependencies", package)
 
     def test_ac7_o_lockfile_trava_a_arvore_inteira_com_integridade(self) -> None:  # ADR-002

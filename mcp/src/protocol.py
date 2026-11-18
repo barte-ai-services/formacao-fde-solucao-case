@@ -1,7 +1,8 @@
 """O protocolo MCP à mão: JSON-RPC 2.0 por Streamable HTTP, sem estado, em POST /mcp, respondendo application/json.
 
-O despacho é uma tabela de métodos (`Server.methods`): o plano 2 (#274) acrescenta `resources/list`,
-`resources/read` e uma tool com `_meta.ui.resourceUri` (MCP Apps) registrando na tabela, sem reescrever o despacho."""
+O despacho é uma tabela de métodos (`Server.methods`): o plano 2 (#274) acrescenta `resources/list` e
+`resources/read` (resources.py) e uma tool com `_meta.ui.resourceUri` (MCP Apps) registrando na tabela, sem reescrever
+o despacho."""
 
 from __future__ import annotations
 
@@ -11,7 +12,7 @@ from types import MappingProxyType
 from typing import Awaitable, Callable, Mapping, Optional, Sequence
 
 from api_client import ApiClient, Context
-from errors import InvalidParams, Log, ToolError, generic_failure, session_expired
+from errors import InvalidParams, Log, ResourceNotFound, ToolError, generic_failure, session_expired
 from json_types import JsonObject, JsonValue
 from tools import Tool
 
@@ -22,6 +23,7 @@ PARSE_ERROR = -32700
 INVALID_REQUEST = -32600
 METHOD_NOT_FOUND = -32601
 INVALID_PARAMS = -32602
+RESOURCE_NOT_FOUND = -32002  # #274 do MCP (resources/read de uma URI que o servidor não serve)
 INTERNAL_ERROR = -32603
 
 
@@ -132,6 +134,8 @@ class Server:
             result = await method(MethodCall(self, MappingProxyType(params), ctx))
         except InvalidParams as e:
             return _rpc_error(id_, INVALID_PARAMS, str(e) or "Parâmetros inválidos")
+        except ResourceNotFound:
+            return _rpc_error(id_, RESOURCE_NOT_FOUND, "Recurso não encontrado")
         except Exception as e:
             generic_failure(ctx.log, f"rpc:{name}", exception=type(e).__name__)
             return _rpc_error(id_, INTERNAL_ERROR, "Erro interno")
@@ -158,7 +162,7 @@ async def _initialize(call: MethodCall) -> JsonObject:
     version = requested if requested in SUPPORTED_VERSIONS else SUPPORTED_VERSIONS[0]
     result: JsonObject = {
         "protocolVersion": version,
-        "capabilities": {"tools": {"listChanged": False}},
+        "capabilities": {"tools": {"listChanged": False}, "resources": {"listChanged": False, "subscribe": False}},
         "serverInfo": {"name": server.info.name, "version": server.info.version},
     }
     if server.info.instructions:
@@ -196,15 +200,17 @@ async def _tools_call(call: MethodCall) -> JsonObject:
     try:
         if tool.requires_session and not (ctx.jwt or "").strip():
             raise session_expired()
-        return _result(await tool.execute(arguments, ctx))
+        return _result(await tool.execute(arguments, ctx), tool)
     except ToolError as e:
         return _error_result(e)
     except Exception as e:
         return _error_result(generic_failure(ctx.log, tool.name, exception=type(e).__name__))
 
 
-def _result(output: JsonObject) -> JsonObject:
-    return {"content": [{"type": "text", "text": json.dumps(output, ensure_ascii=False)}], "structuredContent": output, "isError": False}
+def _result(output: JsonObject, tool: Tool) -> JsonObject:
+    """O texto do resultado é o JSON da saída, salvo na tool que traz o seu (a que abre o MCP App, #274)."""
+    text = tool.summarize(output) if tool.summarize else json.dumps(output, ensure_ascii=False)
+    return {"content": [{"type": "text", "text": text}], "structuredContent": output, "isError": False}
 
 
 def _error_result(error: ToolError) -> JsonObject:

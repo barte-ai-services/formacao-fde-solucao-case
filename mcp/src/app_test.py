@@ -16,8 +16,8 @@ class HandleTest(unittest.IsolatedAsyncioTestCase):
         response = await app.handle(HttpRequest("POST", "/mcp", body, JWT, content_type="application/json"), FakeApi(), lambda fields: None)
         self.assertEqual(json.loads(response.body or ""), {"jsonrpc": "2.0", "id": 1, "result": {}})
 
-    async def test_o_servidor_traz_as_tres_tools_de_dados(self) -> None:  # ADR-002
-        self.assertEqual(set(app.create_server().tools), {"list_approval_queue", "get_proposal", "decide_proposal"})
+    async def test_o_servidor_traz_as_tres_tools_de_dados_e_a_que_abre_a_tela(self) -> None:  # ADR-002
+        self.assertEqual(set(app.create_server().tools), {"list_approval_queue", "get_proposal", "decide_proposal", "open_approval_app"})
 
 
 class ParseAllowedOriginsTest(unittest.TestCase):

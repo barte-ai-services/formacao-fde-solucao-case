@@ -32,6 +32,13 @@ def _money(value: JsonValue) -> Optional[JsonObject]:
     return {"cents": value.get("cents"), "text": value.get("text")}
 
 
+def money_text(cents: int) -> str:
+    """Centavos como o texto da API (R$ 84.310,20): agrupa os milhares com ponto e separa os centavos com vírgula."""
+    reais, rest = divmod(abs(cents), 100)
+    sign = "-" if cents < 0 else ""
+    return f"{sign}R$ {reais:,}".replace(",", ".") + f",{rest:02d}"
+
+
 def hour_in_sao_paulo(moment: JsonValue) -> Optional[str]:
     """Um instante ISO 8601 como 10h12, no horário de Brasília. Nulo se não for um instante com hora: um valor
     só com a data (#272/AC-5) não diz a que horas foi, e converter a meia-noite daria a hora de outro dia."""
@@ -78,8 +85,18 @@ def queue(
     if not isinstance(approver, dict) or not isinstance(items, list):
         raise ValueError("fila fora do contrato")
     output = []
+    waiting_count = 0
+    waiting_cents = 0
     for line in items:
         item = queue_item(line)
+        if item["can_decide"]:
+            # #274 o cabeçalho "N propostas esperando você · R$ X em risco" é desta tool: a tela não conta nem soma;
+            # vale para toda a fila da pessoa, qualquer que seja o escopo ou o filtro da listagem (#274).
+            cents = (item["amount_at_risk"] or {}).get("cents")
+            if not isinstance(cents, int) or isinstance(cents, bool):
+                raise ValueError("valor em risco fora do contrato")
+            waiting_count += 1
+            waiting_cents += cents
         if scope == "mine" and not item["can_decide"]:
             continue
         if classifications is not None and item["classification"] not in classifications:
@@ -87,7 +104,11 @@ def queue(
         if levels is not None and item["level"] not in levels:
             continue
         output.append(item)
-    return {"approver": {"email": approver.get("email"), "level": approver.get("level")}, "items": output}
+    return {
+        "approver": {"email": approver.get("email"), "level": approver.get("level")},
+        "items": output,
+        "waiting_for_you": {"count": waiting_count, "amount_at_risk": {"cents": waiting_cents, "text": money_text(waiting_cents)}},
+    }
 
 
 def _dock_action(action: JsonValue) -> Optional[JsonObject]:
@@ -127,6 +148,7 @@ def approval(raw: JsonValue, decision: Optional[str], decided_at: Optional[str])
         "approver": raw.get("approver"),
         "approver_level": raw.get("approverLevel"),
         "decided_at": decided_at or raw.get("decidedOn"),
+        "decided_hour": hour_in_sao_paulo(decided_at or raw.get("decidedOn")),  # #274 nulo quando só há o dia
         "decision": decision,
         "dock_action": _dock_action(raw.get("dockAction")),
         "justification": raw.get("justification"),
@@ -166,6 +188,8 @@ def _engine(engine: JsonValue) -> Optional[JsonObject]:
     if not isinstance(engine, dict):
         return None
     output = {field: engine.get(field) for field in _ENGINE_FIELDS if field in engine}
+    if isinstance(engine.get("similar_cases"), list):
+        output["similar_cases_count"] = len(engine["similar_cases"])  # #274 a tela mostra a contagem, não a conta
     if "clef" in engine:
         output["clef"] = _clef(engine.get("clef"))
     return output
@@ -188,8 +212,18 @@ def _divergence(divergence: JsonObject) -> JsonObject:
         "classification": divergence.get("classification"),
         "classification_name": divergence.get("exceptionName"),
         "skus": divergence.get("skus"),
-        "evidence": divergence.get("evidence"),
+        "evidence": _divergence_evidence(divergence.get("evidence")),
     }
+
+
+def _divergence_evidence(evidence: JsonValue) -> JsonValue:
+    """A evidência da divergência (#274): campos nomeados; o que a API acrescentar não passa sem escolha."""
+    if not isinstance(evidence, list):
+        return evidence
+    return [
+        {field: item.get(field) for field in ("source", "reference", "description")} if isinstance(item, dict) else item
+        for item in evidence
+    ]
 
 
 def _evidence(evidence: JsonValue) -> Optional[list[JsonValue]]:
@@ -279,6 +313,54 @@ def _audit(audit: JsonValue) -> Optional[JsonObject]:
     }
 
 
+# #274 Porte de web/src/approval/partial-prefill.ts: só o E3 devolve, e só a diferença; as demais seguram o item inteiro.
+_RETURNS = ("E3",)
+_COUNTED = re.compile(r"^Contado (\d+(?:\.\d+)?) \S+ de (\d+(?:\.\d+)?) \S+: (.+)$")
+
+
+def _number(value: float) -> float | int:
+    return int(value) if float(value).is_integer() else value
+
+
+def _counted_difference(divergence: JsonObject, item: JsonObject, amount: float) -> float:
+    """#274: a diferença entre o esperado e o contado, citada na evidência do E3; sem evidência, a quantidade do item."""
+    for evidence in divergence.get("evidence") or []:
+        counted = _COUNTED.match(str(evidence.get("description"))) if isinstance(evidence, dict) else None
+        if counted and counted.group(3) == item.get("description"):
+            # #274 Arredonda: 1,5 - 1,2 não pode virar 0.30000000000000004 no campo.
+            return _number(round((float(counted.group(2)) - float(counted.group(1))) * 1000) / 1000)
+    return amount
+
+
+def _line_for(divergence: JsonObject, item: JsonObject, sku: str, quantity: JsonObject) -> JsonObject:
+    """#274: a linha do receber parcial para o item que a divergência cita."""
+    code = divergence.get("classification")
+    amount = quantity.get("amount")
+    if code == "E3" and isinstance(amount, (int, float)):
+        amount = _counted_difference(divergence, item, amount)
+    return {
+        "sku": sku,
+        "quantity": {"amount": amount, "unit": quantity.get("unit")},
+        "disposition": "devolver" if code in _RETURNS else "segurar",
+    }
+
+
+def _partial_lines(body: JsonObject) -> list[JsonValue]:
+    """As linhas que a regra propõe para o receber parcial (#274): o sku, a quantidade e o destino de cada item que
+    uma divergência cita. A tela só preenche a tabela com elas; quem decide o número é a tool."""
+    items = [i for i in body.get("items") or [] if isinstance(i, dict)]
+    lines: dict[str, JsonObject] = {}
+    for divergence in body.get("divergences") or []:
+        if not isinstance(divergence, dict):
+            continue
+        for sku in divergence.get("skus") or []:
+            item = next((i for i in items if (i.get("sku") or i.get("supplierCode")) == sku), None)
+            quantity = item.get("quantity") if item else None
+            if item is not None and sku not in lines and isinstance(quantity, dict):
+                lines[sku] = _line_for(divergence, item, sku, quantity)
+    return list(lines.values())
+
+
 def proposal(body: JsonValue) -> JsonObject:
     """A saída de get_proposal: a linha da fila e o que a #137 acrescenta."""
     if not isinstance(body, dict):
@@ -295,6 +377,7 @@ def proposal(body: JsonValue) -> JsonObject:
             "justification": body.get("justification"),
             "items": [_invoice_item(i) for i in body.get("items") or [] if isinstance(i, dict)],
             "divergences": [_divergence(d) for d in body.get("divergences") or [] if isinstance(d, dict)],
+            "proposed_partial_lines": _partial_lines(body),
             "title": {"state": title.get("state"), "amount": _money(title.get("amount")), "due_on": title.get("dueOn")},
             "approval": approval(body.get("approval"), _DECISION_BY_STATE.get(str(body.get("state"))), decision_moment(body)),
             "dossier": _dossier(dossier),

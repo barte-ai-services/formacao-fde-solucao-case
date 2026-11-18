@@ -188,7 +188,7 @@ class JsonRpcErrorsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self.code({"jsonrpc": "2.0", "method": "ping", "id": True}), -32600)
 
     async def test_metodo_desconhecido_e_32601(self) -> None:  # ADR-002
-        self.assertEqual(await self.code(rpc("resources/list")), -32601)
+        self.assertEqual(await self.code(rpc("prompts/list")), -32601)
 
     async def test_parametros_invalidos_sao_32602(self) -> None:  # ADR-002
         self.assertEqual(await self.code(rpc("tools/call", {"arguments": {}})), -32602)
