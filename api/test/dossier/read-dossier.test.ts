@@ -96,6 +96,21 @@ describe('readDossier, com a NF-004 da base do kit', () => {
     expect(result).not.toHaveProperty('mismatch');
   });
 
+  it('#313/AC-6 contagem de itens por extenso que não bate com a nota registra item_count_mismatch com a quantidade do banco', async () => {
+    const log = vi.fn();
+    const { invoice } = await kitCase();
+    const real = invoice.items.length;
+    const wrong = real === 2 ? 'três' : 'dois';
+    await read([row({ output: { ...kitGoodRaw(), summary: `A nota tem ${wrong} itens.` } })], undefined, log);
+    expect(log).toHaveBeenCalledWith('dossier-number-mismatch', {
+      invoiceAccessKey: KIT_ACCESS_KEY,
+      check: 'item_count_mismatch',
+      field: 'summary',
+      cited: wrong,
+      bank: String(real),
+    });
+  });
+
   it('#296/AC-1 sem log informado, o padrão é o console.warn', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     try {
