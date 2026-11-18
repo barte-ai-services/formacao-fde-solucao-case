@@ -140,6 +140,37 @@ class MeasurementTest(unittest.TestCase):
         self.assertAlmostEqual(vb["total"]["agent_full"], 1.0)
         self.assertAlmostEqual(vb["total"]["rule_full"], 1 / 3)
 
+    def test_note_without_rule_is_left_out_of_the_rule_comparison(self) -> None:
+        """#262/AC-2: sem `rule`, a nota sai da comparação com a regra nos dois lados e é contada; o agente não muda."""
+        with_rule = self.measure(all_correct())
+        lines = all_correct()
+        del lines[1]["rule"]  # K2, a E6: a regra errava essa nota
+        r = self.measure(lines)
+        self.assertEqual(r["notes_without_rule"], 1)
+        self.assertEqual(with_rule["notes_without_rule"], 0)
+        self.assertEqual(r["full_match_rate"], with_rule["full_match_rate"])
+        self.assertEqual(r["by_exception"], with_rule["by_exception"])
+        vb = r["vs_baseline"]
+        self.assertIsNone(vb["by_exception"]["E6"]["agent_full"])
+        self.assertIsNone(vb["by_exception"]["E6"]["rule_full"])
+        self.assertEqual(vb["total"]["agent_full"], 1.0)
+        self.assertAlmostEqual(vb["total"]["rule_full"], 1 / 2)
+
+    def test_note_without_rule_is_not_an_error_and_counts_in_the_report(self) -> None:
+        """#262/AC-2: a nota sem `rule` não entra em errors[]; o Markdown diz quantas ficaram fora da comparação."""
+        lines = all_correct()
+        del lines[0]["rule"]
+        r = self.measure(lines)
+        self.assertEqual(r["errors"], [])
+        r["run_id"] = "x"
+        self.assertIn("1 nota(s) sem `rule`", auditor.markdown_report(r, None))
+
+    def test_rule_null_counts_as_missing(self) -> None:
+        """#262/AC-2: `rule: null` vale como ausente."""
+        lines = all_correct()
+        lines[0]["rule"] = None
+        self.assertEqual(self.measure(lines)["notes_without_rule"], 1)
+
     def test_ac6_without_refusals_in_file_metrics_are_not_measured(self) -> None:
         """#239/AC-6: sem `refusals` no arquivo, as duas métricas são null, nunca 0."""
         r = self.measure(all_correct())
@@ -356,11 +387,11 @@ class MalformedInputTest(unittest.TestCase):
         self.assert_invalid(self.exit_of(self.with_field(not_audited={})))
         self.assert_invalid(self.exit_of(self.with_field(not_audited={"reason": 5, "x": self.SENTINEL})))
 
-    def test_ac1_rule_missing_exits_two(self) -> None:
-        """#239/AC-1: linha sem `rule` sai 2."""
+    def test_rule_missing_is_accepted(self) -> None:
+        """#262/AC-2: linha sem `rule` é entrada válida: a nota fica fora da comparação com a regra."""
         lines = all_correct()
         del lines[0]["rule"]
-        self.assert_invalid(self.exit_of(lines))
+        self.assertEqual(self.exit_of(lines)[0], 0)
 
     def test_ac1_rule_not_an_object_exits_two(self) -> None:
         """#239/AC-1: `rule` que não é objeto sai 2."""

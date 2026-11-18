@@ -8,6 +8,9 @@ banco. A transformação (linhas do banco -> linhas do JSONL) é pura e não toc
 Uma nota entra com a leitura corrente da auditoria: a auditoria feita, ou a tentativa mais
 recente. Nota sem nenhuma linha de auditoria fica fora do arquivo; o eval a conta como erro.
 
+A proposta `alterada` guarda a edição da pessoa, e a original não fica em lugar nenhum: essa nota sai
+sem `rule` e o eval a deixa fora da comparação com a regra (#262). A saída conta quantas ficaram assim.
+
 Variáveis: BARTE_ACADEMY_SUPABASE_URL e BARTE_ACADEMY_SUPABASE_SECRET_KEY, do ambiente ou do
 .env na raiz. Nunca imprime a chave, os cabeçalhos nem o corpo das respostas.
 """
@@ -37,6 +40,9 @@ PROPOSALS_TABLE = "proposals"
 READABLE_TABLES = (AUDITS_TABLE, PROPOSALS_TABLE)
 PAGE_SIZE = 1000
 AUDITED = "audited"
+# Estados da proposta em que a linha guarda a edição da pessoa, não a proposta da regra (#262).
+# A proposta alterada sobrescreve a original no banco e nenhuma tabela guarda a anterior.
+EDITED_STATES = frozenset({"alterada"})
 
 OPERATION_LABELS = {
     "read": "falha ao ler",
@@ -153,6 +159,12 @@ def _rule(audit: Row, proposal: Row) -> Row:
     return {"classification": proposal["classification"], "dock_action": _kind(proposal["dock_action"]), "routing": level}
 
 
+def _rule_is_readable(proposal: Row) -> bool:
+    """A proposta ainda é a da regra: o estado é lido e não é de edição da pessoa (#262). Sem estado, não é."""
+    state = proposal.get("state")
+    return state is not None and state not in EDITED_STATES
+
+
 def _line(audit: Row, proposal: Row) -> Row:
     line: Row = {"invoice_access_key": audit["invoice_access_key"]}
     if audit["status"] == AUDITED:
@@ -168,7 +180,8 @@ def _line(audit: Row, proposal: Row) -> Row:
         )
     else:
         line["not_audited"] = {"reason": audit["reason"]}
-    line["rule"] = _rule(audit, proposal)
+    if _rule_is_readable(proposal):
+        line["rule"] = _rule(audit, proposal)
     line["refusals"] = list(audit.get("refusals") or [])
     return line
 
@@ -183,6 +196,11 @@ def build_lines(audits: list[Row], proposals: list[Row]) -> list[Row]:
             raise ExportError("proposal", table=PROPOSALS_TABLE)
         lines.append(_line(current[key], by_note[key]))
     return lines
+
+
+def without_rule(lines: list[Row]) -> int:
+    """Quantas linhas saíram sem `rule`: só a contagem (#262)."""
+    return sum(1 for line in lines if "rule" not in line)
 
 
 def export(read_table: ReadTable) -> list[Row]:
@@ -233,7 +251,8 @@ def main(argv: list[str] | None = None, reader: ReadTable | None = None) -> int:
     except ExportError as error:
         print(f"erro: {describe(error)}", file=sys.stderr)
         return 1
-    print(f"{len(lines)} auditorias exportadas; nota sem auditoria fica fora do arquivo")
+    print(f"{len(lines)} auditorias exportadas, {without_rule(lines)} sem rule (proposta alterada pela pessoa); "
+          "nota sem auditoria fica fora do arquivo")
     return 0
 
 
