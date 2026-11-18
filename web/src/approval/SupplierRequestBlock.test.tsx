@@ -162,14 +162,14 @@ describe("#3 bloco Pedido ao fornecedor: um estado por vez", () => {
     expect(button("Emitindo e enviando…").disabled).toBe(true);
     expect(button("Descartar").disabled).toBe(true);
     expect(button("Editar").disabled).toBe(true);
-    expect(block().getAttribute("aria-busy")).toBe("true");
+    expect(block().parentElement?.getAttribute("aria-busy") ?? null).toBe("true");
   });
 
   it("#3/AC-4: o erro da ação aparece no topo do bloco e os botões seguem habilitados", () => {
     setup(draft, { error: "Você não tem permissão para esta ação." });
     expect(within(block()).getByText("Você não tem permissão para esta ação.")).toBeTruthy();
     expect(button("Emitir e enviar").disabled).toBe(false);
-    expect(block().getAttribute("aria-busy")).not.toBe("true");
+    expect(block().parentElement?.getAttribute("aria-busy") ?? null).not.toBe("true");
   });
 
   it("#3/AC-5: envio falho mostra o motivo e Tentar enviar de novo, sem Descartar nem Editar", () => {
