@@ -220,14 +220,14 @@ describe('verifyAndRender', () => {
   });
 
   it('#296/AC-1 o cited é cortado em 64 caracteres e nunca leva o texto inteiro', () => {
-    const longo = '9'.repeat(100);
-    const solto = render(withText('summary', `Faltaram ${longo} caixas de arroz.`));
-    const chave = render(withText('summary', `A nota cobra {{${'k'.repeat(100)}}}.`));
-    expect(solto).toMatchObject({ mismatch: { cited: '9'.repeat(64) } });
-    expect(chave).toMatchObject({ mismatch: { check: 'unknown_key', cited: 'k'.repeat(64) } });
+    const longToken = '9'.repeat(100);
+    const loose = render(withText('summary', `Faltaram ${longToken} caixas de arroz.`));
+    const unknownKey = render(withText('summary', `A nota cobra {{${'k'.repeat(100)}}}.`));
+    expect(loose).toMatchObject({ mismatch: { cited: '9'.repeat(64) } });
+    expect(unknownKey).toMatchObject({ mismatch: { check: 'unknown_key', cited: 'k'.repeat(64) } });
   });
 
-  it('#296/AC-2 o dossiê pronto não traz mismatch', () => {
+  it('#296/AC-3 o dossiê pronto não traz mismatch', () => {
     expect(render(goodRaw())).not.toHaveProperty('mismatch');
   });
 

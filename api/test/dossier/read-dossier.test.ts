@@ -77,7 +77,7 @@ describe('readDossier, com a NF-004 da base do kit', () => {
     expect(result).toEqual({ status: 'unavailable', reason: 'number_mismatch', generatedAt: GERADO });
   });
 
-  it('#296/AC-3 número errado registra uma linha estruturada só com a verificação, o campo, o token e o banco', async () => {
+  it('#296/AC-1 #296/AC-2 #296/AC-3 número errado registra uma linha estruturada só com a verificação, o campo, o token e o banco', async () => {
     const summary = 'Faltaram 22 litros, R$ 107,58.';
     const log = vi.fn();
     const { result } = await read([row({ output: { ...kitGoodRaw(), summary } })], undefined, log);
@@ -96,7 +96,7 @@ describe('readDossier, com a NF-004 da base do kit', () => {
     expect(result).not.toHaveProperty('mismatch');
   });
 
-  it('#296/AC-3 sem log informado, o padrão é o console.warn', async () => {
+  it('#296/AC-1 sem log informado, o padrão é o console.warn', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     try {
       const { invoice, ctx } = await kitCase();
@@ -112,7 +112,7 @@ describe('readDossier, com a NF-004 da base do kit', () => {
     }
   });
 
-  it('#296/AC-3 dossiê pronto e sugestão com erro não registram nada', async () => {
+  it('#296/AC-1 dossiê pronto e sugestão com erro não registram nada', async () => {
     const log = vi.fn();
     await read([row()], undefined, log);
     await read([row({ status: 'error', output: null, model: null, error: 'timeout' })], undefined, log);

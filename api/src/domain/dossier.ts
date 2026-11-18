@@ -79,12 +79,12 @@ export type DossierMismatchCheck = 'loose_number' | 'spelled_number' | 'unknown_
 /** #296: o detalhe de um `number_mismatch`, para o log. Nunca vai à resposta da API nem à tela. */
 export type DossierMismatch = {
   readonly check: DossierMismatchCheck;
-  /** Onde, na saída do Claude: `summary`, `supplier_history`, `divergences[i].what_diverges`, `.evidence` ou `.classification`. */
+  /** #296: onde, na saída do Claude: `summary`, `supplier_history`, `divergences[i].what_diverges`, `.evidence` ou `.classification`. */
   readonly field: string;
-  /** O token ou a chave que derrubou, cortado em `MAX_CITED_LENGTH` caracteres; nunca o texto inteiro. */
+  /** #296: o token ou a chave que derrubou, cortado em `MAX_CITED_LENGTH` caracteres; nunca o texto inteiro. */
   readonly cited: string;
   /**
-   * O que o banco tem para comparar: as classificações reais da nota, separadas por vírgula, em
+   * #296: o que o banco tem para comparar: as classificações reais da nota, separadas por vírgula, em
    * `unknown_classification`. `null` quando o banco não tem valor correspondente: um número solto
    * ou por extenso não está ligado a chave nenhuma, e uma chave desconhecida não existe no catálogo.
    */
