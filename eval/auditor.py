@@ -443,8 +443,21 @@ def _run(args: argparse.Namespace, now: datetime) -> tuple[Record, str]:
 
 def _complain(message: str) -> None:
     """Escreve no stderr; se o próprio stderr falhar não há aonde avisar, e o código de saída é o que resta."""
-    with contextlib.suppress(OSError, ValueError):  # pipe fechado, ou arquivo já fechado
+    with contextlib.suppress(OSError, ValueError):  # pipe fechado, ou arquivo já fechado (#245)
         print(message, file=sys.stderr)
+
+
+def _detach_stdout() -> None:
+    """Aponta o descritor do stdout para o devnull, para o flush do encerramento não falhar e trocar o código 2 por 120 (#245).
+
+    Receita da documentação do Python para o SIGPIPE. Sem descritor (StringIO), `fileno()` levanta `OSError` e não há o que fazer.
+    """
+    with contextlib.suppress(OSError):  # StringIO não tem fileno; devnull inacessível deixa o código como está (#245)
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        try:
+            os.dup2(devnull, sys.stdout.fileno())
+        finally:
+            os.close(devnull)
 
 
 def main(argv: list[str] | None = None, now: Callable[[], datetime] | None = None) -> int:
@@ -461,7 +474,8 @@ def main(argv: list[str] | None = None, now: Callable[[], datetime] | None = Non
     try:
         sys.stdout.write(text)
         sys.stdout.flush()
-    except OSError:  # a rodada já está gravada; só a saída padrão falhou
+    except OSError:  # a rodada já está gravada; só a saída padrão falhou (#245)
+        _detach_stdout()
         _complain(f"erro: {STDOUT_FAILURE}")
         return EXIT_USAGE
     if e6_missed(run):

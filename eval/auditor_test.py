@@ -3,7 +3,10 @@ import contextlib
 import errno
 import io
 import json
+import os
 import re
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -466,6 +469,7 @@ class MalformedInputTest(unittest.TestCase):
         self.assert_invalid(self.exit_of(all_correct()))
 
 
+UNEXPECTED_FAILURE = "não foi possível processar a entrada; nada foi gravado"
 SAVE_FAILURE = "não foi possível gravar a rodada na pasta de rodadas"
 STDOUT_FAILURE = "a rodada foi gravada, mas a saída padrão falhou"
 
@@ -507,7 +511,7 @@ class ClosedClassTest(unittest.TestCase):
         result: tuple[int, str, str],
         forbidden: str = "",
         kept: list[str] | None = None,
-        message: str = auditor.UNEXPECTED_FAILURE,
+        message: str = UNEXPECTED_FAILURE,
     ) -> None:
         code, out, err = result
         self.assertEqual(code, 2)
@@ -517,6 +521,20 @@ class ClosedClassTest(unittest.TestCase):
         if forbidden:
             self.assertNotIn(forbidden, err)
         self.assertEqual(self.run_files(), kept or [])
+
+    def test_ac2_closed_stdout_pipe_exits_two_without_python_noise(self) -> None:
+        """#245/AC-2: com o stdout num pipe de leitura fechada o processo sai 2 (não 120), só com a mensagem fixa no stderr."""
+        self.audits.write_text("\n".join(json.dumps(x) for x in all_correct()) + "\n", encoding="utf-8")
+        read_end, write_end = os.pipe()
+        os.close(read_end)
+        argv = [sys.executable, str(ROOT / "eval" / "auditor.py"), str(self.audits),
+                "--answer-key", str(self.key_file), "--runs-dir", str(self.runs_dir)]
+        with subprocess.Popen(argv, stdout=write_end, stderr=subprocess.PIPE, text=True) as process:
+            os.close(write_end)
+            _, err = process.communicate(timeout=60)
+        self.assertEqual(process.returncode, 2)
+        self.assertEqual(err, "erro: a rodada foi gravada, mas a saída padrão falhou\n")
+        self.assertEqual(len(list(self.runs_dir.glob("*.json"))), 1)
 
     def test_ac1_integer_over_4300_digits_in_audits_exits_two(self) -> None:
         """#245/AC-1: inteiro com mais de 4300 dígitos numa linha do JSONL sai 2, sem rastro."""
