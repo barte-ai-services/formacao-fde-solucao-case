@@ -98,7 +98,7 @@ export function FilaScreen({ v, filter, onFilter, onRetryFirst, onDrawerClose }:
               columns={[
                 { key: "nota", title: c.invoice, dataIndex: "number", render: (_, r) => dim(r, <InvoiceCell number={r.number} issuedOn={r.issuedOn} bottom={r.supplierId} prefix={r.canApprove ? null : <span role="img" aria-label={texts.fila.noPermission}>🔒{" "}</span>} />) },
                 { key: "classificacao", title: c.classification, dataIndex: "exceptionName", render: (_, r) => dim(r, <GridBadge tone="neutral">{r.exceptionName}</GridBadge>) },
-                { key: "codigo", title: c.code, dataIndex: "exceptionCode", render: (_, r) => codeLabel(r.exceptionCode as never) },
+                { key: "codigo", title: c.code, dataIndex: "exceptionCode", render: (_, r) => codeLabel(r.exceptionCode) },
                 { key: "acao", title: c.action, dataIndex: "dockAction", render: (_, r) => dim(r, <GridBadge tone={ACTION_TONE[r.dockAction]}>{ACTION_LABEL[r.dockAction]}</GridBadge>) },
                 { key: "nivel", title: c.level, dataIndex: "level", render: (_, r) => dim(r, <GridBadge tone={LEVEL_TONE[r.level]}>{LEVEL_LABEL[r.level]}</GridBadge>) },
                 { key: "risco", title: c.risk, dataIndex: "risk", align: "right", render: (_, r) => dim(r, `${r.risk.text} de ${r.total.text}`) },
@@ -154,7 +154,7 @@ export function HojeScreen({ v, onRetryFirst, onDrawerClose }: { v: View<HojeRow
               columns={[
                 { key: "nota", title: c.invoice, dataIndex: "number", render: (_, r) => <InvoiceCell number={r.number} bottom={r.supplierId} /> },
                 { key: "excecao", title: c.classification, dataIndex: "exceptionName", render: (_, r) => <GridBadge tone="neutral">{r.exceptionName}</GridBadge> },
-                { key: "codigo", title: c.code, dataIndex: "exceptionCode", render: (_, r) => codeLabel(r.exceptionCode as never) },
+                { key: "codigo", title: c.code, dataIndex: "exceptionCode", render: (_, r) => codeLabel(r.exceptionCode) },
                 { key: "acao", title: c.action, dataIndex: "dockAction", render: (_, r) => <GridBadge tone={ACTION_TONE[r.dockAction]}>{ACTION_LABEL[r.dockAction]}</GridBadge> },
                 { key: "quem", title: c.approver, dataIndex: "approver", render: (_, r) => (r.approver === null ? "—" : <DecidedBy actor={r.approver === "regra" ? "rule" : "person"} name={r.approver === "regra" ? null : r.approver} />) },
                 { key: "valor", title: c.amount, dataIndex: "amount", align: "right", render: (_, r) => `${r.amount.text} de ${r.invoiceTotal.text}` },

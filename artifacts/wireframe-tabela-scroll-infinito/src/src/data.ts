@@ -2,6 +2,8 @@
  * Dados de mentira, determinísticos, só para o desenho. A Já Chegou é fictícia.
  * Os "agregados" saem da lista inteira, como a API (#159) devolve: não dependem de quantas páginas já carregaram.
  */
+import type { Classification } from "@domain";
+
 export const BLOCK = 30; // `limite` padrão do contrato (#159)
 
 const brl = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
@@ -25,7 +27,7 @@ export interface FilaRow {
   number: string;
   issuedOn: string;
   supplierId: string;
-  exceptionCode: string;
+  exceptionCode: Classification;
   exceptionName: string;
   dockAction: (typeof ACT)[number];
   level: Level;
@@ -73,7 +75,7 @@ export interface HojeRow {
   key: string;
   number: string;
   supplierId: string;
-  exceptionCode: string;
+  exceptionCode: Classification;
   exceptionName: string;
   dockAction: (typeof ACT)[number];
   approver: string | null;
