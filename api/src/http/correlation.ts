@@ -3,7 +3,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 /** O cabeçalho que o MCP e a API trocam para seguir uma falha de um log ao outro (#292). */
 const HEADER = "X-Correlation-Id";
 
-/** Só estes caracteres, de 8 a 64: cabe um UUID e não cabe CR/LF, espaço nem markup. */
+/** #293 Só estes caracteres, de 8 a 64: cabe um UUID e não cabe CR/LF, espaço nem markup. */
 const FORMAT = /^[A-Za-z0-9_-]{8,64}$/;
 
 /** O mínimo do console que o id usa; os testes injetam um, sem depender do global. */
@@ -15,10 +15,10 @@ export interface ConsoleLike {
 }
 
 const LEVELS = ["log", "info", "warn", "error"] as const;
-/** As funções que este módulo criou, para reconhecê-las ao instalar de novo. */
+/** #293 As funções que este módulo criou, para reconhecê-las ao instalar de novo. */
 const wrappers = new WeakSet<object>();
 
-/** O id da requisição em andamento; vazio fora dela, como no Cron. */
+/** #293 O id da requisição em andamento; vazio fora dela, como no Cron. */
 const requestId = new AsyncLocalStorage<string>();
 
 export function isValidCorrelationId(value: string | null | undefined): value is string {
@@ -50,11 +50,22 @@ export function installCorrelationConsole(target: ConsoleLike): void {
 export async function withCorrelationId(request: Request, next: () => Promise<Response>): Promise<Response> {
   const received = request.headers.get(HEADER);
   const id = isValidCorrelationId(received) ? received : crypto.randomUUID();
-  const response = await requestId.run(id, next);
-  return withHeader(response, id);
+  try {
+    return withHeader(await requestId.run(id, next), id);
+  } catch (error) {
+    // #293 Uma exceção fora da rota sai como 500 genérico, com o id; no log, só o nome do erro, nunca texto nem pilha.
+    return requestId.run(id, () => failedResponse(error, id));
+  }
 }
 
-/** Os cabeçalhos de uma resposta de fetch (os assets) podem ser imutáveis: nesse caso, refaz a resposta. */
+/** #293 O 500 genérico, no formato do resto da API (`internal_error` e `correlationId`), com o id no cabeçalho. */
+function failedResponse(error: unknown, id: string): Response {
+  const errorName = error instanceof Error ? error.name : "unknown";
+  console.error("#293 exceção fora da rota", { errorName });
+  return withHeader(Response.json({ error: "internal_error", correlationId: id }, { status: 500 }), id);
+}
+
+/** #293 Os cabeçalhos de uma resposta de fetch (os assets) podem ser imutáveis: nesse caso, refaz a resposta. */
 function withHeader(response: Response, id: string): Response {
   try {
     response.headers.set(HEADER, id);
@@ -66,5 +77,5 @@ function withHeader(response: Response, id: string): Response {
   }
 }
 
-// Uma vez por isolate, no console global; as linhas do Cron ficam como estão.
+// #293 Uma vez por isolate, no console global; as linhas do Cron ficam como estão.
 installCorrelationConsole(console);

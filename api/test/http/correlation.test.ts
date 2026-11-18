@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import worker from "../../src/index";
 import type { Env } from "../../src/env";
 import {
@@ -9,6 +9,7 @@ import {
 } from "../../src/http/correlation";
 
 const env: Env = {};
+// #293 fake de teste: o ExecutionContext do Worker não tem construtor público.
 const ctx = {
   waitUntil: () => {},
   passThroughOnException: () => {},
@@ -22,7 +23,7 @@ function fetchWorker(path: string, init?: RequestInit): Promise<Response> {
   return worker.fetch(new Request(`https://worker.test${path}`, init), env, ctx);
 }
 
-/** Um console de mentira que guarda cada linha, para o teste não depender do console global. */
+/** #293 Um console de mentira que guarda cada linha, para o teste não depender do console global. */
 function recordingConsole(): ConsoleLike & { lines: unknown[][] } {
   const lines: unknown[][] = [];
   const record = (...args: unknown[]) => void lines.push(args);
@@ -186,5 +187,35 @@ describe("X-Correlation-Id: as linhas de log da requisição", () => {
       return new Response("ok");
     });
     expect(fake.lines).toEqual([["uma vez", { correlationId: "idempot-001" }]]);
+  });
+});
+
+describe("X-Correlation-Id: exceção que escapa da rota", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("#293/AC-1 o 500 leva o id, corpo genérico sem o texto da exceção, e o log leva o id", async () => {
+    const fake = recordingConsole();
+    installCorrelationConsole(fake);
+    vi.stubGlobal("console", fake);
+    const response = await withCorrelationId(request({ [HEADER]: "excecao-001" }), async () => {
+      throw new Error("senha=segredo-do-banco");
+    });
+    expect(response.status).toBe(500);
+    expect(response.headers.get(HEADER)).toBe("excecao-001");
+    expect(await response.json()).toEqual({ error: "internal_error", correlationId: "excecao-001" });
+    expect(fake.lines).toEqual([
+      ["#293 exceção fora da rota", { errorName: "Error" }, { correlationId: "excecao-001" }],
+    ]);
+    expect(JSON.stringify(fake.lines)).not.toContain("segredo-do-banco");
+  });
+
+  it("#293/AC-2 sem o cabeçalho, o 500 leva um id gerado, o mesmo do corpo", async () => {
+    const response = await withCorrelationId(request(), async () => {
+      throw new TypeError("x");
+    });
+    const id = response.headers.get(HEADER) ?? "";
+    expect(response.status).toBe(500);
+    expect(id).toMatch(FORMAT);
+    expect(await response.json()).toEqual({ error: "internal_error", correlationId: id });
   });
 });
