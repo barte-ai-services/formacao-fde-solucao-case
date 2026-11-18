@@ -5,18 +5,18 @@ import type { DocumentConfirmationDto, ReadingRowDto, ReplyFilterDto, SentReques
 import { fallbackContext, NAVIGATION } from "../src/shell/context";
 
 /**
- * #18 Esqueleto de ponta a ponta da lista "Pedidos ao fornecedor" (história #5), escrito contra o
+ * #157 Esqueleto de ponta a ponta da lista "Pedidos ao fornecedor" (história #157), escrito contra o
  * wireframe aprovado em artifacts/wireframe-pedidos-fornecedor/index.html.
  *
- * #21 Ele nasceu vermelho de propósito, em `describe.skip` com `it.fails` (#18): as dependências do web não instalam (#25).
- * #21 Agora a rota, a lista e a gaveta estão ligadas ao contrato (api/src/http/supplier-requests.ts, #36), e cada comportamento é um `it`.
+ * #157 Ele nasceu vermelho de propósito, em `describe.skip` com `it.fails` (#157): as dependências do web não instalam (#155).
+ * #157 Agora a rota, a lista e a gaveta estão ligadas ao contrato (api/src/http/supplier-requests.ts, #157), e cada comportamento é um `it`.
  *
- * #21 A API é falsa e fala o contrato de verdade: `GET /api/supplier-requests?status=` devolve `{ filter, requests, counts }` com as
- * #21 contagens dos quatro filtros, `GET /api/supplier-requests/{chave}` devolve o pedido enviado com a leitura e o rascunho da
- * #21 cobrança, e `POST .../send` envia a cobrança. A tela não conta nem filtra por conta própria: o que ela mostra é o que o servidor disse.
+ * #157 A API é falsa e fala o contrato de verdade: `GET /api/supplier-requests?status=` devolve `{ filter, requests, counts }` com as
+ * #157 contagens dos quatro filtros, `GET /api/supplier-requests/{chave}` devolve o pedido enviado com a leitura e o rascunho da
+ * #157 cobrança, e `POST .../send` envia a cobrança. A tela não conta nem filtra por conta própria: o que ela mostra é o que o servidor disse.
  */
 
-/** #21 Um pedido da API falsa e o filtro em que o servidor o põe. */
+/** #157 Um pedido da API falsa e o filtro em que o servidor o põe. */
 interface Fixture {
   row: ReadingRowDto;
   filter: ReplyFilterDto;
@@ -41,21 +41,21 @@ const fixture = (id: number, invoiceNumber: string, supplierId: string, supplier
   filter,
 });
 
-/** #5 O cenário "cobrar um atrasado": dois pedidos atrasados e um aguardando (filtro inicial). Dados fictícios. */
+/** #157 O cenário "cobrar um atrasado": dois pedidos atrasados e um aguardando (filtro inicial). Dados fictícios. */
 const SUPPLIER_REQUESTS: Fixture[] = [
   fixture(1, "59738", "F07", "Limpeza", 26362, "2026-11-14", "overdue"),
   fixture(2, "40519", "F09", "Embalagens", 154090, "2026-11-12", "overdue"),
   fixture(3, "51877", "F02", "Bebidas", 98000, "2026-11-20", "awaiting"),
 ];
 
-/** #64 O cenário "confirmar documento": o pedido que atendeu e cita NF-D 881 espera a pessoa em "Precisam de você". */
+/** #157 O cenário "confirmar documento": o pedido que atendeu e cita NF-D 881 espera a pessoa em "Precisam de você". */
 const TO_CONFIRM: Fixture = (() => {
   const base = fixture(4, "61004", "F07", "Limpeza", 216320, "2026-11-18", "needs_you");
   const reading = { replyOutcome: "fulfilled", fulfilledAsks: ["devolução dos 3 itens"], supplierDocument: "NF-D 881", summary: "O fornecedor diz que emitiu a NF-D 881.", nextStep: "confirm_document", injectionFlag: null } as const;
   return { ...base, row: { ...base.row, reading: { ...reading, fulfilledAsks: [...reading.fulfilledAsks] } } };
 })();
 
-/** #21 O pedido enviado que o `GET /api/supplier-requests/{chave}` devolve: sem leitura (atrasado) e com o rascunho da cobrança. */
+/** #157 O pedido enviado que o `GET /api/supplier-requests/{chave}` devolve: sem leitura (atrasado) e com o rascunho da cobrança. */
 function sentView(row: ReadingRowDto, documentConfirmation: DocumentConfirmationDto | null = null): SentRequestDetailDto {
   return {
     status: "sent",
@@ -85,14 +85,14 @@ function sentView(row: ReadingRowDto, documentConfirmation: DocumentConfirmation
   };
 }
 
-describe("#18: /pedidos-fornecedor (wireframe aprovado, #5)", () => { // ADR-004
-  // #21 A API falsa: o servidor decide o filtro e as contagens; a proposta da gaveta é 404 (a gaveta da nota mostra só o bloco desta tela).
+describe("#157: /pedidos-fornecedor (wireframe aprovado, #157)", () => { // ADR-004
+  // #157 A API falsa: o servidor decide o filtro e as contagens; a proposta da gaveta é 404 (a gaveta da nota mostra só o bloco desta tela).
   let requests: Fixture[] = SUPPLIER_REQUESTS;
   let failList = false;
   let failDetail = false;
-  /** #59 O texto que a API falsa guarda (o molde com {{chave}}); o PATCH o troca, e o POST .../send envia o que está aqui. */
+  /** #157 O texto que a API falsa guarda (o molde com {{chave}}); o PATCH o troca, e o POST .../send envia o que está aqui. */
   let savedTemplate: string | null = null;
-  /** #64 O que a API falsa gravou na confirmação, por chave de acesso; o POST .../confirm-document move o pedido de "needs_you" para "answered". */
+  /** #157 O que a API falsa gravou na confirmação, por chave de acesso; o POST .../confirm-document move o pedido de "needs_you" para "answered". */
   let confirmations: Record<string, DocumentConfirmationDto> = {};
   let failConfirm = false;
   let calls: { method: string; path: string; body?: unknown }[] = [];
@@ -128,7 +128,7 @@ describe("#18: /pedidos-fornecedor (wireframe aprovado, #5)", () => { // ADR-004
       if (savedTemplate !== null && view.followUp.draft) view.followUp.draft = { ...view.followUp.draft, template: savedTemplate, body: savedTemplate.replace("{{cobranca.prazo}}", "20/11") };
       if (path.endsWith("/follow-up") && init.method === "PATCH") {
         const { template } = JSON.parse(String(init.body)) as { template: string };
-        // #59 O servidor recusa o texto sem marcador (número solto) com um 422 que traz texto interno, que a tela não pode mostrar.
+        // #157 O servidor recusa o texto sem marcador (número solto) com um 422 que traz texto interno, que a tela não pode mostrar.
         if (!template.includes("{{")) return Response.json({ error: "invalid", reason: "number_mismatch", field: "body", detail: "SQLSTATE 42P01 catalogo" }, { status: 422 });
         savedTemplate = template;
         return Response.json({ request: { ...view, followUp: { ...view.followUp, draft: { ...view.followUp.draft!, template, body: template.replace("{{cobranca.prazo}}", "20/11") } } } });
@@ -157,7 +157,7 @@ describe("#18: /pedidos-fornecedor (wireframe aprovado, #5)", () => { // ADR-004
     return render(<Frame context={fallbackContext("analista@barte.com")} />);
   }
 
-  it("#5/AC-5: o menu 'Contas a pagar' tem 'Pedidos ao fornecedor' depois dos itens existentes", () => {
+  it("#157: o menu 'Contas a pagar' tem 'Pedidos ao fornecedor' depois dos itens existentes", () => {
     const group = NAVIGATION.find((g) => g.key === "pagar")!;
     const last = group.items[group.items.length - 1]!;
     expect(last.label).toBe("Pedidos ao fornecedor");
@@ -170,29 +170,29 @@ describe("#18: /pedidos-fornecedor (wireframe aprovado, #5)", () => { // ADR-004
     ]);
   });
 
-  it("#5/AC-1 #5/AC-2: a rota abre com o título, os chips com contagem e o chip Aguardando ativo", async () => {
+  it("#157: a rota abre com o título, os chips com contagem e o chip Aguardando ativo", async () => {
     renderRoute();
     expect(await screen.findByRole("heading", { name: "Pedidos ao fornecedor" })).toBeTruthy();
-    // #21 As contagens e a linha só vêm com a lista pronta: a espera é pela linha aguardando.
+    // #157 As contagens e a linha só vêm com a lista pronta: a espera é pela linha aguardando.
     expect(await screen.findByText("NF 51877")).toBeTruthy();
-    // #5 Os chips são radios do filtro de situação (como em devolucoes.test.tsx), não texto solto.
-    // #5 A célula de Status "Aguardando" da linha também casaria com getByText.
+    // #157 Os chips são radios do filtro de situação (como em devolucoes.test.tsx), não texto solto.
+    // #157 A célula de Status "Aguardando" da linha também casaria com getByText.
     const waitingChip = await screen.findByRole("radio", { name: /^Aguardando/ });
     for (const chip of [/^Atendidos/, /^Precisam de você/, /^Atrasados/]) {
       expect(screen.getByRole("radio", { name: chip })).toBeTruthy();
     }
     expect(screen.getByRole("radio", { name: /^Atrasados/ }).textContent).toMatch(/2/);
-    // #5 Q3 (wireframe): o filtro inicial é Aguardando. Só a linha aguardando aparece.
+    // #157 Q3 (wireframe): o filtro inicial é Aguardando. Só a linha aguardando aparece.
     expect(waitingChip.getAttribute("aria-checked")).toBe("true");
     expect(screen.queryByText("NF 59738")).toBeNull();
-    // #21 Só o filtro Aguardando foi pedido ao servidor, que também trouxe as contagens dos outros três.
+    // #157 Só o filtro Aguardando foi pedido ao servidor, que também trouxe as contagens dos outros três.
     expect(calls.filter((c) => c.path.startsWith("/api/supplier-requests?")).map((c) => c.path)).toEqual(["/api/supplier-requests?status=awaiting"]);
   });
 
-  it("#5/AC-1: cenário: filtrar 'Atrasados' mostra os dois com Nota, Fornecedor, Solicitação, Valor, Prazo e Status, por prazo crescente", async () => {
+  it("#157: cenário: filtrar 'Atrasados' mostra os dois com Nota, Fornecedor, Solicitação, Valor, Prazo e Status, por prazo crescente", async () => {
     renderRoute();
     fireEvent.click(await screen.findByRole("radio", { name: /^Atrasados/ }));
-    // #21 O chip pede o filtro ao servidor: a grid some enquanto carrega e volta com as linhas do filtro.
+    // #157 O chip pede o filtro ao servidor: a grid some enquanto carrega e volta com as linhas do filtro.
     await screen.findByText("NF 40519");
 
     for (const header of ["Nota", "Fornecedor", "Solicitação", "Valor", "Prazo", "Status"]) {
@@ -200,7 +200,7 @@ describe("#18: /pedidos-fornecedor (wireframe aprovado, #5)", () => { // ADR-004
     }
     const rows = screen.getAllByRole("row").slice(1);
     expect(rows).toHaveLength(2);
-    // #5 Prazo crescente: o mais atrasado primeiro.
+    // #157 Prazo crescente: o mais atrasado primeiro.
     const first = within(rows[0]!);
     expect(first.getByText("NF 40519")).toBeTruthy();
     expect(first.getByText("F09 Embalagens")).toBeTruthy();
@@ -216,42 +216,42 @@ describe("#18: /pedidos-fornecedor (wireframe aprovado, #5)", () => { // ADR-004
     expect(second.getByRole("button", { name: "Cobrar" })).toBeTruthy();
   });
 
-  it("#5/AC-3: clicar na linha abre a gaveta no bloco 'Pedido ao fornecedor' com a conversa e a leitura do agente", async () => {
+  it("#157: clicar na linha abre a gaveta no bloco 'Pedido ao fornecedor' com a conversa e a leitura do agente", async () => {
     renderRoute();
     fireEvent.click(await screen.findByRole("radio", { name: /^Atrasados/ }));
     const row = (await screen.findByText("NF 59738")).closest("tr")!;
     fireEvent.click(row);
 
-    // #5 A gaveta do barte-design-system mostra o título como texto dentro de role="dialog": acha-se pelo nome do diálogo, não por um heading (#54).
+    // #157 A gaveta do barte-design-system mostra o título como texto dentro de role="dialog": acha-se pelo nome do diálogo, não por um heading (#155).
     expect(await screen.findByRole("dialog", { name: /Proposta da NF/ })).toBeTruthy();
-    // #21 Dentro da região desta tela: a gaveta da nota (#3) também escreve "Pedido ao fornecedor".
+    // #157 Dentro da região desta tela: a gaveta da nota (#156) também escreve "Pedido ao fornecedor".
     const region = await screen.findByRole("region", { name: "Conversa e leitura do pedido" });
     expect(within(region).getAllByText("Pedido ao fornecedor")).toHaveLength(1);
-    // #5 Estado 7 do wireframe: pedido enviado, resposta do fornecedor e leitura do agente.
+    // #157 Estado 7 do wireframe: pedido enviado, resposta do fornecedor e leitura do agente.
     expect(screen.getByText(/Pedido enviado/)).toBeTruthy();
     expect(screen.getByText(/Resposta do fornecedor/)).toBeTruthy();
     expect(screen.getByText(/Leitura do agente/)).toBeTruthy();
   });
 
-  it("#5/AC-4: cenário: 'Cobrar' abre a gaveta no bloco 'Pedido ao fornecedor' com o rascunho da cobrança, sem enviar", async () => {
+  it("#157: cenário: 'Cobrar' abre a gaveta no bloco 'Pedido ao fornecedor' com o rascunho da cobrança, sem enviar", async () => {
     renderRoute();
     fireEvent.click(await screen.findByRole("radio", { name: /^Atrasados/ }));
     const row = (await screen.findByText("NF 59738")).closest("tr")!;
     fireEvent.click(within(row).getByRole("button", { name: "Cobrar" }));
 
-    // #54 A gaveta se acha pelo nome do diálogo (o título é texto dentro de role="dialog", não um heading).
+    // #155 A gaveta se acha pelo nome do diálogo (o título é texto dentro de role="dialog", não um heading).
     expect(await screen.findByRole("dialog", { name: /Proposta da NF/ })).toBeTruthy();
-    // #21 O pedido da gaveta vem do servidor, depois do título: o bloco e o rascunho esperam por ele.
+    // #157 O pedido da gaveta vem do servidor, depois do título: o bloco e o rascunho esperam por ele.
     const region = await screen.findByRole("region", { name: "Conversa e leitura do pedido" });
     expect(within(region).getAllByText("Pedido ao fornecedor")).toHaveLength(1);
     expect(await screen.findByText("Rascunho da cobrança")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Enviar cobrança" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Descartar rascunho" })).toBeTruthy();
-    // #5 A cobrança só sai no clique em enviar: nenhum POST até lá.
+    // #157 A cobrança só sai no clique em enviar: nenhum POST até lá.
     expect(calls.some((call) => call.method === "POST")).toBe(false);
   });
 
-  it("#5/AC-4: 'Enviar cobrança' faz um POST em .../send, sem texto, e a linha cobrada segue em Atrasados como 'Atrasado (cobrado)', sem 'Cobrar', com as contagens do servidor (#5/AC-2)", async () => {
+  it("#157: 'Enviar cobrança' faz um POST em .../send, sem texto, e a linha cobrada segue em Atrasados como 'Atrasado (cobrado)', sem 'Cobrar', com as contagens do servidor (#157)", async () => {
     renderRoute();
     fireEvent.click(await screen.findByRole("radio", { name: /^Atrasados/ }));
     const row = (await screen.findByText("NF 59738")).closest("tr")!;
@@ -268,7 +268,7 @@ describe("#18: /pedidos-fornecedor (wireframe aprovado, #5)", () => { // ADR-004
     expect(screen.getByRole("radio", { name: /^Aguardando/ }).textContent).toMatch(/1/);
   });
 
-  it("#59/AC-1: cenário: Cobrar e Editar abre o texto com os marcadores {{...}} e a dica; salvar faz o PATCH e enviar manda a cobrança com o texto editado", async () => {
+  it("#157: cenário: Cobrar e Editar abre o texto com os marcadores {{...}} e a dica; salvar faz o PATCH e enviar manda a cobrança com o texto editado", async () => {
     renderRoute();
     fireEvent.click(await screen.findByRole("radio", { name: /^Atrasados/ }));
     const row = (await screen.findByText("NF 59738")).closest("tr")!;
@@ -294,7 +294,7 @@ describe("#18: /pedidos-fornecedor (wireframe aprovado, #5)", () => { // ADR-004
     expect(screen.queryByRole("button", { name: "Editar" })).toBeNull();
   });
 
-  it("#59/AC-2: o 422 do PATCH mantém a edição aberta com a mensagem fixa, sem o texto do servidor, e o Enviar segue desligado", async () => {
+  it("#157: o 422 do PATCH mantém a edição aberta com a mensagem fixa, sem o texto do servidor, e o Enviar segue desligado", async () => {
     renderRoute();
     fireEvent.click(await screen.findByRole("radio", { name: /^Atrasados/ }));
     const row = (await screen.findByText("NF 59738")).closest("tr")!;
@@ -311,7 +311,7 @@ describe("#18: /pedidos-fornecedor (wireframe aprovado, #5)", () => { // ADR-004
     expect(calls.filter((call) => call.method === "POST")).toEqual([]);
   });
 
-  it("#5/AC-4: a linha que o servidor já cobrou (followUp.sent) segue em Atrasados como 'Atrasado (cobrado)', sem 'Cobrar', e a gaveta não oferece cobrar de novo", async () => {
+  it("#157: a linha que o servidor já cobrou (followUp.sent) segue em Atrasados como 'Atrasado (cobrado)', sem 'Cobrar', e a gaveta não oferece cobrar de novo", async () => {
     requests = [{ ...SUPPLIER_REQUESTS[0]!, row: { ...SUPPLIER_REQUESTS[0]!.row, followUp: { drafted: true, sent: true } } }];
     renderRoute();
     fireEvent.click(await screen.findByRole("radio", { name: /^Atrasados/ }));
@@ -324,7 +324,7 @@ describe("#18: /pedidos-fornecedor (wireframe aprovado, #5)", () => { // ADR-004
     expect(screen.queryByRole("button", { name: "Enviar cobrança" })).toBeNull();
   });
 
-  it("#64/AC-1 #64/AC-2 #64/AC-3: cenário: o pedido 'Atendeu, falta confirmar: NF-D 881' mostra 'Confirmar documento'; o clique faz um POST em .../confirm-document, mostra 'Documento NF-D 881 confirmado por você', o pedido passa para Atendidos e as contagens se atualizam", async () => {
+  it("#157 #157: cenário: o pedido 'Atendeu, falta confirmar: NF-D 881' mostra 'Confirmar documento'; o clique faz um POST em .../confirm-document, mostra 'Documento NF-D 881 confirmado por você', o pedido passa para Atendidos e as contagens se atualizam", async () => {
     requests = [...SUPPLIER_REQUESTS, TO_CONFIRM];
     renderRoute();
     fireEvent.click(await screen.findByRole("radio", { name: /^Precisam de você/ }));
@@ -340,18 +340,18 @@ describe("#18: /pedidos-fornecedor (wireframe aprovado, #5)", () => { // ADR-004
     expect(await screen.findByText(/^Documento NF-D 881 confirmado por você/)).toBeTruthy();
     expect(calls.filter((call) => call.method === "POST")).toEqual([{ method: "POST", path: `/api/supplier-requests/${keyOf(4)}/confirm-document`, body: {} }]);
     expect(screen.queryByRole("button", { name: /Confirmar documento/ })).toBeNull();
-    // #64/AC-3 A lista é relida: o pedido sai de "Precisam de você" e entra em "Atendidos", com as contagens do servidor.
+    // #157 A lista é relida: o pedido sai de "Precisam de você" e entra em "Atendidos", com as contagens do servidor.
     await waitFor(() => expect(screen.getByRole("radio", { name: /^Precisam de você/ }).textContent).toMatch(/0/));
     expect(screen.getByRole("radio", { name: /^Atendidos/ }).textContent).toMatch(/1/);
     expect(screen.queryByText("NF 61004")).toBeNull();
-    // #64/AC-3 A gaveta segue aberta no pedido confirmado, com a linha de quem e quando.
+    // #157 A gaveta segue aberta no pedido confirmado, com a linha de quem e quando.
     expect(screen.getByRole("region", { name: "Conversa e leitura do pedido" })).toBeTruthy();
     expect(screen.getByText(/confirmado por você em 17\/11 às 10:05/)).toBeTruthy();
     fireEvent.click(screen.getByRole("radio", { name: /^Atendidos/ }));
     expect(await screen.findByText("NF 61004")).toBeTruthy();
   });
 
-  it("#64/AC-2: a confirmação que falha (502) mostra a mensagem fixa, nunca o corpo da resposta, mantém o botão e o pedido em 'Precisam de você', e tentar de novo confirma", async () => {
+  it("#157: a confirmação que falha (502) mostra a mensagem fixa, nunca o corpo da resposta, mantém o botão e o pedido em 'Precisam de você', e tentar de novo confirma", async () => {
     requests = [...SUPPLIER_REQUESTS, TO_CONFIRM];
     failConfirm = true;
     renderRoute();
@@ -369,7 +369,7 @@ describe("#18: /pedidos-fornecedor (wireframe aprovado, #5)", () => { // ADR-004
     expect(await screen.findByText(/^Documento NF-D 881 confirmado por você/)).toBeTruthy();
   });
 
-  it("#64/AC-4: o pedido sem documento a confirmar (atrasado, com a leitura de cobrar) não mostra 'Confirmar documento' na gaveta", async () => {
+  it("#157: o pedido sem documento a confirmar (atrasado, com a leitura de cobrar) não mostra 'Confirmar documento' na gaveta", async () => {
     requests = [...SUPPLIER_REQUESTS, TO_CONFIRM];
     renderRoute();
     fireEvent.click(await screen.findByRole("radio", { name: /^Atrasados/ }));
@@ -378,7 +378,7 @@ describe("#18: /pedidos-fornecedor (wireframe aprovado, #5)", () => { // ADR-004
     expect(screen.queryByRole("button", { name: /Confirmar documento/ })).toBeNull();
   });
 
-  it("#21: a leitura da gaveta que falha mostra a mensagem fechada, nunca o corpo da resposta da API", async () => {
+  it("#157: a leitura da gaveta que falha mostra a mensagem fechada, nunca o corpo da resposta da API", async () => {
     failDetail = true;
     renderRoute();
     fireEvent.click(await screen.findByRole("radio", { name: /^Atrasados/ }));
@@ -389,8 +389,8 @@ describe("#18: /pedidos-fornecedor (wireframe aprovado, #5)", () => { // ADR-004
     expect(document.body.textContent).not.toMatch(/SQLSTATE|supplier_requests|internal_error/);
   });
 
-  // #18 Estados desenhados no wireframe: erro, vazio e chip com contagem 0.
-  it("#18: estado de erro: a lista falha, mostra 'Tentar de novo' e, ao tentar, volta a carregar a lista", async () => {
+  // #157 Estados desenhados no wireframe: erro, vazio e chip com contagem 0.
+  it("#157: estado de erro: a lista falha, mostra 'Tentar de novo' e, ao tentar, volta a carregar a lista", async () => {
     failList = true;
     renderRoute();
     expect(await screen.findByText("Não consegui carregar os pedidos ao fornecedor.")).toBeTruthy();
@@ -399,14 +399,14 @@ describe("#18: /pedidos-fornecedor (wireframe aprovado, #5)", () => { // ADR-004
     expect(await screen.findByText("NF 51877")).toBeTruthy();
   });
 
-  it("#18: estado vazio: sem solicitações, diz o que fazer e oferece ir à Fila de aprovação", async () => {
+  it("#157: estado vazio: sem solicitações, diz o que fazer e oferece ir à Fila de aprovação", async () => {
     requests = [];
     renderRoute();
     expect(await screen.findByText("Nenhum pedido ao fornecedor ainda.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Ir para a Fila de aprovação" })).toBeTruthy();
   });
 
-  it("#5/AC-2: chip com contagem 0: 'Atrasados 0' mostra 'Nenhum pedido atrasado' e a ação 'Ver todos'", async () => {
+  it("#157: chip com contagem 0: 'Atrasados 0' mostra 'Nenhum pedido atrasado' e a ação 'Ver todos'", async () => {
     requests = SUPPLIER_REQUESTS.filter((r) => r.filter === "awaiting");
     renderRoute();
     const lateChip = await screen.findByRole("radio", { name: /^Atrasados/ });

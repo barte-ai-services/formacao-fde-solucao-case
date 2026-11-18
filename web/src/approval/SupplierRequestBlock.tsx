@@ -1,8 +1,8 @@
 /**
- * #3 O bloco "Pedido ao fornecedor" da gaveta da proposta decidida, um estado do wireframe por vez
+ * #156 O bloco "Pedido ao fornecedor" da gaveta da proposta decidida, um estado do wireframe por vez
  * (artifacts/wireframe-pedido-ao-fornecedor/index.html). Só apresentação: o estado e o que a pessoa
- * lê entram por props, as ações saem por callbacks. Buscar, guardar estado e ligar na gaveta são da #16 e da #17.
- * Os tipos da visão são o que o bloco aceita: o `SupplierRequestDto` do fio (web/src/api/contract.ts, #17) cabe neles.
+ * lê entram por props, as ações saem por callbacks. Buscar, guardar estado e ligar na gaveta são da #156 e da #156.
+ * Os tipos da visão são o que o bloco aceita: o `SupplierRequestDto` do fio (web/src/api/contract.ts, #156) cabe neles.
  */
 import type { JSX, ReactNode } from "react";
 import { Alert, Button, Text } from "barte-design-system";
@@ -11,7 +11,7 @@ import { texts } from "../texts";
 
 const t = texts.supplierRequest;
 
-/** #17 Um valor em reais já formatado, como a API o entrega. */
+/** #156 Um valor em reais já formatado, como a API o entrega. */
 export interface SupplierRequestMoney {
   text: string;
 }
@@ -23,11 +23,11 @@ export interface SupplierRequestNoteLine {
   total: SupplierRequestMoney;
 }
 
-/** #3 A nota de devolução. Ausente nos pedidos só de e-mail (cancelamento, pedido, cadastro). */
+/** #156 A nota de devolução. Ausente nos pedidos só de e-mail (cancelamento, pedido, cadastro). */
 export interface SupplierRequestNote {
-  /** #17 O ND-n emitido; nulo antes da emissão. */
+  /** #156 O ND-n emitido; nulo antes da emissão. */
   number: string | null;
-  /** #17 O código do fornecedor e a nota de referência, como a API os traz. */
+  /** #156 O código do fornecedor e a nota de referência, como a API os traz. */
   supplier?: string;
   reference?: string;
   lines: readonly SupplierRequestNoteLine[];
@@ -36,12 +36,12 @@ export interface SupplierRequestNote {
 
 export interface SupplierRequestEmail {
   to: string;
-  /** #17 Dia no formato AAAA-MM-DD. */
+  /** #156 Dia no formato AAAA-MM-DD. */
   dueOn: string;
   subject: string;
-  /** #17 O texto renderizado, o que a pessoa lê. */
+  /** #156 O texto renderizado, o que a pessoa lê. */
   body: string;
-  /** #17/AC-6 O molde com os `{{chave}}`: a edição abre com ele, e o PATCH o reenvia. */
+  /** #156 O molde com os `{{chave}}`: a edição abre com ele, e o PATCH o reenvia. */
   template: string;
 }
 
@@ -56,7 +56,7 @@ interface WithContent {
   attachment?: SupplierRequestAttachment;
 }
 
-/** #3 Os estados do pedido que a gaveta desenha; o 10 (sem pedido) é `request` nulo. */
+/** #156 Os estados do pedido que a gaveta desenha; o 10 (sem pedido) é `request` nulo. */
 export type SupplierRequestView =
   | { status: "writing" }
   | ({ status: "draft" } & WithContent)
@@ -66,18 +66,18 @@ export type SupplierRequestView =
   | { status: "discarded"; discardedAt: string | null; discardedBy?: string | null }
   | { status: "failed"; failure: string };
 
-/** #3 A ação em andamento: trava os botões e troca o texto do principal. */
+/** #156 A ação em andamento: trava os botões e troca o texto do principal. */
 export type SupplierRequestPending = "send" | "discard" | "save" | "resend" | "redo";
 
 export interface SupplierRequestBlockProps {
-  /** #3/AC-1 Nulo: a proposta não tem pedido, e o bloco não existe. */
+  /** #156 Nulo: a proposta não tem pedido, e o bloco não existe. */
   request: SupplierRequestView | null;
-  /** #3/AC-4 Quem está na gaveta; "por você" quando foi essa pessoa. */
+  /** #156 Quem está na gaveta; "por você" quando foi essa pessoa. */
   viewer: string;
   pending?: SupplierRequestPending;
-  /** (#16) A mensagem da ação recusada, já em português para quem decide. */
+  /** (#156) A mensagem da ação recusada, já em português para quem decide. */
   error?: string;
-  /** #3/AC-6 O texto em edição, no estado `editing`. */
+  /** #156 O texto em edição, no estado `editing`. */
   draftText?: string;
   onSend: () => void;
   onDiscard: () => void;
@@ -86,17 +86,17 @@ export interface SupplierRequestBlockProps {
   onCancelEdit: () => void;
   onResend: () => void;
   onRedo: () => void;
-  /** #3/AC-9 A carga falhou: o alerta ocupa o lugar do bloco, e "Tentar de novo" chama `onReload`. */
+  /** #156 A carga falhou: o alerta ocupa o lugar do bloco, e "Tentar de novo" chama `onReload`. */
   loadFailed?: boolean;
   reloading?: boolean;
   onReload: () => void;
   onDraftTextChange: (text: string) => void;
 }
 
-/** #3 "2026-11-18" vira "18/11", sem passar por fuso. */
+/** #156 "2026-11-18" vira "18/11", sem passar por fuso. */
 const dayMonth = (day: string): string => `${day.slice(8, 10)}/${day.slice(5, 7)}`;
 
-/** #3 "2026-11-15T13:40:00Z" vira "10h40" na hora de quem olha; sem carimbo (#17), sem hora. */
+/** #156 "2026-11-15T13:40:00Z" vira "10h40" na hora de quem olha; sem carimbo (#156), sem hora. */
 function clock(instant: string | null): string | null {
   if (instant === null) return null;
   const at = new Date(instant);
@@ -117,7 +117,7 @@ export function SupplierRequestBlock(props: SupplierRequestBlockProps): JSX.Elem
   );
 }
 
-/** #3/AC-9 No lugar do bloco, sem título nem selo (não há pedido carregado); a mensagem é fixa, nunca a do erro. */
+/** #156 No lugar do bloco, sem título nem selo (não há pedido carregado); a mensagem é fixa, nunca a do erro. */
 function LoadFailed({ reloading, onReload }: { reloading: boolean; onReload: () => void }): JSX.Element {
   return (
     <div>
@@ -146,13 +146,13 @@ function State(props: SupplierRequestBlockProps & { request: SupplierRequestView
   }
 }
 
-/** #17 Sem quem agiu (nulo), a frase não diz por quem; o resto segue "por você" ou "por fulano". */
+/** #156 Sem quem agiu (nulo), a frase não diz por quem; o resto segue "por você" ou "por fulano". */
 const actor = (who: string | null | undefined, viewer: string): string | null => {
   if (who === null) return null;
   return who === undefined || who === viewer ? t.byYou : t.by(who);
 };
 
-/** #17 O texto fixo de um código da API; um código que a tela não conhece vira a frase genérica, nunca o código. */
+/** #156 O texto fixo de um código da API; um código que a tela não conhece vira a frase genérica, nunca o código. */
 const reasonOf = (reasons: Readonly<Record<string, string>>, code: string, other: string): string => (Object.hasOwn(reasons, code) ? (reasons[code] ?? other) : other);
 
 function Draft(props: SupplierRequestBlockProps & { request: Extract<SupplierRequestView, { status: "draft" | "editing" }> }): JSX.Element {
@@ -187,8 +187,8 @@ function Draft(props: SupplierRequestBlockProps & { request: Extract<SupplierReq
 }
 
 /**
- * #65/AC-6 A dica do anexo no rascunho, como o wireframe #156 a desenha: "📎 nota-devolucao-ND-0012.pdf (anexa ao enviar)".
- * #65 O nome real vem do dado quando ele existe; antes da emissão a API não o traz (o PDF nasce com o número da nota), e vale o texto do wireframe. Pedido só de e-mail não tem anexo.
+ * #157 A dica do anexo no rascunho, como o wireframe #156 a desenha: "📎 nota-devolucao-ND-0012.pdf (anexa ao enviar)".
+ * #157 O nome real vem do dado quando ele existe; antes da emissão a API não o traz (o PDF nasce com o número da nota), e vale o texto do wireframe. Pedido só de e-mail não tem anexo.
  */
 function AttachmentHint({ attachment, hasNote }: { attachment?: SupplierRequestAttachment; hasNote: boolean }): JSX.Element | null {
   if (!attachment && !hasNote) return null;
@@ -243,7 +243,7 @@ function EmailView({ email, locked, text, onText }: { email: SupplierRequestEmai
 }
 
 function AttachmentLink({ attachment }: { attachment: SupplierRequestAttachment }): JSX.Element {
-  // #3/AC-4 A URL vem da API: só caminho do próprio site ou http(s) vira link; qualquer outro esquema fica como texto.
+  // #156 A URL vem da API: só caminho do próprio site ou http(s) vira link; qualquer outro esquema fica como texto.
   const safe = /^(\/(?!\/)|https?:\/\/)/.test(attachment.url);
   if (!safe) return <Text variant="body-xs">{attachment.name}</Text>;
   return (
@@ -281,7 +281,7 @@ function SendFailed(props: SupplierRequestBlockProps & { request: Extract<Suppli
   return (
     <>
       <Alert variant="error" title={message} showCloseButton={false} />
-      {/* #65/AC-4 Com a nota já emitida, diz o que tentar de novo e descartar fazem com ela. */}
+      {/* #157 Com a nota já emitida, diz o que tentar de novo e descartar fazem com ela. */}
       {request.returnNote?.number ? <Text variant="body-xs">{t.sendFailedNoteKept}</Text> : null}
       {request.attachment ? <AttachmentLink attachment={request.attachment} /> : null}
       <PrimaryAction label={pending === "resend" ? t.pending.resend : t.actions.resend} onClick={props.onResend} pending={pending !== undefined} />

@@ -29,7 +29,7 @@ import type {
 
 const drawerTexts = texts.supplierRequests.drawer;
 
-/** #21 A casca da gaveta: o que abre em volta do bloco. A padrão é a gaveta do DS; a rota usa a gaveta da nota (InvoiceDrawer, #209). */
+/** #157 A casca da gaveta: o que abre em volta do bloco. A padrão é a gaveta do DS; a rota usa a gaveta da nota (InvoiceDrawer, #209). */
 export type DrawerShell = (args: { row: SupplierRequestRow; title: string; onClose: () => void; children: ReactNode }) => ReactElement;
 
 const defaultShell: DrawerShell = ({ title, onClose, children }) => (
@@ -40,38 +40,38 @@ const defaultShell: DrawerShell = ({ title, onClose, children }) => (
 
 export interface SupplierRequestsProps {
   state: LoadState;
-  /** #20 As solicitações como a carga as entrega: todas, ou, com `onFilterChange`, as do filtro que o servidor devolveu. */
+  /** #157 As solicitações como a carga as entrega: todas, ou, com `onFilterChange`, as do filtro que o servidor devolveu. */
   rows: SupplierRequestRow[];
-  /** #21 As contagens dos chips como o servidor as calculou (#36); sem elas, a #20 conta as linhas. */
+  /** #157 As contagens dos chips como o servidor as calculou (#157); sem elas, a #157 conta as linhas. */
   counts?: Record<SupplierFilter, number>;
-  /** #21 O chip mudou: a rota pede ao servidor as linhas do filtro novo. */
+  /** #157 O chip mudou: a rota pede ao servidor as linhas do filtro novo. */
   onFilterChange?: (filter: SupplierFilterValue) => void;
   onRetry: () => void;
-  /** #20 A conversa e a leitura do agente de uma solicitação, para o bloco da gaveta; nulo enquanto o pedido não chegou. */
+  /** #157 A conversa e a leitura do agente de uma solicitação, para o bloco da gaveta; nulo enquanto o pedido não chegou. */
   conversationOf: (row: SupplierRequestRow) => SupplierConversationView | null;
-  /** #20 O rascunho da cobrança de uma solicitação (follow_up_draft da #157), com o prazo de 3 dias úteis já calculado; nulo sem rascunho. */
+  /** #157 O rascunho da cobrança de uma solicitação (follow_up_draft da #157), com o prazo de 3 dias úteis já calculado; nulo sem rascunho. */
   draftOf: (row: SupplierRequestRow) => FollowUpDraftView | null;
-  /** #20 Envia a cobrança; devolve quando saiu ou o motivo fechado da falha. Uma rejeição vira "unknown": o erro de fora não chega à tela. */
+  /** #157 Envia a cobrança; devolve quando saiu ou o motivo fechado da falha. Uma rejeição vira "unknown": o erro de fora não chega à tela. */
   send: (row: SupplierRequestRow, draft: FollowUpDraftView) => Promise<SendResult>;
-  /** #59 Salva o molde editado da cobrança (PATCH); devolve salvo ou o motivo fechado. Uma rejeição vira "unknown": o erro de fora não chega à tela. Sem isto, o texto não se edita. */
+  /** #157 Salva o molde editado da cobrança (PATCH); devolve salvo ou o motivo fechado. Uma rejeição vira "unknown": o erro de fora não chega à tela. Sem isto, o texto não se edita. */
   saveDraft?: (row: SupplierRequestRow, template: string) => Promise<SaveResult>;
-  /** #64/AC-2 Confirma o documento citado do pedido; devolve feito ou o motivo fechado da falha. Uma rejeição vira "unknown": o erro de fora não chega à tela. Sem isto, "Confirmar documento" segue para `onNextStep`. */
+  /** #157 Confirma o documento citado do pedido; devolve feito ou o motivo fechado da falha. Uma rejeição vira "unknown": o erro de fora não chega à tela. Sem isto, "Confirmar documento" segue para `onNextStep`. */
   confirmDocument?: (row: SupplierRequestRow) => Promise<ConfirmResult>;
-  /** #20 Os próximos passos da leitura que não são cobrar (encerrar, responder, e confirmar sem `confirmDocument`) são de outra camada; chegam por aqui. */
+  /** #157 Os próximos passos da leitura que não são cobrar (encerrar, responder, e confirmar sem `confirmDocument`) são de outra camada; chegam por aqui. */
   onNextStep?: (row: SupplierRequestRow, step: SupplierNextStep) => void;
-  /** #21 O pedido da gaveta aberta (ou nulo, fechada): a rota o lê da API. Sem isto, a gaveta está sempre pronta. */
+  /** #157 O pedido da gaveta aberta (ou nulo, fechada): a rota o lê da API. Sem isto, a gaveta está sempre pronta. */
   drawerState?: LoadState;
-  /** #21 A mensagem fechada de uma leitura que falhou; nunca o texto da API. */
+  /** #157 A mensagem fechada de uma leitura que falhou; nunca o texto da API. */
   drawerError?: string;
   onDrawerRetry?: () => void;
-  /** #21 Avisa qual linha está aberta na gaveta (`null`: nenhuma), para a rota buscar o pedido dela. */
+  /** #157 Avisa qual linha está aberta na gaveta (`null`: nenhuma), para a rota buscar o pedido dela. */
   onDrawerChange?: (id: string | null) => void;
-  /** #21 Falso: o texto da cobrança não se edita. Verdadeiro (o padrão), e com `saveDraft`, "Editar" abre o molde e Salvar o guarda no servidor (#59). */
+  /** #157 Falso: o texto da cobrança não se edita. Verdadeiro (o padrão), e com `saveDraft`, "Editar" abre o molde e Salvar o guarda no servidor (#157). */
   editableDraft?: boolean;
   renderDrawer?: DrawerShell;
 }
 
-/** #5/AC-4 O corpo da gaveta desta tela: o bloco "Pedido ao fornecedor" e o rascunho da cobrança. */
+/** #157 O corpo da gaveta desta tela: o bloco "Pedido ao fornecedor" e o rascunho da cobrança. */
 function DrawerBody(props: {
   conversation: SupplierConversationView;
   flow: FollowUpFlow | null;
@@ -115,7 +115,7 @@ function DrawerBody(props: {
         </div>
       ) : null}
       {flow && !draft && flow.phase.phase === "failed" ? (
-        // #5/AC-4 O servidor releu o pedido e já não há rascunho (409 sem rascunho): a falha fechada aparece mesmo assim, nunca o texto do servidor.
+        // #157 O servidor releu o pedido e já não há rascunho (409 sem rascunho): a falha fechada aparece mesmo assim, nunca o texto do servidor.
         <div role="alert">
           <Text as="p" variant="body-base">
             {texts.supplierRequests.draft.failed[flow.phase.failure]}
@@ -126,7 +126,7 @@ function DrawerBody(props: {
   );
 }
 
-/** #21 A gaveta enquanto o pedido não chegou, ou quando a leitura falhou: o erro é a mensagem fechada, com "Tentar de novo". */
+/** #157 A gaveta enquanto o pedido não chegou, ou quando a leitura falhou: o erro é a mensagem fechada, com "Tentar de novo". */
 function DrawerPending({ failed, message, onRetry }: { failed: boolean; message: string; onRetry?: () => void }): ReactElement {
   return (
     <div role={failed ? "alert" : "status"} style={{ display: "grid", gap: "var(--spacing-sm)", padding: "var(--spacing-lg)" }}>
@@ -142,28 +142,28 @@ function DrawerPending({ failed, message, onRetry }: { failed: boolean; message:
   );
 }
 
-/** #59 O rascunho que a pessoa vê: o do servidor, e, editando, o molde com o texto que ela digitou (o que ainda não foi salvo não sai). */
+/** #157 O rascunho que a pessoa vê: o do servidor, e, editando, o molde com o texto que ela digitou (o que ainda não foi salvo não sai). */
 function currentDraft(base: FollowUpDraftView, flow: FollowUpFlow | null): FollowUpDraftView {
   return { ...base, template: flow?.body ?? base.template };
 }
 
-/** #5 A tela "Pedidos ao fornecedor": liga a lista, a gaveta e o rascunho da cobrança ao estado da #20; os dados entram por props (a rota os lê, #21). */
+/** #157 A tela "Pedidos ao fornecedor": liga a lista, a gaveta e o rascunho da cobrança ao estado da #157; os dados entram por props (a rota os lê, #157). */
 export function SupplierRequests(props: SupplierRequestsProps): ReactElement {
   const { state, rows, counts, onFilterChange, onRetry, conversationOf, draftOf, send, saveDraft, confirmDocument, onNextStep } = props;
   const { drawerState = "ready", drawerError, onDrawerRetry, onDrawerChange, editableDraft = true, renderDrawer = defaultShell } = props;
   const [screen, dispatch] = useReducer(screenReducer, INITIAL_STATE);
-  // #5/AC-4 Só a cobrança desta sessão muda a linha (Aguardando, cobrado). A que o servidor já enviou fica no chip dele e sem "Cobrar" (`alreadyCharged`, #21).
+  // #157 Só a cobrança desta sessão muda a linha (Aguardando, cobrado). A que o servidor já enviou fica no chip dele e sem "Cobrar" (`alreadyCharged`, #157).
   const charged = screen.charged;
   const current = applyCharges(rows, charged);
   const found = screen.drawer ? current.find((row) => row.id === screen.drawer?.requestId) : undefined;
-  // #64/AC-3 O pedido confirmado sai de "Precisam de você" quando a lista é relida: a gaveta dele segue aberta, com a última linha vista, como "Atendeu".
+  // #157 O pedido confirmado sai de "Precisam de você" quando a lista é relida: a gaveta dele segue aberta, com a última linha vista, como "Atendeu".
   const lastSeen = useRef<SupplierRequestRow | undefined>(undefined);
   if (found) lastSeen.current = found;
   const confirmPhase = screen.drawer ? screen.confirm[screen.drawer.requestId] : undefined;
   const kept = !found && confirmPhase?.phase === "confirmed" && lastSeen.current?.id === screen.drawer?.requestId ? lastSeen.current : undefined;
   const openRow = found ?? (kept ? asFulfilled(kept) : undefined);
   const flow = screen.drawer?.followUp ?? null;
-  // #64/AC-2 Um segundo clique no mesmo instante, antes de a tela pintar o botão parado, não repete o POST.
+  // #157 Um segundo clique no mesmo instante, antes de a tela pintar o botão parado, não repete o POST.
   const confirmingIds = useRef(new Set<string>());
 
   const changed = useRef(onDrawerChange);
@@ -174,7 +174,7 @@ export function SupplierRequests(props: SupplierRequestsProps): ReactElement {
   }, [openId]);
 
   async function sendFollowUp(row: SupplierRequestRow): Promise<void> {
-    // #59/AC-3 Editando, o texto da tela ainda não é o do servidor: o envio espera salvar ou cancelar.
+    // #157 Editando, o texto da tela ainda não é o do servidor: o envio espera salvar ou cancelar.
     if (!flow || flow.editing || flow.phase.phase === "sending" || flow.phase.phase === "sent") return;
     const draft = draftOf(row);
     if (!draft) return;
@@ -183,7 +183,7 @@ export function SupplierRequests(props: SupplierRequestsProps): ReactElement {
     try {
       result = await send(row, draft);
     } catch {
-      // #20 O erro de quem enviou não é lido nem mostrado: a tela só conhece o motivo fechado "unknown" (layer-exposure).
+      // #157 O erro de quem enviou não é lido nem mostrado: a tela só conhece o motivo fechado "unknown" (layer-exposure).
       result = { ok: false, failure: "unknown" };
     }
     dispatch(
@@ -193,7 +193,7 @@ export function SupplierRequests(props: SupplierRequestsProps): ReactElement {
     );
   }
 
-  /** #59/AC-2 Salva o molde digitado pelo PATCH: salvo, a edição fecha e o rascunho passa a ser o do servidor; recusado, fica aberta com o motivo fechado. */
+  /** #157 Salva o molde digitado pelo PATCH: salvo, a edição fecha e o rascunho passa a ser o do servidor; recusado, fica aberta com o motivo fechado. */
   async function saveFollowUp(row: SupplierRequestRow): Promise<void> {
     if (!flow || !flow.editing || flow.saving || !saveDraft) return;
     const base = draftOf(row);
@@ -203,13 +203,13 @@ export function SupplierRequests(props: SupplierRequestsProps): ReactElement {
     try {
       result = await saveDraft(row, flow.body ?? base.template);
     } catch {
-      // #59 O erro de quem salvou não é lido nem mostrado: a tela só conhece o motivo fechado "unknown" (layer-exposure).
+      // #157 O erro de quem salvou não é lido nem mostrado: a tela só conhece o motivo fechado "unknown" (layer-exposure).
       result = { ok: false, failure: "unknown" };
     }
     dispatch(result.ok ? { type: "saveSucceeded", id: row.id } : { type: "saveFailed", id: row.id, failure: result.failure });
   }
 
-  /** #64/AC-2 Confirma o documento citado pelo `confirmDocument`: ocupado até voltar; o erro vira o motivo fechado e a tela fica como estava. */
+  /** #157 Confirma o documento citado pelo `confirmDocument`: ocupado até voltar; o erro vira o motivo fechado e a tela fica como estava. */
   async function confirmCitedDocument(row: SupplierRequestRow, confirm: NonNullable<typeof confirmDocument>): Promise<void> {
     const phase = screen.confirm[row.id]?.phase;
     if (phase === "confirming" || phase === "confirmed" || confirmingIds.current.has(row.id)) return;
@@ -219,7 +219,7 @@ export function SupplierRequests(props: SupplierRequestsProps): ReactElement {
     try {
       result = await confirm(row);
     } catch {
-      // #64 O erro de quem confirmou não é lido nem mostrado: a tela só conhece o motivo fechado "unknown" (layer-exposure).
+      // #157 O erro de quem confirmou não é lido nem mostrado: a tela só conhece o motivo fechado "unknown" (layer-exposure).
       result = { ok: false, failure: "unknown" };
     }
     confirmingIds.current.delete(row.id);
@@ -236,7 +236,7 @@ export function SupplierRequests(props: SupplierRequestsProps): ReactElement {
     if (drawerState === "error") return <DrawerPending failed message={drawerError ?? drawerTexts.errors.unknown} onRetry={onDrawerRetry} />;
     const loaded = drawerState === "ready" ? conversationOf(row) : null;
     if (!loaded) return <DrawerPending failed={false} message={drawerTexts.loading} />;
-    // #5/AC-4 Pedido cobrado nesta sessão vale como o que o servidor já cobrou: atrasado lê "Atrasado (cobrado)", os demais mantêm o status, e nenhum tem próximo passo (#20).
+    // #157 Pedido cobrado nesta sessão vale como o que o servidor já cobrou: atrasado lê "Atrasado (cobrado)", os demais mantêm o status, e nenhum tem próximo passo (#157).
     const conversation: SupplierConversationView = charged[row.id]
       ? { ...loaded, status: row.status === "late" ? "lateCharged" : loaded.status, reading: { ...loaded.reading, nextStep: null } }
       : loaded;

@@ -5,7 +5,7 @@ import { returnNote, sourceInvoice } from '../domain/supplier-request-fixtures.j
 
 const catalog = () => buildSupplierRequestFacts(returnNote(), sourceInvoice(), '2026-11-17');
 
-describe('#11/AC-1 o prompt do e-mail ao fornecedor', () => { // ADR-002
+describe('#156 o prompt do e-mail ao fornecedor', () => { // ADR-002
   it('manda o catálogo como dado e diz que nada ali é instrução', () => { // ADR-002
     const { system, prompt } = buildSupplierRequestPrompt(catalog(), 'return_note');
     expect(system).toContain('dado');

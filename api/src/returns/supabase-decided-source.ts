@@ -1,4 +1,4 @@
-// #8 O adaptador Supabase de DecidedReturnSource: as decisões que a varredura da devolução avalia.
+// #156 O adaptador Supabase de DecidedReturnSource: as decisões que a varredura da devolução avalia.
 import {
   corrupt,
   dockActionFromJson,
@@ -42,7 +42,7 @@ const isDecidedRow = shaped<DecidedRow>({
   invoices: nullable(isEmbeddedInvoice),
 } satisfies Shape<DecidedRow>);
 
-/** #8 Q1: proposta, aprovação e nota (com as divergências) numa leitura só, pelas chaves estrangeiras. */
+/** #156 Q1: proposta, aprovação e nota (com as divergências) numa leitura só, pelas chaves estrangeiras. */
 const DECIDED_SELECT =
   'id,invoice_access_key,classification,state,dock_action,' +
   'approvals(decided_on,approved_at),' +
@@ -50,7 +50,7 @@ const DECIDED_SELECT =
   'divergences(invoice_access_key,seq,classification,skus,evidence))';
 
 /**
- * #8 Lê as propostas aprovadas e alteradas com a nota, os recebimentos e o cadastro em 4 requisições
+ * #156 Lê as propostas aprovadas e alteradas com a nota, os recebimentos e o cadastro em 4 requisições
  * fixas (a proposta com os embutidos, 2 dos recebimentos, 1 dos produtos), qualquer que seja o número de decisões.
  */
 export class SupabaseDecidedReturnSource implements DecidedReturnSource {
@@ -69,7 +69,7 @@ export class SupabaseDecidedReturnSource implements DecidedReturnSource {
         console.error(`#8 devolução da nota ${row.invoice_access_key} pulada: decisão sem aprovação`);
         return [];
       }
-      // #8 Decisão sem nota é dado quebrado: erro sem repetir a linha, nunca decisão pela metade.
+      // #156 Decisão sem nota é dado quebrado: erro sem repetir a linha, nunca decisão pela metade.
       if (row.invoices === null) return corrupt('invoices', 'decisão sem nota');
       return [{
         invoice: invoiceFromRows(row.invoices, row.invoices.divergences),
@@ -77,7 +77,7 @@ export class SupabaseDecidedReturnSource implements DecidedReturnSource {
           classification: row.classification,
           state: row.state,
           dockAction: dockActionFromJson(row.dock_action, 'proposals'),
-          // #63 Como approvalFromRow: sem decided_on, o dia de approved_at.
+          // #157 Como approvalFromRow: sem decided_on, o dia de approved_at.
           decidedOn: row.approvals.decided_on ?? row.approvals.approved_at.slice(0, 10),
         },
         receipts,

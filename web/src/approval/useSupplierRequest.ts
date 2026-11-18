@@ -1,5 +1,5 @@
 /**
- * #3 Liga o estado do bloco "Pedido ao fornecedor" às chamadas (#16): carrega o pedido, consulta de
+ * #156 Liga o estado do bloco "Pedido ao fornecedor" às chamadas (#156): carrega o pedido, consulta de
  * tempos em tempos enquanto o Claude escreve (AC-2) e traduz cada ação em pendente, feito ou recusado.
  */
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
@@ -14,7 +14,7 @@ import {
   type SupplierRequestPort,
 } from "./supplier-request-state";
 
-/** #3/AC-2 Intervalo padrão da consulta enquanto o pedido está sendo escrito; quem monta a gaveta pode trocar. */
+/** #156 Intervalo padrão da consulta enquanto o pedido está sendo escrito; quem monta a gaveta pode trocar. */
 export const DEFAULT_POLL_MS = 3000;
 
 export type SupplierRequestHandlers = Omit<SupplierRequestBlockProps, "viewer">;
@@ -25,7 +25,7 @@ export function useSupplierRequest(port: SupplierRequestPort, accessKey: string,
   portRef.current = port;
   const live = useRef(true);
   const [attempt, setAttempt] = useState(0);
-  // #3/AC-9 Com a consulta parada (5 falhas seguidas), só "Tentar de novo" volta a consultar.
+  // #156 Com a consulta parada (5 falhas seguidas), só "Tentar de novo" volta a consultar.
   const polling = state.request?.status === "writing" && !state.loadFailed;
 
   useEffect(() => {
@@ -36,7 +36,7 @@ export function useSupplierRequest(port: SupplierRequestPort, accessKey: string,
       .then((request) => {
         if (!controller.signal.aborted) dispatch({ type: "loaded", request });
       })
-      // #3/AC-9 Sem conseguir buscar, o bloco mostra a falha de carga; o erro em si não sai daqui.
+      // #156 Sem conseguir buscar, o bloco mostra a falha de carga; o erro em si não sai daqui.
       .catch(() => {
         if (!controller.signal.aborted) dispatch({ type: "loadFailed" });
       });
@@ -50,9 +50,9 @@ export function useSupplierRequest(port: SupplierRequestPort, accessKey: string,
     if (!polling) return undefined;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
-    // #3/AC-9 Uma consulta por vez: a próxima só é agendada quando a anterior volta, para uma resposta
-    // #3/AC-9 atrasada nunca passar na frente da falha que para a consulta. A contagem fica também aqui: a limpeza
-    // #3/AC-9 do efeito roda depois do render, e sem ela uma consulta a mais saía depois da quinta falha.
+    // #156 Uma consulta por vez: a próxima só é agendada quando a anterior volta, para uma resposta
+    // #156 atrasada nunca passar na frente da falha que para a consulta. A contagem fica também aqui: a limpeza
+    // #156 do efeito roda depois do render, e sem ela uma consulta a mais saía depois da quinta falha.
     let failures = 0;
     const schedule = (): void => {
       timer = setTimeout(() => {
@@ -62,7 +62,7 @@ export function useSupplierRequest(port: SupplierRequestPort, accessKey: string,
             failures = 0;
             if (!controller.signal.aborted) dispatch({ type: "loaded", request });
           })
-          // #3/AC-9 Uma consulta que falha conta; com 5 seguidas o estado para a consulta e mostra a falha de carga.
+          // #156 Uma consulta que falha conta; com 5 seguidas o estado para a consulta e mostra a falha de carga.
           .catch(() => {
             failures += 1;
             if (!controller.signal.aborted) dispatch({ type: "pollFailed" });
@@ -89,7 +89,7 @@ export function useSupplierRequest(port: SupplierRequestPort, accessKey: string,
       const request = await portRef.current.load(accessKey, new AbortController().signal);
       if (live.current) dispatch({ type: "loaded", request });
     } catch {
-      // #3/AC-4 A releitura que também falha deixa o estado de antes e a mensagem fixa; quem segue vendo vai ter a consulta.
+      // #156 A releitura que também falha deixa o estado de antes e a mensagem fixa; quem segue vendo vai ter a consulta.
     }
   }, [accessKey]);
 
@@ -100,7 +100,7 @@ export function useSupplierRequest(port: SupplierRequestPort, accessKey: string,
       if (live.current) dispatch({ type: "done", request });
     } catch (reason) {
       if (live.current) dispatch({ type: "failed", error: supplierRequestError(reason) });
-      // #3/AC-4 Prazo estourado (status 0): o servidor pode ter concluído, então a tela relê o pedido em vez de manter o de antes.
+      // #156 Prazo estourado (status 0): o servidor pode ter concluído, então a tela relê o pedido em vez de manter o de antes.
       if (reason instanceof ApiError && reason.status === 0) await refresh();
     }
   }, [refresh]);

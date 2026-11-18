@@ -7,7 +7,7 @@ import { DockAction, Quantity } from '../../src/domain/index.js';
 import { FakePostgrest } from '../support/fake-postgrest.js';
 import { kitTables } from '../support/kit.js';
 
-// #8 Apoio dos testes do adaptador: o kit capturado e proposto pelo Cron, sobre o PostgREST falso.
+// #156 Apoio dos testes do adaptador: o kit capturado e proposto pelo Cron, sobre o PostgREST falso.
 
 export type Row = Record<string, unknown>;
 const NOW = new Date('2026-11-15T12:00:00Z');
@@ -23,14 +23,14 @@ export async function proposedWorld(): Promise<ProposedWorld> {
   return { fake, rest };
 }
 
-/** #8 A primeira proposta da classificação dada, ainda aguardando aprovação. */
+/** #156 A primeira proposta da classificação dada, ainda aguardando aprovação. */
 export function awaiting(fake: FakePostgrest, classification: string, nth = 0): Row {
   const found = fake.rows('proposals').filter((p) => p.classification === classification && p.state === 'aguardando_aprovacao')[nth];
   if (!found) throw new Error(`sem proposta ${classification} aguardando`);
   return found;
 }
 
-/** #8 A pessoa decide: a proposta ganha o estado e a ação, e a aprovação entra com o dia da decisão. */
+/** #156 A pessoa decide: a proposta ganha o estado e a ação, e a aprovação entra com o dia da decisão. */
 export function decide(
   fake: FakePostgrest,
   proposal: Row,
@@ -50,7 +50,7 @@ export function decide(
   });
 }
 
-/** #8 A ação parcial que devolve 1 do primeiro item da nota da proposta, na unidade do item. */
+/** #156 A ação parcial que devolve 1 do primeiro item da nota da proposta, na unidade do item. */
 export function returnFirstItem(fake: FakePostgrest, proposal: Row): DockAction {
   const invoice = fake.rows('invoices').find((i) => i.access_key === proposal.invoice_access_key);
   const [item] = (invoice?.items ?? []) as { sku: string | null; supplierCode: string; quantity: { unit: 'UN' | 'CX' } }[];

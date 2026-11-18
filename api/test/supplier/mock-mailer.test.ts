@@ -4,7 +4,7 @@ import type { MailMessage, SupplierMailer } from '../../src/supplier/ports.js';
 import { SOURCE_KEY } from '../domain/supplier-request-fixtures.js';
 import { SUPPLIER_EMAIL } from './doubles.js';
 
-// #12: o envio pela caixa de saída mock; o registro do envio mock é a linha do pedido (channel mock), não outra tabela.
+// #156: o envio pela caixa de saída mock; o registro do envio mock é a linha do pedido (channel mock), não outra tabela.
 
 const message: MailMessage = {
   invoiceAccessKey: SOURCE_KEY,
@@ -19,7 +19,7 @@ const message: MailMessage = {
   idempotencyKey: 'claim-abc',
 };
 
-describe('#12/AC-5 sem a chave do Resend, o envio usa a caixa de saída mock', () => { // ADR-002
+describe('#156 sem a chave do Resend, o envio usa a caixa de saída mock', () => { // ADR-002
   it('o mock responde ok, pelo canal mock, com um identificador que vem da chave da trava', async () => { // ADR-002
     expect(await mockMailer().send(message)).toEqual({ ok: true, channel: 'mock', providerMessageId: 'mock-claim-abc' });
   });

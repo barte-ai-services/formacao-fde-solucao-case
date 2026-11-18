@@ -3,7 +3,7 @@ import type { SupabaseRest } from '../connectors/supabase-rest.js';
 import { Invoice, Money, Quantity } from '../domain/index.js';
 import type { SourceInvoices } from './ports.js';
 
-// #12/AC-1: a nota de origem (invoices) e o e-mail de teste do fornecedor dela (kit_fornecedores.email).
+// #156: a nota de origem (invoices) e o e-mail de teste do fornecedor dela (kit_fornecedores.email).
 
 type ItemJson = {
   supplierCode: string;
@@ -72,7 +72,7 @@ const invoiceOf = (row: InvoiceRow): Invoice =>
     total: Money.ofCents(row.total_cents),
   });
 
-/** #12/AC-1: falha fechada: nota ausente, fornecedor ausente ou sem e-mail dão `null`, nunca um envio sem destinatário. */
+/** #156: falha fechada: nota ausente, fornecedor ausente ou sem e-mail dão `null`, nunca um envio sem destinatário. */
 export function supabaseSourceInvoices(rest: SupabaseRest): SourceInvoices {
   return {
     async find(invoiceAccessKey) {

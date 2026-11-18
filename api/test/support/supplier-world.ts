@@ -1,5 +1,5 @@
-// #13: o "mundo" dos testes do pedido ao fornecedor pela API: o Worker montado, o PostgREST falso com o kit e a fila,
-// #13: o Access assinado no teste, o Cron do rascunho e as chamadas HTTP. Nenhuma rede: tudo cai no FakePostgrest.
+// #156: o "mundo" dos testes do pedido ao fornecedor pela API: o Worker montado, o PostgREST falso com o kit e a fila,
+// #156: o Access assinado no teste, o Cron do rascunho e as chamadas HTTP. Nenhuma rede: tudo cai no FakePostgrest.
 import { ClaudeClient, type Ask } from '../../src/claude/client.js';
 import { restDb } from '../../src/claude/db.js';
 import { runTasks } from '../../src/claude/runner.js';
@@ -17,23 +17,23 @@ import { accessEnv, accessKit } from './access-token.js';
 import type { FakePostgrest } from './fake-postgrest.js';
 
 export type WorldOptions = {
-  /** #13: o e-mail da identidade do Access; vazio é um service token, sem e-mail. */
+  /** #156: o e-mail da identidade do Access; vazio é um service token, sem e-mail. */
   readonly email?: string;
   readonly mailer?: SupplierMailer;
-  /** #13: o `Ask` do "refazer"; sem ele, o do Env (sem credencial, nenhum). */
+  /** #156: o `Ask` do "refazer"; sem ele, o do Env (sem credencial, nenhum). */
   readonly ask?: Ask | null;
-  /** #13: `missing` simula o Worker sem as credenciais do Supabase. */
+  /** #156: `missing` simula o Worker sem as credenciais do Supabase. */
   readonly supabase?: 'ok' | 'missing';
   readonly env?: Env;
-  /** #13: sem a devolução pendente na fila. */
+  /** #156: sem a devolução pendente na fila. */
   readonly emptyQueue?: boolean;
-  /** #36: o relógio do Worker (o dia de hoje do prazo e o carimbo do envio); padrão, o dia do rascunho da #13. */
+  /** #157: o relógio do Worker (o dia de hoje do prazo e o carimbo do envio); padrão, o dia do rascunho da #156. */
   readonly now?: Date;
 };
 
 export type Reply = { readonly status: number; readonly body: Record<string, unknown>; readonly headers: Headers };
 
-/** #57: a resposta que não é JSON (o PDF da nota), lida como texto: o PDF do mock é só ASCII. */
+/** #156: a resposta que não é JSON (o PDF da nota), lida como texto: o PDF do mock é só ASCII. */
 export type Download = { readonly status: number; readonly headers: Headers; readonly text: string };
 
 export type CallInit = { readonly body?: unknown; readonly json?: boolean; readonly token?: boolean; readonly raw?: string };
@@ -44,14 +44,14 @@ export type SupplierWorld = {
   readonly fake: FakePostgrest;
   readonly rest: SupabaseRest;
   readonly call: (method: string, path: string, init?: CallInit) => Promise<Reply>;
-  /** #57: um GET cujo corpo não é JSON, pelo mesmo roteador. */
+  /** #156: um GET cujo corpo não é JSON, pelo mesmo roteador. */
   readonly download: (path: string) => Promise<Download>;
   readonly runCron: (ask?: Ask) => Promise<readonly string[]>;
-  /** #36: muda o dia de hoje do Worker (o prazo da cobrança). */
+  /** #157: muda o dia de hoje do Worker (o prazo da cobrança). */
   readonly setNow: (now: Date) => void;
-  /** #36/AC-1: o fornecedor responde: uma mensagem pendente na caixa de entrada mock, ligada ao pedido (o que o script de exemplo faz). */
+  /** #157: o fornecedor responde: uma mensagem pendente na caixa de entrada mock, ligada ao pedido (o que o script de exemplo faz). */
   readonly receive: (text: string, requestId?: number) => void;
-  /** #36: o laço do Cron com TODAS as tarefas registradas em tasksFor (a leitura, a cobrança e as demais); o `Ask` é o falso. */
+  /** #157: o laço do Cron com TODAS as tarefas registradas em tasksFor (a leitura, a cobrança e as demais); o `Ask` é o falso. */
   readonly runAllTasks: (ask: Ask) => Promise<readonly string[]>;
   readonly path: (suffix?: string, key?: string) => string;
   readonly rows: (table: string) => Record<string, unknown>[];
@@ -64,7 +64,7 @@ export async function supplierWorld(options: WorldOptions = {}): Promise<Supplie
     kit_fornecedores: [supplierRow()],
     outbox_return_notes: options.emptyQueue ? [] : [queueRow()],
   });
-  // #36: as restrições únicas da migração da leitura (#35): a caixa pela origem e o único no_reply por pedido.
+  // #157: as restrições únicas da migração da leitura (#157): a caixa pela origem e o único no_reply por pedido.
   fake.unique('inbox_supplier_messages', ['source_message_id']);
   fake.unique('supplier_reply_readings', ['request_id'], (row) => row.message_id === null || row.message_id === undefined);
   const kit = await accessKit(options.email ?? 'ana@jachegou.test');
@@ -79,7 +79,7 @@ export async function supplierWorld(options: WorldOptions = {}): Promise<Supplie
     ...(options.ask !== undefined ? { ask: () => options.ask ?? null } : {}),
   };
 
-  /** #13: uma chamada HTTP pelo roteador de verdade; escrita leva JSON por padrão. */
+  /** #156: uma chamada HTTP pelo roteador de verdade; escrita leva JSON por padrão. */
   async function call(method: string, path: string, init: CallInit = {}): Promise<Reply> {
     const writing = method !== 'GET';
     const headers: Record<string, string> = { ...(init.token === false ? {} : { 'Cf-Access-Jwt-Assertion': token }) };
@@ -91,14 +91,14 @@ export async function supplierWorld(options: WorldOptions = {}): Promise<Supplie
     return { status: response.status, body: typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {}, headers: response.headers };
   }
 
-  /** #57: o GET do PDF da nota, com o Access assinado, pelo roteador de verdade. */
+  /** #156: o GET do PDF da nota, com o Access assinado, pelo roteador de verdade. */
   async function download(path: string): Promise<Download> {
     const request = new Request(`https://worker.test${path}`, { method: 'GET', headers: { 'Cf-Access-Jwt-Assertion': token } });
     const response = await route(request, env, { verifier: kit.verifier, supplierRequests });
     return { status: response.status, headers: response.headers, text: await response.text() };
   }
 
-  /** #13/AC-1 (#2): o Cron roda a tarefa do rascunho com o Claude falso: o mesmo laço da produção, só a pergunta é nossa. */
+  /** #156 (#156): o Cron roda a tarefa do rascunho com o Claude falso: o mesmo laço da produção, só a pergunta é nossa. */
   async function runCron(ask: Ask = fakeAsk()): Promise<readonly string[]> {
     const log: string[] = [];
     await runTasks({
@@ -111,7 +111,7 @@ export async function supplierWorld(options: WorldOptions = {}): Promise<Supplie
     return log;
   }
 
-  /** #36/AC-1: o mesmo laço, com o registro de tarefas de produção (tasksFor); só a pergunta ao Claude é nossa. */
+  /** #157: o mesmo laço, com o registro de tarefas de produção (tasksFor); só a pergunta ao Claude é nossa. */
   async function runAllTasks(ask: Ask): Promise<readonly string[]> {
     const log: string[] = [];
     await runTasks({ db: restDb(rest), ask, tasks: tasksFor(rest), log: (line) => log.push(line), now: clock.now });
@@ -133,6 +133,6 @@ export async function supplierWorld(options: WorldOptions = {}): Promise<Supplie
   return { fake, rest, call, download, runCron, runAllTasks, setNow, receive, path, rows, key: SOURCE_KEY };
 }
 
-/** #13: um `Ask` de verdade (o cliente do Claude) sobre um fetch falso que responde com o status dado. */
+/** #156: um `Ask` de verdade (o cliente do Claude) sobre um fetch falso que responde com o status dado. */
 export const askFailingWith = (status: number): Ask =>
   new ClaudeClient({ credentials: { kind: 'api-key', apiKey: 'chave-de-teste' }, fetch: async () => new Response('{}', { status }) }).ask;

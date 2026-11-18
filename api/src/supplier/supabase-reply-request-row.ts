@@ -5,27 +5,27 @@ import type { FollowUpState, ReplyRequest } from './reply-ports.js';
 import { currentReading, isReadingRow, readingFromRow, READINGS_TABLE } from './supabase-reply-reading.js';
 import { noteFromJson } from './supabase-notes.js';
 
-// #35: o pedido ao fornecedor (outbox_supplier_emails, #12) como a leitura da resposta o vê: a linha com as colunas follow_up_*,
-// #35: o fornecedor e as leituras embutidos pelo PostgREST numa requisição só (supabase/persistence-supplier-reply.md, QR1 e QR2).
+// #157: o pedido ao fornecedor (outbox_supplier_emails, #156) como a leitura da resposta o vê: a linha com as colunas follow_up_*,
+// #157: o fornecedor e as leituras embutidos pelo PostgREST numa requisição só (supabase/persistence-supplier-reply.md, QR1 e QR2).
 
 export const OUTBOX_TABLE = 'outbox_supplier_emails';
 
-/** #35: o PostgREST ordena o recurso embutido por `<recurso>.order`; o adaptador não depende dela (currentReading escolhe), só a pede. */
+/** #157: o PostgREST ordena o recurso embutido por `<recurso>.order`; o adaptador não depende dela (currentReading escolhe), só a pede. */
 export const READINGS_ORDER = { [`${READINGS_TABLE}.order`]: 'message_id.desc.nullslast' } as const;
 
-/** #35: as colunas da cobrança, as que as gravações da cobrança e só elas podem tocar. */
+/** #157: as colunas da cobrança, as que as gravações da cobrança e só elas podem tocar. */
 export const FOLLOW_UP_COLUMNS =
   'follow_up_draft,follow_up_rejection,follow_up_claimed_at,follow_up_sent_by,follow_up_sent_at,follow_up_channel,follow_up_provider_message_id,follow_up_failure';
 
-/** #35 QR1/QR2: o pedido, o fornecedor pela chave estrangeira do pedido e as leituras pela chave estrangeira nomeada. */
+/** #157 QR1/QR2: o pedido, o fornecedor pela chave estrangeira do pedido e as leituras pela chave estrangeira nomeada. */
 export const REQUEST_SELECT = [
-  'id,invoice_access_key,request_type,recipient,subject,asks,note,due_on,status,supplier_id,history', // #63/AC-3: o histórico leva as confirmações
+  'id,invoice_access_key,request_type,recipient,subject,asks,note,due_on,status,supplier_id,history', // #157: o histórico leva as confirmações
   FOLLOW_UP_COLUMNS,
   'kit_fornecedores(razao_social)',
   `${READINGS_TABLE}!supplier_reply_readings_request_fkey(id,message_id,reply_outcome,fulfilled_asks,supplier_document,summary,next_step,injection_flag)`,
 ].join(',');
 
-/** #58/AC-2: o rascunho como a coluna o guarda: o texto e o novo prazo; o rascunho do Claude, de antes da #58, não tem `dueOn`. */
+/** #157: o rascunho como a coluna o guarda: o texto e o novo prazo; o rascunho do Claude, de antes da #157, não tem `dueOn`. */
 export type FollowUpDraftJson = SupplierRequestText & { readonly dueOn?: string };
 
 export type FollowUpColumns = {
@@ -96,11 +96,11 @@ const instant = (value: string): Date => {
   return Number.isNaN(at.getTime()) ? corrupt('carimbo da cobrança fora do formato') : at;
 };
 
-/** #63/AC-3: a ação da entrada do histórico que guarda a confirmação do documento (supabase/persistence-supplier-reply.md). */
+/** #157: a ação da entrada do histórico que guarda a confirmação do documento (supabase/persistence-supplier-reply.md). */
 export const CONFIRMED_ACTION = 'document_confirmed';
 
 /**
- * #63/AC-3 (ADR-005): as confirmações gravadas no histórico da linha, em ordem. A entrada fora do formato (sem documento, sem quem ou com
+ * #157 (ADR-005): as confirmações gravadas no histórico da linha, em ordem. A entrada fora do formato (sem documento, sem quem ou com
  * carimbo que não é data) não é confirmação: é ignorada, nunca lançada, porque o histórico é de várias gravações e esta só lê a sua.
  */
 export function confirmationsOf(history: readonly unknown[]): DocumentConfirmation[] {
@@ -114,7 +114,7 @@ export function confirmationsOf(history: readonly unknown[]): DocumentConfirmati
   return found;
 }
 
-/** #35: o estado da cobrança nas colunas; o carimbo só existe com as quatro partes (a migração garante). */
+/** #157: o estado da cobrança nas colunas; o carimbo só existe com as quatro partes (a migração garante). */
 export function followUpOf(row: FollowUpColumns): FollowUpState {
   const { follow_up_sent_at: at, follow_up_sent_by: by, follow_up_channel: channel, follow_up_provider_message_id: providerMessageId } = row;
   const complete = at !== null && by !== null && channel !== null && providerMessageId !== null;
@@ -128,7 +128,7 @@ export function followUpOf(row: FollowUpColumns): FollowUpState {
   };
 }
 
-/** #35: a linha lida e o número da nota de origem viram o pedido da leitura; a leitura atual vem da projeção do log. */
+/** #157: a linha lida e o número da nota de origem viram o pedido da leitura; a leitura atual vem da projeção do log. */
 export function toReplyRequest(row: RequestRow, invoiceNumber: string): ReplyRequest {
   const reading = currentReading(row.supplier_reply_readings.map(readingFromRow))?.reading ?? null;
   return {
@@ -149,13 +149,13 @@ export function toReplyRequest(row: RequestRow, invoiceNumber: string): ReplyReq
   };
 }
 
-/** #35: o histórico leva o `state` da última entrada, copiado: a cobrança não muda o estado do pedido (#12). */
+/** #157: o histórico leva o `state` da última entrada, copiado: a cobrança não muda o estado do pedido (#156). */
 export function lastState(history: readonly unknown[]): unknown {
   const last = history.at(-1);
   return typeof last === 'object' && last !== null && 'state' in last ? last.state : null;
 }
 
-/** #35: o estado da cobrança depois da gravação, como entra no histórico: nomes e marcas, nunca o texto do rascunho. */
+/** #157: o estado da cobrança depois da gravação, como entra no histórico: nomes e marcas, nunca o texto do rascunho. */
 export type FollowUpSummary = {
   readonly drafted: boolean;
   readonly rejection: string | null;

@@ -9,14 +9,14 @@ import { sweepReturnNotes } from '../../src/returns/sweep-return-notes.js';
 import { addReceipt, clearReceipts, assembled, invoiceOf, keyOf } from '../returns/acceptance.support.js';
 import { awaiting, returnFirstItem } from '../returns/supabase-decided-source.support.js';
 
-// #9 A rota de decisão publica a devolução (#1/AC-1 a AC-5, AC-7, AC-8; #9/AC-1) sobre o kit e o PostgREST falso.
+// #156 A rota de decisão publica a devolução (#156 a AC-5, AC-7, AC-8; #156) sobre o kit e o PostgREST falso.
 
 afterEach(() => vi.restoreAllMocks());
 
 const partial = (action: DockAction): unknown => dockActionToJson(action);
 
-describe('#9/AC-1 a rota aprova ou altera e a devolução entra na fila', () => {
-  it('#1/AC-1 #9/AC-1: E3 alterada para receber parcial com linhas devolver entra pendente, com quantidade x preço do item', async () => {
+describe('#156 a rota aprova ou altera e a devolução entra na fila', () => {
+  it('#156: E3 alterada para receber parcial com linhas devolver entra pendente, com quantidade x preço do item', async () => {
     const world = await assembled();
     const e3 = awaiting(world.fake, 'E3');
     const item = (await invoiceOf(world.rest, e3)).items[0]!;
@@ -34,7 +34,7 @@ describe('#9/AC-1 a rota aprova ou altera e a devolução entra na fila', () => 
     });
   });
 
-  it('#1/AC-2 #9/AC-1: E1 alterada para receber parcial entra na fila com as linhas da ação', async () => {
+  it('#156: E1 alterada para receber parcial entra na fila com as linhas da ação', async () => {
     const world = await assembled();
     const e1 = awaiting(world.fake, 'E1');
     const item = (await invoiceOf(world.rest, e1)).items[0]!;
@@ -46,7 +46,7 @@ describe('#9/AC-1 a rota aprova ou altera e a devolução entra na fila', () => 
     expect(notes[0]).toMatchObject({ invoiceAccessKey: keyOf(e1), lines: [{ supplierCode: item.supplierCode, quantity: { amount: 1, unit: item.quantity.unit } }] });
   });
 
-  it('#1/AC-3 #9/AC-1: E2 alterada para receber parcial entra na fila só com o item trocado', async () => {
+  it('#156: E2 alterada para receber parcial entra na fila só com o item trocado', async () => {
     const world = await assembled();
     const e2 = awaiting(world.fake, 'E2');
     const item = (await invoiceOf(world.rest, e2)).items[0]!;
@@ -58,12 +58,12 @@ describe('#9/AC-1 a rota aprova ou altera e a devolução entra na fila', () => 
     expect(notes[0]?.lines.map((l) => l.supplierCode)).toEqual([item.supplierCode]);
   });
 
-  it('#1/AC-4 #9/AC-1: recusa de nota com recebimento do dia da decisão entra com os itens recebidos, no limite da nota', async () => {
+  it('#156: recusa de nota com recebimento do dia da decisão entra com os itens recebidos, no limite da nota', async () => {
     const world = await assembled();
     const note = awaiting(world.fake, 'E3');
     clearReceipts(world.fake, keyOf(note));
     const item = (await invoiceOf(world.rest, note)).items[0]!;
-    // #1/AC-4 Recebeu o dobro do que a nota traz: a linha sai no limite da nota. Recebimento do próprio dia vale.
+    // #156 Recebeu o dobro do que a nota traz: a linha sai no limite da nota. Recebimento do próprio dia vale.
     addReceipt(world.fake, keyOf(note), '2026-11-15', [[item.supplierCode, item.quantity.amount * 2, item.quantity.unit]]);
 
     expect((await world.alter(keyOf(note), { kind: 'recusar' })).status).toBe(200);
@@ -73,7 +73,7 @@ describe('#9/AC-1 a rota aprova ou altera e a devolução entra na fila', () => 
     expect(notes[0]?.lines[0]).toMatchObject({ supplierCode: item.supplierCode, quantity: { amount: item.quantity.amount, unit: item.quantity.unit } });
   });
 
-  it('#1/AC-5 #9/AC-1: recusa sem recebimento registrado não entra na fila e a decisão vale', async () => {
+  it('#156: recusa sem recebimento registrado não entra na fila e a decisão vale', async () => {
     const world = await assembled();
     const note = awaiting(world.fake, 'E3');
     clearReceipts(world.fake, keyOf(note));
@@ -85,7 +85,7 @@ describe('#9/AC-1 a rota aprova ou altera e a devolução entra na fila', () => 
     expect(note.state).toBe('alterada');
   });
 
-  it('#1/AC-5 #9/AC-1: recebimento posterior ao dia da decisão não conta e a recusa fica fora da fila', async () => {
+  it('#156: recebimento posterior ao dia da decisão não conta e a recusa fica fora da fila', async () => {
     const world = await assembled();
     const note = awaiting(world.fake, 'E3');
     clearReceipts(world.fake, keyOf(note));
@@ -98,8 +98,8 @@ describe('#9/AC-1 a rota aprova ou altera e a devolução entra na fila', () => 
   });
 });
 
-describe('#1/AC-7 publicar de novo não duplica', () => {
-  it('#1/AC-7 #9/AC-1: a rota, a segunda decisão e a varredura deixam uma linha só', async () => {
+describe('#156 publicar de novo não duplica', () => {
+  it('#156: a rota, a segunda decisão e a varredura deixam uma linha só', async () => {
     const world = await assembled();
     const e3 = awaiting(world.fake, 'E3');
     const action = partial(returnFirstItem(world.fake, e3));
@@ -111,7 +111,7 @@ describe('#1/AC-7 publicar de novo não duplica', () => {
     expect(world.fake.rows('outbox_return_notes').filter((r) => r.invoice_access_key === keyOf(e3))).toHaveLength(1);
   });
 
-  it('#1/AC-7 #9/AC-1: devolução já emitida na fila não é publicada de novo pela varredura', async () => {
+  it('#156: devolução já emitida na fila não é publicada de novo pela varredura', async () => {
     const world = await assembled();
     const e3 = awaiting(world.fake, 'E3');
     expect((await world.alter(keyOf(e3), partial(returnFirstItem(world.fake, e3)))).status).toBe(200);
@@ -126,8 +126,8 @@ describe('#1/AC-7 publicar de novo não duplica', () => {
   });
 });
 
-describe('#1/AC-8 o que não devolve fica fora da fila', () => {
-  it('#1/AC-8 #9/AC-1: receber, e recusa de E4, E5, E6 e E8 (o E7 vai na varredura) com recebimento registrado, não entram', async () => {
+describe('#156 o que não devolve fica fora da fila', () => {
+  it('#156: receber, e recusa de E4, E5, E6 e E8 (o E7 vai na varredura) com recebimento registrado, não entram', async () => {
     const world = await assembled();
     const e3 = awaiting(world.fake, 'E3');
     expect((await world.alter(keyOf(e3), { kind: 'receber' })).status).toBe(200);
@@ -141,13 +141,13 @@ describe('#1/AC-8 o que não devolve fica fora da fila', () => {
   });
 });
 
-describe('#9/AC-1 a falha de publicar não desfaz a decisão', () => {
+describe('#156 a falha de publicar não desfaz a decisão', () => {
   const failing: ReturnNoteOutbox = {
     publish: () => Promise.reject(new SupabaseRestError('insert', 'outbox_return_notes', 503, 'corpo-secreto-do-erp')),
     list: () => Promise.resolve([]),
   };
 
-  it('#9/AC-1: o ERP falha, a decisão vale e o log leva só a chave e o status', async () => {
+  it('#156: o ERP falha, a decisão vale e o log leva só a chave e o status', async () => {
     const world = await assembled({ returnOutbox: () => failing });
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     const e3 = awaiting(world.fake, 'E3');
@@ -161,7 +161,7 @@ describe('#9/AC-1 a falha de publicar não desfaz a decisão', () => {
     expect(lines.join('\n')).not.toContain('corpo-secreto-do-erp');
   });
 
-  it('#9/AC-1: a devolução que falhou na rota entra pela varredura, depois', async () => {
+  it('#156: a devolução que falhou na rota entra pela varredura, depois', async () => {
     const world = await assembled({ returnOutbox: () => failing });
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const e3 = awaiting(world.fake, 'E3');
@@ -173,7 +173,7 @@ describe('#9/AC-1 a falha de publicar não desfaz a decisão', () => {
     expect(world.fake.rows('outbox_return_notes').some((r) => r.invoice_access_key === keyOf(e3))).toBe(true);
   });
 
-  it('#9/AC-1: a falha da doca não pula a devolução, e a da devolução não pula a doca', async () => {
+  it('#156: a falha da doca não pula a devolução, e a da devolução não pula a doca', async () => {
     const brokenDock: DockActionOutbox = { publish: () => Promise.reject(new Error('WMS fora')), list: () => Promise.resolve([]) };
     const dockFails = await assembled({ dockOutbox: () => brokenDock });
     vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -189,8 +189,8 @@ describe('#9/AC-1 a falha de publicar não desfaz a decisão', () => {
   });
 });
 
-describe('#9/AC-1 o contrato da resposta de aprovar e alterar não muda', () => {
-  it('#9/AC-1: aprovar e alterar respondem só approval e title, com os mesmos campos de antes', async () => {
+describe('#156 o contrato da resposta de aprovar e alterar não muda', () => {
+  it('#156: aprovar e alterar respondem só approval e title, com os mesmos campos de antes', async () => {
     const world = await assembled();
     const e3 = awaiting(world.fake, 'E3');
     const altered = await world.alter(keyOf(e3), partial(returnFirstItem(world.fake, e3)));

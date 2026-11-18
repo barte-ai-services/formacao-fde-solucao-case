@@ -20,12 +20,12 @@ import { queueEntryOf } from '../../src/supplier/draft.js';
 import type { SupplierDraftInput } from '../../src/supplier/draft-task.js';
 import { SOURCE_KEY, sourceInvoice } from '../domain/supplier-request-fixtures.js';
 
-// #11: dublês das portas do pedido ao fornecedor; nenhum banco, nenhuma rede.
+// #156: dublês das portas do pedido ao fornecedor; nenhum banco, nenhuma rede.
 
 export const NOW = new Date('2026-11-12T15:00:00Z');
 export const SUPPLIER_EMAIL = 'compras@bebidas-rio-claro.example';
 
-/** #11: o texto que o Claude falso devolve; todo número é {{chave}} do catálogo. */
+/** #156: o texto que o Claude falso devolve; todo número é {{chave}} do catálogo. */
 export const GOOD_TEXT = {
   subject: 'Devolução da nota {{nota.numero}}',
   body: 'Devolvemos {{devolucao.item[F02-002].quantidade}} de F02-002, no valor de {{devolucao.item[F02-002].valor}}. Total {{devolucao.total}}, retorno até {{prazo}}.',
@@ -64,7 +64,7 @@ export const queueView = (id: number, overrides: Partial<ReturnNoteView> = {}): 
   ...overrides,
 });
 
-/** #12: a entrada que o `pending()` da tarefa entrega ao `run`, para a devolução 7 (ou a que `over` descreve). */
+/** #156: a entrada que o `pending()` da tarefa entrega ao `run`, para a devolução 7 (ou a que `over` descreve). */
 export const draftInput = (over: Partial<ReturnNoteView> = {}): SupplierDraftInput => {
   const { id, ...rest } = queueEntryOf(queueView(7, over));
   return { queueId: id, ...rest };
@@ -98,16 +98,16 @@ export type FakeRequests = SupplierDeps['requests'] & {
   saves: number;
   claims: number;
   releases: number;
-  /** #12: o que o caso de uso mandou criar, para conferir quem fez. */
+  /** #156: o que o caso de uso mandou criar, para conferir quem fez. */
   created: NewRequest[];
-  /** #12: quando true, o próximo save diz `stale`, como o PATCH que não achou a versão lida. */
+  /** #156: quando true, o próximo save diz `stale`, como o PATCH que não achou a versão lida. */
   staleNext: boolean;
-  /** #12: quando true, a próxima trava é recusada (outro envio em curso). */
+  /** #156: quando true, a próxima trava é recusada (outro envio em curso). */
   refuseClaim: boolean;
-  /** #12: quantas vezes cada leitura foi chamada, para conferir o custo do `pending()` da tarefa. */
+  /** #156: quantas vezes cada leitura foi chamada, para conferir o custo do `pending()` da tarefa. */
   findOpenCalls: number;
   listOpenKeysCalls: number;
-  /** #12: as chaves que cada `listOpenKeys` recebeu, para conferir que só as pendentes foram perguntadas. */
+  /** #156: as chaves que cada `listOpenKeys` recebeu, para conferir que só as pendentes foram perguntadas. */
   listOpenKeysArgs: string[][];
 };
 
@@ -159,7 +159,7 @@ export const fakeRequests = (): FakeRequests => {
         return 'stale';
       }
       const row = rows.find((r) => r.request === request);
-      // #12: a trava é explícita: com chave, só grava quem a tem; sem chave, só grava com a trava livre.
+      // #156: a trava é explícita: com chave, só grava quem a tem; sem chave, só grava com a trava livre.
       if (row !== undefined && row.claim !== (change.claim ?? null)) return 'stale';
       store.saves += 1;
       if (row !== undefined) {
@@ -204,7 +204,7 @@ export const fakeNotes = (): FakeNotes => {
 
 export type FakeMailer = SupplierDeps['mailer'] & { sent: MailMessage[]; outcomes: Array<MailResult | Error> };
 
-/** #11: cada envio consome o próximo resultado programado; sem nenhum, o envio dá certo pelo mock. */
+/** #156: cada envio consome o próximo resultado programado; sem nenhum, o envio dá certo pelo mock. */
 export const fakeMailer = (...outcomes: Array<MailResult | Error>): FakeMailer => {
   const mailer: FakeMailer = {
     sent: [],
