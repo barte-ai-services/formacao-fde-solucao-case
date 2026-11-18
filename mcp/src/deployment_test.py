@@ -34,17 +34,22 @@ class WranglerConfigTest(unittest.TestCase):
         self.assertIn("disable_python_external_sdk", config["compatibility_flags"])
         self.assertLessEqual(config["compatibility_date"], "2026-10-30")
 
-    def test_ac6_a_observabilidade_liga_so_os_logs_e_deixa_os_traces_desligados(self) -> None:  # ADR-002
-        """#272/AC-6: o que o Worker registra (só campos nomeados) chega ao painel; traces ficam desligados porque
-        poderiam registrar o cabeçalho Cf-Access-Jwt-Assertion (DAT-1)."""
-        self.assertEqual(wrangler_config()["observability"], {"enabled": True})
+    def test_ac6_a_observabilidade_liga_so_os_logs_e_deixa_invocation_logs_e_traces_desligados(self) -> None:  # ADR-002
+        """#272/AC-6: o que o Worker registra (só campos nomeados) chega ao painel; os invocation logs e os traces
+        ficam desligados porque poderiam registrar o cabeçalho Cf-Access-Jwt-Assertion (DAT-1)."""
+        self.assertEqual(
+            wrangler_config()["observability"],
+            {"enabled": True, "logs": {"enabled": True, "invocation_logs": False}},
+        )
 
-    def test_ac6_o_motivo_dos_traces_desligados_esta_comentado_no_arquivo(self) -> None:  # ADR-002
+    def test_ac6_o_motivo_dos_traces_e_dos_invocation_logs_desligados_esta_comentado_no_arquivo(self) -> None:  # ADR-002
         """#272/AC-6"""
         lines = (MCP_DIR / "wrangler.jsonc").read_text(encoding="utf-8").splitlines()
         at = next(i for i, line in enumerate(lines) if '"observability"' in line)
-        comment = lines[at - 1].strip()
-        self.assertTrue(comment.startswith("//") and "traces" in comment.lower() and "Cf-Access-Jwt-Assertion" in comment)
+        comment = lines[at - 1].strip().lower()
+        self.assertTrue(comment.startswith("//"))
+        for term in ("traces", "invocation logs", "cf-access-jwt-assertion"):
+            self.assertIn(term, comment)
 
     def test_ac7_a_lista_de_origens_permitidas_e_uma_variavel_vazia_por_padrao(self) -> None:  # ADR-002
         """#272/AC-7: vazia, qualquer Origin presente é recusado; o plano 3 (#275) ajusta se preciso."""
