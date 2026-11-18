@@ -15,22 +15,22 @@ import { DomainError, SupplierRequest, type RequestStatus, type RequestTextRejec
 import type { Clock, CreateResult, NewRequest, RequestChange, RequestRecord, SaveResult, SupplierRequestStore } from './ports.js';
 import { noteFromJson, noteToJson, readIssuedNote } from './supabase-notes.js';
 
-// #12: o pedido ao fornecedor (outbox_supplier_emails), modo upsert-with-history (supabase/persistence-modes.yaml).
-// #12: cada gravação é UM `PATCH` filtrado pela versão lida: 0 linhas é `stale`. O PostgREST faz de cada requisição uma
-// #12: transação de uma tabela, então estado, histórico e versão cabem numa linha só (coluna `history`, jsonb).
-// #12: o envio toma uma trava com prazo antes de qualquer efeito. Resíduo aceito para o mock: se o processo morrer depois
-// #12: de o e-mail sair e antes de gravar `sent`, o reenvio depois do prazo manda um segundo e-mail; a chave de idempotência
-// #12: no provedor (o `send_claim`) é da camada do e-mail.
+// #156: o pedido ao fornecedor (outbox_supplier_emails), modo upsert-with-history (supabase/persistence-modes.yaml).
+// #156: cada gravação é UM `PATCH` filtrado pela versão lida: 0 linhas é `stale`. O PostgREST faz de cada requisição uma
+// #156: transação de uma tabela, então estado, histórico e versão cabem numa linha só (coluna `history`, jsonb).
+// #156: o envio toma uma trava com prazo antes de qualquer efeito. Resíduo aceito para o mock: se o processo morrer depois
+// #156: de o e-mail sair e antes de gravar `sent`, o reenvio depois do prazo manda um segundo e-mail; a chave de idempotência
+// #156: no provedor (o `send_claim`) é da camada do e-mail.
 
 const TABLE = 'outbox_supplier_emails';
 const REQUEST_TYPE = 'return_note'; // ADR-002
 const OPEN = 'in.(draft,sent,send_failed)'; // ADR-002
 const SENDABLE = 'in.(draft,send_failed)'; // ADR-002
 
-/** #12: prazo da trava do envio: 5 minutos (assumido; o tempo máximo do envio de e-mail não foi informado). */
+/** #156: prazo da trava do envio: 5 minutos (assumido; o tempo máximo do envio de e-mail não foi informado). */
 export const LEASE_MS = 5 * 60_000;
 
-/** #12: falha do banco só com campos nomeados (a operação, a tabela, o status e o código do Postgres); nunca o texto nem o corpo da resposta. */
+/** #156: falha do banco só com campos nomeados (a operação, a tabela, o status e o código do Postgres); nunca o texto nem o corpo da resposta. */
 export class SupplierStoreError extends Error {
   constructor(
     readonly operation: string,
@@ -93,7 +93,7 @@ const isRow = shaped<Row>({
 
 const isKeyRow = shaped<{ invoice_access_key: string }>({ invoice_access_key: isString });
 
-/** #12: o estado inteiro depois de cada gravação, como entra no histórico. */
+/** #156: o estado inteiro depois de cada gravação, como entra no histórico. */
 type State = {
   status: RequestStatus;
   body: string;
@@ -102,7 +102,7 @@ type State = {
   issued_return_note_id: number | null;
 };
 
-/** #12: o que o adaptador guarda de cada pedido lido: a versão, o histórico e o estado. A trava não fica aqui: quem a tomou a leva. */
+/** #156: o que o adaptador guarda de cada pedido lido: a versão, o histórico e o estado. A trava não fica aqui: quem a tomou a leva. */
 type Meta = { version: number; history: unknown[]; state: State };
 
 const stateOf = (request: SupplierRequest): State => ({
@@ -127,10 +127,10 @@ function rejectionOf(reason: string | null): RequestTextRejection {
   return { ok: false, reason: why, field };
 }
 
-/** #12: o código do Postgres que o PostgREST põe no corpo do erro; o resto do corpo não passa daqui. */
+/** #156: o código do Postgres que o PostgREST põe no corpo do erro; o resto do corpo não passa daqui. */
 const pgCode = (detail: string): string | null => /"code"\s*:\s*"(\w{5})"/.exec(detail)?.[1] ?? null;
 
-/** #12: a raiz é refeita pelos métodos dela, na ordem dos fatos (supabase/persistence-supplier-request.md). */
+/** #156: a raiz é refeita pelos métodos dela, na ordem dos fatos (supabase/persistence-supplier-request.md). */
 function rebuild(row: Row, issued: SupplierRequest['issuedNote']): SupplierRequest {
   const base = { id: row.id, invoiceAccessKey: row.invoice_access_key, note: noteFromJson(row.note, TABLE), draftedOn: row.drafted_on };
   const rejected = row.status === 'discarded' && row.subject === '';
@@ -172,7 +172,7 @@ export function supabaseSupplierRequestStore(rest: SupabaseRest, clock: Clock = 
     state,
   });
 
-  /** #12: a versão lida e, enquanto a trava é de outro ou venceu, só grava quem a trava deixa; o dono grava pela chave dela. */
+  /** #156: a versão lida e, enquanto a trava é de outro ou venceu, só grava quem a trava deixa; o dono grava pela chave dela. */
   async function patch(id: number, meta: Meta, filters: Filters, body: Record<string, unknown>): Promise<boolean> {
     const rows = await rest.update(TABLE, { id: `eq.${id}`, version: `eq.${meta.version}`, ...filters }, body);
     return rows.length > 0;
@@ -192,7 +192,7 @@ export function supabaseSupplierRequestStore(rest: SupabaseRest, clock: Clock = 
     },
 
     async listOpenKeys(requestType, invoiceAccessKeys) {
-      // #12/AC-6: sem nota perguntada não há o que ler; com notas, a leitura se limita a elas e o payload não cresce com o histórico.
+      // #156: sem nota perguntada não há o que ler; com notas, a leitura se limita a elas e o payload não cresce com o histórico.
       if (invoiceAccessKeys.length === 0) return new Set();
       const keys = invoiceAccessKeys.map((key) => `"${key}"`).join(',');
       const rows = parseRows(
@@ -207,7 +207,7 @@ export function supabaseSupplierRequestStore(rest: SupabaseRest, clock: Clock = 
     },
 
     async findLatest(invoiceAccessKey, requestType) {
-      // #13: o mais novo pela identidade (a sequência cresce a cada pedido da nota); uma só linha.
+      // #156: o mais novo pela identidade (a sequência cresce a cada pedido da nota); uma só linha.
       const rows = parseRows(
         await rest.select(TABLE, { filters: { invoice_access_key: `eq.${invoiceAccessKey}`, request_type: `eq.${requestType}` }, order: 'id.desc', limit: 1 }),
         isRow,
@@ -264,7 +264,7 @@ export function supabaseSupplierRequestStore(rest: SupabaseRest, clock: Clock = 
       } catch (error) {
         if (!(error instanceof SupabaseRestError) || error.operation !== 'insert') throw error;
         const code = pgCode(error.detail);
-        // #12/AC-3: o índice único parcial recusou: já há pedido aberto desta nota e tipo. Outro 409 (a chave estrangeira) sobe.
+        // #156: o índice único parcial recusou: já há pedido aberto desta nota e tipo. Outro 409 (a chave estrangeira) sobe.
         if (error.status === 409 && code === '23505') return { kind: 'conflict' };
         throw new SupplierStoreError('create', TABLE, error.status, code);
       }
@@ -306,7 +306,7 @@ export function supabaseSupplierRequestStore(rest: SupabaseRest, clock: Clock = 
         body.discarded_by = change.by;
         body.discarded_at = change.at.toISOString();
       }
-      // #12: quem leva a chave grava por ela e a limpa no último save; quem não leva só grava com a trava livre ou vencida.
+      // #156: quem leva a chave grava por ela e a limpa no último save; quem não leva só grava com a trava livre ou vencida.
       const filters: Filters = claim !== null ? { send_claim: `eq.${claim}` } : { or: notHeld(change.at) };
       if (claim === null || releases) {
         body.send_claim = null;

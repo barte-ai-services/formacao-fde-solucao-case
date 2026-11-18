@@ -73,8 +73,8 @@ describe('#56 reconferir', () => {
   });
 });
 
-// #12 O pedido ao fornecedor sobrevive ao reconferir: as duas tabelas não são do domínio apagado e nenhuma FK as prende a ele.
-describe('#12 reconferir e as tabelas do pedido ao fornecedor', () => { // ADR-002
+// #156 O pedido ao fornecedor sobrevive ao reconferir: as duas tabelas não são do domínio apagado e nenhuma FK as prende a ele.
+describe('#156 reconferir e as tabelas do pedido ao fornecedor', () => { // ADR-002
   const sql = readFileSync(new URL('../../../supabase/migrations/20261117160000_supplier_request.sql', import.meta.url), 'utf8')
     .replace(/--[^\n]*/g, '');
 

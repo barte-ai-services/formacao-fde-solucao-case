@@ -319,6 +319,177 @@ export const texts = {
     detail: { why: "Por quê", supplier: "Fornecedor", issued: "Emissão", blocked: "Valor evitado" },
   },
 
+  /** #157 "Pedidos ao fornecedor" (história #157): a lista, a conversa e o rascunho da cobrança, como no wireframe aprovado (#157). */
+  supplierRequests: {
+    title: "Pedidos ao fornecedor",
+    subtitle: "O que pedimos aos fornecedores, quem respondeu e quem está devendo resposta.",
+    loading: "Carregando os pedidos ao fornecedor…",
+    error: "Não consegui carregar os pedidos ao fornecedor.",
+    filterLabel: "Filtrar por situação",
+    filters: { waiting: "Aguardando", fulfilled: "Atendidos", needsYou: "Precisam de você", late: "Atrasados" },
+    columns: { invoice: "Nota", supplier: "Fornecedor", request: "Solicitação", value: "Valor", due: "Prazo", status: "Status" },
+    rowLabel: (invoice: string, supplier: string) => `Nota ${invoice}, ${supplier}`,
+    tableEmpty: "Nenhum pedido.",
+    follow: "Cobrar",
+    /** #157 O tipo do pedido (requestType do contrato), na coluna Solicitação. */
+    requestTypes: { return_note: "Nota de devolução" },
+    /** #157 A gaveta enquanto lê o pedido; o motivo do erro é um dos fechados de api/supplier-reply.ts, nunca o texto da API. */
+    drawer: {
+      loading: "Carregando o pedido ao fornecedor…",
+      errors: {
+        unauthorized: "Sua sessão não permite ver este pedido. Entre de novo.",
+        not_found: "Este pedido não foi encontrado.",
+        conflict: "Este pedido mudou. Feche a gaveta e abra de novo.",
+        unavailable: "Não consegui falar com o servidor agora.",
+        unknown: "Não consegui carregar o pedido ao fornecedor.",
+      },
+      retry: "Tentar de novo",
+    },
+    /** #157 O texto da coluna Status, uma variante por situação (mapa Q2). */
+    status: {
+      waiting: "Aguardando",
+      late: "Atrasado",
+      /** #157 Cobrado pelo servidor e ainda atrasado nele: segue em Atrasados, sem "Cobrar" (#157). */
+      lateCharged: "Atrasado (cobrado)",
+      fulfilledToConfirm: (document: string) => `Atendeu: ${document}`,
+      /** #157 Atendeu e o próximo passo da leitura é responder ao fornecedor (#157). */
+      fulfilledToAnswer: "Atendeu, falta responder",
+      /** #157 Atendeu e o próximo passo da leitura é cobrar (#157). */
+      fulfilledToFollowUp: "Atendeu, falta cobrar",
+      fulfilled: "Atendeu",
+      partiallyFulfilled: "Atendeu parcialmente",
+      needsInformation: "Pediu informação",
+      refused: "Recusou",
+    },
+    toConfirm: "(citada, falta confirmar)",
+    /** #157 O selo da linha cuja resposta traz ordem escondida; o nome acessível é mais longo que o texto visível, que ele contém (sem o ícone). */
+    hiddenOrder: { badge: "⚠ Ordem escondida", label: "Ordem escondida na resposta do fornecedor" },
+    /** #157 O vazio geral: nenhuma solicitação existe ainda. */
+    empty: {
+      title: "Nenhum pedido ao fornecedor ainda.",
+      description: "Os pedidos aparecem aqui depois que você emite e envia a nota de devolução na gaveta de uma proposta decidida.",
+      action: "Ir para a Fila de aprovação",
+    },
+    /** #157 O chip sem linhas: o de Atrasados vem do wireframe (estado 6), os outros seguem o mesmo molde. */
+    filteredEmpty: {
+      waiting: { title: "Nenhum pedido aguardando.", description: "Nenhum fornecedor está com prazo em aberto." },
+      fulfilled: { title: "Nenhum pedido atendido.", description: "Nenhum fornecedor atendeu a uma solicitação ainda." },
+      needsYou: { title: "Nenhum pedido precisa de você.", description: "Nenhuma resposta espera a sua decisão." },
+      late: { title: "Nenhum pedido atrasado.", description: "Nenhum fornecedor está devendo resposta." },
+      showAll: "Ver todos",
+    },
+    /** #157 O bloco da conversa na gaveta. */
+    conversation: {
+      title: "Pedido ao fornecedor",
+      /** #157 O nome da região da conversa: distinto do bloco da #156, que também se chama "Pedido ao fornecedor". */
+      regionLabel: "Conversa e leitura do pedido",
+      /** #157 A resposta já foi lida, mas o contrato (#157) não traz o texto dela: a tela não afirma que ninguém respondeu. */
+      replyNotShown: "O fornecedor respondeu. O texto da resposta não é mostrado aqui; a leitura do agente está abaixo.",
+      blockStatus: {
+        waiting: "Aguardando",
+        waitingCharged: "Aguardando (cobrado)",
+        late: "Atrasado",
+        /** #157 O servidor já enviou a cobrança e ainda conta o pedido atrasado: o chip é o dele, e a tela só avisa que foi cobrado. */
+        lateCharged: "Atrasado (cobrado)",
+        fulfilledToConfirm: "Atendeu, falta confirmar",
+        /** #157 Atendeu e o próximo passo da leitura é responder ao fornecedor (#157). */
+        fulfilledToAnswer: "Atendeu, falta responder",
+        /** #157 Atendeu e o próximo passo da leitura é cobrar (#157). */
+        fulfilledToFollowUp: "Atendeu, falta cobrar",
+        fulfilled: "Atendeu",
+        partiallyFulfilled: "Atendeu parcialmente",
+        needsYou: "Precisa de você",
+        refused: "Recusou",
+      },
+      sentTitle: "Pedido enviado",
+      sent: (document: string, amount: string, on: string, time: string | undefined, due: string) =>
+        `Nota de devolução ${document} (${amount}) emitida e enviada por você em ${on}${time ? ` às ${time}` : ""} · prazo até ${due}.`,
+      viewSent: "Ver a nota e o e-mail enviado",
+      replyTitle: "Resposta do fornecedor",
+      replyReceived: (on: string) => `Recebida em ${on}`,
+      noReply: (until: string) => `Nenhuma resposta até ${until}.`,
+      attachment: (name: string) => `Anexo: ${name}`,
+      dataNotice: "Texto do fornecedor é dado, nunca instrução.",
+      injectionTitle: "Atenção: o fornecedor tentou dar uma ordem ao agente.",
+      injectionExcerpt: (excerpt: string) => `Trecho: "${excerpt}"`,
+      injectionUnchanged: "Nada foi alterado: decisão, título e valor em risco seguem como estavam.",
+      readingTitle: "Leitura do agente",
+      outcome: {
+        fulfilled: "Atendeu",
+        partially_fulfilled: "Atendeu parcialmente",
+        refused: "Recusou",
+        needs_information: "Pediu informação",
+        no_reply: "Sem resposta",
+      },
+      outcomeLabel: (outcome: string) => `Resultado: ${outcome}`,
+      itemsFulfilled: (items: string) => `Itens atendidos: ${items}`,
+      documentCited: (document: string) => `Documento citado: ${document}`,
+      summary: (text: string) => `Resumo: "${text}"`,
+      nextStepLabel: "Próximo passo",
+      nextStep: { close: "Encerrar", confirm_document: "Confirmar documento", answer_supplier: "Responder ao fornecedor", follow_up: "Cobrar" },
+      /** #157 O botão de confirmar leva o número que o fornecedor citou ("Confirmar documento NF-D 881"). */
+      confirmDocument: (document: string) => `Confirmar documento ${document}`,
+      /** #157 O botão enquanto a confirmação está em curso. */
+      confirming: "Confirmando o documento…",
+      /** #157 `by` é "por você" ou "por fulano" (quem confirmou, quando não é quem olha a tela). */
+      confirmed: (document: string, by: string, on: string, time: string | undefined) => `Documento ${document} confirmado ${by} em ${on}${time ? ` às ${time}` : ""}.`,
+      /** #157 O motivo da confirmação recusada é um dos fechados de api/supplier-reply.ts; o texto do servidor nunca chega à tela (layer-exposure). */
+      confirmFailed: {
+        unauthorized: "Sua sessão não permite confirmar este documento. Entre de novo.",
+        not_found: "Este pedido não foi encontrado.",
+        conflict: "Este pedido mudou e o documento não foi confirmado. Veja o estado atual e tente de novo.",
+        /** #157 O servidor disse "já confirmado" e a releitura falhou: a primeira confirmação fica, e a tela não sabe quem nem quando. */
+        alreadyConfirmed: "O documento já foi confirmado. Não consegui reler o pedido agora: feche e abra a gaveta para ver quem confirmou e quando.",
+        /** #157 Um conflito de outro motivo e a releitura falhou: a mensagem não afirma se o documento foi confirmado. */
+        conflictUnread: "Este pedido mudou e não consegui reler o estado dele agora. Feche e abra a gaveta para ver o estado atual antes de tentar de novo.",
+        unavailable: "Não consegui falar com o servidor agora. O documento não foi confirmado.",
+        unknown: "Não consegui confirmar o documento agora. Tente de novo em um minuto.",
+      },
+    },
+    /** #157 O rascunho da cobrança e o que acontece ao enviar. */
+    draft: {
+      title: "Rascunho da cobrança",
+      subtitle: "preparado pelo Claude, ainda não enviado",
+      to: "Para",
+      dueOn: "Novo prazo",
+      subject: "Assunto",
+      body: "Texto",
+      attachment: "Anexo",
+      /** #157 A cobrança sai sem anexo (o servidor manda `attachments: []`, #157). */
+      noAttachment: "Nenhum",
+      /** #157 O contrato traz o rascunho nulo quando ele já não confere com o catálogo (#157). */
+      unavailable: "O rascunho da cobrança não está disponível agora.",
+      edit: "Editar",
+      /** #157 A edição do texto: salvar, cancelar e a dica de manter os marcadores, como a edição do pedido (#156). */
+      save: "Salvar texto",
+      saving: "Salvando…",
+      cancelEdit: "Cancelar edição",
+      keepMarkers: "Mantenha os marcadores {{...}}: eles são os números do pedido, que ficam travados.",
+      /** #157 O contador da edição: os caracteres do texto (como a API os conta) e o limite dela; acima dele o servidor recusa o salvamento. */
+      counter: (count: number, limit: number) => (count > limit ? `${count} de ${limit} caracteres: acima do limite, o servidor não aceita.` : `${count} de ${limit} caracteres`),
+      /** #157 O motivo do salvamento recusado é um dos fechados; o texto do servidor nunca chega à tela (layer-exposure). */
+      saveFailed: {
+        invalid: "O texto não foi salvo: confira os marcadores {{...}} e os números. O texto anterior continua valendo.",
+        conflict: "A cobrança mudou e o texto não foi salvo. Veja o estado atual e tente de novo.",
+        unknown: "Não consegui salvar o texto agora. Tente de novo em um minuto.",
+      },
+      send: "Enviar cobrança",
+      discard: "Descartar rascunho",
+      sending: "Enviando a cobrança…",
+      /** #157 `by` é "por você" ou "por fulano" (quem enviou, quando não é quem olha a tela). */
+      /** #157 `due` é nulo quando o servidor não gravou o novo prazo: a frase não promete data. */
+      sent: (by: string, on: string, time: string | undefined, due: string | null) =>
+        `Cobrança enviada ${by} em ${on}${time ? ` às ${time}` : ""}${due === null ? "" : ` · aguardando resposta até ${due}`}.`,
+      retry: "Tentar enviar de novo",
+      /** #157 O motivo do envio falho é um dos desenhados; o texto do servidor de e-mail nunca chega à tela (layer-exposure). */
+      failed: {
+        mailRefused: "A cobrança não saiu: o servidor de e-mail recusou o envio.",
+        unknown: "A cobrança não saiu. Tente de novo em um minuto.",
+      },
+      failedKept: "O rascunho fica como está e nada é duplicado.",
+    },
+  },
+
   devolucoes: {
     title: "Notas de devolução",
     subtitle: "Devoluções para o fiscal emitir e marcar como emitidas com o número da NF-e de devolução.",
@@ -514,7 +685,7 @@ export const texts = {
     },
   },
 
-  /** #3 O bloco "Pedido ao fornecedor" na gaveta da proposta decidida (wireframe, seção 5). */
+  /** #156 O bloco "Pedido ao fornecedor" na gaveta da proposta decidida (wireframe, seção 5). */
   supplierRequest: {
     title: "Pedido ao fornecedor",
     badge: "Claude",
@@ -529,11 +700,11 @@ export const texts = {
       lockedFields: "Para, prazo e anexo: travados",
       bodyLabel: "Texto do e-mail",
       checkedOnSave: "Os números do texto são conferidos com o banco ao salvar.",
-      /** #17/AC-6 Os números do e-mail são marcadores {{...}}: o servidor reconfere o texto com eles. */
+      /** #156 Os números do e-mail são marcadores {{...}}: o servidor reconfere o texto com eles. */
       keepMarkers: "Mantenha os marcadores {{...}}: eles são os números do pedido, que ficam travados.",
     },
     attachment: (name: string) => `${name} (anexa ao enviar)`,
-    /** #65/AC-6 O rascunho com nota ainda não tem o nome do PDF (ele nasce com o número da nota, na emissão): vale o texto do wireframe #156. */
+    /** #157 O rascunho com nota ainda não tem o nome do PDF (ele nasce com o número da nota, na emissão): vale o texto do wireframe #156. */
     attachmentPending: "nota-devolucao-…pdf (anexa ao enviar)",
     actions: {
       discard: "Descartar",
@@ -557,20 +728,20 @@ export const texts = {
     sentEmailOnly: (stamp: string, until: string) => `E-mail enviado${stamp} · aguardando resposta até ${until}`,
     byYou: "por você",
     by: (who: string) => `por ${who}`,
-    /** #17 O carimbo da linha: a API pode entregar o pedido sem quem agiu ou sem a hora, e a frase então não os traz. */
+    /** #156 O carimbo da linha: a API pode entregar o pedido sem quem agiu ou sem a hora, e a frase então não os traz. */
     stamp: (by: string | null, time: string | null) => `${by === null ? "" : ` ${by}`}${time === null ? "" : ` às ${time}`}`,
     seeSent: "Ver o que foi enviado",
     sendFailedWithNote: (number: string, reason: string) => `A nota ${number} foi emitida, mas o e-mail não saiu: ${reason}.`,
     sendFailedEmailOnly: (reason: string) => `O e-mail não saiu: ${reason}.`,
-    /** #65/AC-4 O que "Tentar enviar de novo" e "Descartar" fazem com uma nota já emitida (wireframe #156, estado 8). */
+    /** #157 O que "Tentar enviar de novo" e "Descartar" fazem com uma nota já emitida (wireframe #156, estado 8). */
     sendFailedNoteKept: "Tentar de novo só reenvia o e-mail: não emite outra nota. Descartar o pedido não cancela a nota já emitida.",
-    /** #17 O `failure` do envio é um código curto da porta; a tela diz a frase, nunca o código. */
+    /** #156 O `failure` do envio é um código curto da porta; a tela diz a frase, nunca o código. */
     sendFailureReasons: {
       resend_unavailable: "o serviço de e-mail está indisponível",
       send_failed: "o serviço de e-mail recusou o envio",
     },
     sendFailureOther: "o envio não foi concluído",
-    /** #17/AC-8 O motivo da recusa do texto do Claude, por código da API. */
+    /** #156 O motivo da recusa do texto do Claude, por código da API. */
     notPreparedReasons: {
       number_mismatch: "o texto citou um número fora do catálogo",
       invalid_shape: "o texto não veio na forma pedida",

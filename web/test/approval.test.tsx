@@ -114,7 +114,7 @@ describe("#128 exceção pelo nome na fila", () => {
 describe("#63 proposta e decisão", () => {
   it("AC-8 e AC-11: aprovar chama a API e mostra a decisão registrada", async () => {
     respond = (method, path) =>
-      // #17 A proposta decidida abre o bloco do pedido ao fornecedor; sem pedido, o contrato responde 200 com request nulo.
+      // #156 A proposta decidida abre o bloco do pedido ao fornecedor; sem pedido, o contrato responde 200 com request nulo.
       path.startsWith("/api/supplier-requests/")
         ? Response.json({ request: null })
         : method === "POST"

@@ -5,7 +5,7 @@
 
 ## Context
 
-O pedido ao fornecedor (#10) e as demais raízes do domínio da api precisam de carimbo de auditoria: quando a linha nasceu e mudou (`created_at`, `updated_at`) e quem e quando fez um ato humano, como o envio (`sent_by`, `sent_at`). A raiz `SupplierRequest` não tem esses campos, e a revisão perguntou onde eles moram. Pelas regras de domínio (ADR-002 e a regra `domain-model`), o domínio não importa mecanismo: relógio, usuário da sessão e coluna de banco são mecanismo.
+O pedido ao fornecedor (#156) e as demais raízes do domínio da api precisam de carimbo de auditoria: quando a linha nasceu e mudou (`created_at`, `updated_at`) e quem e quando fez um ato humano, como o envio (`sent_by`, `sent_at`). A raiz `SupplierRequest` não tem esses campos, e a revisão perguntou onde eles moram. Pelas regras de domínio (ADR-002 e a regra `domain-model`), o domínio não importa mecanismo: relógio, usuário da sessão e coluna de banco são mecanismo.
 
 ## Decision
 

@@ -31,6 +31,8 @@ import { WorkersAiClef } from "../engine/clef";
 import { runEngineRound } from "../engine/delegated";
 import { todayInBrasilia } from "../http/approval";
 import { SupabaseEngineStore } from "../engine/supabase-store";
+import { sweepSupplierOverdue } from "./supplier-sweep";
+import { SupplierStoreError } from "../supplier/supabase-store";
 
 /** #66 A janela, em dias, das decisões que o Cron manda ao Cadastro; ver `lastDaysUtc`. */
 const PUBLISH_WINDOW_DAYS = 7;
@@ -46,7 +48,7 @@ export const DOSSIER_EVENT_LIMIT = 5;
 
 /** #38 Agenda o trabalho que segue depois da resposta do Cron (o waitUntil do Worker), como em http/approval.ts. */
 export type Defer = (work: Promise<unknown>) => void;
-/** #9/AC-2 O teto de devoluções publicadas por rodada, para caber nas ~50 subrequisições do plano gratuito. */
+/** #156 O teto de devoluções publicadas por rodada, para caber nas ~50 subrequisições do plano gratuito. */
 const RETURN_NOTES_PER_ROUND = 20;
 
 /** #174 O que uma rodada fez, para a reconferência devolver. Nulo quando a rodada foi pulada. */
@@ -125,9 +127,12 @@ async function runRound(
   // #43 AC-1 O que a regra aprovou agora (e o que falhou na hora da aprovação) vai para a doca.
   const dock = await publishDock(rest);
   const storeActions = await publishStoreActions(rest);
-  // #9/AC-2 A devolução das decisões da regra e das que falharam na rota entra na fila das notas de devolução.
+  // #156 A devolução das decisões da regra e das que falharam na rota entra na fila das notas de devolução.
   const returnNotes = await publishReturnNotes(rest);
   const duplicates = await blockDuplicateTitles(rest); // #31/AC-5: o título da E6 fica bloqueado já na detecção.
+  // #157 (#157) O pedido ao fornecedor sem resposta depois do prazo vira no_reply, sem o Claude: a regra roda mesmo sem credencial.
+  // #157 Vai antes da rodada do Claude; a cobrança é montada pela própria varredura (#157).
+  const overdueRequests = await markOverdueRequests(rest);
   // #171 O Claude vai por último: é periférico, e a captura (o caminho crítico) fica com os subrequests da
   // invocação. As sugestões que ele grava aqui a próxima rodada lê. Falha fechada: a regra decide sozinha.
   await runClaudeRound(rest, env);
@@ -139,7 +144,7 @@ async function runRound(
   const engine = await runEngine(rest, env);
   const engineEvaluated = engine.evaluated;
   console.log(
-    `cron: execução agendada (${controller.cron}); notas vistas ${result.seen}, novas ${result.inserted}, conferidas ${result.checked}, com erro ${result.failed}, propostas ${proposals.proposed}, aprovadas pela regra ${proposals.approvedByRule}, cadastro E8 ${cadastroE8}, ações publicadas na doca ${dock}, ações publicadas no app da loja ${storeActions}, devoluções publicadas ${returnNotes}, títulos duplicados bloqueados ${duplicates.blocked}, com falha ${duplicates.failed}, avaliadas pelo motor ${engineEvaluated}, aprovadas pelo motor ${engine.approved}; recebimentos sem nota [${unreconciled.noKey.join(", ")}], com chave sem nota [${unreconciled.keyWithoutInvoice.join(", ")}]`,
+    `cron: execução agendada (${controller.cron}); notas vistas ${result.seen}, novas ${result.inserted}, conferidas ${result.checked}, com erro ${result.failed}, propostas ${proposals.proposed}, aprovadas pela regra ${proposals.approvedByRule}, cadastro E8 ${cadastroE8}, ações publicadas na doca ${dock}, ações publicadas no app da loja ${storeActions}, devoluções publicadas ${returnNotes}, pedidos ao fornecedor atrasados ${overdueRequests}, títulos duplicados bloqueados ${duplicates.blocked}, com falha ${duplicates.failed}, avaliadas pelo motor ${engineEvaluated}, aprovadas pelo motor ${engine.approved}; recebimentos sem nota [${unreconciled.noKey.join(", ")}], com chave sem nota [${unreconciled.keyWithoutInvoice.join(", ")}]`,
   );
   const summary = {
     seen: result.seen,
@@ -316,7 +321,7 @@ async function runEngine(rest: SupabaseRest, env: Env): Promise<{ evaluated: num
 }
 
 /**
- * #9/AC-2 Publica a devolução das decisões que devolvem e ainda não estão na fila, até o teto por rodada. Se
+ * #156 Publica a devolução das decisões que devolvem e ainda não estão na fila, até o teto por rodada. Se
  * falha, registra uma linha sem dado (só o status ou a tabela de uma linha fora do formato) e a rodada segue:
  * a varredura é idempotente e a próxima rodada repete.
  */
@@ -332,6 +337,20 @@ async function publishReturnNotes(rest: SupabaseRest): Promise<number> {
           : `HTTP ${error.status}`
         : "falha na publicação";
     console.log(`cron: devoluções indisponíveis (${reason}); a próxima rodada repete`);
+    return 0;
+  }
+}
+
+/**
+ * #157 Marca no_reply o pedido ao fornecedor enviado, sem leitura, depois do prazo. Se falha, registra uma linha sem dado
+ * (só o status ou a tabela) e a rodada segue: a varredura é idempotente e a próxima rodada repete.
+ */
+async function markOverdueRequests(rest: SupabaseRest): Promise<number> {
+  try {
+    return (await sweepSupplierOverdue(rest)).marked;
+  } catch (error) {
+    const reason = error instanceof SupabaseRestError || error instanceof SupplierStoreError ? `HTTP ${error.status}` : "falha na varredura";
+    console.log(`cron: prazo dos pedidos ao fornecedor indisponível (${reason}); a próxima rodada repete`);
     return 0;
   }
 }

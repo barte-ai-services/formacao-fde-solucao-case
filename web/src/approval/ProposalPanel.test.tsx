@@ -295,7 +295,7 @@ describe("#231 bloco Agente auditor no painel", () => {
   });
 });
 
-describe("#3 pedido ao fornecedor na gaveta da proposta decidida", () => {
+describe("#156 pedido ao fornecedor na gaveta da proposta decidida", () => {
   const approval = { approver: "c", approverLevel: "coordenacao", dockAction: { kind: "receber" }, justification: "ok", decidedOn: "2026-11-15" };
   const decided = () => proposal({ kind: "receber" }, { state: "na_lista_do_dia", approval });
   const email = { to: "fiscal@higienetotal.test", dueOn: "2026-11-18", subject: "NF 80 · devolução", body: "Texto do e-mail", template: "Texto do e-mail" };
@@ -308,14 +308,14 @@ describe("#3 pedido ao fornecedor na gaveta da proposta decidida", () => {
     saveTemplate: vi.fn(),
   });
 
-  it("#3/AC-1: com pedido, o bloco vem logo depois da Decisão registrada", async () => {
+  it("#156: com pedido, o bloco vem logo depois da Decisão registrada", async () => {
     render(<ProposalPanel proposal={decided()} supplierRequest={{ port: port(async () => ({ status: "draft", email })), viewer: "ana@jachegou.test" }} />);
     const block = await screen.findByRole("region", { name: "Pedido ao fornecedor" });
     const alert = screen.getByText("Decisão registrada");
     expect(alert.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("#3/AC-1: sem pedido na nota, a gaveta fica como era, sem o bloco", async () => {
+  it("#156: sem pedido na nota, a gaveta fica como era, sem o bloco", async () => {
     const load = vi.fn(async () => null);
     render(<ProposalPanel proposal={decided()} supplierRequest={{ port: port(load), viewer: "ana@jachegou.test" }} />);
     await waitFor(() => expect(load).toHaveBeenCalled());
@@ -323,12 +323,12 @@ describe("#3 pedido ao fornecedor na gaveta da proposta decidida", () => {
     expect(screen.getByText("Decisão registrada")).toBeTruthy();
   });
 
-  it("#3/AC-1: sem a fonte do pedido (gaveta de antes da #17), nada é buscado nem desenhado", () => {
+  it("#156: sem a fonte do pedido (gaveta de antes da #156), nada é buscado nem desenhado", () => {
     render(<ProposalPanel proposal={decided()} />);
     expect(screen.queryByRole("region", { name: "Pedido ao fornecedor" })).toBeNull();
   });
 
-  it("#3/AC-1: antes da decisão, o pedido não é buscado", () => {
+  it("#156: antes da decisão, o pedido não é buscado", () => {
     const load = vi.fn(async () => null);
     render(<ProposalPanel proposal={proposal({ kind: "receber" })} supplierRequest={{ port: port(load), viewer: "ana@jachegou.test" }} />);
     expect(load).not.toHaveBeenCalled();

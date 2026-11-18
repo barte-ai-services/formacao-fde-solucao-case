@@ -21,3 +21,4 @@ export * from './return-note.js';
 export * from './calendar.js';
 export * from './return-note-document.js';
 export * from './supplier-request.js';
+export * from './supplier-reply.js';

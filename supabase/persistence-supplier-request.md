@@ -1,6 +1,6 @@
-# Desenho da persistência: pedido ao fornecedor (#12)
+# Desenho da persistência: pedido ao fornecedor (#156)
 
-Issue: #12 (história #2). Banco: PostgreSQL 17 no Supabase (`supabase/config.toml`, `major_version = 17`), acessado só por PostgREST com a chave secreta. Registro: `supabase/persistence-modes.yaml`. Migração desta camada: `supabase/migrations/20261117160000_supplier_request.sql` (posterior à última, `20261116100000`).
+Issue: #156 (história #156). Banco: PostgreSQL 17 no Supabase (`supabase/config.toml`, `major_version = 17`), acessado só por PostgREST com a chave secreta. Registro: `supabase/persistence-modes.yaml`. Migração desta camada: `supabase/migrations/20261117160000_supplier_request.sql` (posterior à última, `20261116100000`).
 
 ## Entradas
 
@@ -8,7 +8,7 @@ Issue: #12 (história #2). Banco: PostgreSQL 17 no Supabase (`supabase/config.to
 |---|---|---|
 | Raízes | `SupplierRequest` (pedido ao fornecedor); `IssuedReturnNote` (a nota emitida pelo mock, valor imutável); a entrada da fila `outbox_return_notes` (existente, #140) | `api/src/domain/supplier-request.ts`, `return-note-document.ts`, `api/src/returns/return-notes.ts` |
 | Consultas | Q1 `findOpen(invoice_access_key, request_type)` entre `draft`, `sent`, `send_failed`; Q1b `listOpenKeys(request_type, invoice_access_keys)`: das notas de origem pendentes na fila, as com pedido aberto do tipo, numa leitura só limitada por `invoice_access_key=in.(<chaves pendentes>)` e feita depois da leitura da fila (o `pending()` da tarefa do Cron, em vez de um `findOpen` por devolução; sem chave pendente, nenhuma leitura; mesmo predicado do índice parcial, então o payload não cresce com os pedidos enviados do histórico); Q2 `get(id)`; Q3 `issue(queueId)`: a nota já emitida da devolução; Q4 `SourceInvoices.find`: `invoices` por `access_key` e `kit_fornecedores` por `fornecedor_id`; Q5 o pedido por id na trava e nas gravações; Q6 `findLatest(invoice_access_key, request_type)`: o mais recente da nota e do tipo, `order=id.desc&limit=1`; Q7 `listByStatus(status, limit)`: os mais novos do estado, `status=eq.<estado>&order=id.desc&limit=<n>` | `api/src/supplier/ports.ts`, `draft.ts`, `use-cases.ts` |
-| Inquilino | nenhum | brief da #12 |
+| Inquilino | nenhum | brief da #156 |
 | Números assumidos | pedidos por dia: não informado; entradas de histórico por pedido: poucas dezenas (rascunho, edições, emissão, tentativas de envio), assumido; prazo da trava do envio: 5 minutos, assumido (não informado o tempo máximo do envio de e-mail) | |
 
 ## Tabelas
@@ -65,7 +65,7 @@ O PostgreSQL guarda `jsonb` indexável ([jsonb Indexing](https://www.postgresql.
 
 `queue_id` referencia `outbox_return_notes` só por identidade, sem FK (PER-5): o `reconferir` (`api/src/ops/reconferir.ts`) apaga `outbox_return_notes`, e uma FK recusaria o apagar ou, em cascata, levaria junto a nota emitida e o pedido. Depois de um `reconferir`, as linhas de `issued_return_notes` e `outbox_supplier_emails` sobrevivem como referências órfãs, por desenho. As FKs de `supplier_id` (`kit_fornecedores`) e de `issued_return_note_id` seguem.
 
-Sem índice nas FKs `supplier_id` e `issued_return_note_id` de `outbox_supplier_emails`: nenhuma consulta desta camada filtra ou junta por elas, e nada é apagado em cascata ([Foreign Keys](https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-FK)). O índice entra com a consulta que o pedir (a lista do painel, nas rotas, ou a leitura da resposta, na #4).
+Sem índice nas FKs `supplier_id` e `issued_return_note_id` de `outbox_supplier_emails`: nenhuma consulta desta camada filtra ou junta por elas, e nada é apagado em cascata ([Foreign Keys](https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-FK)). O índice entra com a consulta que o pedir (a lista do painel, nas rotas, ou a leitura da resposta, na #157).
 
 `alter table kit_fornecedores add column email text` toma trava exclusiva por um instante numa tabela de dezenas de linhas, sem reescrita (coluna sem default). A coluna fica anulável: a migração roda antes da carga, e as linhas já carregadas não têm e-mail. `check (email is null or email ~ '^[^@[:space:]]+@[^@[:space:]]+$')`. O contrato do kit (`data/kit/contrato.json`) declara a coluna `email`, `text`, `nullable: true`, e a carga a preenche; `SourceInvoices.find` falha fechada quando o e-mail está nulo (nunca envia sem destinatário). Uma migração posterior, depois da primeira carga, pode pôr `not null`.
 
@@ -84,7 +84,7 @@ Toda gravação é uma requisição PostgREST, uma transação, uma tabela. Nenh
 | Enviar: mover a fila | `PATCH` existente com `status=eq.pendente` | entrada da fila | `emitida`, número, quem, quando | 0 linhas: conflito (já tratado no caso de uso) | idempotente pelo número |
 | Enviar: marcar | `PATCH` do `save` (com a trava) | `SupplierRequest` | `sent` + carimbo + anexos, ou `send_failed` + motivo; limpa a trava; `version + 1`, histórico | 0 linhas: perdeu a trava | nenhum |
 
-O envio toca três raízes em passos que confirmam sozinhos. O PostgREST não dá transação entre eles, e a #11 decidiu que o pedido é a raiz que manda e que reenviar conserta a falha no meio sem segunda nota (cabeçalho de `use-cases.ts`). TRX-3 pede o efeito em outra raiz como evento na mesma transação; aqui o efeito é um passo idempotente refeito pelo reenvio (ver "Conferência das regras").
+O envio toca três raízes em passos que confirmam sozinhos. O PostgREST não dá transação entre eles, e a #156 decidiu que o pedido é a raiz que manda e que reenviar conserta a falha no meio sem segunda nota (cabeçalho de `use-cases.ts`). TRX-3 pede o efeito em outra raiz como evento na mesma transação; aqui o efeito é um passo idempotente refeito pelo reenvio (ver "Conferência das regras").
 
 ### A guarda do envio concorrente
 
@@ -102,7 +102,7 @@ No Read Committed (o padrão), o segundo `UPDATE` na mesma linha espera o primei
 
 A trava expira em 5 minutos (assumido) para que um processo que morreu no meio não prenda o pedido para sempre; depois disso, o reenvio retoma. O resíduo: se o processo morrer **depois** do e-mail sair e antes de marcar `sent`, o reenvio depois do prazo manda um segundo e-mail. Fechar esse resíduo é chave de idempotência no provedor (o `send_claim` serve de chave), uma questão da camada do e-mail, em aberto.
 
-O que muda nos casos de uso (#11) para isso existir, a ser feito por quem constrói a camada:
+O que muda nos casos de uso (#156) para isso existir, a ser feito por quem constrói a camada:
 
 - `SupplierRequestStore` ganha `claimSend(id: number): Promise<{kind: 'claimed'} | {kind: 'conflict'}>` (o adaptador guarda a versão lida; o `uuid` NÃO fica no adaptador: `claimSend` o devolve, o envio o leva em `RequestChange.claim` de cada gravação sua e em `releaseSend(id, claim, by, at)`, e o adaptador filtra `send_claim=eq.<chave>` só quando ela é dada; edição e descarte não a levam e são recusados enquanto a trava vive, mesmo na mesma instância do adaptador), e `send` a chama logo depois de validar o texto, antes de `checkQueue`; conflito vira `{kind: 'conflict', reason: 'send_in_progress'}`.
 - `save` passa a devolver `'ok' | 'stale'` (ou lançar um erro próprio), em vez de `void`: 0 linhas no `PATCH` não pode passar calado.
@@ -123,7 +123,7 @@ Nenhum. `strategies.tenancy.strategy: none`. Todas as tabelas seguem a convenç�
 
 | Condição | Atendida por | Não atendida, e por quê |
 |---|---|---|
-| PER-1 | as três tabelas desta camada estão no registro | a #8 registrou `outbox_return_notes`, as tabelas do kit e as do domínio da conferência; as demais criadas antes da #12 seguem sem modo (em aberto) |
+| PER-1 | as três tabelas desta camada estão no registro | a #156 registrou `outbox_return_notes`, as tabelas do kit e as do domínio da conferência; as demais criadas antes da #156 seguem sem modo (em aberto) |
 | PER-2 | `issued_return_notes`: o adaptador só faz `select` e `insert`; o `revoke` recusa o resto | nenhum |
 | PER-3 | todo `PATCH` em `outbox_supplier_emails` acrescenta a entrada de histórico no mesmo `PATCH` | o `by` de editar só existe depois da mudança de porta acima |
 | PER-4 | `version` em todo `PATCH`, filtrado por `version=eq.<lida>`; 0 linhas é recusa | o teste de versão velha roda contra o `FakePostgrest`, que precisa aplicar o filtro; não há banco de verdade |
@@ -133,7 +133,7 @@ Nenhum. `strategies.tenancy.strategy: none`. Todas as tabelas seguem a convenç�
 | PER-8 | `json-column` (PostgreSQL com `jsonb`) e `none` | a forma preferida seria a tabela filha; a coluna é a que cabe numa requisição só (acima) |
 | TRX-1 | cada requisição PostgREST é uma transação; entidade, histórico e versão são um `PATCH` | nenhum |
 | TRX-2 | nenhum adaptador emite `BEGIN`/`COMMIT` | nenhum |
-| TRX-3 | cada gravação toca uma raiz | o envio afeta a fila e a nota emitida sem evento na mesma transação: são passos idempotentes refeitos pelo reenvio, a decisão da #11; registrar como ADR (em aberto) |
+| TRX-3 | cada gravação toca uma raiz | o envio afeta a fila e a nota emitida sem evento na mesma transação: são passos idempotentes refeitos pelo reenvio, a decisão da #156; registrar como ADR (em aberto) |
 | TRX-4 | o PostgREST confirma ou desfaz cada requisição | nenhum |
 | IDX-1 | Q1 a Q7 têm índice acima | sem banco de verdade, nenhum teste lê o plano; o detector seria um teste de integração que roda `EXPLAIN` no Q1 com linhas semeadas |
 | IDX-2 | cada índice novo tem a consulta ao lado | nenhum |
@@ -152,10 +152,10 @@ Nenhum. `strategies.tenancy.strategy: none`. Todas as tabelas seguem a convenç�
 
 ## Em aberto
 
-- Mudanças de porta em `api/src/supplier/ports.ts` e `use-cases.ts` (#11): `claimSend`, `save` que diz `stale`, `by` em todo `save`, anexos no `SendStamp`. Quem decide: o tech lead da #2 (Athena), ao planejar a camada; quem faz: o construtor da camada do backend.
+- Mudanças de porta em `api/src/supplier/ports.ts` e `use-cases.ts` (#156): `claimSend`, `save` que diz `stale`, `by` em todo `save`, anexos no `SendStamp`. Quem decide: o tech lead da #156 (Athena), ao planejar a camada; quem faz: o construtor da camada do backend.
 - Prazo da trava do envio: 5 minutos assumidos; o tempo máximo do envio de e-mail (Resend) não está dito. Quem responde: o construtor da camada do e-mail.
 - Chave de idempotência no provedor de e-mail para fechar o resíduo depois da trava vencida. Quem responde: a camada do e-mail.
 - ADR a registrar: "a unidade de trabalho é uma requisição PostgREST; o histórico mora em `jsonb` na linha; o efeito em outra raiz é passo idempotente". Alternativas: funções no banco chamadas por RPC (uma transação por caso de uso), conexão direta ao Postgres. Quem aprova: o mantenedor.
-- Registrar as tabelas criadas antes da #12 que a #8 não registrou (`titles`, `outbox_dock_actions`, `outbox_registry_corrections`, `outbox_store_actions`, `claude_suggestions`, `exceptions`, `automation_runs`) com seus modos. Fechado pelo registro da #8: `outbox_return_notes` (upsert-with-history, histórico `in-row-transition`, versão em `status`), que esta camada escreve na transição `pendente` → `emitida`. Quem decide: o dono de cada tabela.
+- Registrar as tabelas criadas antes da #156 que a #156 não registrou (`titles`, `outbox_dock_actions`, `outbox_registry_corrections`, `outbox_store_actions`, `claude_suggestions`, `exceptions`, `automation_runs`) com seus modos. Fechado pelo registro da #156: `outbox_return_notes` (upsert-with-history, histórico `in-row-transition`, versão em `status`), que esta camada escreve na transição `pendente` → `emitida`. Quem decide: o dono de cada tabela.
 - Caminho de apagamento (LGPD) para `sent_by` e `discarded_by`, que identificam pessoas: não registrado no projeto. Quem decide: o mantenedor.
 - Nenhum teste lê plano nem catálogo (não há banco de verdade nos testes): IDX-1 e a conferência do `revoke` ficam sem detector.

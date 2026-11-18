@@ -12,7 +12,7 @@ const drafted = async (mailer: FakeMailer = fakeMailer()): Promise<World> => {
   return w;
 };
 
-describe('#11/AC-4 emitir e enviar', () => { // ADR-002
+describe('#156 emitir e enviar', () => { // ADR-002
   it('emite a nota pelo mock, move a fila para emitida com o número e envia com a nota anexa', async () => { // ADR-002
     const w = await drafted();
     const result = await createSupplierUseCases(w.deps).send(41, BY);
@@ -57,7 +57,7 @@ describe('#11/AC-4 emitir e enviar', () => { // ADR-002
     });
   });
 
-  it('#57/AC-1: o e-mail leva dois anexos, o JSON e o PDF da nota', async () => { // ADR-002
+  it('#156: o e-mail leva dois anexos, o JSON e o PDF da nota', async () => { // ADR-002
     const w = await drafted();
     await createSupplierUseCases(w.deps).send(41, BY);
     const attachments = w.mailer.sent[0]?.attachments ?? [];
@@ -118,7 +118,7 @@ describe('#11/AC-4 emitir e enviar', () => { // ADR-002
   });
 });
 
-describe('#11/AC-5 reenviar nunca emite outra nota', () => { // ADR-002
+describe('#156 reenviar nunca emite outra nota', () => { // ADR-002
   it('a falha do envio deixa send_failed com o motivo; o reenvio usa a nota emitida e envia', async () => { // ADR-002
     const w = await drafted(fakeMailer({ ok: false, reason: 'caixa_de_saida_indisponivel' }));
     const useCases = createSupplierUseCases(w.deps);
@@ -135,7 +135,7 @@ describe('#11/AC-5 reenviar nunca emite outra nota', () => { // ADR-002
     expect(w.mailer.sent[1]?.attachments[0]?.filename).toBe('nota-devolucao-ND-101.json');
   });
 
-  it('#57/AC-6: o reenvio anexa o mesmo PDF da primeira tentativa, sem emitir outra nota', async () => { // ADR-002
+  it('#156: o reenvio anexa o mesmo PDF da primeira tentativa, sem emitir outra nota', async () => { // ADR-002
     const w = await drafted(fakeMailer({ ok: false, reason: 'caixa_de_saida_indisponivel' }));
     const useCases = createSupplierUseCases(w.deps);
     await useCases.send(41, BY);
@@ -164,7 +164,7 @@ describe('#11/AC-5 reenviar nunca emite outra nota', () => { // ADR-002
   });
 });
 
-describe('#11/AC-5 pedido que falhou sem nota registrada', () => { // ADR-002
+describe('#156 pedido que falhou sem nota registrada', () => { // ADR-002
   it('não emite pelo reenvio: o domínio só registra a nota a partir do rascunho', async () => { // ADR-002
     const w = await drafted();
     w.requests.rows[0]!.request.markSendFailed('estado antigo');
@@ -174,7 +174,7 @@ describe('#11/AC-5 pedido que falhou sem nota registrada', () => { // ADR-002
   });
 });
 
-describe('#11/AC-5 o que o motivo da falha carrega', () => { // ADR-002
+describe('#156 o que o motivo da falha carrega', () => { // ADR-002
   it('um erro lançado pelo envio vira motivo genérico, sem o texto do erro', async () => { // ADR-002
     const w = await drafted(fakeMailer(new Error('SMTP recusou a senha hunter2 em smtp.interno')));
     const result = await createSupplierUseCases(w.deps).send(41, BY);
@@ -190,7 +190,7 @@ describe('#11/AC-5 o que o motivo da falha carrega', () => { // ADR-002
   });
 });
 
-describe('#11/AC-6 editar aceita só o corpo, revalidado', () => { // ADR-002
+describe('#156 editar aceita só o corpo, revalidado', () => { // ADR-002
   it('troca o corpo e deixa assunto, lista e nota como estavam; devolve o corpo já com os números', async () => { // ADR-002
     const w = await drafted();
     const before = w.requests.rows[0]!.request;
@@ -230,7 +230,7 @@ describe('#11/AC-6 editar aceita só o corpo, revalidado', () => { // ADR-002
   });
 });
 
-describe('#11/AC-6 descartar respeita o ciclo do pedido', () => { // ADR-002
+describe('#156 descartar respeita o ciclo do pedido', () => { // ADR-002
   it('descarta o rascunho com o motivo e quem descartou', async () => { // ADR-002
     const w = await drafted();
     const result = await createSupplierUseCases(w.deps).discard(41, BY, 'fornecedor já avisado por telefone');
@@ -250,7 +250,7 @@ describe('#11/AC-6 descartar respeita o ciclo do pedido', () => { // ADR-002
   });
 });
 
-describe('#11/AC-6 refazer respeita um pedido aberto por nota de origem e tipo', () => { // ADR-002
+describe('#156 refazer respeita um pedido aberto por nota de origem e tipo', () => { // ADR-002
   it('depois de descartar, cria um rascunho novo pelo mesmo caminho da tarefa', async () => { // ADR-002
     const w = await drafted();
     const useCases = createSupplierUseCases(w.deps);
@@ -295,7 +295,7 @@ describe('#11/AC-6 refazer respeita um pedido aberto por nota de origem e tipo',
   });
 });
 
-describe('#12/AC-4 o envio toma a trava antes de qualquer efeito', () => { // ADR-002
+describe('#156 o envio toma a trava antes de qualquer efeito', () => { // ADR-002
   it('trava o pedido depois de conferir o texto e antes de emitir, mover a fila ou enviar', async () => { // ADR-002
     const w = await drafted();
     expect((await createSupplierUseCases(w.deps).send(41, BY)).kind).toBe('ok');
@@ -413,7 +413,7 @@ describe('#12/AC-4 o envio toma a trava antes de qualquer efeito', () => { // AD
   });
 });
 
-describe('#12/AC-4 gravação que não achou a versão lida é conflito stale', () => { // ADR-002
+describe('#156 gravação que não achou a versão lida é conflito stale', () => { // ADR-002
   it('editar e descartar devolvem stale', async () => { // ADR-002
     const w = await drafted();
     const useCases = createSupplierUseCases(w.deps);

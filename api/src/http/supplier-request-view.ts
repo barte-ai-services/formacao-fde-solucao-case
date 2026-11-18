@@ -1,5 +1,5 @@
-// #13: a visão do pedido ao fornecedor (#2) como a API a entrega; o formato é o autorado no cabeçalho de supplier-requests.ts.
-// #13: a visão é montada campo a campo: nada do agregado, da linha ou da fila sai que não esteja nomeado aqui (layer-exposure).
+// #156: a visão do pedido ao fornecedor (#156) como a API a entrega; o formato é o autorado no cabeçalho de supplier-requests.ts.
+// #156: a visão é montada campo a campo: nada do agregado, da linha ou da fila sai que não esteja nomeado aqui (layer-exposure).
 import {
   Money,
   buildSupplierRequestFacts,
@@ -9,15 +9,17 @@ import {
 } from '../domain/index.js';
 import { noteFilename } from '../supplier/kit-note.js';
 import type { RequestRecord, SourceInvoice } from '../supplier/ports.js';
+import type { ReplyRequest } from '../supplier/reply-ports.js';
+import { confirmationOf, followUpOf, readingOf, type WireDocumentConfirmation, type WireFollowUp, type WireReading } from './supplier-reply-view.js';
 
 export type WireMoney = { readonly text: string };
 
 export type WireNote = {
-  /** #13: o número da nota emitida (ND-n); `null` antes da emissão, nunca ausente. */
+  /** #156: o número da nota emitida (ND-n); `null` antes da emissão, nunca ausente. */
   readonly number: string | null;
-  /** #13: o código do fornecedor (o nome não está na nota de origem que a camada de baixo lê). */
+  /** #156: o código do fornecedor (o nome não está na nota de origem que a camada de baixo lê). */
   readonly supplier: string;
-  /** #13: o número da nota de origem. */
+  /** #156: o número da nota de origem. */
   readonly reference: string;
   readonly lines: readonly { readonly description: string; readonly quantity: string; readonly unitPrice: WireMoney; readonly total: WireMoney }[];
   readonly total: WireMoney;
@@ -35,17 +37,29 @@ type WireContent = {
 export type WireRequest =
   | { readonly status: 'writing' }
   | ({ readonly status: 'draft' } & WireContent) // ADR-002
-  | ({ readonly status: 'sent'; readonly sentBy: string | null; readonly sentAt: string | null } & WireContent) // ADR-002
+  // #157: o pedido enviado ganha a leitura da resposta (#157) e a cobrança; os campos da #156 ficam como estavam.
+  // #157: e a confirmação do documento citado na leitura (nula enquanto a pessoa não confirmou).
+  | ({
+      readonly status: 'sent'; // ADR-002
+      readonly sentBy: string | null;
+      readonly sentAt: string | null;
+      readonly reading: WireReading | null;
+      readonly documentConfirmation: WireDocumentConfirmation | null;
+      readonly followUp: WireFollowUp;
+    } & WireContent)
   | ({ readonly status: 'send_failed'; readonly failure: string } & WireContent) // ADR-002
   | { readonly status: 'discarded'; readonly discardedAt: string | null; readonly discardedBy: string | null } // ADR-002
   | { readonly status: 'failed'; readonly failure: 'number_mismatch' | 'invalid_shape' };
 
 export type ViewResult = { readonly ok: true; readonly view: WireRequest } | { readonly ok: false; readonly reason: 'source_missing' | 'text_invalid' };
 
-/** #13: o dinheiro em reais, em texto pt-BR, feito no servidor a partir do valor da nota. */
+/** #157: o pedido enviado sem a leitura da #157 à mão (não deve ocorrer): a cobrança vazia. */
+const NO_FOLLOW_UP: WireFollowUp = { drafted: false, sent: false, draft: null, dueOn: null, sentBy: null, sentAt: null, failure: null };
+
+/** #156: o dinheiro em reais, em texto pt-BR, feito no servidor a partir do valor da nota. */
 const money = (reais: number): WireMoney => ({ text: Money.fromReais(reais).toString() });
 
-/** #13: a URL do anexo é a da própria API, por chave de acesso da nota de origem. #57/AC-5: o anexo da gaveta é o PDF. */
+/** #156: a URL do anexo é a da própria API, por chave de acesso da nota de origem. #156: o anexo da gaveta é o PDF. */
 export const noteUrl = (invoiceAccessKey: string): string => `/api/supplier-requests/${invoiceAccessKey}/return-note.pdf`;
 
 function noteOf(draft: ReturnNoteDraft, issued: IssuedReturnNote | null, reference: string): WireNote {
@@ -63,16 +77,16 @@ function noteOf(draft: ReturnNoteDraft, issued: IssuedReturnNote | null, referen
   };
 }
 
-/** #13/AC-7 (#2): o pedido que nasceu descartado pelo agente guarda "motivo: campo"; a visão mostra só o motivo. */
+/** #156 (#156): o pedido que nasceu descartado pelo agente guarda "motivo: campo"; a visão mostra só o motivo. */
 function agentFailure(reason: string | null): 'number_mismatch' | 'invalid_shape' {
   return reason?.startsWith('number_mismatch') === true ? 'number_mismatch' : 'invalid_shape';
 }
 
-/** #13: o pedido que o Claude escreveu e a regra recusou nasce descartado e sem texto. */
+/** #156: o pedido que o Claude escreveu e a regra recusou nasce descartado e sem texto. */
 const bornDiscarded = (record: RequestRecord): boolean => record.request.status === 'discarded' && record.request.subject === ''; // ADR-002
 
-/** #13: monta a visão; sem a nota de origem (e do e-mail do fornecedor) ou com texto que já não confere, diz por quê. */
-export function viewOf(record: RequestRecord, source: SourceInvoice | null): ViewResult {
+/** #156: monta a visão; sem a nota de origem (e do e-mail do fornecedor) ou com texto que já não confere, diz por quê. */
+export function viewOf(record: RequestRecord, source: SourceInvoice | null, reply: ReplyRequest | null = null): ViewResult {
   const { request } = record;
   if (request.status === 'discarded') { // ADR-002
     if (bornDiscarded(record)) return { ok: true, view: { status: 'failed', failure: agentFailure(request.discardReason) } };
@@ -94,7 +108,8 @@ export function viewOf(record: RequestRecord, source: SourceInvoice | null): Vie
   };
   if (request.status === 'sent') { // ADR-002
     const sent = { sentBy: record.audit?.sentBy ?? null, sentAt: record.audit?.sentAt ?? null };
-    return { ok: true, view: { status: 'sent', ...sent, ...content } }; // ADR-002
+    const documentConfirmation = confirmationOf(reply?.documentConfirmation ?? null); // #157
+    return { ok: true, view: { status: 'sent', ...sent, reading: readingOf(reply?.reading ?? null), documentConfirmation, followUp: reply === null ? NO_FOLLOW_UP : followUpOf(reply), ...content } }; // ADR-002
   }
   if (request.status === 'send_failed') { // ADR-002
     return { ok: true, view: { status: 'send_failed', failure: request.sendFailureReason ?? 'send_failed', ...content } }; // ADR-002

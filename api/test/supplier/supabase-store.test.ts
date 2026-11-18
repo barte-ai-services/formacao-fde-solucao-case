@@ -8,7 +8,7 @@ import { returnNote, sourceInvoice } from '../domain/supplier-request-fixtures.j
 import { NOW } from './doubles.js';
 import { harness, newRequest } from './supabase-support.js';
 
-// #12: o adaptador do pedido ao fornecedor sobre o PostgREST falso (sem banco real: cada requisição é uma transação).
+// #156: o adaptador do pedido ao fornecedor sobre o PostgREST falso (sem banco real: cada requisição é uma transação).
 
 const TABLE = 'outbox_supplier_emails';
 const BY = 'ana@jachegou.example';
@@ -22,7 +22,7 @@ const created = async (store: SupplierRequestStore, over = {}): Promise<RequestR
   return result.record;
 };
 
-/** #12: a trava tomada; a chave que o envio leva em cada gravação sua. */
+/** #156: a trava tomada; a chave que o envio leva em cada gravação sua. */
 const claimOf = async (store: SupplierRequestStore, id: number, when: Date): Promise<string> => {
   const result = await store.claimSend(id, BY, when);
   if (result.kind !== 'claimed') throw new Error('a trava deveria ter sido tomada');
@@ -35,7 +35,7 @@ const stamp: SendStamp = {
   attachments: [{ filename: 'ND-1.json', contentType: 'application/json', issuedReturnNoteId: 1 }],
 };
 
-/** #12: o envio inteiro pelas portas: trava, emissão registrada e o carimbo de enviado. */
+/** #156: o envio inteiro pelas portas: trava, emissão registrada e o carimbo de enviado. */
 const sendFlow = async (rest: SupabaseRest, store: SupplierRequestStore, request: SupplierRequest): Promise<void> => {
   const notes = supabaseIssuedNoteStore(rest);
   const claim = await claimOf(store, request.id, NOW);
@@ -45,7 +45,7 @@ const sendFlow = async (rest: SupabaseRest, store: SupplierRequestStore, request
   await store.save(request, { by: BY, at: NOW, action: 'sent', sent: stamp, claim });
 };
 
-describe('#12/AC-3 um pedido aberto por nota de origem e tipo', () => { // ADR-002
+describe('#156 um pedido aberto por nota de origem e tipo', () => { // ADR-002
   it('cria o rascunho com a versão 1 e a primeira entrada do histórico, e devolve a raiz com o id da tabela', async () => { // ADR-002
     const { fake, rest } = harness();
     const record = await created(supabaseSupplierRequestStore(rest));
@@ -115,7 +115,7 @@ describe('#12/AC-3 um pedido aberto por nota de origem e tipo', () => { // ADR-0
   });
 });
 
-describe('#12/AC-4 o pedido guarda o que o caso de uso precisa', () => { // ADR-002
+describe('#156 o pedido guarda o que o caso de uso precisa', () => { // ADR-002
   it('guarda destinatário, assunto, corpo com marcadores, o que pedimos, a nota, o prazo, o modelo e o dia do rascunho', async () => { // ADR-002
     const { fake, rest } = harness();
     await created(supabaseSupplierRequestStore(rest));
@@ -285,7 +285,7 @@ describe('#12/AC-4 o pedido guarda o que o caso de uso precisa', () => { // ADR-
   });
 });
 
-describe('#12/AC-4 a trava do envio concorrente', () => { // ADR-002
+describe('#156 a trava do envio concorrente', () => { // ADR-002
   it('dois envios na mesma versão: um ganha a trava, o outro é conflito', async () => { // ADR-002
     const { fake, rest } = harness();
     const a = supabaseSupplierRequestStore(rest);
@@ -343,7 +343,7 @@ describe('#12/AC-4 a trava do envio concorrente', () => { // ADR-002
     const store = supabaseSupplierRequestStore(rest);
     const { request } = await created(store);
     const claim = await claimOf(store, request.id, NOW);
-    const reread = await store.get(request.id); // #12: a trava não vem da leitura
+    const reread = await store.get(request.id); // #156: a trava não vem da leitura
     reread?.request.editBody('Pedimos o retorno até {{prazo}}.', catalog);
     expect(await store.save(reread!.request, { by: OTHER, at: at(1), action: 'edited' })).toBe('stale');
     expect(fake.rows(TABLE)[0]).toMatchObject({ send_claim: claim, version: 2 });
@@ -419,7 +419,7 @@ describe('#12/AC-4 a trava do envio concorrente', () => { // ADR-002
   });
 });
 
-describe('#12/AC-6 os pedidos abertos de um tipo, só das notas pedidas, numa leitura', () => { // ADR-002
+describe('#156 os pedidos abertos de um tipo, só das notas pedidas, numa leitura', () => { // ADR-002
   it('listOpenKeys devolve só as chaves perguntadas com pedido aberto, sem o descartado, numa única requisição', async () => { // ADR-002
     const { fake, rest } = harness();
     const store = supabaseSupplierRequestStore(rest);
