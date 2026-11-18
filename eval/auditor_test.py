@@ -503,6 +503,8 @@ class MalformedInputTest(unittest.TestCase):
 UNEXPECTED_FAILURE = "não foi possível processar a entrada; nada foi gravado"
 SAVE_FAILURE = "não foi possível gravar a rodada na pasta de rodadas"
 STDOUT_FAILURE = "a rodada foi gravada, mas a saída padrão falhou"
+E6_FAILURE = "falha: alguma duplicidade (E6) do gabarito não foi classificada como E6"
+STDOUT_CANNOT_REPRESENT = "a saída padrão não representa o relatório; nada foi gravado"
 
 
 class BrokenStdout(io.StringIO):
@@ -510,6 +512,34 @@ class BrokenStdout(io.StringIO):
 
     def write(self, text: str) -> int:
         raise BrokenPipeError(errno.EPIPE, "Broken pipe")
+
+
+def markdown_text_is_ascii() -> bool:
+    """O relatório em Markdown da rodada de `all_correct()` cabe em ascii? Os testes de codificação precisam que não (#245)."""
+    run = {"run_id": "20261115T120000Z-00000000", **auditor.measure(all_correct(), ANSWER_KEY)}
+    return auditor.markdown_report(run, None).isascii()
+
+
+class ClosedStdout(io.StringIO):
+    """Saída padrão de um arquivo já fechado: escrever e descarregar levantam `ValueError`; `isatty` não (#245).
+
+    O `argparse` do Python 3.14 chama `isatty()` ao montar o parser, e um `StringIO` fechado levantaria ali.
+    """
+
+    def write(self, text: str) -> int:
+        self._refuse()
+        return 0
+
+    def flush(self) -> None:
+        self._refuse()
+
+    @staticmethod
+    def _refuse() -> None:
+        raise ValueError("I/O operation on closed file.")
+
+    @staticmethod
+    def isatty() -> bool:
+        return False
 
 
 class ClosedClassTest(unittest.TestCase):
@@ -591,11 +621,9 @@ class ClosedClassTest(unittest.TestCase):
     def test_ac3_closed_stdout_file_exits_two_and_keeps_the_run(self) -> None:
         """#245/AC-3: com `sys.stdout` já fechado (`ValueError` ao escrever) o programa sai 2 com a mensagem fixa; a rodada fica gravada."""
         err = io.StringIO()
-        closed = io.StringIO()
-        closed.close()
         self.audits.write_text("\n".join(json.dumps(x) for x in all_correct()) + "\n", encoding="utf-8")
         argv = [str(self.audits), "--answer-key", str(self.key_file), "--runs-dir", str(self.runs_dir)]
-        with contextlib.redirect_stdout(closed), contextlib.redirect_stderr(err):
+        with contextlib.redirect_stdout(ClosedStdout()), contextlib.redirect_stderr(err):
             code = auditor.main(argv, now=lambda: NOW)
         self.assertEqual(code, 2)
         self.assertEqual(err.getvalue(), f"erro: {STDOUT_FAILURE}\n")
@@ -713,6 +741,69 @@ class ClosedClassTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertEqual(json.loads(out)["by_exception"]["E6"]["classification"], 0)
         self.assertIn("E6", err)
+        self.assertEqual(len(self.run_files()), 1)
+
+    def run_program_with_encoding(self, encoding: str, *extra: str) -> subprocess.CompletedProcess[bytes]:
+        """Roda o programa de verdade com `PYTHONIOENCODING` dado; a saída vem em bytes, porque ela não é UTF-8 (#245)."""
+        self.audits.write_text("\n".join(json.dumps(x) for x in all_correct()) + "\n", encoding="utf-8")
+        argv = [sys.executable, str(ROOT / "eval" / "auditor.py"), str(self.audits),
+                "--answer-key", str(self.key_file), "--runs-dir", str(self.runs_dir), *extra]
+        env = {**os.environ, "PYTHONIOENCODING": encoding}
+        return subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True, env=env, timeout=60)
+
+    def test_ac1_stdout_that_cannot_represent_the_report_exits_two_with_its_own_message(self) -> None:
+        """#245/AC-1: com `PYTHONIOENCODING=ascii` e relatório com acento, sai 2 culpando a saída, não a entrada; nada é gravado."""
+        self.assertFalse(markdown_text_is_ascii())
+        done = self.run_program_with_encoding("ascii", "--format", "md")
+        self.assertEqual(done.returncode, 2)
+        self.assertEqual(done.stdout, b"")
+        # o stderr também é ascii (com `backslashreplace`), então a mensagem sai com os acentos escapados (#245)
+        self.assertEqual(done.stderr, f"erro: {STDOUT_CANNOT_REPRESENT}\n".encode("ascii", "backslashreplace"))
+        self.assertEqual(self.run_files(), [])
+
+    def test_ac1_stdout_with_backslashreplace_accepts_the_report_and_keeps_the_run(self) -> None:
+        """#245/AC-1: com `PYTHONIOENCODING=ascii:backslashreplace` a rodada válida sai 0, grava e imprime com escapes."""
+        done = self.run_program_with_encoding("ascii:backslashreplace", "--format", "md")
+        self.assertEqual(done.returncode, 0)
+        self.assertEqual(done.stderr, b"")
+        self.assertIn(b"Vers\\xe3o do prompt", done.stdout)  # o `ã` de "Versão" escapado, e nenhum byte fora do ascii (#245)
+        self.assertTrue(all(byte < 128 for byte in done.stdout))
+        self.assertEqual(len(self.run_files()), 1)
+        self.assertTrue(self.run_files()[0].endswith(".json"))
+
+    def test_ac3_missed_e6_wins_over_a_failed_stdout(self) -> None:
+        """#245/AC-3: com E6 perdida e a saída padrão falhando depois de gravar, sai 1; o stderr traz as duas mensagens e a rodada fica."""
+        lines = all_correct()
+        lines[1] = audit_line("K2", "E1", "recusar", "bloqueio")
+        err = io.StringIO()
+        self.audits.write_text("\n".join(json.dumps(x) for x in lines) + "\n", encoding="utf-8")
+        argv = [str(self.audits), "--answer-key", str(self.key_file), "--runs-dir", str(self.runs_dir)]
+        with contextlib.redirect_stdout(ClosedStdout()), contextlib.redirect_stderr(err):
+            code = auditor.main(argv, now=lambda: NOW)
+        self.assertEqual(code, 1)
+        self.assertEqual(err.getvalue(), f"erro: {STDOUT_FAILURE}\n{E6_FAILURE}\n")
+        self.assertEqual(len(self.run_files()), 1)
+
+    def test_ac3_missed_e6_wins_with_the_stdout_pipe_or_descriptor_closed(self) -> None:
+        """#245/AC-3: com E6 perdida, pipe de leitura fechada ou descritor 1 fechado saem 1 com a mensagem de stdout; a rodada fica."""
+        lines = all_correct()
+        lines[1] = audit_line("K2", "E1", "recusar", "bloqueio")
+        text = "\n".join(json.dumps(x) for x in lines) + "\n"
+        read_end, write_end = os.pipe()
+        os.close(read_end)
+        self.audits.write_text(text, encoding="utf-8")
+        argv = [sys.executable, str(ROOT / "eval" / "auditor.py"), str(self.audits),
+                "--answer-key", str(self.key_file), "--runs-dir", str(self.runs_dir)]
+        with subprocess.Popen(argv, stdout=write_end, stderr=subprocess.PIPE, text=True) as process:
+            os.close(write_end)
+            _, err = process.communicate(timeout=60)
+        self.assertEqual(process.returncode, 1)
+        self.assertEqual(err, f"erro: {STDOUT_FAILURE}\n{E6_FAILURE}\n")
+        self.assertEqual(len(self.run_files()), 1)
+        (self.runs_dir / self.run_files()[0]).unlink()
+        done = self.run_program_with_closed_descriptor(1, text)
+        self.assertEqual(done.returncode, 1)
+        self.assertEqual(done.stderr, f"erro: {STDOUT_FAILURE}\n{E6_FAILURE}\n")
         self.assertEqual(len(self.run_files()), 1)
 
     def test_ac3_malformed_input_never_exits_one(self) -> None:

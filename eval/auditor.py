@@ -33,6 +33,8 @@ EXIT_E6_MISSED = 1
 EXIT_USAGE = 2
 UNEXPECTED_FAILURE = "não foi possível processar a entrada; nada foi gravado"
 SAVE_FAILURE = "não foi possível gravar a rodada na pasta de rodadas"
+E6_FAILURE = "falha: alguma duplicidade (E6) do gabarito não foi classificada como E6"
+STDOUT_CANNOT_REPRESENT = "a saída padrão não representa o relatório; nada foi gravado"
 STDOUT_FAILURE = "a rodada foi gravada, mas a saída padrão falhou"
 
 
@@ -432,10 +434,24 @@ def _publish(run: Record, args: argparse.Namespace) -> str:
     depois da gravação, para que uma falha de saída não passe por falha de entrada.
     """
     text = _render(run, args.format)
-    text.encode(getattr(sys.stdout, "encoding", None) or "utf-8")
-    payload = (json.dumps(run, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    payload = (json.dumps(run, ensure_ascii=False, indent=2) + "\n").encode("utf-8")  # surrogate: defeito da entrada (#245)
+    _check_stdout_represents(text)
     _save_run(args.runs_dir, run, payload)
     return text
+
+
+def _check_stdout_represents(text: str) -> None:
+    """Falha antes de gravar se o stdout, com a codificação e o tratador de erro dele, não escreve o texto (#245).
+
+    É falha da saída, não da entrada: `PYTHONIOENCODING=ascii` recusa o acento, `ascii:backslashreplace` o aceita com
+    escapes. Sem stdout (`None`) não há o que checar; `main` trata esse caso ao escrever (#245).
+    """
+    if sys.stdout is None:
+        return
+    try:
+        text.encode(sys.stdout.encoding or "utf-8", getattr(sys.stdout, "errors", None) or "strict")
+    except UnicodeEncodeError as error:
+        raise InvalidInput(STDOUT_CANNOT_REPRESENT) from error
 
 
 def _run(args: argparse.Namespace, now: datetime) -> tuple[Record, str]:
@@ -478,7 +494,7 @@ def _detach_stdout() -> None:
 
 
 def main(argv: list[str] | None = None, now: Callable[[], datetime] | None = None) -> int:
-    """0 sem E6 perdida; 1 só com E6 perdida; 2 para toda entrada ou uso inválidos."""
+    """0 sem E6 perdida; 1 só com E6 perdida, inclusive se a saída padrão falhar depois de gravar; 2 para o resto (#245)."""
     try:
         args = _parse_args(sys.argv[1:] if argv is None else argv)
     except SystemExit as exit_status:  # argparse sai com 0 em --help e com 2 em uso inválido (#239)
@@ -496,9 +512,12 @@ def main(argv: list[str] | None = None, now: Callable[[], datetime] | None = Non
     except (OSError, ValueError):  # a rodada já está gravada; só a saída padrão falhou, ou já está fechada (#245)
         _detach_stdout()
         _complain(f"erro: {STDOUT_FAILURE}")
+        if e6_missed(run):  # a E6 perdida vence a falha de saída: o código 1 é o que o `make eval | head` precisa ver (#245)
+            _complain(E6_FAILURE)
+            return EXIT_E6_MISSED
         return EXIT_USAGE
     if e6_missed(run):
-        _complain("falha: alguma duplicidade (E6) do gabarito não foi classificada como E6")
+        _complain(E6_FAILURE)
         return EXIT_E6_MISSED
     return 0
 
