@@ -483,6 +483,7 @@ export const texts = {
       registry: "Cadastro",
       receipt: "Recebimento",
       history: "Histórico",
+      return_note: "Nota de devolução",
     },
     // #130 Os estados da gaveta, como no wireframe da issue.
     generating: "O Claude está lendo a nota, a ordem e o cadastro…",
