@@ -44,6 +44,12 @@ describe('migração save_approval_decision (#304)', () => {
     expect(sql.match(/if not found then\s+raise exception/g)?.length).toBeGreaterThanOrEqual(3);
   });
 
+  it('#304/AC-4: a versão lida nula levanta erro antes da trava, porque `<>` com nulo pularia a conferência', () => {
+    const guard = sql.search(/if p_version is null then\s+raise exception/);
+    expect(guard).toBeGreaterThan(-1);
+    expect(guard).toBeLessThan(sql.search(/for update/));
+  });
+
   it('#304/AC-4: não grava approved_by, que é coluna gerada', () => {
     expect(sql).not.toMatch(/approved_by/);
   });

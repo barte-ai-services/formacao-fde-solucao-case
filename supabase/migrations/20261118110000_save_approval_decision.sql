@@ -34,6 +34,12 @@ declare
   v_id bigint;
   v_version integer;
 begin
+  -- #304 Sem versão lida não há o que conferir, e `v_version <> null` seria nulo e pularia a conferência: a função
+  -- #304 se guarda sozinha, sem depender de quem chama.
+  if p_version is null then
+    raise exception 'versão lida da proposta da nota % ausente', p_invoice_access_key;
+  end if;
+
   -- #304 A mesma trava de linha de raise_proposal_level: as duas funções se serializam sobre a proposta.
   select id, version into v_id, v_version
     from public.proposals
