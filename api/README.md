@@ -194,7 +194,7 @@ contra as chaves do time, o `aud`, o `iss` e a validade. `GET /me` devolve o e-m
 | Chaves do time fora do ar | 503 `access_unavailable` |
 
 As duas variáveis não são segredo. Em produção, a esteira passa com `wrangler deploy --var`, a
-partir das variáveis do repositório `BARTE_ACADEMY_ACCESS_AUD` e `BARTE_ACADEMY_ACCESS_TEAM_DOMAIN`.
+partir das variáveis do environment `producao` `BARTE_ACADEMY_ACCESS_AUD` e `BARTE_ACADEMY_ACCESS_TEAM_DOMAIN`.
 Localmente, ficam no `.dev.vars`; sem elas, só o `/health` responde 200.
 
 ### Provisionar
