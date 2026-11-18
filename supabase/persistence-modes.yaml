@@ -95,13 +95,18 @@ tables:
     # espera") fica no próprio update, com a linha travada (for update). Substitui a nota anterior, que
     # guardava a história em invoice_audits antes do PATCH: invoice_audits.requested_level é só o nível que o
     # auditor pediu, não o fato. A varredura (reapplyRaisedLevels) repete a função, uma nota por rodada.
-    version_column: none          # a guarda é o filtro de estado e de nível dentro da função
-    # PER-4 (conhecido): coluna de versão em proposals fica para outra issue.
+    # #295 A coluna `version` (migração 20261118100000_proposals_version.sql) sobe a cada update: um gatilho
+    # before update por linha faz new.version := old.version + 1, ignorando o que o cliente mandar. Todo escritor
+    # incrementa sem mudar; a função raise_proposal_level continua com a guarda de estado e nível sob `for update` e
+    # incrementa pela mesma via (o gatilho). O filtro por versão no SupabaseApprovalStore.saveDecision chega no PR
+    # seguinte do mesmo plano (#295), depois da migração aplicada.
+    version_column: version
     gap: >-
       A proposta é editada: a decisão grava por cima state, dock_action e justification
       (SupabaseApprovalStore.saveDecision). A decisão em si fica em approvals, mas a ação proposta
       se perde quando a pessoa altera; só a subida de nível tem história (proposal_level_changes, #230).
-      Sem versão (PER-3, PER-4); a decisão de onde o histórico mora é do dono do #157.
+      A versão (#295) já sobe a cada update, mas a decisão ainda não a confere (PER-3, fecha no PR seguinte);
+      o histórico da ação proposta segue sem lugar (PER-4), decisão do dono do #157.
     tenant: none
   approvals:
     mode: append-only
