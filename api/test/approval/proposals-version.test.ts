@@ -15,8 +15,8 @@ import { kitInvoice } from './kit.js';
 const NOW = new Date('2026-11-15T12:00:00Z');
 const TODAY = '2026-11-15';
 const DIRETORIA = 'diretoria@jachegou.test';
-const NF080 = kitInvoice('NF-080').accessKey; // diretoria, aguarda aprovação
-const NF036 = kitInvoice('NF-036').accessKey; // regra, aprovada sem pessoa
+const NF080 = kitInvoice('NF-080').accessKey; // #295 diretoria, aguarda aprovação
+const NF036 = kitInvoice('NF-036').accessKey; // #295 regra, aprovada sem pessoa
 
 async function proposed() {
   const fake = new FakePostgrest(kitTables());
@@ -68,7 +68,7 @@ describe('#295/AC-2 a escrita com versão antiga é conflito', () => {
       title: { ...fake.rows('titles').find((r) => r.invoice_access_key === NF080) },
       invoice: { ...fake.rows('invoices').find((r) => r.access_key === NF080) },
     };
-    // outra escrita chega primeiro e sobe a versão para 2
+    // #295 outra escrita chega primeiro e sobe a versão para 2
     await rest.update('proposals', { invoice_access_key: `eq.${NF080}` }, { approval_level: 'bloqueio' });
     const afterOther = { ...row(NF080) };
 
