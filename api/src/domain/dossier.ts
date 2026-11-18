@@ -73,10 +73,30 @@ export type DossierUnavailableReason =
   | 'invalid_shape' // #68
   | 'timeout'; // #130 o Claude passou do prazo
 
+/** #296: qual das quatro verificações do texto do Claude derrubou o dossiê. */
+export type DossierMismatchCheck = 'loose_number' | 'spelled_number' | 'unknown_key' | 'unknown_classification';
+
+/** #296: o detalhe de um `number_mismatch`, para o log. Nunca vai à resposta da API nem à tela. */
+export type DossierMismatch = {
+  readonly check: DossierMismatchCheck;
+  /** #296: onde, na saída do Claude: `summary`, `supplier_history`, `divergences[i].what_diverges`, `.evidence` ou `.classification`. */
+  readonly field: string;
+  /** #296: o token ou a chave que derrubou, cortado em `MAX_CITED_LENGTH` caracteres; nunca o texto inteiro. */
+  readonly cited: string;
+  /**
+   * #296: o que o banco tem para comparar: as classificações reais da nota, separadas por vírgula, em
+   * `unknown_classification`. `null` quando o banco não tem valor correspondente: um número solto
+   * ou por extenso não está ligado a chave nenhuma, e uma chave desconhecida não existe no catálogo.
+   */
+  readonly bank: string | null;
+};
+
 export type DossierUnavailable = {
   readonly status: 'unavailable'; // #68
   readonly reason: DossierUnavailableReason;
   readonly generatedAt: string;
+  /** #296: presente só em `number_mismatch` vindo de `verifyAndRender`. */
+  readonly mismatch?: DossierMismatch;
 };
 
 export type DossierResult = Dossier | DossierUnavailable;
@@ -275,30 +295,79 @@ const SPELLED_NUMBERS: ReadonlySet<string> = new Set([
 /** #68: o token em minúsculas e sem acento, para comparar com os numerais por extenso. */
 const folded = (token: string): string => token.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 
-/** #68: o texto confere quando todo marcador está no catálogo e nenhum número sobra fora dos marcadores. */
-export function textChecks(text: string, catalog: FactCatalog, allowed: ReadonlySet<string>): boolean {
+/** #296: o `cited` de um `DossierMismatch` tem no máximo este tamanho: o token ou a chave, nunca o texto. */
+const MAX_CITED_LENGTH = 64;
+
+type TextFailure = { readonly check: DossierMismatchCheck; readonly cited: string };
+
+/** #296: a primeira verificação que o texto não passa, ou `null` se confere: marcadores primeiro, depois os tokens. */
+function firstTextFailure(text: string, catalog: FactCatalog, allowed: ReadonlySet<string>): TextFailure | null {
   for (const m of text.matchAll(MARKER)) {
-    if (!Object.hasOwn(catalog.facts, m[1] ?? '')) return false;
+    const key = m[1] ?? '';
+    if (!Object.hasOwn(catalog.facts, key)) return { check: 'unknown_key', cited: key };
   }
   const rest = text.replace(MARKER, ' ');
   for (const token of rest.split(/[\s/]+/)) {
     const bare = token.replace(EDGE_PUNCTUATION, '');
     // #68: \p{N} pega também dígitos fora do ASCII (como `１５`), que o `\d` deixava passar.
-    if (/\p{N}/u.test(bare) && !allowed.has(bare)) return false;
-    if (SPELLED_NUMBERS.has(folded(bare))) return false;
+    if (/\p{N}/u.test(bare) && !allowed.has(bare)) return { check: 'loose_number', cited: bare };
+    if (SPELLED_NUMBERS.has(folded(bare))) return { check: 'spelled_number', cited: bare };
   }
-  return true;
+  return null;
 }
+
+/** #68: o texto confere quando todo marcador está no catálogo e nenhum número sobra fora dos marcadores. */
+export function textChecks(text: string, catalog: FactCatalog, allowed: ReadonlySet<string>): boolean {
+  return firstTextFailure(text, catalog, allowed) === null;
+}
+
+const mismatchOf = (check: DossierMismatchCheck, field: string, cited: string, bank: string | null): DossierMismatch =>
+  Object.freeze({ check, field, cited: cited.slice(0, MAX_CITED_LENGTH), bank });
 
 export const renderText = (text: string, catalog: FactCatalog): string =>
   text.replace(MARKER, (_, key: string) => catalog.facts[key]?.value ?? '');
 
-const unavailable = (reason: DossierUnavailableReason, generatedAt: string): DossierUnavailable =>
-  Object.freeze({ status: 'unavailable', reason, generatedAt });
+const unavailable = (
+  reason: DossierUnavailableReason,
+  generatedAt: string,
+  mismatch?: DossierMismatch,
+): DossierUnavailable =>
+  Object.freeze(mismatch ? { status: 'unavailable', reason, generatedAt, mismatch } : { status: 'unavailable', reason, generatedAt });
+
+/** #296: a primeira falha dos textos, na ordem summary, supplier_history, what_diverges de cada divergência. */
+function firstTextMismatch(parsed: RawDossier, catalog: FactCatalog, allowed: ReadonlySet<string>): DossierMismatch | null {
+  const texts: readonly (readonly [string, string])[] = [
+    ['summary', parsed.summary],
+    ['supplier_history', parsed.supplier_history],
+    ...parsed.divergences.map((d, i): readonly [string, string] => [`divergences[${i}].what_diverges`, d.what_diverges]),
+  ];
+  for (const [field, text] of texts) {
+    const failure = firstTextFailure(text, catalog, allowed);
+    if (failure) return mismatchOf(failure.check, field, failure.cited, null);
+  }
+  return null;
+}
+
+/** #296: a primeira falha, por divergência, da classificação e depois das evidências. */
+function firstDivergenceMismatch(
+  parsed: RawDossier,
+  catalog: FactCatalog,
+  real: ReadonlySet<string>,
+): DossierMismatch | null {
+  for (const [i, d] of parsed.divergences.entries()) {
+    if (!real.has(d.classification)) {
+      return mismatchOf('unknown_classification', `divergences[${i}].classification`, d.classification, [...real].join(','));
+    }
+    const unknown = d.evidence.find((k) => !Object.hasOwn(catalog.facts, k));
+    if (unknown !== undefined) return mismatchOf('unknown_key', `divergences[${i}].evidence`, unknown, null);
+  }
+  return null;
+}
 
 /**
  * #68: confere a resposta crua do Claude contra o catálogo e as divergências reais da nota, e
- * renderiza os marcadores com os valores do banco. Qualquer número que não confere → indisponível.
+ * renderiza os marcadores com os valores do banco. Qualquer número que não confere → indisponível,
+ * com a primeira falha em `mismatch` (#296).
  */
 export function verifyAndRender(
   raw: unknown,
@@ -311,13 +380,8 @@ export function verifyAndRender(
 
   const allowed = new Set(catalog.identifiers);
   const real = new Set<string>(divergences.map((d) => d.classification));
-  const texts = [parsed.summary, parsed.supplier_history, ...parsed.divergences.map((d) => d.what_diverges)];
-  const matches =
-    texts.every((t) => textChecks(t, catalog, allowed)) &&
-    parsed.divergences.every(
-      (d) => real.has(d.classification) && d.evidence.every((k) => Object.hasOwn(catalog.facts, k)),
-    );
-  if (!matches) return unavailable('number_mismatch', meta.generatedAt);
+  const mismatch = firstTextMismatch(parsed, catalog, allowed) ?? firstDivergenceMismatch(parsed, catalog, real);
+  if (mismatch) return unavailable('number_mismatch', meta.generatedAt, mismatch);
 
   const evidence = (key: string): DossierEvidence => {
     const fact = catalog.facts[key]!; // #68: conferido acima
