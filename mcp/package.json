@@ -1,0 +1,11 @@
+{
+  "name": "formacao-fde-solucao-case-mcp",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "4.156.0"
+  }
+}
