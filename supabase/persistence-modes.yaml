@@ -98,21 +98,26 @@ tables:
     # #295 A coluna `version` (migração 20261118100000_proposals_version.sql) sobe a cada update: um gatilho
     # before update por linha faz new.version := old.version + 1, ignorando o que o cliente mandar. Todo escritor
     # incrementa sem mudar; a função raise_proposal_level continua com a guarda de estado e nível sob `for update` e
-    # incrementa pela mesma via (o gatilho). O filtro por versão no SupabaseApprovalStore.saveDecision chega no PR
-    # seguinte do mesmo plano (#295), depois da migração aplicada.
+    # incrementa pela mesma via (o gatilho). SupabaseApprovalStore.saveDecision filtra o PATCH pela versão lida no
+    # find (sem versão lida, é erro de programação antes de gravar): sem linha afetada, apaga a aprovação que a
+    # chamada inseriu e lança ProposalVersionConflictError (a API responde 409, o motor deixa a proposta com a
+    # pessoa). A regra 8 segue na restrição única de approvals.proposal_id, que decide quem chegou antes.
     version_column: version
     gap: >-
       A proposta é editada: a decisão grava por cima state, dock_action e justification
       (SupabaseApprovalStore.saveDecision). A decisão em si fica em approvals, mas a ação proposta
       se perde quando a pessoa altera; só a subida de nível tem história (proposal_level_changes, #230).
-      A versão (#295) já sobe a cada update, mas a decisão ainda não a confere (PER-3, fecha no PR seguinte);
-      o histórico da ação proposta segue sem lugar (PER-4), decisão do dono do #157.
+      A versão (#295) fecha a escrita às cegas (PER-3); o histórico da ação proposta segue sem lugar (PER-4), decisão do dono do #157.
     tenant: none
   approvals:
     mode: append-only
     history: none
     projection: none          # uma linha por proposta (approvals_proposal_key), lida diretamente
     refusal: access-layer     # só insert nos adaptadores; o Worker usa a chave secreta, sem papel próprio
+    gap: >-
+      A compensação do saveDecision (#295) apaga a aprovação que a própria chamada inseriu, pelo id da linha, quando
+      a versão lida da proposta não bate: é um delete em tabela declarada append-only, não atômico com o insert. Fica
+      até a #250 (plano #304) trocar a sequência por uma função numa só transação.
   invoices:
     mode: upsert-with-history
     history: none
