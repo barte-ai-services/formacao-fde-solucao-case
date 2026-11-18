@@ -209,7 +209,7 @@ def create_tools() -> list[Tool]:
         Tool(
             "list_approval_queue",
             "Lista a fila de aprovação de quem está logado: as propostas que esperam uma decisão. Por padrão "
-            "(scope mine) só as que a pessoa pode decidir pela regra 8; com scope all, todas. classification e "
+            "(scope mine) só as que o nível de aprovação da pessoa permite decidir; com scope all, todas. classification e "
             "level filtram. Devolve o aprovador e as linhas da fila; todo valor vem desta tool.",
             MappingProxyType(_QUEUE_SCHEMA),
             list_approval_queue,
@@ -217,7 +217,7 @@ def create_tools() -> list[Tool]:
         ),
         Tool(
             "get_proposal",
-            "Abre uma proposta da fila: a linha da fila, a régua, os itens, as divergências com a evidência, o título, "
+            "Abre uma proposta da fila: a linha da fila, a régua (a linha da regra que encaminhou a proposta e o motivo), os itens, as divergências com a evidência, o título, "
             "a aprovação (se já houve), o dossiê, o motor e o auditor. Chave inexistente devolve not_found. "
             + UNTRUSTED_TEXT_NOTICE,
             MappingProxyType(_PROPOSAL_SCHEMA),
@@ -227,8 +227,8 @@ def create_tools() -> list[Tool]:
         Tool(
             "decide_proposal",
             "Registra a decisão da pessoa sobre uma proposta: approve aprova a ação na doca proposta; change troca "
-            "a ação e exige dock_action e justification. Só chame quando a pessoa pedir. A API confere o nível "
-            "(regra 8): forbidden_level, already_decided, justification_required e invalid_dock_action explicam a recusa.",
+            "a ação e exige dock_action e justification. Só chame quando a pessoa pedir. A API confere se o nível "
+            "de aprovação da pessoa alcança o que a proposta exige: forbidden_level, already_decided, justification_required e invalid_dock_action explicam a recusa.",
             MappingProxyType(_DECISION_SCHEMA),
             decide_proposal,
             annotations=DECISION_EFFECT,

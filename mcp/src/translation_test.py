@@ -13,10 +13,6 @@ class SnakeTest(unittest.TestCase):
         self.assertEqual(translation.to_snake("generatedAt"), "generated_at")
         self.assertEqual(translation.to_snake("status"), "status")
 
-    def test_as_chaves_aninhadas_viram_snake_case_e_os_valores_ficam(self) -> None:  # ADR-002
-        value = {"generatedAt": None, "items": [{"someKey": "keepCase"}]}
-        self.assertEqual(translation.snake_keys(value), {"generated_at": None, "items": [{"some_key": "keepCase"}]})
-
 
 class HourInSaoPauloTest(unittest.TestCase):
     def hour(self, value: JsonValue) -> Optional[str]:
@@ -94,6 +90,43 @@ class ProposalTest(unittest.TestCase):
 
     def test_o_motor_so_repassa_os_campos_conhecidos(self) -> None:  # ADR-002
         self.assertNotIn("segredo_interno", self.output()["engine"])
+
+    def test_o_dossie_pronto_so_repassa_os_campos_conhecidos(self) -> None:  # ADR-002
+        dossier = {
+            "status": "ready", "summary": "resumo", "generatedAt": "2026-11-18T13:00:00Z", "campoDesconhecido": "x",
+            "requestedBy": "ana@exemplo.com", "model": "m", "supplierHistory": [],
+            "divergences": [{
+                "classification": "c", "exceptionName": "nome", "whatDiverges": "o que", "outroCampo": "y",
+                "evidence": [{"key": "k", "label": "l", "value": "v", "source": "s", "campoNovo": "z"}],
+            }],
+        }
+        output = self.output(dossier=dossier)["dossier"]
+        self.assertEqual(output["summary"], "resumo")
+        self.assertEqual(output["divergences"][0]["classification_name"], "nome")
+        self.assertEqual(output["divergences"][0]["evidence"][0]["label"], "l")
+        for name in ("campo_desconhecido", "campoDesconhecido", "requested_by", "model"):
+            self.assertNotIn(name, output)
+        self.assertNotIn("outro_campo", output["divergences"][0])
+        self.assertNotIn("campo_novo", output["divergences"][0]["evidence"][0])
+        self.assertNotIn("campoNovo", output["divergences"][0]["evidence"][0])
+
+    def test_o_dossie_em_geracao_nao_leva_quem_pediu(self) -> None:  # ADR-002
+        dossier = {"status": "generating", "trigger": "t", "requestedAt": "2026-11-18T13:00:00Z", "requestedBy": "ana@exemplo.com"}
+        self.assertEqual(
+            self.output(dossier=dossier)["dossier"],
+            {"status": "generating", "trigger": "t", "requested_at": "2026-11-18T13:00:00Z"},
+        )
+
+    def test_a_auditoria_so_repassa_os_campos_conhecidos(self) -> None:  # ADR-002
+        audit = {
+            "status": "done", "classification": "c", "amountAtRisk": {"cents": 100, "text": "R$ 1,00", "extra": 1},
+            "injectionFlag": False, "model": "m", "campoDesconhecido": "x",
+        }
+        output = self.output(audit=audit)["audit"]
+        self.assertEqual(output["amount_at_risk"], {"cents": 100, "text": "R$ 1,00"})
+        self.assertEqual(output["injection_flag"], False)
+        for name in ("model", "campo_desconhecido", "campoDesconhecido"):
+            self.assertNotIn(name, output)
 
     def test_corpo_que_nao_e_objeto_e_value_error(self) -> None:  # ADR-002
         with self.assertRaises(ValueError):

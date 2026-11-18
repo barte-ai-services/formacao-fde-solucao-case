@@ -22,15 +22,6 @@ def to_snake(name: str) -> str:
     return _UPPERCASE.sub("_", name).lower()
 
 
-def snake_keys(value: JsonValue) -> JsonValue:
-    """As chaves de um campo da API que a #137 repassa como veio (o dossiê e o auditor), em snake_case."""
-    if isinstance(value, dict):
-        return {to_snake(key): snake_keys(v) for key, v in value.items()}
-    if isinstance(value, list):
-        return [snake_keys(v) for v in value]
-    return value
-
-
 def _get(body: JsonValue, field: str) -> JsonValue:
     return body.get(field) if isinstance(body, dict) else None
 
@@ -184,6 +175,73 @@ def _divergence(divergence: JsonObject) -> JsonObject:
     }
 
 
+def _evidence(evidence: JsonValue) -> Optional[list[JsonValue]]:
+    if not isinstance(evidence, list):
+        return None
+    return [
+        {field: item.get(field) for field in ("key", "label", "value", "source")}
+        for item in evidence
+        if isinstance(item, dict)
+    ]
+
+
+def _dossier_divergence(divergence: JsonObject) -> JsonObject:
+    return {
+        "classification": divergence.get("classification"),
+        "classification_name": divergence.get("exceptionName"),
+        "what_diverges": divergence.get("whatDiverges"),
+        "evidence": _evidence(divergence.get("evidence")),
+    }
+
+
+def _dossier(dossier: JsonValue) -> Optional[JsonObject]:
+    """O dossiê (#272/#137): campos nomeados por variante; o que a API acrescentar não passa sem escolha."""
+    if not isinstance(dossier, dict):
+        return None
+    status = dossier.get("status")
+    if status == "ready":
+        divergences = dossier.get("divergences")
+        return {
+            "status": status,
+            "summary": dossier.get("summary"),
+            "divergences": [_dossier_divergence(d) for d in divergences if isinstance(d, dict)]
+            if isinstance(divergences, list)
+            else None,
+            "supplier_history": dossier.get("supplierHistory"),
+            "generated_at": dossier.get("generatedAt"),
+        }
+    if status == "unavailable":
+        return {
+            "status": status,
+            "reason": dossier.get("reason"),
+            "notice": dossier.get("notice"),
+            "generated_at": dossier.get("generatedAt"),
+        }
+    if status == "generating":
+        return {"status": status, "trigger": dossier.get("trigger"), "requested_at": dossier.get("requestedAt")}
+    return {"status": status}
+
+
+def _audit(audit: JsonValue) -> Optional[JsonObject]:
+    """A auditoria (#272/#137): campos nomeados; o que a API acrescentar não passa sem escolha."""
+    if not isinstance(audit, dict):
+        return None
+    return {
+        "status": audit.get("status"),
+        "reason": audit.get("reason"),
+        "classification": audit.get("classification"),
+        "dock_action": _dock_action(audit.get("dockAction")),
+        "routing": audit.get("routing"),
+        "justification": audit.get("justification"),
+        "amount_at_risk": _money(audit.get("amountAtRisk")),
+        "audited_at": audit.get("auditedAt"),
+        "agreement": audit.get("agreement"),
+        "raised_level": audit.get("raisedLevel"),
+        "injection_flag": audit.get("injectionFlag"),
+        "refusals": audit.get("refusals"),
+    }
+
+
 def proposal(body: JsonValue) -> JsonObject:
     """A saída de get_proposal: a linha da fila e o que a #137 acrescenta."""
     if not isinstance(body, dict):
@@ -202,8 +260,8 @@ def proposal(body: JsonValue) -> JsonObject:
             "divergences": [_divergence(d) for d in body.get("divergences") or [] if isinstance(d, dict)],
             "title": {"state": title.get("state"), "amount": _money(title.get("amount")), "due_on": title.get("dueOn")},
             "approval": approval(body.get("approval"), _DECISION_BY_STATE.get(str(body.get("state"))), decision_moment(body)),
-            "dossier": snake_keys(dossier),
-            "audit": snake_keys(body.get("audit")),
+            "dossier": _dossier(dossier),
+            "audit": _audit(body.get("audit")),
         }
     )
     return output
