@@ -128,6 +128,26 @@ class ProposalTest(unittest.TestCase):
         for name in ("model", "campo_desconhecido", "campoDesconhecido"):
             self.assertNotIn(name, output)
 
+    def test_a_concordancia_e_as_recusas_so_repassam_os_campos_conhecidos(self) -> None:  # ADR-002, #272
+        audit = {
+            "status": "done",
+            "agreement": {"agrees": False, "differs": ["a", 3], "campoNovo": "x"},
+            "refusals": [{"refusal": "r", "field": "f", "minimumLevel": 2, "campoNovo": "y"}],
+        }
+        output = self.output(audit=audit)["audit"]
+        self.assertEqual(output["agreement"], {"agrees": False, "differs": ["a"]})
+        self.assertEqual(output["refusals"], [{"refusal": "r", "field": "f", "minimum_level": 2}])
+
+    def test_o_clef_so_repassa_os_campos_conhecidos(self) -> None:  # ADR-002, #272
+        clef = {
+            "outcome": "o", "confidence": 0.9, "model_version": "v", "reason": "r",
+            "decided_at": "2026-11-18T13:00:00Z", "agreement": True, "campoNovo": "x", "segredo_interno": "y",
+        }
+        output = self.output(engine={"mode": "m", "clef": clef})["engine"]["clef"]
+        self.assertEqual(output["model_version"], "v")
+        for name in ("campoNovo", "campo_novo", "segredo_interno"):
+            self.assertNotIn(name, output)
+
     def test_corpo_que_nao_e_objeto_e_value_error(self) -> None:  # ADR-002
         with self.assertRaises(ValueError):
             translation.proposal([])

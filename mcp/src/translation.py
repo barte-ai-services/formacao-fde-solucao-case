@@ -144,14 +144,31 @@ def recorded_decision(body: JsonValue, decision: str) -> JsonObject:
 
 _ENGINE_FIELDS = (
     "mode", "outcome", "decided_by", "confidence", "model_version", "reason", "pending_reason", "recommendation",
-    "decided_at", "similar_cases", "clef", "person_outcome", "agreement",
+    "decided_at", "similar_cases", "person_outcome", "agreement",
 )
+
+
+def _clef(clef: JsonValue) -> Optional[JsonObject]:
+    """O parecer do Clef (#272): campos nomeados; o que a API acrescentar não passa sem escolha."""
+    if not isinstance(clef, dict):
+        return None
+    return {
+        "outcome": clef.get("outcome"),
+        "confidence": clef.get("confidence"),
+        "model_version": clef.get("model_version"),
+        "reason": clef.get("reason"),
+        "decided_at": clef.get("decided_at"),
+        "agreement": clef.get("agreement"),
+    }
 
 
 def _engine(engine: JsonValue) -> Optional[JsonObject]:
     if not isinstance(engine, dict):
         return None
-    return {field: engine.get(field) for field in _ENGINE_FIELDS if field in engine}
+    output = {field: engine.get(field) for field in _ENGINE_FIELDS if field in engine}
+    if "clef" in engine:
+        output["clef"] = _clef(engine.get("clef"))
+    return output
 
 
 def _invoice_item(item: JsonObject) -> JsonObject:
@@ -222,10 +239,30 @@ def _dossier(dossier: JsonValue) -> Optional[JsonObject]:
     return {"status": status}
 
 
+def _agreement(agreement: JsonValue) -> Optional[JsonObject]:
+    """A concordância da auditoria (#272)."""
+    if not isinstance(agreement, dict):
+        return None
+    differs = agreement.get("differs")
+    return {
+        "agrees": agreement.get("agrees"),
+        "differs": [d for d in differs if isinstance(d, str)] if isinstance(differs, list) else [],
+    }
+
+
+def _refusal(refusal: JsonObject) -> JsonObject:
+    return {
+        "refusal": refusal.get("refusal"),
+        "field": refusal.get("field"),
+        "minimum_level": refusal.get("minimumLevel"),
+    }
+
+
 def _audit(audit: JsonValue) -> Optional[JsonObject]:
     """A auditoria (#272/#137): campos nomeados; o que a API acrescentar não passa sem escolha."""
     if not isinstance(audit, dict):
         return None
+    refusals = audit.get("refusals")
     return {
         "status": audit.get("status"),
         "reason": audit.get("reason"),
@@ -235,10 +272,10 @@ def _audit(audit: JsonValue) -> Optional[JsonObject]:
         "justification": audit.get("justification"),
         "amount_at_risk": _money(audit.get("amountAtRisk")),
         "audited_at": audit.get("auditedAt"),
-        "agreement": audit.get("agreement"),
+        "agreement": _agreement(audit.get("agreement")),
         "raised_level": audit.get("raisedLevel"),
         "injection_flag": audit.get("injectionFlag"),
-        "refusals": audit.get("refusals"),
+        "refusals": [_refusal(r) for r in refusals if isinstance(r, dict)] if isinstance(refusals, list) else None,
     }
 
 
