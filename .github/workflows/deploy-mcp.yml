@@ -38,7 +38,10 @@ jobs:
       # nenhum código de dependência roda aqui, e o que rodasse não veria as credenciais da Cloudflare.
       - run: npm ci --ignore-scripts --no-audit --no-fund
         working-directory: mcp
-      # Só este passo tem as credenciais, e roda o wrangler que o `npm ci` instalou, na versão travada.
+      # O teste da tela (#274) roda com o jsdom do lockfile, sem rede e sem credencial, antes de publicar.
+      - run: npm test
+        working-directory: mcp
+      # Só este passo tem as credenciais, e roda o wrangler que a instalação do lockfile trouxe, na versão travada.
       - run: npx wrangler deploy
         working-directory: mcp
         env:
