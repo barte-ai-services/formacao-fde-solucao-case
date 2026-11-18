@@ -198,6 +198,8 @@ export class FakePostgrest {
    */
   private saveApprovalDecision(args: Row, json: (status: number, payload: unknown) => Response): Response {
     const key = String(args.p_invoice_access_key);
+    // #304 Versão lida nula: a função levanta erro antes da trava, em vez de pular a conferência.
+    if (args.p_version == null) return json(400, { code: 'P0001', message: `versão lida da proposta da nota ${key} ausente` });
     const proposal = this.table('proposals').find((r) => r.invoice_access_key === key);
     if (!proposal) return json(400, { code: 'P0001', message: `proposta da nota ${key} não encontrada` });
     if (this.table('approvals').some((r) => r.proposal_id === proposal.id)) return json(200, 'already_decided');

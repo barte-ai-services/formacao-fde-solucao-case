@@ -131,6 +131,16 @@ describe('#304/AC-2 a falha no meio não deixa nenhuma das quatro tabelas mudada
   });
 });
 
+describe('#304/AC-4 a função se guarda da versão nula', () => {
+  it('#304/AC-4: p_version nulo levanta erro como a função do banco, e nada é gravado', async () => {
+    const { rest, four } = await proposed();
+    const before = four(NF080);
+    const args = { p_invoice_access_key: NF080, p_version: null, p_approver: DIRETORIA, p_approver_level: 'diretoria', p_decided_on: TODAY };
+    await expect(rest.rpc(RPC, args)).rejects.toBeInstanceOf(SupabaseRestError);
+    expect(four(NF080)).toEqual(before);
+  });
+});
+
 describe('#304/AC-3 a segunda decisão recebe AlreadyDecidedError', () => {
   it('#304/AC-3: quem leu a versão antiga e chega depois recebe "já decidida", não conflito de versão, e nada muda', async () => {
     const { store, find, decide, four } = await proposed();
