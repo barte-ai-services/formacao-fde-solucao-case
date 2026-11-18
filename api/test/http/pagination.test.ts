@@ -1,5 +1,4 @@
-// #159 As quatro listas (fila, hoje, duplicadas, doca) paginam por cursor, com 70 itens cada.
-// O mesmo contrato roda nas quatro: forma (AC-1), percurso (AC-2), recusas (AC-3) e agregados (AC-4).
+/** #159 As quatro listas (fila, hoje, duplicadas, doca) paginam por cursor, com 70 itens cada. O mesmo contrato roda nas quatro: forma (AC-1), percurso (AC-2), recusas (AC-3) e agregados (AC-4). */
 import { describe, expect, it } from 'vitest';
 import { MemoryApprovalStore, type CaseFile } from '../../src/approval/store.js';
 import { draftProposal, propose } from '../../src/domain/approval.js';
@@ -29,12 +28,11 @@ const env: Env = {
   BARTE_ACADEMY_SUPABASE_URL: 'https://supabase.test',
   BARTE_ACADEMY_SUPABASE_SECRET_KEY: 'sb_teste',
 };
-// #159 O Worker só chama `waitUntil`; `passThroughOnException` e `props` completam o tipo e o teste não os lê.
-// O compilador não vê isso, por isso a asserção dupla.
+// #159 O Worker só chama `waitUntil`; `passThroughOnException` e `props` completam o tipo e o teste não os lê, e o compilador não vê isso, por isso a asserção dupla.
 const ctx = { waitUntil: () => {}, passThroughOnException: () => {}, props: {} } as unknown as ExecutionContext;
 const verifier: AccessVerifier = { verify: async (token) => ({ ok: true, identity: { email: token } }) };
 
-/** Embaralha de forma fixa (37 é primo com 70), para que a ordem de inserção não seja a ordem da lista. */
+/** #159 Embaralha de forma fixa (37 é primo com 70), para que a ordem de inserção não seja a ordem da lista. */
 const shuffled = <T>(items: readonly T[]): T[] => items.map((_, i) => items[(i * 37) % items.length] as T);
 
 type Get = (query: string) => Promise<Response>;
@@ -43,21 +41,19 @@ type Whole = Record<string, unknown>;
 
 type Lane = {
   name: string;
-  /** Monta o mundo com 70 itens e devolve a chamada GET da rota com a query dada. */
+  /** #159 Monta o mundo com 70 itens e devolve a chamada GET da rota com a query dada. */
   arrange: () => Promise<Get>;
-  /** Os campos da resposta de hoje, sem cursor nem limite. */
+  /** #159 Os campos da resposta de hoje, sem cursor nem limite. */
   oldKeys: string[];
-  /** Os campos de contexto que a resposta paginada repete. */
+  /** #159 Os campos de contexto que a resposta paginada repete. */
   context: string[];
   itemsOf: (whole: Whole) => Item[];
   keyOf: (item: Item) => string;
-  /** A ordem documentada, conferida sem usar o módulo de paginação. */
+  /** #159 A ordem documentada, conferida sem usar o módulo de paginação. */
   ordered: (items: Item[]) => boolean;
-  /** Os agregados esperados, calculados sobre a lista inteira de hoje. */
+  /** #159 Os agregados esperados, calculados sobre a lista inteira de hoje. */
   aggregates: (whole: Whole) => Record<string, unknown>;
 };
-
-// --- fila -------------------------------------------------------------------------------------------
 
 function queueInvoice(i: number, classes: Parameters<typeof checkedWith>[1][]): CaseFile {
   const template = kitInvoice('NF-008');
@@ -77,7 +73,7 @@ function queueInvoice(i: number, classes: Parameters<typeof checkedWith>[1][]): 
   const supplier = kitSupplier(invoice.supplierId);
   const title = Title.post({ invoiceAccessKey: invoice.accessKey, amount: invoice.total, dueOn: '2026-12-10' });
   const route = ApprovalPolicy.route(invoice, supplier);
-  // Valores em risco repetidos de propósito: o desempate pela chave precisa decidir a ordem.
+  // #159 Valores em risco repetidos de propósito: o desempate pela chave precisa decidir a ordem.
   const draft = { ...draftProposal(invoice, null), amountAtRisk: Money.ofCents(((i % 5) + 1) * 10000) };
   const { proposal, approval } = propose(invoice, title, { route, ...draft, today: TODAY });
   return { invoice, proposal, title, route, approval, supplierBlocked: supplier?.paymentBlocked ?? false };
@@ -122,14 +118,12 @@ const queueLane: Lane = {
   },
 };
 
-// --- hoje -------------------------------------------------------------------------------------------
-
 const todayLane: Lane = {
   name: 'hoje',
   async arrange() {
     const files: CaseFile[] = [];
     for (let i = 0; i < TOTAL_ITEMS; i++) {
-      // Metade passa pela regra (match), metade espera uma pessoa e é aprovada abaixo.
+      // #159 Metade passa pela regra (match), metade espera uma pessoa e é aprovada abaixo.
       files.push(i % 2 === 0 ? matchCase(i) : queueInvoice(i, ['E4']));
     }
     const worker = approvalWorker(new MemoryApprovalStore(shuffled(files)));
@@ -155,10 +149,8 @@ const todayLane: Lane = {
 
 function matchCase(i: number): CaseFile {
   const file = queueInvoice(i, []);
-  return file; // sem divergência a nota é match: nível regra, aprovada pela regra no ato de propor
+  return file; // #159 sem divergência a nota é match: nível regra, aprovada pela regra no ato de propor
 }
-
-// --- duplicadas -------------------------------------------------------------------------------------
 
 function duplicateEntry(i: number): DuplicateEntry {
   const cents = 100000 + i * 211;
@@ -200,16 +192,14 @@ const duplicatesLane: Lane = {
   },
 };
 
-// --- doca -------------------------------------------------------------------------------------------
-
-/** A doca do CD e o recebimento na loja são o mesmo handler, com duas listas: cada uma com a sua. */
+/** #159 A doca do CD e o recebimento na loja são o mesmo handler, com duas listas: cada uma com a sua. */
 function dockLaneOf(name: string, path: string, destination: string): Lane {
   return {
     name,
     async arrange() {
       const [base] = kitNotesOf('CD-03', DOCK_DAY);
       if (!base) throw new Error('arranjo: o kit não tem nota do CD-03 em 2026-11-11');
-      // Números de 1 a 3 dígitos, para que a ordem numérica difira da alfabética.
+      // #159 Números de 1 a 3 dígitos, para que a ordem numérica difira da alfabética.
       const notes = Array.from({ length: TOTAL_ITEMS }, (_, i) => ({
         ...base,
         chave: `35261100000000000000550010000008${String(i).padStart(3, '0')}1000000000`,
@@ -238,8 +228,6 @@ function dockLaneOf(name: string, path: string, destination: string): Lane {
 
 const dockLane = dockLaneOf('doca', '/api/doca', 'CD-03');
 const storeLane = dockLaneOf('recebimento-loja', '/api/recebimento-loja', 'LJ-012');
-
-// --- o contrato, nas quatro --------------------------------------------------------------------------
 
 type Paged = { items: Item[]; nextCursor: string | null; total: number; aggregates: Record<string, unknown> } & Record<string, unknown>;
 
@@ -365,7 +353,7 @@ describe.each([queueLane, todayLane, duplicatesLane, dockLane, storeLane])('#159
       expect(page.aggregates).toEqual(pages[0]?.aggregates);
       for (const key of lane.context) expect(page[key]).toEqual(whole[key]);
     }
-    // Os dinheiros dos agregados trazem o texto em reais, como o resto da API.
+    // #159 Os dinheiros dos agregados trazem o texto em reais, como o resto da API.
     for (const value of Object.values(pages[0]?.aggregates ?? {})) {
       if (typeof value === 'object' && value !== null && 'cents' in value) expect(value).toHaveProperty('text', expect.stringMatching(/^R\$/));
     }

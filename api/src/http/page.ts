@@ -1,5 +1,4 @@
-// #159 Paginação por cursor das listas (fila, hoje, duplicadas, doca). Módulo puro: recebe a lista, a
-// ordem dela e o pedido, e devolve a página. Nada aqui lê banco nem sabe o que é uma fila.
+/** #159 Paginação por cursor das listas (fila, hoje, duplicadas, doca). Módulo puro: recebe a lista, a ordem dela e o pedido, e devolve a página. Nada aqui lê banco nem sabe o que é uma fila. */
 
 /**
  * O limite padrão é 30: o meio da faixa de 25 a 50. Enche uma tela de tabela com folga para o scroll
@@ -35,7 +34,7 @@ export type PageQuery =
 
 const CURSOR_VERSION = 1;
 
-/** O pedido recusado diz só o código: nunca o valor recebido nem a causa. */
+/** #159/AC-3 O pedido recusado diz só o código: nunca o valor recebido nem a causa. */
 const badRequest = (code: 'cursor_invalido' | 'limite_invalido') => Response.json({ error: code }, { status: 400 });
 
 export const invalidCursor = (): Response => badRequest('cursor_invalido');
@@ -80,7 +79,7 @@ function encodeCursor(list: string, key: Key): string {
   return btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
 }
 
-/** Nulo para qualquer cursor que não seja um que esta lista tenha emitido: sem dizer por quê. */
+/** #159/AC-3 Nulo para qualquer cursor que não seja um que esta lista tenha emitido: sem dizer por quê. */
 function decodeCursor<T>(cursor: string, ordering: Ordering<T>): Key | null {
   if (!/^[A-Za-z0-9_-]+$/.test(cursor)) return null;
   try {

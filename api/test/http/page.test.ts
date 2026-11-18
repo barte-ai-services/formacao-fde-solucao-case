@@ -4,7 +4,7 @@ import { DEFAULT_LIMIT, MAX_LIMIT, MIN_LIMIT, pageOf, readPageQuery, sortedBy, t
 
 type Row = { group: number; name: string };
 
-/** Grupo do maior para o menor, depois o nome: a mesma forma da fila (nível, valor, chave). */
+/** #159 Grupo do maior para o menor, depois o nome: a mesma forma da fila (nível, valor, chave). */
 const byGroupThenName: Ordering<Row> = {
   list: 'teste',
   shape: ['number', 'string'],
@@ -75,7 +75,7 @@ describe('sortedBy e pageOf', () => {
     const sorted = sortedBy(rows(70), byGroupThenName);
     const first = pageOf(byGroupThenName, sorted, { cursor: null, limit: 30 });
     expect(first?.nextCursor).not.toBeNull();
-    const decided = sorted[0]; // sai da lista depois de a primeira página ser entregue
+    const decided = sorted[0]; // #159/AC-2 sai da lista depois de a primeira página ser entregue
     const after = sorted.filter((r) => r !== decided);
     const second = pageOf(byGroupThenName, after, { cursor: first?.nextCursor ?? null, limit: 30 });
     expect(second?.items).toEqual(sorted.slice(30, 60));
