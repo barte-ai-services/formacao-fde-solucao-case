@@ -144,7 +144,7 @@ class MeasurementTest(unittest.TestCase):
         """#262/AC-2: sem `rule`, a nota sai da comparação com a regra nos dois lados e é contada; o agente não muda."""
         with_rule = self.measure(all_correct())
         lines = all_correct()
-        del lines[1]["rule"]  # K2, a E6: a regra errava essa nota
+        del lines[1]["rule"]  # K2, a E6: a regra errava essa nota (#262)
         r = self.measure(lines)
         self.assertEqual(r["notes_without_rule"], 1)
         self.assertEqual(with_rule["notes_without_rule"], 0)

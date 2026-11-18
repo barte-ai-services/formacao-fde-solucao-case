@@ -41,7 +41,7 @@ READABLE_TABLES = (AUDITS_TABLE, PROPOSALS_TABLE)
 PAGE_SIZE = 1000
 AUDITED = "audited"
 # Estados da proposta em que a linha guarda a edição da pessoa, não a proposta da regra (#262).
-# A proposta alterada sobrescreve a original no banco e nenhuma tabela guarda a anterior.
+# A proposta alterada sobrescreve a original no banco e nenhuma tabela guarda a anterior. (#262)
 EDITED_STATES = frozenset({"alterada"})
 
 OPERATION_LABELS = {
