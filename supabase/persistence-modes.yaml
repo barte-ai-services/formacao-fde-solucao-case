@@ -102,6 +102,10 @@ tables:
     # find (sem versão lida, é erro de programação antes de gravar): sem linha afetada, apaga a aprovação que a
     # chamada inseriu e lança ProposalVersionConflictError (a API responde 409, o motor deixa a proposta com a
     # pessoa). A regra 8 segue na restrição única de approvals.proposal_id, que decide quem chegou antes.
+    # #304 A migração 20261118110000_save_approval_decision.sql cria a função public.save_approval_decision (PER-3):
+    # a decisão (approvals, proposals, titles e invoices) numa só transação, chamada por rpc, executável só pelo
+    # service_role, com a mesma trava `for update` de raise_proposal_level e a conferência da versão. Por ora só a
+    # função existe: o saveDecision passa a chamá-la no PR seguinte, e a sequência de quatro requisições segue até lá.
     version_column: version
     gap: >-
       A proposta é editada: a decisão grava por cima state, dock_action e justification
