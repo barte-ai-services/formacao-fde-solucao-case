@@ -39,7 +39,7 @@ class FakeClient:
         self.apps = list(apps or [])
         self.policies = list(policies or [])
         self.not_enabled = not_enabled
-        self.reread: Callable[[Json], Json] = lambda app: app  # como a API devolve a aplicação na releitura
+        self.reread: Callable[[Json], Json] = lambda app: app  # #321 como a API devolve a aplicação na releitura
         self.calls: list[tuple[str, str, Json]] = []
 
     def request(self, method: str, path: str, body: Json = None) -> Json:
@@ -501,7 +501,7 @@ class DryRunTest(unittest.TestCase):
         self.assertIn("outras políticas: 1, mantidas", out)
         self.assertIn("política 2: precedence=None tipo=da aplicação\n", out)
         self.assertNotRegex(out, r"\boutra\b")
-        # Só o domain da aplicação e o hostname do MCP saem pelo nome (#321); o destino alheio, nunca.
+        # Só o hostname do MCP sai pelo nome (#321); o domain e o destino alheio, nunca.
         for hidden in ("alheio", ACCOUNT, "nome-vigente", "vigente.example.com"):
             self.assertNotIn(hidden, out)
 
