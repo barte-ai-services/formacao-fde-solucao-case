@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Reconstrói artifacts/wireframe-tabela-scroll-infinito/index.html.
-# Usa os pacotes que o portal usa de verdade (web/node_modules: shell-kit, barte-ui-kit 0.2.0, barte-design-system 0.1.69)
-# e as grids de web/src (RowTable, Screen, GridFilter, GridBadge, InvoiceCell, EmptyState, textos), para a tela ter a cara de hoje.
-# Pré-requisito: `NODE_AUTH_TOKEN=$(gh auth token) npm --prefix web ci`. Uso: artifacts/wireframe-tabela-scroll-infinito/src/build.sh
+# #160 Reconstrói artifacts/wireframe-tabela-scroll-infinito/index.html.
+# #160 Usa os pacotes que o portal usa de verdade (web/node_modules: shell-kit, barte-ui-kit 0.2.0, barte-design-system 0.1.69)
+# #160 e as grids de web/src (RowTable, Screen, GridFilter, GridBadge, InvoiceCell, EmptyState, textos), para a tela ter a cara de hoje.
+# #160 Pré-requisito: `NODE_AUTH_TOKEN=$(gh auth token) npm --prefix web ci`. Uso: artifacts/wireframe-tabela-scroll-infinito/src/build.sh
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 web="$(cd "$here/../../../web" && pwd)"

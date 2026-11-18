@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { Alert, Drawer, Table, Text } from "barte-design-system";
 import { DataList, Stat, StatGrid, formatCurrency } from "@barte-ai-services/barte-ui-kit";
 import { Screen } from "@portal/components/Screen";
@@ -46,7 +46,7 @@ function Drawn({ title, number, onClose }: { title: string; number: string; onCl
 }
 
 /** /pagar/fila com a tabela rolável. Stat e chips vêm de `aggregates`; a lista, de `items`. */
-export function FilaScreen({ v, filter, onFilter, onRetryFirst, onDrawerClose }: { v: View<FilaRow>; filter: Filter; onFilter: (f: Filter) => void; onRetryFirst: () => void; onDrawerClose: () => void }) {
+export function FilaScreen({ v, filter, onFilter, onRetryFirst, onDrawerClose }: { v: View<FilaRow>; filter: Filter; onFilter: (f: Filter) => void; onRetryFirst: () => void; onDrawerClose: () => void }): ReactElement {
   const dim = (r: FilaRow, node: ReactNode): ReactNode =>
     r.canApprove ? node : <span className="pagar-dimmed" title={texts.fila.needsLevel(LEVEL_LABEL[r.requiredApproverLevel])}>{node}</span>;
   const c = texts.fila.columns;
@@ -115,7 +115,7 @@ export function FilaScreen({ v, filter, onFilter, onRetryFirst, onDrawerClose }:
 }
 
 /** /pagar/hoje: a mesma tabela, sem filtro. */
-export function HojeScreen({ v, onRetryFirst, onDrawerClose }: { v: View<HojeRow>; onRetryFirst: () => void; onDrawerClose: () => void }) {
+export function HojeScreen({ v, onRetryFirst, onDrawerClose }: { v: View<HojeRow>; onRetryFirst: () => void; onDrawerClose: () => void }): ReactElement {
   const c = texts.listaDoDia.columns;
   return (
     <>
@@ -177,7 +177,7 @@ const CHANGES: ChangeRow[] = [
 ];
 
 /** O quadro do que muda nas telas que não desenhamos por inteiro: a tabela é a mesma. */
-export function OutrasScreen() {
+export function OutrasScreen(): ReactElement {
   const code = (s: string) => s.split("`").map((p, i) => (i % 2 ? <code key={i}>{p}</code> : p));
   return (
     <div className="shell-home pagar-screen">

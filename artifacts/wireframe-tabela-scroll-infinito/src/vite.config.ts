@@ -9,9 +9,9 @@ export default defineConfig({
   resolve: {
     dedupe: ["react", "react-dom"],
     alias: [
-      // As grids do portal, as mesmas de web/src, sem copiar.
+      // #160 As grids do portal, as mesmas de web/src, sem copiar.
       { find: /^@portal\//, replacement: `${webSrc}/` },
-      // O shell-kit pede `next/navigation`: o stand-in em memória (a página abre por duplo clique, em file://, sem History API).
+      // #160 O shell-kit pede `next/navigation`: o stand-in em memória (a página abre por duplo clique, em file://, sem History API).
       { find: /^next\/navigation$/, replacement: resolve(here, "src/next-navigation.ts") },
       { find: /^@domain$/, replacement: resolve(webSrc, "../../api/src/domain/index.ts") },
     ],

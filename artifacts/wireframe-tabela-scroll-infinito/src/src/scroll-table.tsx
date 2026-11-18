@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ReactElement, type ReactNode } from "react";
 import { Button, Text } from "barte-design-system";
 import { CheckCircle, WarningCircle } from "@phosphor-icons/react";
 import { RowTable, type RowTableProps } from "@portal/components/RowTable";
@@ -15,26 +15,26 @@ type Cols<T extends object> = RowTableProps<T>["columns"];
 export interface ScrollTableProps<T extends { key: string }> {
   rows: T[];
   columns: Cols<T>;
-  /** `total` da API: a lista inteira, a mesma em toda página. */
+  /** #160 `total` da API: a lista inteira, a mesma em toda página. */
   total: number;
   phase: Phase;
-  /** Quantas linhas de esqueleto, em `loading-next` (e na recarga do início). */
+  /** #160 Quantas linhas de esqueleto, em `loading-next` (e na recarga do início). */
   skeletonRows?: number;
   scroll?: Scroll;
-  /** O texto de uma ação da tela, à esquerda do contador (a pílula de filtro da fila). */
+  /** #160 O texto de uma ação da tela, à esquerda do contador (a pílula de filtro da fila). */
   toolbar?: ReactNode;
-  /** Mostra "Carregando…" no lugar do número, enquanto a lista recarrega do início. */
+  /** #160 Mostra "Carregando…" no lugar do número, enquanto a lista recarrega do início. */
   counterBusy?: boolean;
-  /** O que o contador diz do que está na tela ("30 de 132"). */
+  /** #160 O que o contador diz do que está na tela ("30 de 132"). */
   showLoaded?: boolean;
-  /** A chave da linha que o teclado focou (e que a gaveta abriu). */
+  /** #160 A chave da linha que o teclado focou (e que a gaveta abriu). */
   focusedKey?: string | null;
   onOpenRow: (row: T) => void;
   rowLabel: (row: T) => string;
-  /** Perto do fim: pede o próximo bloco pelo `nextCursor`. */
+  /** #160 Perto do fim: pede o próximo bloco pelo `nextCursor`. */
   onNearEnd?: () => void;
   onRetry?: () => void;
-  /** Recado acima da tabela, dentro da área de rolagem não: ela não rola junto (o aviso do `cursor_invalido`). */
+  /** #160 Recado acima da tabela, dentro da área de rolagem não: ela não rola junto (o aviso do `cursor_invalido`). */
   notice?: ReactNode;
   label: string;
 }
@@ -50,11 +50,11 @@ type SkelRow = { key: string; skeleton: true };
 export function ScrollTable<T extends { key: string }>({
   rows, columns, total, phase, skeletonRows = 3, scroll = "top", toolbar, counterBusy, showLoaded, focusedKey,
   onOpenRow, rowLabel, onNearEnd, onRetry, notice, label,
-}: ScrollTableProps<T>) {
+}: ScrollTableProps<T>): ReactElement {
   const box = useRef<HTMLDivElement>(null);
   const sentinel = useRef<HTMLDivElement>(null);
 
-  // O desenho estático para a caixa no ponto que o estado mostra; ao vivo, quem rola é a pessoa.
+  // #160 O desenho estático para a caixa no ponto que o estado mostra; ao vivo, quem rola é a pessoa.
   useEffect(() => {
     const el = box.current;
     if (!el || onNearEnd) return;
@@ -72,7 +72,7 @@ export function ScrollTable<T extends { key: string }>({
     tr?.setAttribute("data-wf-focus", "");
   });
 
-  // O gatilho: o IntersectionObserver olha uma marca no fim da lista, com 240 px de folga, para o bloco chegar antes do fim.
+  // #160 O gatilho: o IntersectionObserver olha uma marca no fim da lista, com 240 px de folga, para o bloco chegar antes do fim.
   useEffect(() => {
     if (!onNearEnd || phase !== "idle" || !sentinel.current || !box.current) return;
     const io = new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && onNearEnd(), {
@@ -109,6 +109,7 @@ export function ScrollTable<T extends { key: string }>({
       <div className="wf-scroll" ref={box} aria-label={label} tabIndex={-1}>
         <RowTable<T | SkelRow>
           data={data}
+          // #160 o `render` embrulhado aceita também a linha de esqueleto; o `RowTable` só conhece `T | SkelRow` por esse tipo
           columns={wrapped as unknown as RowTableProps<T | SkelRow>["columns"]}
           rowKey={(r) => r.key}
           size="md"

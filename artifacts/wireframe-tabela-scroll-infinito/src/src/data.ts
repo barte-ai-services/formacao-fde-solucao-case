@@ -5,7 +5,7 @@
 export const BLOCK = 30; // `limite` padrão do contrato (#159)
 
 const brl = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
-export const money = (cents: number) => ({ cents, text: brl(cents) });
+export const money = (cents: number): { cents: number; text: string } => ({ cents, text: brl(cents) });
 
 type Level = "bloqueio" | "diretoria" | "coordenacao" | "analista";
 const RANK: Record<Level, number> = { bloqueio: 4, diretoria: 3, coordenacao: 2, analista: 1 };

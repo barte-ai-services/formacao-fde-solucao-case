@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { Alert, Table, Text } from "barte-design-system";
 import { GridBadge } from "@portal/components/GridBadge";
 
@@ -31,7 +31,7 @@ const FILTERS: FilterRow[] = [
 ];
 
 /** O fluxo entre os estados e as decisões abertas. */
-export function FluxoScreen() {
+export function FluxoScreen(): ReactElement {
   return (
     <div className="shell-home pagar-screen">
       <div className="wf-stack">

@@ -14,7 +14,7 @@ import { FilaScreen, HojeScreen, OutrasScreen, type Filter, type View } from "./
 import { FluxoScreen } from "./fluxo";
 import type { Phase } from "./scroll-table";
 
-/** O contexto que o Shell entregaria à zone. É o mesmo do portal (web/src/shell/context.ts). A Já Chegou é fictícia. */
+/** #160 O contexto que o Shell entregaria à zone. É o mesmo do portal (web/src/shell/context.ts). A Já Chegou é fictícia. */
 const CONTEXT: ShellContext = {
   version: 1,
   user: { id: "u-1", name: "Marina Prado", email: "marina.prado@exemplo.com", roles: ["coordenacao"] },
@@ -76,7 +76,7 @@ const NOTES: Record<St, { what: string; ac: string }> = {
   foco: { what: "Tab chegou à 5ª linha (realce igual ao do mouse) e Enter abriu a gaveta, como na #209. Linhas de esqueleto nunca ficam no Tab nem abrem gaveta. Fechar devolve o foco à linha.", ac: "#209" },
 };
 
-/** A carga ao vivo: blocos de BLOCK, esqueleto enquanto vem, uma falha no terceiro bloco. Não é código de produção. */
+/** #160 A carga ao vivo: blocos de BLOCK, esqueleto enquanto vem, uma falha no terceiro bloco. Não é código de produção. */
 function useLive<T extends { key: string }>(all: T[], enabled: boolean): { first: "loading" | "ready"; rows: T[]; phase: Phase; nearEnd: () => void; retry: () => void } {
   const [rows, setRows] = useState<T[]>([]);
   const [phase, setPhase] = useState<Phase>("idle");
