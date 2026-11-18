@@ -184,10 +184,10 @@ const QUEUE_ORDER: Ordering<QueueItem> = {
   key: (i) => [-APPROVAL_LEVELS.indexOf(i.level), -i.amountAtRisk.cents, i.invoiceAccessKey],
 };
 
-/** #323 A fila filtrada por `pode_aprovar=1`: a mesma ordem e a mesma tupla, com outra identidade, e o cursor de uma não serve na outra. */
+/** #323 ADR-006 A fila filtrada por `pode_aprovar=1`: a mesma ordem e a mesma tupla, com outra identidade, e o cursor de uma não serve na outra. */
 const APPROVABLE_QUEUE_ORDER: Ordering<QueueItem> = { ...QUEUE_ORDER, list: 'fila:pode_aprovar' };
 
-/** #323 `pode_aprovar` só aceita `1`. Ausente: sem filtro. Qualquer outro valor (inclusive `0` e vazio): nulo, e o handler responde 400 `pode_aprovar_invalido`. */
+/** #323 ADR-006 `pode_aprovar` só aceita `1`. Ausente: sem filtro. Qualquer outro valor (inclusive `0` e vazio): nulo, e o handler responde 400 `pode_aprovar_invalido`. */
 function readApprovableFilter(params: URLSearchParams): boolean | null {
   const raw = params.get('pode_aprovar');
   if (raw === null) return false;
@@ -213,6 +213,7 @@ async function queue(
   params: URLSearchParams,
 ): Promise<Response> {
   const approvableOnly = readApprovableFilter(params);
+  // #323 ADR-006 O código de erro fica em português, como `limite_invalido`.
   if (approvableOnly === null) return error(400, 'pode_aprovar_invalido');
   const read = readPageQuery(params);
   if (read.kind === 'invalid') return read.response;

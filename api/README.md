@@ -199,7 +199,7 @@ entra o modo paginado, que é o contrato novo.
 |---|---|---|
 | `limite` | inteiro de 25 a 50; ausente (com `cursor`) é 30 | 400 `{ "error": "limite_invalido" }` |
 | `cursor` | o `nextCursor` da página anterior, como veio; ausente é a primeira página | 400 `{ "error": "cursor_invalido" }` |
-| `pode_aprovar` | só na fila (#323): o valor `1`; ausente é sem filtro | 400 `{ "error": "pode_aprovar_invalido" }` |
+| `pode_aprovar` | só na fila (#323, ADR-006): o valor `1`; ausente é sem filtro | 400 `{ "error": "pode_aprovar_invalido" }` |
 
 Por que 30: é o meio da faixa. Enche uma tela de tabela com folga, para o scroll infinito pedir a
 próxima página antes de a pessoa chegar ao fim, e a resposta cabe no Worker sem custo. O 400 traz só o
