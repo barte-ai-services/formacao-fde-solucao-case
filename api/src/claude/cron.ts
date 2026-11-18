@@ -21,9 +21,21 @@ import { tasksFor } from './tasks/index.js';
  * O do dossiê: as propostas que esperam (6 leituras, 1 se não há nenhuma), 1 leitura das próprias chaves e, havendo
  * candidata, 1 dos pedidos da gaveta em andamento (#130); só
  * havendo chave nova ou pronta para nova tentativa vêm o contexto (7) e até 5 × 2. Sem nada novo: 7 a 8, sem chamar
- * o Claude. Com as tarefas do laço cheias, cada uma no limite dela (#36: 1 + 1 + 2 + 1 = 5 pedidos, 5 × 2 = 10): as outras duas leem umas 7, o laço 3, o dossiê 7 + 7, e mais os 10 dos pedidos do laço.
+ * o Claude. Com as tarefas do laço cheias, cada uma no limite dela (#36: 1 + 1 + 1 + 2 + 1 = 6 pedidos, 6 × 2 = 12): as outras duas leem umas 7, o laço 3, o dossiê 7 + 7, e mais os 12 dos pedidos do laço.
  * #230 O auditor (invoice-audit, `maxPerRun` 1) soma 22 no pior caso; a conta está em tasks/invoice-audit.ts.
  * #36 As tarefas do #36 trazem o limite delas (api/src/claude/tasks/index.ts e api/src/supplier/draft-task.ts) e o teto só protege uma tarefa nova sem limite.
+ * #36 Conta de subrequests, com a fila cheia de cada tarefa e cada uma no limite dela (PostgREST + Messages API), medida por
+ * #36 api/test/claude/budget.test.ts sobre tasksFor de verdade:
+ * #36   casamento de descrição (limite 1): 5 + 1 = 6; ordem provável (limite 1): 11 + 1 = 12; rascunho do #12 (limite 2): 12 + 2 = 14;
+ * #36   leitura da resposta (#4, limite 1): 11 + 1 = 12; a rodada: 44 (#58: a tarefa do rascunho da cobrança, 8 + 1 = 9, saiu do Cron: a varredura monta a cobrança pela regra).
+ * #36   varredura do prazo (SUPPLIER_SWEEP_PER_ROUND = 1, api/src/cron/supplier-sweep.ts): 6 (#58: 2 a mais, do rascunho da cobrança). Total medido sem o auditor: 50 (eram 57).
+ * #36   auditor (#230, `maxPerRun` 1): 2 chamadas à Messages API e 6 ao banco, medido: 8. Total medido com ele: 58.
+ * #36 Os 50 do plano gratuito contam só a rodada do Claude e a varredura, não a invocação inteira: a captura, proposeChecked, as
+ * #36 publicações e as notas de devolução gastam subrequests antes (api/src/cron/tick.ts, runRound). O Worker é tratado como o plano
+ * #36 gratuito (50 subrequests): desde a #58 a medida, 50, cabia nesse limite; com o auditor da #230 são 58, de novo fora dele, e o teste volta a ser `it.fails` (a lacuna da #48 do fork, junto com a rodada inteira do Cron dentro de 50).
+ * #36 A rodada é de melhor esforço, pelo desenho fail-closed da #171: passado o limite do Worker, todo fetch seguinte lança: a chave em
+ * #36 curso e as que vêm depois dela não gravam nada, as anteriores (de qualquer tarefa) já gravaram, e a regra decide sozinha o que ficou
+ * #36 sem sugestão. A ordem de tasksFor decide qual tarefa passa fome primeiro: a leitura da #4 vem antes da ordem provável e do rascunho do #12, e o auditor (#230) é o último, o primeiro a passar fome.
  */
 export const CRON_LIMIT = 2;
 

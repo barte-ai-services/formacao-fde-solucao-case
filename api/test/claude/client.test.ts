@@ -305,22 +305,4 @@ describe('runClaudeRound: o Cron falha fechado (#171)', () => {
     expect(text).toContain('HTTP 500');
     expect(text).not.toContain('corpo-com-dado');
   });
-
-  it('uma rodada com a fila cheia gasta no máximo 2 subrequests por pedido, dentro dos 50 do plano gratuito', async () => {
-    const { runTasks } = await import('../../src/claude/runner.js');
-    const { CRON_LIMIT } = await import('../../src/claude/cron.js');
-    let subrequests = 0;
-    const db = {
-      select: async () => (subrequests += 1, []),
-      upsert: async () => (subrequests += 1, []),
-    };
-    const full = (name: string) => ({
-      name,
-      pending: async () => ({ requests: Array.from({ length: 30 }, (_, i) => ({ key: `${name}${i}`, input: i })), dropped: 0 }),
-      run: async () => (subrequests += 1, { r: 1 }),
-    });
-    await runTasks({ db, ask: async () => ({}) as never, tasks: [full('a'), full('b')], log: () => {}, limit: CRON_LIMIT });
-    expect(subrequests).toBeLessThanOrEqual(2 * 2 * CRON_LIMIT + 7);
-    expect(2 * 2 * CRON_LIMIT + 7).toBeLessThan(50);
-  });
 });

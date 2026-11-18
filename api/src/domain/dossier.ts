@@ -138,6 +138,8 @@ export const factKey = {
   returnItem: (supplierCode: string, field: ReturnItemField): string => `devolucao.item[${supplierCode}].${field}`,
   returnTotal: (): string => 'devolucao.total',
   dueDate: (): string => 'prazo',
+  // #58: o novo prazo da cobrança (3 dias úteis depois da varredura), que o pedido original não tem.
+  followUpDueDate: (): string => 'cobranca.prazo',
 } as const;
 
 /** #68: as chaves do catálogo, em ordem estável. */

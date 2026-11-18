@@ -160,6 +160,41 @@ tables:
     send_guard: "send_claim uuid + send_claimed_at timestamptz (trava do envio, com prazo)"
     deletion: none               # nada é apagado; o fim é status = discarded com motivo, quem e quando
     erasure: not stated          # sent_by e discarded_by identificam pessoas (ADR-005); sem caminho de apagamento registrado
+    # #35: a cobrança da leitura (#4/AC-2, AC-3) mora nesta linha, nas colunas follow_up_*, e segue a mesma
+    # #35: disciplina: todo PATCH filtra version=eq.<lida>, soma 1 e acrescenta a entrada em history no mesmo PATCH.
+    # #35: depois de `sent` a #12 não grava mais a linha (markSent e discard não partem de `sent`), então as
+    # #35: gravações da cobrança são as únicas num pedido enviado. Desenho: supabase/persistence-supplier-reply.md.
+    extended_by: "#35"
+    follow_up_columns: "follow_up_draft jsonb, follow_up_rejection, follow_up_claimed_at, follow_up_claim, follow_up_sent_by, follow_up_sent_at, follow_up_channel, follow_up_provider_message_id, follow_up_failure"
+    follow_up_guard: "follow_up_claimed_at timestamptz (reivindicação do envio da cobrança, com o prazo da #12, LEASE_MS de 5 minutos: a vencida pode ser retomada, com o risco aceito de um segundo e-mail) e follow_up_claim uuid (a ficha da reivindicação, como o send_claim da #12: a falha e o carimbo filtram por ela, e quem perdeu a reivindicação recebe 0 linhas)"
+    follow_up_history_actions: "follow_up_drafted | follow_up_rejected | follow_up_claimed | follow_up_failed | follow_up_sent | follow_up_edited"
+    # #63: a confirmação do documento citado na leitura é uma entrada do mesmo `history` (sem coluna nem migração):
+    # #63: `document_confirmed` com document, by (e-mail do Access) e at, num PATCH guardado por version e status=sent, sem tocar coluna do pedido.
+    # #63: a confirmação vale para o documento da leitura atual; uma leitura nova com outro documento a deixa para trás (a entrada fica).
+    confirmation_history_action: "document_confirmed"
+
+  # Leitura da resposta do fornecedor (#35, história #4). Desenho: supabase/persistence-supplier-reply.md.
+  # #35: a unidade de trabalho segue postgrest-request; cada gravação abaixo é uma requisição, numa tabela.
+  inbox_supplier_messages:
+    mode: upsert-with-history
+    history: in-row-transition
+    version_column: read_status  # o PATCH filtra read_status=eq.pending: sai de pending uma vez, para ok ou error
+    # #35: a mensagem (remetente, texto, anexos, chegada) é um fato e nunca muda; read_status sai de pending
+    # #35: uma vez, com quem (read_status_by: a tarefa da leitura), quando (read_status_at) e, no erro, o motivo fechado
+    # #35: (read_error), tudo na própria linha (PER-3).
+    refusal: grant               # revoke update, delete, truncate; grant update só em (read_status, read_error, read_status_at, read_status_by)
+    idempotency: source_message_id   # o script de exemplo (e um webhook de entrada futuro) grava com on_conflict
+    deletion: none
+    erasure: not stated          # from_address e body podem trazer dado pessoal do contato do fornecedor; sem caminho registrado
+
+  supplier_reply_readings:
+    mode: append-only
+    history: none
+    # #35: cada leitura é um fato: "a mensagem M foi lida assim" ou "o prazo venceu sem resposta" (message_id nulo).
+    # #35: a leitura atual do pedido é derivada da ordem das mensagens, nunca gravada por cima.
+    projection: "leitura atual por pedido: a primeira por message_id desc nulls last (no_reply só vale sem leitura de mensagem)"
+    rebuild_test: "teste do adaptador que remonta a leitura atual de leituras gravadas em qualquer ordem (persistence-supplier-reply.md, Testes)"
+    refusal: grant               # revoke update, delete, truncate de anon, authenticated e service_role
 
   # Base do kit (#52, ADR-001): espelho dos JSON de data/kit/, que é a fonte versionada.
   kit_fornecedores: &kit   # #12: ganha a coluna email (migração da #12); o modo é o da #8

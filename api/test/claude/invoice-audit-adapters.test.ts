@@ -63,6 +63,7 @@ describe('invoice-audit com os adaptadores (#230)', () => {
     const { rest } = scripted();
     const names = tasksFor(rest).map((t) => t.name);
     expect(names.at(-1)).toBe('invoice-audit');
-    expect(names.slice(0, 2)).toEqual(['description-match', 'probable-order']);
+    expect(names.slice(0, 2)).toEqual(['description-match', 'supplier-reply-reading']);
+    expect(names).toContain('probable-order');
   });
 });
