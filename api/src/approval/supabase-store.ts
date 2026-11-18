@@ -406,98 +406,52 @@ export class SupabaseApprovalStore implements ApprovalStore {
   }
 
   /**
-   * #63 Regra 8: a aprovação entra primeiro, e a restrição única de `approvals.proposal_id` decide quem
-   * chegou antes; quem chega depois recebe `AlreadyDecidedError` sem mudar nada. Depois vêm a
-   * proposta, o título e a nota.
-   *
-   * #295 A proposta só muda se a versão lida (`file.version`, a do `find`) ainda é a atual: o gatilho do banco sobe a
-   * versão a cada update, então o filtro por ela recusa a escrita sobre uma linha que mudou depois da leitura. Sem
-   * linha afetada, apaga a aprovação que ESTA chamada inseriu, deixa título e nota como estavam e lança
-   * `ProposalVersionConflictError`. A compensação não é atômica (a aprovação existe por um instante, e uma falha entre
-   * o insert e o delete a deixa); a #250 troca esta sequência por uma função do banco numa só transação.
+   * #304 A decisão numa só chamada rpc à função `save_approval_decision` do banco: aprovação, proposta, título e nota
+   * mudam juntos numa transação, ou nenhum muda. A função trava a proposta e responde: `already_decided` (regra 8:
+   * quem chega depois perde, e a checagem vem antes da de versão, porque a primeira decisão sobe a versão),
+   * `version_conflict` (#295: a proposta mudou desde a leitura em `find`, `file.version`) ou `saved`. A restrição única
+   * de `approvals.proposal_id` segue como última guarda, e os gatilhos do motor recusam com erro do Postgres.
    */
   async saveDecision(file: CaseFile & { readonly approval: Approval }): Promise<void> {
     const key = file.invoice.accessKey;
     // #295 Sem a versão lida não há o que conferir: é erro de programação (o chamador não veio de `find`), e nada se grava.
     const { version } = file;
     if (version === undefined) throw new Error(`#295 saveDecision da nota ${key} sem a versão lida da proposta: leia com find()`);
-    const proposalId = await this.proposalId(key);
-    const { engine } = file.approval;
-    let inserted: unknown[];
+    const { approval } = file;
+    const now = this.now().toISOString();
+    let result: unknown;
     try {
-      inserted = await this.rest.insert(
-        'approvals',
-        [
-          {
-            proposal_id: proposalId,
-            approver: file.approval.approver,
-            approver_level: file.approval.approverLevel,
-            justification: file.approval.justification,
-            dock_action: dockActionToJson(file.approval.dockAction),
-            decided_on: file.approval.decidedOn,
-            approved_at: this.now().toISOString(),
-            // #42 A aprovação do motor leva a decisão que a gerou. `approved_by` é gerada pelo banco: nunca vai aqui.
-            ...(engine
-              ? {
-                  engine_decision_id: engine.decisionId,
-                  engine_confidence: engine.confidence,
-                  engine_model_version: engine.modelVersion,
-                }
-              : {}),
-          },
-        ],
-        { onConflict: 'proposal_id', ignoreDuplicates: true },
-      );
+      result = await this.rest.rpc('save_approval_decision', {
+        p_invoice_access_key: key,
+        p_version: version,
+        p_approver: approval.approver,
+        p_approver_level: approval.approverLevel,
+        p_approval_justification: approval.justification,
+        p_approval_dock_action: dockActionToJson(approval.dockAction),
+        p_decided_on: approval.decidedOn,
+        p_approved_at: now,
+        p_proposal_state: file.proposal.state,
+        p_proposal_dock_action: dockActionToJson(file.proposal.dockAction),
+        p_proposal_justification: file.proposal.justification,
+        p_title_state: file.title.state,
+        p_title_amount_cents: file.title.amount.cents,
+        p_title_updated_at: now,
+        p_invoice_state: file.invoice.state,
+        // #42 A aprovação do motor leva a decisão que a gerou. `approved_by` é gerada pelo banco: nunca vai aqui.
+        ...(approval.engine
+          ? {
+              p_engine_decision_id: approval.engine.decisionId,
+              p_engine_confidence: approval.engine.confidence,
+              p_engine_model_version: approval.engine.modelVersion,
+            }
+          : {}),
+      });
     } catch (error) {
-      throw engine ? engineRefusal(error, key) : error;
+      throw approval.engine ? engineRefusal(error, key) : error;
     }
-    if (inserted.length === 0) throw new AlreadyDecidedError(key);
-    const [insertedRow] = parseRows(inserted, shaped<{ id: number }>({ id: isInteger }), 'approvals');
-    if (!insertedRow) corrupt('approvals', 'linha inserida sem id');
-    const approvalId = insertedRow.id;
-    // #295 `version` não vai no corpo: o gatilho do banco a incrementa.
-    const updated = await this.rest.update(
-      'proposals',
-      { id: `eq.${proposalId}`, version: `eq.${version}` },
-      {
-        state: file.proposal.state,
-        dock_action: dockActionToJson(file.proposal.dockAction),
-        justification: file.proposal.justification,
-      },
-    );
-    if (updated.length === 0) {
-      await this.undoApproval(key, approvalId);
-      throw new ProposalVersionConflictError(key);
-    }
-    await this.rest.update(
-      'titles',
-      { invoice_access_key: `eq.${key}` },
-      { state: file.title.state, amount_cents: file.title.amount.cents, updated_at: this.now().toISOString() },
-    );
-    await this.rest.update('invoices', { access_key: `eq.${key}` }, { state: file.invoice.state });
-  }
-
-  private async proposalId(invoiceAccessKey: string): Promise<number> {
-    const rows = parseRows(
-      await this.rest.select('proposals', { select: 'id', filters: { invoice_access_key: `eq.${invoiceAccessKey}` } }),
-      shaped<{ id: number }>({ id: isInteger }),
-      'proposals',
-    );
-    const [row] = rows;
-    if (!row) throw new SupabaseRestError('select', 'proposals', 404, 'proposta não encontrada');
-    return row.id;
-  }
-
-  /**
-   * #295 Compensação do conflito: apaga só a aprovação que esta chamada inseriu (pelo id da linha devolvida). Se o
-   * delete falha, o conflito continua sendo o erro devolvido; o log traz só a chave da nota e o nome do erro.
-   */
-  private async undoApproval(invoiceAccessKey: string, approvalId: number): Promise<void> {
-    try {
-      await this.rest.delete('approvals', { id: `eq.${approvalId}` });
-    } catch (e) {
-      console.error(`#295 aprovação da nota ${invoiceAccessKey} não desfeita após o conflito de versão: ${e instanceof Error ? e.name : 'erro'}`);
-    }
+    if (result === 'already_decided') throw new AlreadyDecidedError(key);
+    if (result === 'version_conflict') throw new ProposalVersionConflictError(key);
+    if (result !== 'saved') corrupt('rpc/save_approval_decision', 'resposta fora de saved, already_decided e version_conflict');
   }
 
   /** #63 Monta os processos das propostas que passam no filtro. */
