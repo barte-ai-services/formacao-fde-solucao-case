@@ -11,7 +11,7 @@ import { Money } from '../domain/money.js';
 import { Quantity, type Unit } from '../domain/quantity.js';
 import type { Env } from '../env.js';
 import type { Identity } from './access.js';
-import { invalidCursor, pageOf, readPageQuery, sortedBy, type Ordering } from './page.js';
+import { DEFAULT_LIMIT, invalidCursor, pageOf, readPageQuery, sortedBy, type Ordering } from './page.js';
 import type { CheckContext, Invoice, Product, Receipt } from '../domain/index.js';
 import type { AuditedField } from '../domain/invoice-audit.js';
 import {
@@ -184,6 +184,16 @@ const QUEUE_ORDER: Ordering<QueueItem> = {
   key: (i) => [-APPROVAL_LEVELS.indexOf(i.level), -i.amountAtRisk.cents, i.invoiceAccessKey],
 };
 
+/** #323 ADR-006 A fila filtrada por `pode_aprovar=1`: a mesma ordem e a mesma tupla, com outra identidade, e o cursor de uma não serve na outra. */
+const APPROVABLE_QUEUE_ORDER: Ordering<QueueItem> = { ...QUEUE_ORDER, list: 'fila:pode_aprovar' }; // ADR-006
+
+/** #323 ADR-006 `pode_aprovar` só aceita `1`. Ausente: sem filtro. Qualquer outro valor (inclusive `0` e vazio): nulo, e o handler responde 400 `pode_aprovar_invalido`. */
+function readApprovableFilter(params: URLSearchParams): boolean | null {
+  const raw = params.get('pode_aprovar'); // ADR-006
+  if (raw === null) return false;
+  return raw === '1' ? true : null;
+}
+
 /**
  * AC-6: quem aprova encontra a proposta na fila; `canApprove` diz se é do nível dela.
  *
@@ -191,6 +201,10 @@ const QUEUE_ORDER: Ordering<QueueItem> = {
  * `{ approver, items, nextCursor, total, aggregates }`, em que `aggregates` vale para a fila inteira:
  * `approvable` (quantas a pessoa pode aprovar), `amountAtRisk` (soma do valor em risco, `{ cents, text }`)
  * e `blocked` (quantas no nível `bloqueio`). A quantidade aguardando é o `total`.
+ *
+ * #323 `pode_aprovar=1` filtra a fila pelas notas com `canApprove` e, sozinho, já ativa a página (limite 30):
+ * `total` conta a lista filtrada. `aggregates` ganha `all` (a fila inteira) e segue valendo para a fila inteira,
+ * com ou sem o filtro e em qualquer página. Outro valor de `pode_aprovar` é 400 `pode_aprovar_invalido`.
  */
 async function queue(
   store: ApprovalStore,
@@ -198,19 +212,25 @@ async function queue(
   directory: ApproverDirectory,
   params: URLSearchParams,
 ): Promise<Response> {
-  const query = readPageQuery(params);
-  if (query.kind === 'invalid') return query.response;
+  const approvableOnly = readApprovableFilter(params);
+  if (approvableOnly === null) return error(400, 'pode_aprovar_invalido'); // ADR-006
+  const read = readPageQuery(params);
+  if (read.kind === 'invalid') return read.response;
+  // #323 O filtro sozinho ativa a página com o limite padrão; só vale na fila, as outras listas não leem `pode_aprovar`.
+  const query = read.kind === 'whole' && approvableOnly ? ({ kind: 'page', cursor: null, limit: DEFAULT_LIMIT } as const) : read;
   const level = directory(identity.email);
   const approver = { email: identity.email, level };
   const stored = (await store.listAwaiting()).map((f) => summary(f, level));
   if (query.kind === 'whole') return Response.json({ approver, items: stored });
   const items = sortedBy(stored, QUEUE_ORDER);
-  const page = pageOf(QUEUE_ORDER, items, query);
+  const order = approvableOnly ? APPROVABLE_QUEUE_ORDER : QUEUE_ORDER;
+  const page = pageOf(order, approvableOnly ? items.filter((i) => i.canApprove) : items, query);
   if (!page) return invalidCursor();
   return Response.json({
     approver,
     ...page,
     aggregates: {
+      all: items.length,
       approvable: items.filter((i) => i.canApprove).length,
       amountAtRisk: money(Money.ofCents(items.reduce((sum, i) => sum + i.amountAtRisk.cents, 0))),
       blocked: items.filter((i) => i.level === 'bloqueio').length,

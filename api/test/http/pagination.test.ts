@@ -489,3 +489,100 @@ describe('#159 o cursor fica preso aos filtros', () => {
     }
   });
 });
+
+/** #323 A fila filtra por quem pode aprovar (`pode_aprovar=1`) e os agregados trazem a fila inteira (`all`). */
+describe('#323 a fila filtra por quem pode aprovar', () => {
+  const refused = async (res: Response, code: string) => {
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: code });
+  };
+  const withCursor = (cursor: string | null, extra: string) => `?cursor=${encodeURIComponent(cursor ?? '')}${extra}`;
+  const walkFiltered = async (get: Get, extra: string): Promise<Paged[]> => {
+    const pages: Paged[] = [];
+    let cursor: string | null = null;
+    do {
+      const query: string = cursor === null ? extra : `cursor=${encodeURIComponent(cursor)}&${extra}`;
+      const page = await pageAt(get, query);
+      pages.push(page);
+      cursor = page.nextCursor;
+    } while (cursor !== null && pages.length < 10);
+    return pages;
+  };
+
+  it('#323/AC-1 com o filtro, só as notas que a pessoa pode aprovar, na ordem da fila, e total conta a lista filtrada', async () => {
+    const get = await queueLane.arrange();
+    const everything = (await walk(get, 50)).flatMap((p) => p.items);
+    const approvable = everything.filter((i) => i.canApprove === true).map((i) => i.invoiceAccessKey);
+    expect(approvable.length).toBeGreaterThan(0);
+    expect(approvable.length).toBeLessThan(TOTAL_ITEMS);
+    const pages = await walkFiltered(get, 'pode_aprovar=1&limite=25');
+    const walked = pages.flatMap((p) => p.items);
+    expect(walked.every((i) => i.canApprove === true)).toBe(true);
+    expect(walked.map((i) => i.invoiceAccessKey)).toEqual(approvable);
+    expect(queueLane.ordered(walked)).toBe(true);
+    for (const page of pages) expect(page.total).toBe(approvable.length);
+    expect(pages.at(-1)?.nextCursor).toBeNull();
+  });
+
+  it('#323/AC-1 o filtro sozinho ativa a página, com o limite padrão de 30', async () => {
+    const get = await queueLane.arrange();
+    const page = await pageAt(get, 'pode_aprovar=1');
+    expect(Object.keys(page).sort()).toEqual(['aggregates', 'approver', 'items', 'nextCursor', 'total'].sort());
+    expect(page.items.length).toBe(Math.min(30, page.total));
+  });
+
+  it('#323/AC-2 os agregados trazem all e approvable da fila inteira, iguais com e sem o filtro e em qualquer página', async () => {
+    const get = await queueLane.arrange();
+    const unfiltered = await walk(get, 25);
+    const filtered = await walkFiltered(get, 'pode_aprovar=1&limite=25');
+    const approvable = unfiltered.flatMap((p) => p.items).filter((i) => i.canApprove === true).length;
+    const reference = unfiltered[0]?.aggregates;
+    expect(reference).toMatchObject({ all: TOTAL_ITEMS, approvable });
+    expect(Object.keys(reference ?? {}).sort()).toEqual(['all', 'amountAtRisk', 'approvable', 'blocked']);
+    for (const page of [...unfiltered, ...filtered]) expect(page.aggregates).toEqual(reference);
+    expect(filtered[0]?.total).toBe(approvable);
+  });
+
+  /** #323 Uma fila em que a pessoa pode aprovar mais de uma página (só E4), para o cursor filtrado existir. */
+  const allApprovable = async (): Promise<Get> => {
+    const files = Array.from({ length: TOTAL_ITEMS }, (_, i) => queueInvoice(i, ['E4']));
+    const worker = approvalWorker(new MemoryApprovalStore(shuffled(files)));
+    return (query) => callAs(worker, `/api/fila${query}`, ANALISTA);
+  };
+
+  it('#323/AC-3 o cursor emitido com o filtro, usado sem ele, devolve 400 cursor_invalido', async () => {
+    const get = await allApprovable();
+    const first = await pageAt(get, 'pode_aprovar=1&limite=25');
+    expect(first.nextCursor).not.toBeNull();
+    await refused(await get(withCursor(first.nextCursor, '')), 'cursor_invalido');
+    expect((await get(withCursor(first.nextCursor, '&pode_aprovar=1'))).status).toBe(200);
+  });
+
+  it('#323/AC-3 o cursor emitido sem o filtro, usado com ele, devolve 400 cursor_invalido', async () => {
+    const get = await queueLane.arrange();
+    const first = await pageAt(get, 'limite=25');
+    await refused(await get(withCursor(first.nextCursor, '&pode_aprovar=1')), 'cursor_invalido');
+  });
+
+  it.each(['sim', '0', '', '2', 'true', '1 '])('#323/AC-3 pode_aprovar %j devolve 400 pode_aprovar_invalido sem repetir o valor', async (value) => {
+    const get = await queueLane.arrange();
+    const res = await get(`?pode_aprovar=${encodeURIComponent(value)}`);
+    expect(res.status).toBe(400);
+    const text = await res.text();
+    expect(JSON.parse(text)).toEqual({ error: 'pode_aprovar_invalido' });
+    if (value.trim() !== '') expect(text).not.toContain(value);
+  });
+
+  it('#323/AC-4 sem cursor, limite nem filtro, a resposta é { approver, items } na ordem da loja', async () => {
+    const get = await queueLane.arrange();
+    const whole = (await (await get('')).json()) as Whole;
+    expect(Object.keys(whole).sort()).toEqual(['approver', 'items']);
+    expect(whole.items as Item[]).toHaveLength(TOTAL_ITEMS);
+  });
+
+  it('#323/AC-4 o filtro não muda as outras listas: hoje ignora pode_aprovar e segue no modo inteiro', async () => {
+    const get = await todayLane.arrange();
+    const whole = (await (await get('?pode_aprovar=1')).json()) as Whole;
+    expect(Object.keys(whole).sort()).toEqual(['day', 'items', 'total']);
+  });
+});

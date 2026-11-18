@@ -616,7 +616,7 @@ function decisionBlock(p) {
     if (code === "already_decided") { showProposal(p.invoice_access_key, { notice: message }); return; }
     if (code === "forbidden_level") { root.replaceWith(h("section", { "data-block": "decision", class: "panel" }, h("h2", null, "Sua decisão"), h("p", { "data-state": "forbidden", class: "notice notice-info" }, message))); return; }
     if (code === "justification_required") { markInvalid(message); return; }
-    // #274 Na decisão, Entrar só limpa o aviso: decide_proposal sai só no clique em Registrar. O link de login do Access entra na #275.
+    // #274 Na decisão, Entrar só limpa o aviso: decide_proposal sai só no clique em Registrar. O link de login do Access entra na #321.
     errorSlot.replaceChildren(errorState(reply.error, code === "session_expired" ? () => errorSlot.replaceChildren() : null));
   };
   register.addEventListener("click", send);

@@ -27,7 +27,9 @@ migrations: supabase/migrations  # migrações do Supabase CLI, YYYYMMDDHHMMSS_n
 strategies:
   # Não há unidade de trabalho em código: o Worker fala com o banco pelo PostgREST
   # (api/src/connectors/supabase-rest.ts) e cada requisição roda numa transação própria
-  # (PostgREST, Transactions). Um caso de uso que grava mais de uma requisição não é atômico.
+  # (PostgREST, Transactions). Um caso de uso que grava mais de uma requisição não é atômico, salvo os que vão por
+  # função do banco numa só chamada rpc: a subida de nível (raise_proposal_level, #230) e a decisão do aprovador
+  # (save_approval_decision, #304).
   unit_of_work: postgrest-request
   tenancy:
     # A Já Chegou é uma empresa só; loja (store, destino) é um lugar dela, não um inquilino.
@@ -98,10 +100,17 @@ tables:
     # #295 A coluna `version` (migração 20261118100000_proposals_version.sql) sobe a cada update: um gatilho
     # before update por linha faz new.version := old.version + 1, ignorando o que o cliente mandar. Todo escritor
     # incrementa sem mudar; a função raise_proposal_level continua com a guarda de estado e nível sob `for update` e
-    # incrementa pela mesma via (o gatilho). SupabaseApprovalStore.saveDecision filtra o PATCH pela versão lida no
-    # find (sem versão lida, é erro de programação antes de gravar): sem linha afetada, apaga a aprovação que a
-    # chamada inseriu e lança ProposalVersionConflictError (a API responde 409, o motor deixa a proposta com a
-    # pessoa). A regra 8 segue na restrição única de approvals.proposal_id, que decide quem chegou antes.
+    # incrementa pela mesma via (o gatilho).
+    # #304 PER-3: a decisão (approvals, proposals, titles e invoices) é uma unidade de trabalho na função
+    # public.save_approval_decision (migração 20261118110000_save_approval_decision.sql), chamada por POST
+    # /rest/v1/rpc/save_approval_decision, uma requisição = uma transação, executável só pelo service_role, como
+    # raise_proposal_level. SupabaseApprovalStore.saveDecision faz só essa chamada, com a versão lida no find (sem
+    # versão lida, é erro de programação antes de chamar). A função trava a proposta (`for update`, a mesma trava de
+    # raise_proposal_level, então as duas se serializam), devolve `already_decided` se já há aprovação (regra 8, antes da
+    # versão: a primeira decisão sobe a versão e quem chega depois leu a antiga), `version_conflict` se a versão lida
+    # não é a atual (ProposalVersionConflictError: a API responde 409, o motor deixa a proposta com a pessoa) e
+    # `saved` depois de gravar as quatro tabelas; título ou nota sem linha desfazem tudo. A restrição única de
+    # approvals.proposal_id segue como última guarda.
     version_column: version
     gap: >-
       A proposta é editada: a decisão grava por cima state, dock_action e justification
@@ -114,10 +123,7 @@ tables:
     history: none
     projection: none          # uma linha por proposta (approvals_proposal_key), lida diretamente
     refusal: access-layer     # só insert nos adaptadores; o Worker usa a chave secreta, sem papel próprio
-    gap: >-
-      A compensação do saveDecision (#295) apaga a aprovação que a própria chamada inseriu, pelo id da linha, quando
-      a versão lida da proposta não bate: é um delete em tabela declarada append-only, não atômico com o insert. Fica
-      até a #250 (plano #304) trocar a sequência por uma função numa só transação.
+    # #304 Só insert: a compensação por delete do #295 acabou, a decisão entra pela função save_approval_decision.
   invoices:
     mode: upsert-with-history
     history: none
