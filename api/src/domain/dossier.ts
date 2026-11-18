@@ -11,7 +11,7 @@ import type { Quantity } from './quantity.js';
 // a api, então este esquema é o que ele copia; mudar uma chave aqui é mudar o contrato. `<código>` é
 // o código do fornecedor do item; `<ordem>`, `<sku>` e `<recebimento>` são os ids como estão no banco.
 //
-//   nota.numero | nota.serie | nota.total
+//   nota.numero | nota.serie | nota.total | nota.itens.quantidade
 //   nota.item[<código>].quantidade | .preco_unitario | .total
 //   ordem[<ordem>].total | ordem[<ordem>].status
 //   ordem[<ordem>].item[<código>].quantidade | .preco_unitario | .saldo
@@ -40,6 +40,11 @@ export type FactCatalog = {
   readonly facts: Readonly<Record<string, Fact>>;
   /** #68: o que pode aparecer no texto sem marcador: chaves, códigos, datas. Nunca uma quantidade ou um valor. */
   readonly identifiers: readonly string[];
+  /**
+   * #313: o número da nota e o das notas que as evidências apontam. Fica fora de `identifiers`: só passa
+   * no texto logo depois de "nota", "NF" ou "NF-e", senão "13773 caixas" passaria por quantidade.
+   */
+  readonly invoiceNumbers?: readonly string[];
 };
 
 export type DossierEvidence = {
@@ -139,6 +144,7 @@ export const factKey = {
   invoiceNumber: (): string => 'nota.numero',
   invoiceSeries: (): string => 'nota.serie',
   invoiceTotal: (): string => 'nota.total',
+  invoiceItemCount: (): string => 'nota.itens.quantidade', // #313
   invoiceItem: (supplierCode: string, field: ItemField): string => `nota.item[${supplierCode}].${field}`,
   orderTotal: (orderId: string): string => `ordem[${orderId}].total`,
   orderStatus: (orderId: string): string => `ordem[${orderId}].status`,
@@ -173,6 +179,24 @@ const sum = (ms: readonly Money[]): Money => ms.reduce((acc, m) => acc.add(m), M
 /** #68: número curto puro (como o número da nota) só entra por marcador: senão passaria por quantidade. */
 const MIN_NUMERIC_IDENTIFIER = 8;
 
+const ACCESS_KEY_FORMAT = /^\d{44}$/;
+
+/** #313: o número da nota (nNF, 9 dígitos nas posições 26 a 34 da chave de 44 dígitos), sem zeros à esquerda. */
+function invoiceNumberOfAccessKey(accessKey: string): string | null {
+  if (!ACCESS_KEY_FORMAT.test(accessKey)) return null;
+  return accessKey.slice(25, 34).replace(/^0+/, '') || null;
+}
+
+/** #313: o número da própria nota e o de cada nota apontada por uma chave de acesso de 44 dígitos. */
+export function collectInvoiceNumbers(ownNumber: string, accessKeys: readonly string[]): readonly string[] {
+  const numbers = new Set<string>(ownNumber ? [ownNumber] : []);
+  for (const key of accessKeys) {
+    const number = invoiceNumberOfAccessKey(key);
+    if (number) numbers.add(number);
+  }
+  return [...numbers];
+}
+
 /** #68: monta o catálogo plano de fatos do banco para a nota e o fornecedor dela. */
 export function buildFactCatalog(invoice: InvoiceView, ctx: CheckContext): FactCatalog {
   const facts: Record<string, Fact> = {};
@@ -187,6 +211,7 @@ export function buildFactCatalog(invoice: InvoiceView, ctx: CheckContext): FactC
   put(factKey.invoiceNumber(), 'Número da nota', invoice.number, 'invoice');
   put(factKey.invoiceSeries(), 'Série da nota', invoice.series, 'invoice');
   put(factKey.invoiceTotal(), 'Valor total da nota', invoice.total.toString(), 'invoice');
+  put(factKey.invoiceItemCount(), 'Quantidade de itens da nota', String(invoice.items.length), 'invoice'); // #313
   id(invoice.accessKey, invoice.supplierId, invoice.store, invoice.issuedOn, invoice.purchaseOrderRef);
   for (const item of invoice.items) {
     put(factKey.invoiceItem(item.supplierCode, 'quantidade'), `Quantidade faturada de ${item.description}`, qty(item.quantity), 'invoice');
@@ -247,7 +272,14 @@ export function buildFactCatalog(invoice: InvoiceView, ctx: CheckContext): FactC
   put(factKey.capturedCount(), 'Outras notas do fornecedor capturadas', String(captured.length), 'history');
 
   const identifiers = [...ids].filter((v) => !(/^\d+$/.test(v) && v.length < MIN_NUMERIC_IDENTIFIER));
-  return Object.freeze({ facts: Object.freeze(facts), identifiers: Object.freeze(identifiers) });
+  // #313: o número da nota fica fora de `identifiers`; só vale depois de "nota", em `textChecks`.
+  const references = invoice.divergences.flatMap((d) => d.evidence.map((e) => e.reference));
+  const invoiceNumbers = collectInvoiceNumbers(invoice.number, [invoice.accessKey, ...references]);
+  return Object.freeze({
+    facts: Object.freeze(facts),
+    identifiers: Object.freeze(identifiers),
+    invoiceNumbers: Object.freeze(invoiceNumbers),
+  });
 }
 
 type RawDivergence = { classification: string; what_diverges: string; evidence: string[] };
@@ -300,18 +332,54 @@ const MAX_CITED_LENGTH = 64;
 
 type TextFailure = { readonly check: DossierMismatchCheck; readonly cited: string };
 
+/** #313: o lugar de um marcador no texto: ocupa uma posição, para o marcador não ligar a palavra ao número. */
+const MARKER_SLOT = '\uFFFC';
+
+/** #313: as palavras que dão contexto a um número de nota, em minúsculas e sem acento. */
+const INVOICE_WORDS: ReadonlySet<string> = new Set(['nota', 'nf', 'nf-e', 'nfe']);
+
+const SLASH_DATE = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+
+/** #313: a data `dd/mm/aaaa` está na lista como `aaaa-mm-dd`. */
+function isListedSlashDate(bare: string, allowed: ReadonlySet<string>): boolean {
+  const parts = SLASH_DATE.exec(bare);
+  return parts !== null && allowed.has(`${parts[3]}-${parts[2]}-${parts[1]}`);
+}
+
+/**
+ * #313: a primeira falha de um token separado por espaço. O token inteiro na lista (CNPJ com barra) ou
+ * a data com barra da lista passam; senão cada pedaço entre barras passa pelas verificações de sempre
+ * (#68), e um número de nota só passa logo depois de uma palavra de `INVOICE_WORDS`.
+ */
+function tokenFailure(
+  token: string,
+  previous: string,
+  catalog: FactCatalog,
+  allowed: ReadonlySet<string>,
+): TextFailure | null {
+  const whole = token.replace(EDGE_PUNCTUATION, '');
+  const listed = allowed.has(whole) || isListedSlashDate(whole, allowed);
+  const afterInvoiceWord = INVOICE_WORDS.has(folded(previous.replace(EDGE_PUNCTUATION, '')));
+  for (const [index, piece] of token.split('/').entries()) {
+    const bare = piece.replace(EDGE_PUNCTUATION, '');
+    const isInvoiceNumber = index === 0 && afterInvoiceWord && (catalog.invoiceNumbers ?? []).includes(bare);
+    // #68: \p{N} pega também dígitos fora do ASCII (como `１５`), que o `\d` deixava passar.
+    if (/\p{N}/u.test(bare) && !listed && !allowed.has(bare) && !isInvoiceNumber) return { check: 'loose_number', cited: bare };
+    if (SPELLED_NUMBERS.has(folded(bare))) return { check: 'spelled_number', cited: bare };
+  }
+  return null;
+}
+
 /** #296: a primeira verificação que o texto não passa, ou `null` se confere: marcadores primeiro, depois os tokens. */
 function firstTextFailure(text: string, catalog: FactCatalog, allowed: ReadonlySet<string>): TextFailure | null {
   for (const m of text.matchAll(MARKER)) {
     const key = m[1] ?? '';
     if (!Object.hasOwn(catalog.facts, key)) return { check: 'unknown_key', cited: key };
   }
-  const rest = text.replace(MARKER, ' ');
-  for (const token of rest.split(/[\s/]+/)) {
-    const bare = token.replace(EDGE_PUNCTUATION, '');
-    // #68: \p{N} pega também dígitos fora do ASCII (como `１５`), que o `\d` deixava passar.
-    if (/\p{N}/u.test(bare) && !allowed.has(bare)) return { check: 'loose_number', cited: bare };
-    if (SPELLED_NUMBERS.has(folded(bare))) return { check: 'spelled_number', cited: bare };
+  const tokens = text.replace(MARKER, ` ${MARKER_SLOT} `).split(/\s+/);
+  for (const [i, token] of tokens.entries()) {
+    const failure = tokenFailure(token, tokens[i - 1] ?? '', catalog, allowed);
+    if (failure) return failure;
   }
   return null;
 }
