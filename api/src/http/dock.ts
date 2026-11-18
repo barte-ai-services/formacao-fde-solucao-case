@@ -55,8 +55,11 @@ function logFailure(error: unknown): null {
   return null;
 }
 
-/** #159 A ordem da doca: o número da nota, como número, e a chave de acesso para desempatar. */
-const dockOrder = (list: "doca" | "recebimento-loja"): Ordering<DockRow> => ({
+/**
+ * #159 A ordem das páginas da doca: o número da nota, como número, e a chave de acesso para desempatar.
+ * A lista é a do lugar, do destino mostrado e do dia, e o cursor de uma não serve em outra.
+ */
+const dockOrder = (list: string): Ordering<DockRow> => ({
   list,
   shape: ["string", "string"],
   key: (row) => [row.number, row.invoiceAccessKey],
@@ -72,8 +75,7 @@ const invalid = () => Response.json({ error: "invalid_query" }, { status: 400 })
 export function dockHandler(deps: DockDeps = {}, place: ReceivingPlace = "doca_cd"): (request: Request, env: Env) => Promise<Response> {
   const supabase = deps.supabase ?? supabaseFromEnv;
   const today = deps.today ?? (() => todayInSaoPaulo());
-  // #159 São duas listas: o cursor de uma não serve na outra.
-  const order = dockOrder(place === "app_loja" ? "recebimento-loja" : "doca");
+  const listName = place === "app_loja" ? "recebimento-loja" : "doca";
 
   return async (request: Request, env: Env): Promise<Response> => {
     const params = new URL(request.url).searchParams;
@@ -98,6 +100,8 @@ export function dockHandler(deps: DockDeps = {}, place: ReceivingPlace = "doca_c
     const decisions = await source.decisions(inPlace.filter((i) => i.store === shown).map((i) => i.accessKey)).catch(logFailure);
     const board = dockBoard({ invoices, published, destination: requested, date, place, decisions: decisions ?? undefined });
     if (query.kind === "whole") return Response.json(board);
+    // #159/AC-3 O destino é o que a tela mostra, não o pedido: sem `destino`, o servidor escolhe o primeiro.
+    const order = dockOrder(`${listName}:${board.destination ?? ""}:${board.date}`);
     const page = pageOf(order, sortedBy(board.rows, order), query);
     if (!page) return invalidCursor();
     const { destination, date: boardDate, destinations, awaiting } = board;

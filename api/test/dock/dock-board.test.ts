@@ -40,6 +40,14 @@ describe('dockBoard: a doca de um destino num dia (#72)', () => {
     );
   });
 
+  it('#159 notas de mesmo número ficam na ordem em que a fonte as entregou, como antes da paginação', () => {
+    const base = invoices.find((i) => i.store === 'CD-03') as DockInvoice;
+    const twins = ['35-zzz', '35-aaa', '35-mmm'].map((accessKey) => ({ ...base, accessKey, number: '77', issuedOn: DATE }));
+    const board = dockBoard({ invoices: twins, published: [], destination: 'CD-03', date: DATE });
+
+    expect(board.rows.map((r) => r.invoiceAccessKey)).toEqual(['35-zzz', '35-aaa', '35-mmm']);
+  });
+
   it('#43/AC-1 nota com ação publicada mostra a ação para o Recebimento', () => {
     const board = dockBoard({ invoices, published: [publish(first, DockAction.receive())], destination: 'CD-03', date: DATE });
 

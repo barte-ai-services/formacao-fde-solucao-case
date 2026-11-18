@@ -260,7 +260,6 @@ describe.each([queueLane, todayLane, duplicatesLane, dockLane, storeLane])('#159
     const whole = await wholeOf(get);
     expect(Object.keys(whole).sort()).toEqual([...lane.oldKeys].sort());
     expect(lane.itemsOf(whole)).toHaveLength(TOTAL_ITEMS);
-    expect(lane.ordered(lane.itemsOf(whole))).toBe(true);
   });
 
   it('#159/AC-1 aceita cursor e limite e devolve items, nextCursor e total (limite 30 de início)', async () => {
@@ -286,12 +285,14 @@ describe.each([queueLane, todayLane, duplicatesLane, dockLane, storeLane])('#159
     expect(page.items).toHaveLength(limit);
   });
 
-  it('#159/AC-2 percorrer os cursores devolve cada item uma vez, na ordem da lista inteira', async () => {
+  it('#159/AC-2 percorrer os cursores devolve cada item uma vez, na ordem documentada da lista', async () => {
     const get = await arranged;
     const whole = lane.itemsOf(await wholeOf(get)).map(lane.keyOf);
     const pages = await walk(get, 30);
+    const walked = pages.flatMap((p) => p.items);
     expect(pages.map((p) => p.items.length)).toEqual([30, 30, 10]);
-    expect(pages.flatMap((p) => p.items.map(lane.keyOf))).toEqual(whole);
+    expect(lane.ordered(walked)).toBe(true);
+    expect(walked.map(lane.keyOf).sort()).toEqual([...whole].sort());
     expect(new Set(whole).size).toBe(TOTAL_ITEMS);
     expect(pages.map((p) => p.nextCursor)).toEqual([expect.any(String), expect.any(String), null]);
     expect(pages.map((p) => p.total)).toEqual([TOTAL_ITEMS, TOTAL_ITEMS, TOTAL_ITEMS]);
@@ -299,10 +300,10 @@ describe.each([queueLane, todayLane, duplicatesLane, dockLane, storeLane])('#159
 
   it('#159/AC-2 o mesmo vale com o limite 50 e com o 25', async () => {
     const get = await arranged;
-    const whole = lane.itemsOf(await wholeOf(get)).map(lane.keyOf);
+    const reference = (await walk(get, 30)).flatMap((p) => p.items.map(lane.keyOf));
     for (const limit of [25, 50]) {
       const pages = await walk(get, limit);
-      expect(pages.flatMap((p) => p.items.map(lane.keyOf))).toEqual(whole);
+      expect(pages.flatMap((p) => p.items.map(lane.keyOf))).toEqual(reference);
     }
   });
 
@@ -402,5 +403,89 @@ describe('#159 contexto específico das listas', () => {
     const page = await pageAt(get, `destino=CD-03&data=${DOCK_DAY}&limite=25`);
     expect(page).toMatchObject({ destination: 'CD-03', date: DOCK_DAY });
     expect(page.items).toHaveLength(25);
+  });
+});
+
+/** #159 Sem cursor nem limite, cada lista sai na ordem em que a loja a devolve: a ordem antiga é contrato. */
+describe('#159 modo inteiro: a ordem é a da loja, não a da paginação', () => {
+  const keysOf = (items: Item[]) => items.map((i) => i.invoiceAccessKey as string);
+  const keyOfIndex = (i: number) => queueInvoice(i, ['E4']).invoice.accessKey;
+
+  it('#159/AC-2 a fila inteira sai na ordem da loja, mesmo fora da ordem do nível e do valor em risco', async () => {
+    const order = [3, 1, 2, 0, 4];
+    const worker = approvalWorker(new MemoryApprovalStore(order.map((i) => queueInvoice(i, ['E4']))));
+    const whole = (await (await callAs(worker, '/api/fila', ANALISTA)).json()) as Whole;
+    expect(keysOf(whole.items as Item[])).toEqual(order.map(keyOfIndex));
+  });
+
+  it('#159/AC-2 a lista do dia inteira sai na ordem da loja, mesmo fora da ordem da chave de acesso', async () => {
+    const order = [5, 2, 9, 1];
+    const worker = approvalWorker(new MemoryApprovalStore(order.map((i) => matchCase(i))));
+    const whole = (await (await callAs(worker, '/api/hoje', ANALISTA)).json()) as Whole;
+    expect(keysOf(whole.items as Item[])).toEqual(order.map(keyOfIndex));
+  });
+
+  it('#159/AC-2 as duplicadas inteiras saem na ordem da leitura, mesmo fora da ordem da chave', async () => {
+    const order = [7, 3, 5];
+    const entries = order.map((i) => duplicateEntry(i));
+    const worker = createWorker({ verifier, duplicates: () => ({ list: async () => entries }) });
+    const whole = (await (await callAs(worker, '/api/duplicates', ANALISTA)).json()) as Whole;
+    const keys = (whole.duplicates as Item[]).map((i) => (i.duplicate as { accessKey: string }).accessKey);
+    expect(keys).toEqual(entries.map((e) => e.duplicate.accessKey));
+  });
+});
+
+/** #159/AC-3 O cursor é preso à lista e aos filtros com que foi emitido: com outro filtro, é cursor inválido. */
+describe('#159 o cursor fica preso aos filtros', () => {
+  const refused = async (res: Response) => {
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'cursor_invalido' });
+  };
+  const withCursor = (cursor: string | null, extra: string) => `?cursor=${encodeURIComponent(cursor ?? '')}${extra}`;
+
+  it('#159/AC-3 hoje: o cursor de um dia usado em outro dia devolve 400 cursor_invalido', async () => {
+    const get = await todayLane.arrange();
+    const first = await pageAt(get, `dia=${TODAY}&limite=25`);
+    await refused(await get(withCursor(first.nextCursor, '&dia=2026-11-14')));
+  });
+
+  it('#159/AC-3 hoje: o dia padrão e o mesmo dia pedido por extenso são o mesmo filtro', async () => {
+    const get = await todayLane.arrange();
+    const first = await pageAt(get, 'limite=25');
+    const second = await get(withCursor(first.nextCursor, `&dia=${TODAY}`));
+    expect(second.status).toBe(200);
+  });
+
+  it.each([
+    ['doca', dockLaneOf('doca', '/api/doca', 'CD-03'), 'destino', 'CD-03', 'CD-04'],
+    ['recebimento-loja', dockLaneOf('recebimento-loja', '/api/recebimento-loja', 'LJ-012'), 'loja', 'LJ-012', 'LJ-013'],
+  ])('#159/AC-3 %s: o cursor de um destino ou de uma data, usado com outro, devolve 400 cursor_invalido', async (_name, lane, param, shown, other) => {
+    const get = await lane.arrange();
+    const first = await pageAt(get, `${param}=${shown}&data=${DOCK_DAY}&limite=25`);
+    await refused(await get(withCursor(first.nextCursor, `&${param}=${other}&data=${DOCK_DAY}`)));
+    await refused(await get(withCursor(first.nextCursor, `&${param}=${shown}&data=2026-11-12`)));
+    const same = await get(withCursor(first.nextCursor, `&${param}=${shown}&data=${DOCK_DAY}`));
+    expect(same.status).toBe(200);
+  });
+
+  it.each([
+    ['doca', dockLaneOf('doca', '/api/doca', 'CD-03'), 'destino', 'CD-03'],
+    ['recebimento-loja', dockLaneOf('recebimento-loja', '/api/recebimento-loja', 'LJ-012'), 'loja', 'LJ-012'],
+  ])('#159/AC-3 %s: sem destino explícito, o cursor vale para o destino que o servidor escolheu', async (_name, lane, param, shown) => {
+    const get = await lane.arrange();
+    const first = await pageAt(get, 'limite=25');
+    expect(first.destination).toBe(shown);
+    const implicit = await get(withCursor(first.nextCursor, ''));
+    expect(implicit.status).toBe(200);
+    const explicit = await get(withCursor(first.nextCursor, `&${param}=${shown}`));
+    expect(explicit.status).toBe(200);
+  });
+
+  it('#159/AC-3 a fila e as duplicadas não têm filtro: o mesmo cursor segue válido', async () => {
+    for (const lane of [queueLane, duplicatesLane]) {
+      const get = await lane.arrange();
+      const first = await pageAt(get, 'limite=25');
+      expect((await get(withCursor(first.nextCursor, '&limite=30'))).status, lane.name).toBe(200);
+    }
   });
 });

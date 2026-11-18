@@ -106,8 +106,9 @@ export function toDuplicateEntry(
 export async function listDuplicates(reader: DuplicatesReader, params: URLSearchParams = new URLSearchParams()): Promise<Response> {
   const query = readPageQuery(params);
   if (query.kind === "invalid") return query.response;
-  const entries = sortedBy(await reader.list(), DUPLICATES_ORDER);
-  if (query.kind === "whole") return Response.json({ duplicates: entries.map(toJson), count: entries.length });
+  const stored = await reader.list();
+  if (query.kind === "whole") return Response.json({ duplicates: stored.map(toJson), count: stored.length });
+  const entries = sortedBy(stored, DUPLICATES_ORDER);
   const page = pageOf(DUPLICATES_ORDER, entries, query);
   if (!page) return invalidCursor();
   const blocked = entries.reduce((sum, e) => sum + e.blockedAmount.cents, 0);
@@ -124,8 +125,8 @@ export async function listDuplicates(reader: DuplicatesReader, params: URLSearch
 }
 
 /**
- * #159 A ordem é a chave de acesso da nota duplicada. O Supabase já lê por `access_key`; a leitura em
- * memória não ordenava. Única e igual nos dois modos, e a tupla que o cursor guarda.
+ * #159 A ordem das páginas é a chave de acesso da nota duplicada, a tupla que o cursor guarda. Sem
+ * `cursor` nem `limite`, a ordem é a da leitura.
  */
 const DUPLICATES_ORDER: Ordering<DuplicateEntry> = {
   list: "duplicadas",

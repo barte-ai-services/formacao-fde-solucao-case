@@ -200,7 +200,7 @@ entra o modo paginado, que é o contrato novo.
 Por que 30: é o meio da faixa. Enche uma tela de tabela com folga, para o scroll infinito pedir a
 próxima página antes de a pessoa chegar ao fim, e a resposta cabe no Worker sem custo. O 400 traz só o
 código: nunca o valor recebido nem a causa. Os demais parâmetros de cada rota (`dia`, `destino`, `data`,
-`loja`) continuam valendo e devem ir iguais em todas as páginas.
+`loja`) continuam valendo, e o cursor fica preso a eles (veja **Cursor**): mudar um filtro é recomeçar.
 
 **Resposta paginada.** `items` é a página, `nextCursor` é o cursor da próxima (`null` na última),
 `total` é a quantidade da lista inteira (a mesma em todas as páginas) e `aggregates` traz o que a tela
@@ -218,14 +218,19 @@ Atenção a `total` na lista do dia: sem cursor continua `{ "cents": ... }` (a s
 contagem, e a soma passou para `aggregates.toPay`. Na doca, `rows` vira `items`, e `awaiting` sai do topo
 e vai para `aggregates`.
 
-**Ordem.** Cada lista tem uma ordem total, a mesma nos dois modos: fila, o nível mais severo primeiro
+**Ordem.** Cada lista tem uma ordem total, que vale só nas páginas: fila, o nível mais severo primeiro
 (`APPROVAL_LEVELS`), depois o maior valor em risco, depois a chave de acesso; hoje e duplicadas, a chave
-de acesso da nota; doca, o número da nota (como número) e a chave de acesso.
+de acesso da nota; doca, o número da nota (como número) e a chave de acesso. Sem `cursor` nem `limite`,
+cada lista sai exatamente na ordem em que saía antes da #159 (a ordem da loja ou da leitura; na doca, o
+número da nota): a ordem antiga faz parte do contrato do modo inteiro.
 
 **Cursor.** É opaco: base64url de um JSON versionado com a tupla de ordenação do último item entregue e o
-nome da lista. A próxima página são os itens estritamente depois dessa tupla, e não uma posição: um item
-decidido entre duas páginas não faz outro pular nem repetir. O cursor de uma lista não serve noutra: a doca (`doca`) e o recebimento na loja (`recebimento-loja`) são duas listas. Quem
-consome trata o cursor como texto e não o monta.
+identidade da lista, que inclui os filtros. A próxima página são os itens estritamente depois dessa tupla, e não uma posição: um item
+decidido entre duas páginas não faz outro pular nem repetir. O cursor de uma lista não serve noutra, nem com outro filtro: usado assim, devolve 400 `cursor_invalido`.
+A identidade de cada lista é `fila`; `hoje:<dia>`; `duplicadas`; `doca:<destino>:<data>` e
+`recebimento-loja:<loja>:<data>`, em que destino ou loja é o que a resposta mostra (sem `destino` na query o
+servidor escolhe o primeiro, e o cursor vale para esse, com ou sem o `destino` explícito na página seguinte).
+Quem consome trata o cursor como texto e não o monta.
 
 ## Cloudflare Access
 

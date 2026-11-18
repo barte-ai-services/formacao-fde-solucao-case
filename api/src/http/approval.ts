@@ -176,7 +176,7 @@ type QueueItem = ReturnType<typeof summary>;
 /**
  * #159 A ordem da fila, a da tela: o nível mais severo primeiro (a ordem de `APPROVAL_LEVELS`, do domínio),
  * depois o maior valor em risco, e a chave de acesso da nota para desempatar. As duas primeiras posições
- * entram negadas para o maior vir antes. Vale na lista inteira e nas páginas.
+ * entram negadas para o maior vir antes. Vale só nas páginas: sem `cursor` nem `limite`, a ordem é a da loja.
  */
 const QUEUE_ORDER: Ordering<QueueItem> = {
   list: 'fila',
@@ -202,8 +202,9 @@ async function queue(
   if (query.kind === 'invalid') return query.response;
   const level = directory(identity.email);
   const approver = { email: identity.email, level };
-  const items = sortedBy((await store.listAwaiting()).map((f) => summary(f, level)), QUEUE_ORDER);
-  if (query.kind === 'whole') return Response.json({ approver, items });
+  const stored = (await store.listAwaiting()).map((f) => summary(f, level));
+  if (query.kind === 'whole') return Response.json({ approver, items: stored });
+  const items = sortedBy(stored, QUEUE_ORDER);
   const page = pageOf(QUEUE_ORDER, items, query);
   if (!page) return invalidCursor();
   return Response.json({
@@ -585,15 +586,15 @@ type TodayItem = {
 } & ReturnType<typeof exceptionFields>;
 
 /**
- * #159 A ordem da lista do dia é a chave de acesso da nota. O Supabase lia por `id` da proposta e a loja
- * em memória, na ordem da inserção; nenhuma das duas está no item, e o cursor precisa de uma tupla que o
- * item carregue. A chave é única e igual nos dois modos.
+ * #159 A ordem das páginas da lista do dia é a chave de acesso da nota: o Supabase lê por `id` da proposta
+ * e a loja em memória, na ordem da inserção, e o cursor precisa de uma tupla que o item carregue. A lista
+ * é a do dia pedido, e o cursor de um dia não serve em outro. Sem `cursor` nem `limite`, a ordem é a da loja.
  */
-const TODAY_ORDER: Ordering<TodayItem> = {
-  list: 'hoje',
+const todayOrder = (day: string): Ordering<TodayItem> => ({
+  list: `hoje:${day}`,
   shape: ['string'],
   key: (i) => [i.invoiceAccessKey],
-};
+});
 
 /**
  * AC-13: os títulos liberados ou reduzidos no dia; nenhum bloqueado e nenhum de nota sem decisão.
@@ -608,25 +609,24 @@ async function todayList(store: ApprovalStore, day: string, params: URLSearchPar
   if (query.kind === 'invalid') return query.response;
   const files = await store.listDecidedOn(day);
   const scheduled = files.filter((f) => f.title.state === 'na_lista_do_dia');
-  const items = sortedBy<TodayItem>(
-    scheduled.map((f) => ({
-      invoiceAccessKey: f.invoice.accessKey,
-      number: f.invoice.number,
-      supplierId: f.invoice.supplierId,
-      amount: money(f.title.amount),
-      invoiceTotal: money(f.invoice.total),
-      dueOn: f.title.dueOn,
-      ...exceptionFields(f.proposal.classification),
-      dockAction: f.proposal.dockAction.kind,
-      approver: f.approval?.approver ?? null,
-      // #42 AC-4 Quem aprovou, como a coluna gerada `approvals.approved_by`: a régua, o motor ou a pessoa.
-      approvedBy: approvedByOf(f.approval),
-    })),
-    TODAY_ORDER,
-  );
+  const stored: TodayItem[] = scheduled.map((f) => ({
+    invoiceAccessKey: f.invoice.accessKey,
+    number: f.invoice.number,
+    supplierId: f.invoice.supplierId,
+    amount: money(f.title.amount),
+    invoiceTotal: money(f.invoice.total),
+    dueOn: f.title.dueOn,
+    ...exceptionFields(f.proposal.classification),
+    dockAction: f.proposal.dockAction.kind,
+    approver: f.approval?.approver ?? null,
+    // #42 AC-4 Quem aprovou, como a coluna gerada `approvals.approved_by`: a régua, o motor ou a pessoa.
+    approvedBy: approvedByOf(f.approval),
+  }));
   const toPay = scheduled.reduce((sum, f) => sum + f.title.amount.cents, 0);
-  if (query.kind === 'whole') return Response.json({ day, items, total: { cents: toPay } });
-  const page = pageOf(TODAY_ORDER, items, query);
+  if (query.kind === 'whole') return Response.json({ day, items: stored, total: { cents: toPay } });
+  const order = todayOrder(day);
+  const items = sortedBy(stored, order);
+  const page = pageOf(order, items, query);
   if (!page) return invalidCursor();
   return Response.json({
     day,
