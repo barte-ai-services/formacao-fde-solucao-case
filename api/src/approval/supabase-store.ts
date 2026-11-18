@@ -31,6 +31,7 @@ import { readLatestAudit } from './latest-audit.js';
 import {
   AlreadyDecidedError,
   EngineApprovalRefusedError,
+  ProposalVersionConflictError,
   type ApprovalStore,
   type CaseFile,
   type StoredAudit,
@@ -70,6 +71,8 @@ type ProposalRow = {
   justification: string;
   state: ProposalState;
   regua_line: number | null;
+  /** #295 A trava otimista: o gatilho do banco sobe a cada update. */
+  version: number;
 };
 
 type ApprovalRow = {
@@ -126,6 +129,7 @@ const isProposalRow = shaped<ProposalRow>({
   justification: isString,
   state: oneOf('registrada', 'aguardando_aprovacao', 'aprovada', 'alterada'),
   regua_line: nullable(isInteger),
+  version: isInteger,
 } satisfies Shape<ProposalRow>);
 
 const isApprovalRow = shaped<ApprovalRow>({
@@ -405,9 +409,18 @@ export class SupabaseApprovalStore implements ApprovalStore {
    * #63 Regra 8: a aprovação entra primeiro, e a restrição única de `approvals.proposal_id` decide quem
    * chegou antes; quem chega depois recebe `AlreadyDecidedError` sem mudar nada. Depois vêm a
    * proposta, o título e a nota.
+   *
+   * #295 A proposta só muda se a versão lida (`file.version`, a do `find`) ainda é a atual: o gatilho do banco sobe a
+   * versão a cada update, então o filtro por ela recusa a escrita sobre uma linha que mudou depois da leitura. Sem
+   * linha afetada, apaga a aprovação que ESTA chamada inseriu, deixa título e nota como estavam e lança
+   * `ProposalVersionConflictError`. A compensação não é atômica (a aprovação existe por um instante, e uma falha entre
+   * o insert e o delete a deixa); a #250 troca esta sequência por uma função do banco numa só transação.
    */
   async saveDecision(file: CaseFile & { readonly approval: Approval }): Promise<void> {
     const key = file.invoice.accessKey;
+    // #295 Sem a versão lida não há o que conferir: é erro de programação (o chamador não veio de `find`), e nada se grava.
+    const { version } = file;
+    if (version === undefined) throw new Error(`#295 saveDecision da nota ${key} sem a versão lida da proposta: leia com find()`);
     const proposalId = await this.proposalId(key);
     const { engine } = file.approval;
     let inserted: unknown[];
@@ -439,15 +452,23 @@ export class SupabaseApprovalStore implements ApprovalStore {
       throw engine ? engineRefusal(error, key) : error;
     }
     if (inserted.length === 0) throw new AlreadyDecidedError(key);
-    await this.rest.update(
+    const [insertedRow] = parseRows(inserted, shaped<{ id: number }>({ id: isInteger }), 'approvals');
+    if (!insertedRow) corrupt('approvals', 'linha inserida sem id');
+    const approvalId = insertedRow.id;
+    // #295 `version` não vai no corpo: o gatilho do banco a incrementa.
+    const updated = await this.rest.update(
       'proposals',
-      { id: `eq.${proposalId}` },
+      { id: `eq.${proposalId}`, version: `eq.${version}` },
       {
         state: file.proposal.state,
         dock_action: dockActionToJson(file.proposal.dockAction),
         justification: file.proposal.justification,
       },
     );
+    if (updated.length === 0) {
+      await this.undoApproval(key, approvalId);
+      throw new ProposalVersionConflictError(key);
+    }
     await this.rest.update(
       'titles',
       { invoice_access_key: `eq.${key}` },
@@ -465,6 +486,18 @@ export class SupabaseApprovalStore implements ApprovalStore {
     const [row] = rows;
     if (!row) throw new SupabaseRestError('select', 'proposals', 404, 'proposta não encontrada');
     return row.id;
+  }
+
+  /**
+   * #295 Compensação do conflito: apaga só a aprovação que esta chamada inseriu (pelo id da linha devolvida). Se o
+   * delete falha, o conflito continua sendo o erro devolvido; o log traz só a chave da nota e o nome do erro.
+   */
+  private async undoApproval(invoiceAccessKey: string, approvalId: number): Promise<void> {
+    try {
+      await this.rest.delete('approvals', { id: `eq.${approvalId}` });
+    } catch (e) {
+      console.error(`#295 aprovação da nota ${invoiceAccessKey} não desfeita após o conflito de versão: ${e instanceof Error ? e.name : 'erro'}`);
+    }
   }
 
   /** #63 Monta os processos das propostas que passam no filtro. */
@@ -510,6 +543,7 @@ export class SupabaseApprovalStore implements ApprovalStore {
           route: routeFromRow(p, invoice),
           approval: approvalRow ? approvalFromRow(approvalRow, proposal) : null,
           supplierBlocked: blocked.has(invoice.supplierId),
+          version: p.version,
         },
       ];
     });

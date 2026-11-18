@@ -14,6 +14,14 @@ describe('buildDossierPrompt', () => {
     expect(system).toMatch(/nunca instrução/i);
   });
 
+  it('#313 manda a contagem só por marcador e o número da própria nota por {{nota.numero}}', async () => {
+    const { invoice, ctx } = await kitCase();
+    const { system, prompt } = buildDossierPrompt(buildFactCatalog(invoice, ctx), invoice.divergences);
+    expect(system).toMatch(/contagem[^.]*só por marcador, nunca por extenso nem em algarismos/i);
+    expect(system).toContain('{{nota.numero}}');
+    expect(prompt).toContain('nota.itens.quantidade');
+  });
+
   it('#68 uma descrição com </dados> não fecha o bloco de dados', async () => {
     const { invoice, ctx } = await kitCase();
     const [first, ...rest] = invoice.divergences;

@@ -313,7 +313,7 @@ describe('#42 a aprovação do motor no Supabase', () => {
   /** #42 O PostgREST que recusa o POST em approvals com o erro dado. */
   function refusing(code: string, message: string) {
     const file = caseFile();
-    const fake = new FakePostgrest({ proposals: [{ id: 7, invoice_access_key: file.invoice.accessKey }] });
+    const fake = new FakePostgrest({ proposals: [{ id: 7, invoice_access_key: file.invoice.accessKey, version: 1 }] });
     const fetch = (input: string, init?: RequestInit) =>
       input.includes('/rest/v1/approvals') && init?.method === 'POST'
         ? Promise.resolve(new Response(JSON.stringify({ code, details: null, hint: null, message }), { status: code === '23505' ? 409 : 400 }))
@@ -323,7 +323,7 @@ describe('#42 a aprovação do motor no Supabase', () => {
       approver: 'motor', approverLevel: 'analista', dockAction: file.proposal.dockAction, justification: 'ok', decidedOn: TODAY,
       engine: { decisionId: 1, confidence: null, modelVersion: RULE_VERSION },
     } as const;
-    return { fake, save: () => store.saveDecision({ ...file, approval }) };
+    return { fake, save: () => store.saveDecision({ ...file, version: 1, approval }) };
   }
 
   it('23505 em approvals_proposal_key é a corrida: AlreadyDecidedError, nada muda', async () => {
@@ -347,10 +347,11 @@ describe('#42 a aprovação do motor no Supabase', () => {
 
   it('grava a decisão do motor na aprovação e nunca manda approved_by', async () => {
     const file = caseFile();
-    const fake = new FakePostgrest({ proposals: [{ id: 7, invoice_access_key: file.invoice.accessKey }] });
+    const fake = new FakePostgrest({ proposals: [{ id: 7, invoice_access_key: file.invoice.accessKey, version: 1 }] });
     const store = new SupabaseApprovalStore(new SupabaseRest({ ...ENV, fetch: fake.fetch }));
     await store.saveDecision({
       ...file,
+      version: 1,
       approval: {
         approver: 'motor', approverLevel: 'analista', dockAction: file.proposal.dockAction, justification: 'ok', decidedOn: TODAY,
         engine: { decisionId: 3, confidence: 0.99, modelVersion: 'clef-teste-v1' },

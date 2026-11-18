@@ -161,7 +161,12 @@ export class FakePostgrest {
     }
     if (method === 'PATCH') {
       const hit = rows.filter((r) => this.matches(r, params));
-      for (const r of hit) Object.assign(r, body as Row);
+      for (const r of hit) {
+        const before = r.version;
+        Object.assign(r, body as Row);
+        // #295 O gatilho de proposals sobe a versão em todo update, ignorando a que o cliente mandou.
+        if (table === 'proposals') r.version = Number(before) + 1;
+      }
       return json(200, hit);
     }
     if (method === 'DELETE') {
@@ -254,7 +259,8 @@ export class FakePostgrest {
     if (table.startsWith('outbox_')) return { id: this.nextId++, published_at: now };
     if (table === 'invoices') return { captured_at: now, classification: null, checked_at: null };
     // #63 As colunas com default da migração do domínio e da aprovação.
-    if (table === 'proposals') return { id: this.nextId++, state: 'registrada', regua_line: null, created_at: now };
+    // #295 version nasce com 1 (default da migração).
+    if (table === 'proposals') return { id: this.nextId++, state: 'registrada', regua_line: null, version: 1, created_at: now };
     if (table === 'approvals') return { id: this.nextId++, dock_action: null, decided_on: null, approved_at: now };
     if (table === 'titles') return { state: 'lancado', updated_at: now };
     // #230 invoice_audits.id é identidade: o save() lê o id da linha devolvida.

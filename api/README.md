@@ -18,7 +18,7 @@ Os segredos ficam no `api/.dev.vars`, que o git ignora, um por linha:
 BARTE_ACADEMY_SUPABASE_SECRET_KEY=...
 BARTE_ACADEMY_ANTHROPIC_API_KEY=...
 ACCESS_AUD=...
-ACCESS_TEAM_DOMAIN=barte-academy.cloudflareaccess.com
+ACCESS_TEAM_DOMAIN=long-frost-f16b.cloudflareaccess.com
 ```
 
 ## O Claude no Worker (#171)
@@ -249,22 +249,60 @@ contra as chaves do time, o `aud`, o `iss` e a validade. `GET /me` devolve o e-m
 | Chaves do time fora do ar | 503 `access_unavailable` |
 
 As duas variáveis não são segredo. Em produção, a esteira passa com `wrangler deploy --var`, a
-partir das variáveis do repositório `BARTE_ACADEMY_ACCESS_AUD` e `BARTE_ACADEMY_ACCESS_TEAM_DOMAIN`.
+partir das variáveis do environment `producao` `BARTE_ACADEMY_ACCESS_AUD` e `BARTE_ACADEMY_ACCESS_TEAM_DOMAIN`.
 Localmente, ficam no `.dev.vars`; sem elas, só o `/health` responde 200.
 
 ### Provisionar
 
-Uma vez por conta, no painel da Cloudflare: abra o Zero Trust, crie o time `barte-academy` e
-escolha o plano Free. Depois, na raiz do repositório:
+O time do Zero Trust é `long-frost-f16b.cloudflareaccess.com` (variável do environment `producao`,
+`BARTE_ACADEMY_ACCESS_TEAM_DOMAIN`). A aplicação do Access que o Worker usa já existe, e o AUD dela está em
+`BARTE_ACADEMY_ACCESS_AUD`. O script `scripts/cloudflare_access.py` a atualiza e nunca cria outra: acha a
+aplicação pelo AUD, não pelo nome, e um AUD que não bate com nenhuma aplicação é erro, sem gravar nada.
+
+A tela vale para **qualquer e-mail autenticado** (decisão do CFO): a política do Access é `allow` com
+`include: everyone` (`"include": [{"everyone": {}}]` na API da Cloudflare) e o código por e-mail (one-time PIN) é o
+único provedor da aplicação. Os dados são os da solução de referência. O Worker não filtra por e-mail: quem é
+administrador e quem é aprovador continua vindo de `BARTE_ACADEMY_ADMIN_EMAILS` e `BARTE_ACADEMY_APPROVER_LEVELS`.
+
+O PUT substitui o recurso, então o corpo parte da aplicação inteira (menos os campos só de leitura: `id`, `uid`,
+`aud`, `created_at`, `updated_at`) e troca só duas coisas. Nome, domínio, AUD, sessão, redirecionamento e os demais
+campos ficam como estão. Em `allowed_idps` fica exatamente o código por e-mail, qualquer que seja o valor atual
+(lista vazia ou ausente, que na API quer dizer "todos os provedores", também). Em `policies`, a política do script
+(`formacao-fde-solucao-case: qualquer e-mail`; a de nome antigo, `barte.com e alunos`, também conta como a do script)
+é trocada no lugar ou acrescentada ao fim, e as outras políticas da aplicação ficam na forma em que vieram. Rodar de
+novo deixa o mesmo estado.
+
+**Pelo workflow** (o caminho normal):
+
+1. Em Settings, Environments, `producao`, confira os secrets `BARTE_ACADEMY_CLOUDFLARE_API_TOKEN` (com
+   permissão de Access: Apps and Policies) e `BARTE_ACADEMY_CLOUDFLARE_ACCOUNT_ID` e a variável
+   `BARTE_ACADEMY_ACCESS_AUD`. Eles ficam no environment, não no repositório: o job `provisionar` declara
+   `environment: producao`, que só a `main` alcança.
+2. Na aba Actions, rode `Provisiona o Cloudflare Access` (`.github/workflows/cloudflare-access.yml`) na `main`,
+   com `dry_run` marcado. O log traz um resumo em campos nomeados: `allowed_idps` (inalterado ou passa a ser só o código por e-mail, sem listar os
+   outros ids), o total de políticas, a precedência da do script, e a posição, a `precedence` e o tipo de cada
+   política (reutilizável ou da aplicação). Não traz a configuração da aplicação, as políticas alheias, a conta nem
+   id de aplicação ou de política, porque o log de um repositório público é aberto. Se a aplicação usa políticas
+   reutilizáveis, a do script também vira reutilizável (a Cloudflare não aceita as duas juntas) e o resumo diz o
+   caminho; o dry-run não grava em `/access/policies`.
+
+   A política reutilizável é de quem a liga. O script grava na que a própria aplicação já liga com nome do script
+   (o atual ou o antigo) ou, na falta, na da conta com o nome atual; a de nome antigo que a aplicação não liga não
+   é tocada. Se o `app_count` dela mostra que outra aplicação também a usa, o script recusa com "a política
+   reutilizável do script está ligada a outra aplicação; nada foi gravado", no dry-run também, porque o `include:
+   everyone` passaria a valer lá. Resolva desligando a política da outra aplicação e rode de novo.
+3. Rode de novo com `dry_run` desmarcado para gravar.
+
+O workflow não imprime o token. Para criar uma aplicação nova, o que só se faz de propósito, rode à
+mão com `--create` e `BARTE_ACADEMY_ACCESS_APP_DOMAIN` com o domínio dela; o script imprime o `ACCESS_AUD=...`
+novo, que vai para a variável do environment `producao`.
+
+**À mão**, na raiz do repositório:
 
 ```bash
 export BARTE_ACADEMY_CLOUDFLARE_API_TOKEN=...   # com permissão de Access: Apps and Policies
 export BARTE_ACADEMY_CLOUDFLARE_ACCOUNT_ID=...
-export BARTE_ACADEMY_ACCESS_ALLOWED_EMAILS="aluno1@gmail.com, aluno2@gmail.com"
+export BARTE_ACADEMY_ACCESS_AUD=...
 python3 scripts/cloudflare_access.py --dry-run   # mostra o que enviaria
 python3 scripts/cloudflare_access.py
 ```
-
-O script garante o login por código no e-mail e a aplicação `formacao-fde-solucao-case`, com a
-política que libera a `barte.com` e os alunos listados. Rodar de novo atualiza, não duplica. No fim,
-imprime `ACCESS_AUD=...` e `ACCESS_TEAM_DOMAIN=...`: são os valores das variáveis do repositório.
