@@ -24,6 +24,8 @@ export interface ScrollTableProps<T extends { key: string }> {
   counterBusy?: boolean;
   /** #160 Mostra o aviso de uma linha de que a lista recomeçou do início (`cursor_invalido`). */
   restarted?: boolean;
+  /** #160 Cada mudança do valor leva a caixa de volta ao topo (a lista recomeçou: troca de filtro ou `cursor_invalido`). */
+  resetKey?: number;
   onOpenRow: (row: T) => void;
   rowLabel: (row: T) => string;
   /** #160 Perto do fim da caixa: pede o próximo bloco pelo `nextCursor`. Sem ele, a tabela não observa nada (tela sem paginação). */
@@ -52,7 +54,7 @@ const NEAR_END_MARGIN = "0px 0px 240px 0px";
  * `position: sticky` do cabeçalho valer, porque o `Table` do DS embrulha a tabela em dois `overflow`.
  */
 export function ScrollTable<T extends { key: string }>({
-  rows, columns, total, phase, skeletonRows = 3, toolbar, counterBusy, restarted, onOpenRow, rowLabel, onNearEnd, onRetry, label,
+  rows, columns, total, phase, skeletonRows = 3, toolbar, counterBusy, restarted, resetKey, onOpenRow, rowLabel, onNearEnd, onRetry, label,
 }: ScrollTableProps<T>): ReactElement {
   const box = useRef<HTMLDivElement>(null);
   const sentinel = useRef<HTMLDivElement>(null);
@@ -62,6 +64,10 @@ export function ScrollTable<T extends { key: string }>({
   useEffect(() => {
     nearEnd.current = onNearEnd;
   });
+  // #160 A caixa volta ao topo quando a lista recomeça; sem `resetKey`, a rolagem é de quem rola.
+  useEffect(() => {
+    if (resetKey !== undefined && box.current) box.current.scrollTop = 0;
+  }, [resetKey]);
   const observing = onNearEnd !== undefined && phase === "idle";
 
   useEffect(() => {

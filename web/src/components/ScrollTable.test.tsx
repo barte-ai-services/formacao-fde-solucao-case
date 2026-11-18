@@ -233,3 +233,16 @@ describe("#160 ScrollTable: cabeçalho fixo", () => {
     expect(css).toMatch(/thead th\s*\{[^}]*position:\s*sticky;[^}]*top:\s*0/);
   });
 });
+
+describe("#160 ScrollTable: a lista recomeçou", () => {
+  it("#160/AC-1: mudar o resetKey leva a caixa ao topo; sem mudar, a rolagem fica onde a pessoa deixou", () => {
+    const props = { rows: rows(3), columns, total: 3, phase: "idle" as const, label: "Notas", onOpenRow: () => {}, rowLabel: (r: Row) => `Abrir NF ${r.number}` };
+    const { rerender } = render(<ScrollTable<Row> {...props} resetKey={1} />);
+    const box = screen.getByLabelText("Notas");
+    box.scrollTop = 300;
+    rerender(<ScrollTable<Row> {...props} resetKey={1} />);
+    expect(box.scrollTop).toBe(300);
+    rerender(<ScrollTable<Row> {...props} resetKey={2} />);
+    expect(box.scrollTop).toBe(0);
+  });
+});
