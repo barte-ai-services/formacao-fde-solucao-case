@@ -3,7 +3,7 @@
  * que está pendente, pergunta ao Claude e grava a sugestão em claude_suggestions. A regra
  * determinística confirma depois e, sem sugestão, decide sozinha (fail-closed).
  */
-import { ClaudeError, DEFAULT_MODEL, type Ask } from './client.js';
+import { ClaudeError, DEFAULT_MODEL, type Ask, type Converse } from './client.js';
 import { isInteger, isString, isTimestamp, partitionRows, shaped, type Shape } from './guards.js';
 import { SupabaseRestError } from '../connectors/supabase-rest.js';
 import type { Db, Row } from './db.js';
@@ -15,12 +15,14 @@ export const MAX_PER_RUN = 50;
 /** #66 Depois de 3 tentativas com erro, a chave não é mais tentada pelo laço. */
 export const MAX_ATTEMPTS = 3;
 /** #66 Espera entre tentativas com erro: 5 min * 2^tentativas desde updated_at. */
-const BACKOFF_BASE_MS = 5 * 60_000;
+export const BACKOFF_BASE_MS = 5 * 60_000;
 const MAX_ERROR = 200;
 
 export type RunOptions = {
   readonly db: Db;
   readonly ask: Ask;
+  /** #230 O laço de tool use, para a tarefa que oferece tools; sem ele, essa tarefa falha fechada. */
+  readonly converse?: Converse;
   readonly tasks: readonly ClaudeTask<unknown, unknown>[];
   readonly log: (line: string) => void;
   readonly limit?: number;
@@ -75,8 +77,22 @@ async function existingSuggestions(db: Db, task: string): Promise<Existing> {
   return { byKey: new Map(valid.map((row) => [row.input_key, row])), dropped };
 }
 
-function inBackoff(row: StoredSuggestion, now: Date): boolean {
+export function inBackoff(row: { readonly attempts: number; readonly updated_at: string }, now: Date): boolean {
   return now.getTime() < Date.parse(row.updated_at) + BACKOFF_BASE_MS * 2 ** row.attempts;
+}
+
+/**
+ * #38 O estado de cada chave já gravada: `skip` para as ok, as esgotadas e as ainda na espera (a mesma regra de
+ * planQueue), `retry` para a que errou e já pode ser tentada. Serve à tarefa cujo pending() é caro.
+ */
+export async function keyStates(db: Db, task: string, now: Date): Promise<Map<string, 'skip' | 'retry'>> {
+  const { byKey } = await existingSuggestions(db, task);
+  const keys = new Map<string, 'skip' | 'retry'>();
+  for (const row of byKey.values()) {
+    const skip = row.status === 'ok' || row.attempts >= MAX_ATTEMPTS || inBackoff(row, now);
+    keys.set(row.input_key, skip ? 'skip' : 'retry');
+  }
+  return keys;
 }
 
 type Plan = { readonly queue: PendingRequest<unknown>[]; readonly waiting: number };
@@ -109,10 +125,12 @@ async function runOne(
   counts: Counts,
 ): Promise<boolean> {
   const attempts = previous?.attempts ?? 0;
+  const clock = options.now ?? (() => new Date());
+  const started = clock().getTime();
   let row: Row;
   try {
-    const output = await task.run(request.input, options.ask);
-    row = { output, status: 'ok', error: null, attempts };
+    const output = await task.run(request.input, options.ask, options.converse);
+    row = { output, status: 'ok', error: null, attempts, ...task.rowFields?.({ latencyMs: clock().getTime() - started }) };
     counts.ok += 1;
   } catch (error) {
     const message = storedError(error, options.secrets);
@@ -121,9 +139,15 @@ async function runOne(
     // #171 Limite de uso ou credencial recusada vale para a rodada toda: não gasta tentativa de nenhuma
     // chave nem grava linha de erro, e interrompe. A regra decide sozinha e a próxima rodada repete.
     if (error instanceof ClaudeError && error.isGlobal) return true;
-    row = { output: null, status: 'error', error: message, attempts: attempts + 1 };
+    row = {
+      output: null,
+      status: 'error',
+      error: message,
+      attempts: attempts + 1,
+      ...task.rowFields?.({ error, latencyMs: clock().getTime() - started }),
+    };
   }
-  const updatedAt = (options.now ?? (() => new Date()))().toISOString();
+  const updatedAt = clock().toISOString();
   // #66 A linha nova entra com ignore-duplicates; a que estava em erro é refeita com merge-duplicates.
   await options.db.upsert(
     TABLE,
@@ -155,7 +179,9 @@ async function runTask(task: ClaudeTask<unknown, unknown>, options: RunOptions):
   const { requests, dropped } = await task.pending(options.db);
   const pending = requests.filter((request) => existing.byKey.get(request.key)?.status !== 'ok');
   const now = (options.now ?? (() => new Date()))();
-  const plan = planQueue(pending, existing, now, options.limit ?? MAX_PER_RUN);
+  // #230 O teto da tarefa (`maxPerRun`) e o do #12/#36 (`limit`), quando houver, valem sobre o da rodada: vale o menor.
+  const limit = Math.min(options.limit ?? MAX_PER_RUN, task.limit ?? Number.POSITIVE_INFINITY, task.maxPerRun ?? Number.POSITIVE_INFINITY);
+  const plan = planQueue(pending, existing, now, limit);
   const counts: Counts = { ok: 0, failed: 0, firstError: undefined };
   let stopped = false;
   let outOfBudget = false;

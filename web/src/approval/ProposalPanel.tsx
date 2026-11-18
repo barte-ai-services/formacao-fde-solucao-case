@@ -11,9 +11,13 @@ import type { PartialLineDto } from "../api/contract";
 import { AccessKey } from "../components/AccessKey";
 import { Dossier } from "../components/Dossier";
 import { ProposalTimeline } from "./ProposalTimeline";
+import { useDossier } from "./useDossier";
+import { SupplierRequestSection, type SupplierRequestSource } from "./SupplierRequestSection";
 import { EvidenceView } from "../evidence";
 import { partialPrefill, type Disposition, type PartialInput } from "./partial-prefill";
 import { ACTION_LABEL, ACTION_TONE, LEVEL_LABEL, LEVEL_TONE, type DockActionKind } from "./labels";
+import { AuditBlock } from "./AuditBlock";
+import { auditBlockView } from "./audit-view";
 import { texts } from "../texts";
 
 const STATE_LABEL: Record<ProposalDetailDto["state"], string> = texts.proposalPanel.state;
@@ -54,11 +58,14 @@ export function ProposalPanel({
   proposal,
   onDecided,
   afterCount,
+  supplierRequest,
 }: {
   proposal: ProposalDetailDto;
   onDecided?: (result: DecisionResultDto) => void;
   /** #134 Depois da contagem (2ª entrega) o verbo é "Confirmar recebimento"; antes da doca, "Receber". */
   afterCount?: boolean;
+  /** #3/AC-1 De onde vem o pedido ao fornecedor (#16, #17); sem isto, ou sem pedido, o bloco não existe. */
+  supplierRequest?: SupplierRequestSource;
 }): JSX.Element {
   const [decided, setDecided] = useState<DecisionResultDto | null>(null);
   // #203 A opção marcada é do DecisionForm, mas a gaveta a conhece (value/onValueChange) para mostrar os itens só no parcial.
@@ -66,6 +73,8 @@ export function ProposalPanel({
   // #203 Já preenchidos com a diferença da evidência; o que a pessoa digita fica aqui ao trocar de opção.
   const [partial, setPartial] = useState<Record<string, PartialInput>>(() => partialPrefill(proposal));
   const proposed = proposal.dockAction.kind;
+  // #130 O dossiê da gaveta: pedir ao Claude e ler de novo enquanto ele escreve.
+  const dossier = useDossier(proposal.invoiceAccessKey, proposal.dossier);
   /** #134 Sem divergência em item (MATCH), não há o que segurar ou devolver: o bloco do parcial some. */
   const hasItemDivergence = proposal.divergences.some((d) => d.skus.length > 0);
   const labels = (afterCount ?? COUNTED.includes(proposal.classification)) ? texts.proposalPanel.form.afterCountOptions : texts.proposalPanel.form.options;
@@ -152,17 +161,21 @@ export function ProposalPanel({
         )}
       </Block>
       {proposal.dockAction.kind === "receber_parcial" ? <PartialItems proposal={proposal} lines={proposal.dockAction.lines} /> : null}
-      <Dossier dossier={proposal.dossier} />
+      {proposal.audit === undefined ? null : <AuditBlock view={auditBlockView(proposal.audit, proposal)} />}
+      <Dossier dossier={dossier.dossier} onRequest={() => void dossier.request()} message={dossier.message} busy={dossier.busy} renewing={dossier.renewing} />
       <ProposalTimeline steps={proposal.timeline ?? []} />
       {decided ?? proposal.approval ? (
-        <Alert
-          variant="success"
-          title={texts.proposalPanel.decidedTitle}
-          description={texts.proposalPanel.decidedDescription(
-            ACTION_LABEL[(decided?.approval ?? proposal.approval)!.dockAction.kind as DockActionKind].toLowerCase(),
-            (decided?.title.state ?? proposal.title.state).replaceAll("_", " "),
-          )}
-        />
+        <>
+          <Alert
+            variant="success"
+            title={texts.proposalPanel.decidedTitle}
+            description={texts.proposalPanel.decidedDescription(
+              ACTION_LABEL[(decided?.approval ?? proposal.approval)!.dockAction.kind as DockActionKind].toLowerCase(),
+              (decided?.title.state ?? proposal.title.state).replaceAll("_", " "),
+            )}
+          />
+          {supplierRequest ? <SupplierRequestSection source={supplierRequest} accessKey={proposal.invoiceAccessKey} /> : null}
+        </>
       ) : proposal.canApprove ? (
         <>
           <DecisionForm<Choice>

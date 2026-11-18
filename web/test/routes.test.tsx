@@ -15,6 +15,7 @@ const EXPECTED: Record<string, { path: string; title: string; empty: string }> =
   "/pagar/valor-barrado": { path: "/pagar/valor-barrado", title: "Pagamento errado evitado", empty: "Nada evitado neste mês ainda" },
   "/doca": { path: "/doca", title: "Doca", empty: "Nenhuma nota com entrega prevista hoje" },
   "/devolucoes": { path: "/devolucoes", title: "Notas de devolução", empty: "Nenhuma devolução pendente de emissão" },
+  "/pedidos-fornecedor": { path: "/pedidos-fornecedor", title: "Pedidos ao fornecedor", empty: "Nenhum pedido ao fornecedor ainda" }, // ADR-004
   "/recebimento/loja": { path: "/recebimento/loja", title: "Recebimento na loja", empty: "Nenhuma nota com entrega prevista hoje" },
 };
 
@@ -29,6 +30,10 @@ function emptyApi(input: RequestInfo | URL): Promise<Response> {
   if (path.startsWith("/api/propostas/")) return Promise.resolve(Response.json({ error: "not_found" }, { status: 404 }));
   if (path === "/api/fila") return Promise.resolve(Response.json({ approver: { email: null, level: null }, items: [] }));
   if (path.startsWith("/api/doca") || path.startsWith("/api/recebimento-loja")) return Promise.resolve(Response.json({ destination: null, date: "2026-11-15", destinations: [], awaiting: 0, rows: [] }));
+  // #17 A gaveta de proposta decidida pergunta pelo pedido ao fornecedor; o contrato responde 200 com request nulo.
+  if (path.startsWith("/api/supplier-requests/")) return Promise.resolve(Response.json({ request: null }));
+  // #21 A lista dos pedidos ao fornecedor sem nenhum pedido enviado: os quatro filtros em zero.
+  if (path.startsWith("/api/supplier-requests?")) return Promise.resolve(Response.json({ filter: "awaiting", requests: [], counts: { awaiting: 0, answered: 0, needs_you: 0, overdue: 0 } }));
   if (path === "/api/return-notes") return Promise.resolve(Response.json({ notes: [] }));
   if (path === "/api/duplicates") return Promise.resolve(Response.json({ duplicates: [], count: 0 }));
   if (path === "/api/hoje") return Promise.resolve(Response.json({ day: "2026-11-15", items: [], total: { cents: 0 } }));

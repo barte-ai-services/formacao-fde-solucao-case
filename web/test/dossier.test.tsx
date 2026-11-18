@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import type { DossierField } from "../src/api/contract";
 import { Dossier } from "../src/components/Dossier";
 
@@ -61,8 +61,27 @@ describe("#38/AC-1 o dossiê pronto mostra divergência, evidência e histórico
   });
 });
 
+describe("#54/AC-4 a evidência de nota de devolução tem rótulo na tela (decisão do dono)", () => {
+  it("#54/AC-4 mostra \"Nota de devolução\" para a evidência cuja fonte é return_note, e não o código cru", () => {
+    const withReturnNote: DossierField = {
+      ...READY,
+      divergences: [
+        {
+          classification: "E3",
+          exceptionName: "Quantidade menor",
+          whatDiverges: "Faltam 2 caixas do item da ordem.",
+          evidence: [{ key: "nota_dev", label: "Devolução anterior", value: "2 caixas", source: "return_note" }],
+        },
+      ],
+    };
+    render(<Dossier dossier={withReturnNote} />);
+    expect(screen.getByText("Nota de devolução")).toBeTruthy();
+    expect(screen.queryByText("return_note")).toBeNull();
+  });
+});
+
 describe("#38/AC-4 sem dossiê, a gaveta avisa e a decisão segue pela conferência", () => {
-  it("#38/AC-4 dossiê indisponível mostra o aviso que a API mandou", () => {
+  it("#38/AC-4 #130 dossiê que não deu certo mostra a mensagem do motivo e que a proposta continua valendo", () => {
     render(
       <Dossier
         dossier={{
@@ -73,8 +92,15 @@ describe("#38/AC-4 sem dossiê, a gaveta avisa e a decisão segue pela conferên
         }}
       />,
     );
+    expect(screen.getByText("Dossiê do Claude")).toBeTruthy();
+    expect(screen.getByText("O Claude não conseguiu escrever o dossiê agora.")).toBeTruthy();
+    expect(screen.getByText("A proposta continua valendo e você pode decidir sem ele.")).toBeTruthy();
+  });
+
+  it("#38/AC-4 a leitura que falhou mostra o aviso que a API mandou", () => {
+    render(<Dossier dossier={{ status: "unavailable", reason: "read_failed", notice: "Não deu para ler o dossiê agora.", generatedAt: null }} />);
     expect(screen.getByText("Não há dossiê do Claude para esta proposta.")).toBeTruthy();
-    expect(screen.getByText("O Claude não respondeu. Decida pelas divergências e evidências da conferência.")).toBeTruthy();
+    expect(screen.getByText("Não deu para ler o dossiê agora.")).toBeTruthy();
     expect(screen.queryByText("Dossiê do Claude")).toBeNull();
   });
 
@@ -87,5 +113,56 @@ describe("#38/AC-4 sem dossiê, a gaveta avisa e a decisão segue pela conferên
   it("#38/AC-4 dossiê ausente (undefined) mostra o mesmo aviso padrão", () => {
     render(<Dossier dossier={undefined} />);
     expect(screen.getByText(DEFAULT_NOTICE)).toBeTruthy();
+  });
+});
+
+describe("#130 os estados do bloco na gaveta", () => {
+  const noop = () => {};
+
+  it("#130 Gerando: o Claude está lendo, e quem pediu, com a hora", () => {
+    render(
+      <Dossier
+        dossier={{ status: "generating", trigger: "on_demand", requestedBy: "ana@exemplo.com", requestedAt: "2026-11-15T13:14:00Z" }}
+        onRequest={noop}
+      />,
+    );
+    expect(screen.getByText("Dossiê do Claude")).toBeTruthy();
+    expect(screen.getByText("✦ O Claude está lendo a nota, a ordem e o cadastro…")).toBeTruthy();
+    expect(screen.getByText("Pedido por você às 10h14")).toBeTruthy();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("#38 Gerando pelo evento: começou quando a nota chegou, sem botão", () => {
+    render(
+      <Dossier dossier={{ status: "generating", trigger: "event", requestedBy: "claude", requestedAt: "2026-11-15T13:14:00Z" }} onRequest={noop} />,
+    );
+    expect(screen.getByText("Começou quando a nota chegou, às 10h14")).toBeTruthy();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("#130 Pronto: o conteúdo, a hora em que o Claude escreveu e Gerar de novo", () => {
+    render(<Dossier dossier={READY} onRequest={noop} />);
+    expect(screen.getByText(READY.summary)).toBeTruthy();
+    expect(screen.getByText("Escrito pelo Claude às 09h00. Os números vêm do banco.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "↻ Gerar de novo" })).toBeTruthy();
+  });
+
+  it("#130 Ainda não gerado: o convite e Pedir ao Claude", () => {
+    const onRequest = vi.fn();
+    render(<Dossier dossier={{ status: "unavailable", reason: "pending", notice: "", generatedAt: null }} onRequest={onRequest} />);
+    expect(screen.getByText(/Esta proposta ainda não tem dossiê/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "✦ Pedir ao Claude" }));
+    expect(onRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["claude_failed", "O Claude não conseguiu escrever o dossiê agora."],
+    ["timeout", "O Claude demorou demais para responder."],
+    ["number_mismatch", "O dossiê citava um número que não bate com o banco, por isso não foi mostrado."],
+    ["invalid_shape", "A resposta do Claude veio fora do formato, por isso não foi mostrada."],
+  ] as const)("#130 Não deu certo (%s): a mensagem da tabela e Tentar de novo", (reason, text) => {
+    render(<Dossier dossier={{ status: "unavailable", reason, notice: "", generatedAt: "2026-11-15T12:00:00Z" }} onRequest={noop} />);
+    expect(screen.getByText(text)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "↻ Tentar de novo" })).toBeTruthy();
   });
 });

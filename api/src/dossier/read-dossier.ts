@@ -26,14 +26,14 @@ const UNKNOWN_MODEL = 'unknown';
 /**
  * #68: lê o dossiê da nota e o confere contra o banco na hora de mostrar (#38/AC-2): um número fora
  * do catálogo, ou uma chave que o banco não tem mais, dá `number_mismatch`. Sem sugestão gravada,
- * `null` (a tela mostra `pending`). Sugestão com erro, `claude_failed` (#38/AC-4). Só lê: não toca na
+ * `null` (a tela mostra `pending`). Sugestão com erro, o motivo gravado, ou `claude_failed` sem ele (#38/AC-4, #130). Só lê: não toca na
  * proposta nem escreve em nada (#38/AC-3).
  */
 export async function readDossier(input: ReadDossierInput): Promise<DossierResult | null> {
   const suggestion = await input.source.find(input.invoiceAccessKey);
   if (!suggestion) return null;
   if (suggestion.status === 'erro') {
-    return { status: 'unavailable', reason: 'claude_failed', generatedAt: suggestion.generatedAt };
+    return { status: 'unavailable', reason: suggestion.reason ?? 'claude_failed', generatedAt: suggestion.generatedAt };
   }
   const ctx = await input.loadContext();
   const catalog = buildFactCatalog(input.invoice, ctx);

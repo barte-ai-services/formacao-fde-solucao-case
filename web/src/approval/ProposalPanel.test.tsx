@@ -2,6 +2,8 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProposalPanel } from "./ProposalPanel";
 import type { ProposalDetailDto } from "../api/approval";
+import type { AuditDto } from "../api/approval";
+import type { SupplierRequestPort } from "./supplier-request-state";
 
 // #134 A decisão pela ação no recebimento: Receber, Receber parcial e Recusar.
 
@@ -239,5 +241,96 @@ describe("#209 AC-5: nota já decidida abre só para leitura", () => {
     expect(screen.queryByRole("radiogroup")).toBeNull();
     expect(screen.queryByRole("button", { name: /Registrar/ })).toBeNull();
     expect(screen.getByText(/decis/i)).toBeTruthy();
+  });
+});
+
+// #231 O bloco "Agente auditor" na gaveta: onde fica, e que sem auditoria informada o painel segue como antes.
+const AUDITED: AuditDto = {
+  status: "auditada",
+  classification: "E2",
+  dockAction: { kind: "receber" },
+  routing: "coordenacao",
+  justification: "A ordem de compra confirma a quantidade da nota.\nO preço bate com o pedido.",
+  amountAtRisk: null,
+  model: "claude-exemplo",
+  auditedAt: "2026-11-15T17:32:00Z",
+  agreement: { agrees: false, differs: ["classification"] },
+  raisedLevel: null,
+  injectionFlag: null,
+  refusals: [],
+};
+const follows = (a: HTMLElement, b: HTMLElement) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+describe("#231 bloco Agente auditor no painel", () => {
+  it("#231/AC-2 auditada: o bloco vem depois das Evidências e antes do Dossiê do Claude", () => {
+    render(<ProposalPanel proposal={proposal({ kind: "receber" }, { audit: AUDITED })} />);
+    const block = screen.getByRole("region", { name: "Agente auditor" });
+    expect(screen.getByText("Discorda: classifica como E2, não E4")).toBeTruthy();
+    expect(follows(screen.getByText("Evidência por divergência"), block)).toBe(true);
+    expect(follows(block, screen.getByText("Dossiê do Claude"))).toBe(true);
+  });
+
+  it("#231/AC-2 com os itens do receber parcial, o bloco vem depois deles", () => {
+    const p = proposal({ kind: "receber_parcial", lines: [{ sku: "SKU-1", quantity: { amount: 3, unit: "UN" }, disposition: "segurar" }] }, { audit: AUDITED });
+    render(<ProposalPanel proposal={p} />);
+    expect(follows(screen.getByText("Itens do recebimento parcial"), screen.getByRole("region", { name: "Agente auditor" }))).toBe(true);
+  });
+
+  it("#231/AC-5 não auditada: o bloco diz o motivo", () => {
+    render(<ProposalPanel proposal={proposal({ kind: "receber" }, { audit: { status: "nao_auditada", reason: "erro_de_tool", refusals: [] } })} />);
+    expect(screen.getByText("Não auditada")).toBeTruthy();
+    expect(screen.getByText("Uma ferramenta falhou durante a auditoria.")).toBeTruthy();
+  });
+
+  it("#231/AC-5 auditoria nula: o bloco diz que está pendente", () => {
+    render(<ProposalPanel proposal={proposal({ kind: "receber" }, { audit: null })} />);
+    expect(screen.getByText("Auditoria pendente. Decida pelas evidências da conferência.")).toBeTruthy();
+  });
+
+  it("#231 sem o campo audit na proposta, o bloco não aparece e o resto do painel segue igual", () => {
+    render(<ProposalPanel proposal={proposal({ kind: "receber" })} />);
+    expect(screen.queryByText("Agente auditor")).toBeNull();
+    expect(screen.getByText("Dossiê do Claude")).toBeTruthy();
+    expect(screen.getByRole("radio", { name: /^Recusar/ })).toBeTruthy();
+  });
+});
+
+describe("#3 pedido ao fornecedor na gaveta da proposta decidida", () => {
+  const approval = { approver: "c", approverLevel: "coordenacao", dockAction: { kind: "receber" }, justification: "ok", decidedOn: "2026-11-15" };
+  const decided = () => proposal({ kind: "receber" }, { state: "na_lista_do_dia", approval });
+  const email = { to: "fiscal@higienetotal.test", dueOn: "2026-11-18", subject: "NF 80 · devolução", body: "Texto do e-mail", template: "Texto do e-mail" };
+  const port = (load: SupplierRequestPort["load"]): SupplierRequestPort => ({
+    load,
+    send: vi.fn(),
+    resend: vi.fn(),
+    discard: vi.fn(),
+    redo: vi.fn(),
+    saveTemplate: vi.fn(),
+  });
+
+  it("#3/AC-1: com pedido, o bloco vem logo depois da Decisão registrada", async () => {
+    render(<ProposalPanel proposal={decided()} supplierRequest={{ port: port(async () => ({ status: "draft", email })), viewer: "ana@jachegou.test" }} />);
+    const block = await screen.findByRole("region", { name: "Pedido ao fornecedor" });
+    const alert = screen.getByText("Decisão registrada");
+    expect(alert.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("#3/AC-1: sem pedido na nota, a gaveta fica como era, sem o bloco", async () => {
+    const load = vi.fn(async () => null);
+    render(<ProposalPanel proposal={decided()} supplierRequest={{ port: port(load), viewer: "ana@jachegou.test" }} />);
+    await waitFor(() => expect(load).toHaveBeenCalled());
+    expect(screen.queryByRole("region", { name: "Pedido ao fornecedor" })).toBeNull();
+    expect(screen.getByText("Decisão registrada")).toBeTruthy();
+  });
+
+  it("#3/AC-1: sem a fonte do pedido (gaveta de antes da #17), nada é buscado nem desenhado", () => {
+    render(<ProposalPanel proposal={decided()} />);
+    expect(screen.queryByRole("region", { name: "Pedido ao fornecedor" })).toBeNull();
+  });
+
+  it("#3/AC-1: antes da decisão, o pedido não é buscado", () => {
+    const load = vi.fn(async () => null);
+    render(<ProposalPanel proposal={proposal({ kind: "receber" })} supplierRequest={{ port: port(load), viewer: "ana@jachegou.test" }} />);
+    expect(load).not.toHaveBeenCalled();
   });
 });

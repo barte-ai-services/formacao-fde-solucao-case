@@ -22,6 +22,9 @@ jobs:
   deploy:
     # Só publica a main: um disparo manual a partir de outra branch não chega à produção.
     if: github.ref == 'refs/heads/main'
+    # Os secrets BARTE_ACADEMY_* só existem no environment producao, que aceita só a main (#234):
+    # uma branch empurrada por quem tem escrita não chega a eles.
+    environment: producao
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:

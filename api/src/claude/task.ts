@@ -3,7 +3,7 @@
  * src/tasks/ e entra no registro de src/tasks/index.ts com uma linha. Outros planos (#65, #68)
  * acrescentam as suas sem mexer no laço (#66).
  */
-import type { Ask } from './client.js';
+import type { Ask, Converse } from './client.js';
 import type { Db } from './db.js';
 
 /** #66 Um pedido pendente: a chave estável da entrada e a entrada em si. */
@@ -15,8 +15,23 @@ export type PendingResult<I> = { readonly requests: PendingRequest<I>[]; readonl
 export type ClaudeTask<I, O> = {
   /** #66 Nome gravado em claude_suggestions.task; o Worker lê por ele. */
   readonly name: string;
+  /** #12 Teto de pedidos desta tarefa a cada rodada; vale o menor entre ele e o da rodada. Sem ele, vale o da rodada. */
+  readonly limit?: number;
   /** #66 O que falta sugerir, lido do banco e estreitado por guard. O laço tira o que já está ok. */
   pending(db: Db): Promise<PendingResult<I>>;
-  /** #66 Pergunta ao Claude e devolve a saída já validada, pronta para gravar. */
-  run(input: I, ask: Ask): Promise<O>;
+  /**
+   * #230 Teto de pedidos desta tarefa por rodada, abaixo do teto do laço. Opcional: uma tarefa com tool use
+   * gasta várias chamadas à Messages API e leituras do banco por pedido, e o plano gratuito tem 50 subrequests.
+   */
+  readonly maxPerRun?: number;
+  /**
+   * #66 Pergunta ao Claude e devolve a saída já validada, pronta para gravar.
+   * #230 `converse` é o laço de tool use, só para a tarefa que oferece tools; sem ele, ela falha fechada.
+   */
+  run(input: I, ask: Ask, converse?: Converse): Promise<O>;
+  /**
+   * #130 Colunas a mais da linha gravada pelo laço, a partir do resultado (`error` ausente é ok). Opcional:
+   * só o dossiê grava `trigger`, `reason` e `latency_ms`; as outras tarefas deixam essas colunas nulas.
+   */
+  rowFields?(outcome: { readonly error?: unknown; readonly latencyMs: number }): Readonly<Record<string, unknown>>;
 };

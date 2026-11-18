@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Frame } from "../src/App";
 import { fallbackContext } from "../src/shell/context";
+import { texts } from "../src/texts";
 
 // #63 As telas da aprovação contra uma API falsa, com o formato de api/src/http/approval.ts.
 
@@ -112,8 +113,11 @@ describe("#128 exceção pelo nome na fila", () => {
 
 describe("#63 proposta e decisão", () => {
   it("AC-8 e AC-11: aprovar chama a API e mostra a decisão registrada", async () => {
-    respond = (method) =>
-      method === "POST"
+    respond = (method, path) =>
+      // #17 A proposta decidida abre o bloco do pedido ao fornecedor; sem pedido, o contrato responde 200 com request nulo.
+      path.startsWith("/api/supplier-requests/")
+        ? Response.json({ request: null })
+        : method === "POST"
         ? Response.json({
             approval: { approver: "c", approverLevel: "coordenacao", dockAction: { kind: "recusar" }, justification: "x", decidedOn: "2026-11-15" },
             title: { state: "bloqueado", amount: money(771_120) },
@@ -181,9 +185,10 @@ describe("#68 dossiê do Claude na gaveta da proposta", () => {
     respond = () =>
       Response.json({ ...detail(), dossier: { status: "unavailable", reason: "pending", notice: PENDING_NOTICE, generatedAt: null } });
     renderAt(`/pagar/fila/${KEY}`);
-    expect(await screen.findByText("Não há dossiê do Claude para esta proposta.")).toBeTruthy();
-    expect(screen.getByText(PENDING_NOTICE)).toBeTruthy();
-    expect(screen.queryByText("Dossiê do Claude")).toBeNull();
+    // #130 A gaveta convida a pedir o dossiê ao Claude, em vez do aviso de "não há dossiê".
+    expect(await screen.findByText(texts.dossier.notYet)).toBeTruthy();
+    expect(screen.getByRole("button", { name: texts.dossier.ask })).toBeTruthy();
+    expect(screen.queryByText("Não há dossiê do Claude para esta proposta.")).toBeNull();
     expect(screen.getByText("Sua decisão")).toBeTruthy();
   });
 });

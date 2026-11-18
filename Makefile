@@ -1,4 +1,4 @@
-.PHONY: check
+.PHONY: check eval
 
 BPMN := docs/processo/processo-atual.bpmn docs/processo/processo-alvo.bpmn
 
@@ -9,7 +9,9 @@ export NODE_AUTH_TOKEN ?= $(shell gh auth token 2>/dev/null)
 # Os testes online da base do kit (scripts/kit_online_test.py, #52) pulam sem as credenciais do Supabase.
 check:
 	@python3 scripts/validar_bpmn.py $(BPMN)
+	@python3 scripts/validar_migracoes.py
 	@python3 -m unittest discover -s scripts -p '*_test.py'
+	@python3 -m unittest discover -s eval -p '*_test.py'
 	@npm --prefix api ci --no-audit --no-fund --loglevel=error
 	@npm --prefix api run typecheck
 	@npm --prefix api test
@@ -17,3 +19,10 @@ check:
 	@npm --prefix web run typecheck
 	@npm --prefix web test
 	@npm --prefix web run build
+
+# O eval do auditor (#240): exporta as auditorias e as propostas da regra do banco (só leitura; lê
+# BARTE_ACADEMY_SUPABASE_URL e BARTE_ACADEMY_SUPABASE_SECRET_KEY do ambiente ou do .env na raiz) e mede o resultado.
+EVAL_AUDITS_FILE := eval/saidas/auditorias.jsonl
+eval:
+	@python3 scripts/export_audits.py $(EVAL_AUDITS_FILE)
+	@python3 eval/auditor.py $(EVAL_AUDITS_FILE) --format md

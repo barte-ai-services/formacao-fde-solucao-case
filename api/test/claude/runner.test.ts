@@ -257,6 +257,28 @@ describe('runTasks (#66)', () => {
   });
 });
 
+describe('limite por tarefa (#12)', () => { // ADR-002
+  const keys = ['a', 'b', 'c', 'd', 'e'];
+
+  it('o limite da tarefa vale quando é menor que o da rodada', async () => { // ADR-002
+    const { db, upserts } = fakeDb([]);
+    await runTasks({ db, ask: noAsk, tasks: [{ ...task(keys, echo), limit: 2 }], log: () => {}, limit: 4, now: clock });
+    expect(upserts).toHaveLength(2);
+  });
+
+  it('o limite da rodada vale quando é menor que o da tarefa', async () => { // ADR-002
+    const { db, upserts } = fakeDb([]);
+    await runTasks({ db, ask: noAsk, tasks: [{ ...task(keys, echo), limit: 4 }], log: () => {}, limit: 1, now: clock });
+    expect(upserts).toHaveLength(1);
+  });
+
+  it('sem limite na tarefa, vale o da rodada', async () => { // ADR-002
+    const { db, upserts } = fakeDb([]);
+    await runTasks({ db, ask: noAsk, tasks: [task(keys, echo)], log: () => {}, limit: 3, now: clock });
+    expect(upserts).toHaveLength(3);
+  });
+});
+
 describe('falha global do Claude (#171)', () => {
   it('429 interrompe a rodada sem gravar linha nem gastar tentativa, e conta a falha', async () => {
     const { db, upserts } = fakeDb([]);

@@ -186,6 +186,73 @@ describe('ClaudeClient: falhas (#171)', () => {
   });
 });
 
+/** #38 Resposta com o campo `usage` da Messages API. */
+function withUsage(content: unknown[], input_tokens: number, output_tokens: number): Response {
+  return new Response(JSON.stringify({ content, usage: { input_tokens, output_tokens } }), { status: 200 });
+}
+
+describe('ClaudeClient: uso de tokens do dossiê (#38)', () => {
+  const lookup: Tool = { name: 'buscar_nota', description: 'busca', input_schema: { type: 'object' }, handler: async () => 1 };
+  const opts = { system: 's', prompt: 'p', schema: SCHEMA };
+
+  it('askWithUsage devolve o valor e o uso da resposta', async () => {
+    const { fetch } = scripted([() => withUsage([answer({ match: 'x' })], 120, 30)]);
+    await expect(new ClaudeClient({ credentials: KEY, fetch }).askWithUsage(opts)).resolves.toEqual({
+      value: { match: 'x' },
+      usage: { input_tokens: 120, output_tokens: 30 },
+    });
+  });
+
+  it('soma o uso de todas as voltas do laço de tool use', async () => {
+    const { fetch } = scripted([
+      () => withUsage([{ type: 'tool_use', id: 'tu_1', name: 'buscar_nota', input: {} }], 100, 10),
+      () => withUsage([answer({ match: 'ok' })], 150, 25),
+    ]);
+    const out = await new ClaudeClient({ credentials: KEY, fetch }).converseWithUsage({ ...opts, tools: [lookup] });
+    expect(out).toEqual({ value: { match: 'ok' }, usage: { input_tokens: 250, output_tokens: 35 } });
+  });
+
+  it('o ask de sempre continua devolvendo só o valor', async () => {
+    const { fetch } = scripted([() => withUsage([answer({ match: 'x' })], 1, 1)]);
+    await expect(ask(new ClaudeClient({ credentials: KEY, fetch }))).resolves.toEqual({ match: 'x' });
+  });
+
+  it('resposta sem o campo usage: uso nulo', async () => {
+    const { fetch } = scripted([() => json([answer({ match: 'x' })])]);
+    expect((await new ClaudeClient({ credentials: KEY, fetch }).askWithUsage(opts)).usage).toBeNull();
+  });
+
+  it('falha antes de qualquer resposta (5xx, rede): o erro leva uso nulo', async () => {
+    const a = scripted([() => new Response('', { status: 500 })]);
+    expect(await new ClaudeClient({ credentials: KEY, fetch: a.fetch }).askWithUsage(opts).catch((e: unknown) => e)).toMatchObject({ kind: 'api', usage: null });
+    const rede: FetchFn = async () => { throw new Error('caiu'); };
+    expect(await new ClaudeClient({ credentials: KEY, fetch: rede }).askWithUsage(opts).catch((e: unknown) => e)).toMatchObject({ kind: 'network', usage: null });
+  });
+
+  it('falha depois de uma resposta (formato inválido): o erro leva o uso já gasto', async () => {
+    const { fetch } = scripted([() => withUsage([{ type: 'text', text: 'oi' }], 80, 12)]);
+    const error = await new ClaudeClient({ credentials: KEY, fetch }).askWithUsage(opts).catch((e: unknown) => e);
+    expect(error).toMatchObject({ kind: 'format', usage: { input_tokens: 80, output_tokens: 12 } });
+  });
+
+  it('voltas esgotadas: o erro leva a soma de todas as voltas', async () => {
+    const { fetch } = scripted([() => withUsage([{ type: 'tool_use', id: 'tu', name: 'buscar_nota', input: {} }], 50, 5)]);
+    const error = await new ClaudeClient({ credentials: KEY, fetch })
+      .converseWithUsage({ ...opts, tools: [lookup], maxTurns: 3 })
+      .catch((e: unknown) => e);
+    expect(error).toMatchObject({ kind: 'format', usage: { input_tokens: 150, output_tokens: 15 } });
+  });
+
+  it('a segunda volta cai (5xx): o erro leva o uso da primeira', async () => {
+    const { fetch } = scripted([
+      () => withUsage([{ type: 'tool_use', id: 'tu_1', name: 'buscar_nota', input: {} }], 100, 10),
+      () => new Response('', { status: 503 }),
+    ]);
+    const error = await new ClaudeClient({ credentials: KEY, fetch }).converseWithUsage({ ...opts, tools: [lookup] }).catch((e: unknown) => e);
+    expect(error).toMatchObject({ kind: 'api', usage: { input_tokens: 100, output_tokens: 10 } });
+  });
+});
+
 describe('runClaudeRound: o Cron falha fechado (#171)', () => {
   const rest = (calls: string[]): SupabaseRest =>
     ({
@@ -237,23 +304,5 @@ describe('runClaudeRound: o Cron falha fechado (#171)', () => {
     const text = storedError(new SupabaseRestError('select', 'kit_notas', 500, 'corpo-com-dado'));
     expect(text).toContain('HTTP 500');
     expect(text).not.toContain('corpo-com-dado');
-  });
-
-  it('uma rodada com a fila cheia gasta no máximo 2 subrequests por pedido, dentro dos 50 do plano gratuito', async () => {
-    const { runTasks } = await import('../../src/claude/runner.js');
-    const { CRON_LIMIT } = await import('../../src/claude/cron.js');
-    let subrequests = 0;
-    const db = {
-      select: async () => (subrequests += 1, []),
-      upsert: async () => (subrequests += 1, []),
-    };
-    const full = (name: string) => ({
-      name,
-      pending: async () => ({ requests: Array.from({ length: 30 }, (_, i) => ({ key: `${name}${i}`, input: i })), dropped: 0 }),
-      run: async () => (subrequests += 1, { r: 1 }),
-    });
-    await runTasks({ db, ask: async () => ({}) as never, tasks: [full('a'), full('b')], log: () => {}, limit: CRON_LIMIT });
-    expect(subrequests).toBeLessThanOrEqual(2 * 2 * CRON_LIMIT + 7);
-    expect(2 * 2 * CRON_LIMIT + 7).toBeLessThan(50);
   });
 });

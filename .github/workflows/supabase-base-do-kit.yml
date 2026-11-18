@@ -23,6 +23,9 @@ concurrency:
 
 jobs:
   aplicar:
+    # Os secrets BARTE_ACADEMY_* só existem no environment producao, que aceita só a main (#234):
+    # uma branch empurrada por quem tem escrita não chega a eles.
+    environment: producao
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

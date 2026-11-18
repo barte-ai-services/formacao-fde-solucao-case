@@ -40,4 +40,14 @@ export interface Env {
    * trocar de via muda só o secret, não o código.
    */
   BARTE_ACADEMY_ANTHROPIC_API_KEY?: string;
+  /**
+   * #41 O binding do Workers AI, por onde o motor de decisão chama o Clef, sem chave à parte. Vem do
+   * `wrangler.jsonc` (`"ai": { "binding": "ai" }`). Ausente nos testes e no `wrangler dev` sem a conta: o motor pula a rodada.
+   */
+  ai?: Ai;
+  /**
+   * #13 Chave do Resend, secret do Worker (#2/AC-6). Sem ela, o envio do pedido ao fornecedor vai pela caixa de saída mock;
+   * só se olha se está em branco, o valor nunca é lido nem registrado.
+   */
+  RESEND_API_KEY?: string;
 }

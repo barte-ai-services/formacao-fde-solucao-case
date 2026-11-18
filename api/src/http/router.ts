@@ -12,7 +12,9 @@ import { me } from "./me";
 import { adminRoutes } from "./admin";
 import { automation } from "./automation";
 import { barredAmount } from "./barred-amount";
+import { engineAgreement } from "./engine";
 import { returnNoteRoutes, type ReturnNotesDeps } from "./return-notes";
+import { supplierRequestRoutes, type SupplierRequestsDeps } from "./supplier-requests";
 
 type PublicHandler = () => Response;
 type ProtectedHandler = (identity: Identity, request: Request, env: Env) => Response | Promise<Response>;
@@ -34,6 +36,7 @@ function protectedRoutes(deps: RouterDeps): Record<string, Record<string, Protec
     "/me": { GET: me },
     "/api/valor-barrado": { GET: barredAmount },
     "/api/automacao": { GET: automation },
+    "/api/motor/acerto": { GET: engineAgreement },
     "/api/doca": { GET: (_identity, request, env) => dock(request, env) },
     "/api/recebimento-loja": { GET: (_identity, request, env) => storeReceiving(request, env) },
     "/api/duplicates": { GET: (_identity, _request, env) => listDuplicates(duplicates(env)) },
@@ -51,6 +54,8 @@ export interface RouterDeps {
   dock?: DockDeps;
   /** #140 A fila de notas de devolução. Padrão: o Supabase do Env. */
   returnNotes?: ReturnNotesDeps;
+  /** #13 O pedido ao fornecedor: Supabase, relógio, envio e Claude injetáveis. Padrão: o Env. */
+  supplierRequests?: SupplierRequestsDeps;
   /** Leitura das duplicidades (#31/AC-6). Padrão: o Supabase, se o env tem as credenciais. */
   duplicates?: (env: Env) => DuplicatesReader;
 }
@@ -70,7 +75,7 @@ function defaultDuplicates(env: Env): DuplicatesReader {
  * Rota desconhecida: a tela (#60), se for um GET ou HEAD fora de `/api/` e os arquivos dela
  * existirem; senão 404. Método não aceito: 405.
  */
-export async function route(request: Request, env: Env, deps: RouterDeps): Promise<Response> {
+export async function route(request: Request, env: Env, deps: RouterDeps, ctx?: ExecutionContext): Promise<Response> {
   const { pathname } = new URL(request.url);
   const open = own(publicRoutes, pathname);
   if (open) return dispatch(request, open, (handler) => handler());
@@ -85,14 +90,19 @@ export async function route(request: Request, env: Env, deps: RouterDeps): Promi
     typeof deps.approval === "function"
       ? deps.approval(env)
       : (deps.approval ?? { store: new MemoryApprovalStore() }),
+    // #130 O dossiê pedido na gaveta roda depois da resposta, pelo waitUntil do Worker.
+    ctx ? (work) => ctx.waitUntil(work) : undefined,
   );
   if (approval) return approval;
 
-  const admin = await adminRoutes(request, auth.identity, env);
+  const admin = await adminRoutes(request, auth.identity, env, ctx ? (work) => ctx.waitUntil(work) : undefined);
   if (admin) return admin;
 
   const returnNotes = await returnNoteRoutes(request, auth.identity, env, deps.returnNotes ?? {}, supabaseFromEnv);
   if (returnNotes) return returnNotes;
+
+  const supplierRequests = await supplierRequestRoutes(request, auth.identity, env, deps.supplierRequests ?? {}, supabaseFromEnv);
+  if (supplierRequests) return supplierRequests;
 
   const methods = own(protectedRoutes(deps), pathname);
   if (methods) return dispatch(request, methods, (handler) => handler(auth.identity, request, env));

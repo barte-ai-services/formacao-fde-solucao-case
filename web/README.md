@@ -13,8 +13,9 @@ NODE_AUTH_TOKEN=$(gh auth token) npm --prefix web ci && npm --prefix web run dev
 ```
 
 Em dev, o Vite repassa `/me` e `/api/...` ao `wrangler dev` da pasta `api/` (porta 8787). Sem a API
-de pé, a moldura abre com o contexto fixo e a pessoa anônima. Com `VITE_SHELL_URL`, o contexto vem
-do Shell.
+de pé, a moldura abre com o contexto fixo e a pessoa anônima, e as telas mostram o erro com "Tentar de novo".
+As rotas `/api/...` pedem o token do Cloudflare Access, que o dev local não tem. Com `VITE_SHELL_URL`, o contexto
+vem do Shell.
 
 Na raiz, `make check` roda o typecheck, os testes e o build daqui junto com o resto do gate.
 

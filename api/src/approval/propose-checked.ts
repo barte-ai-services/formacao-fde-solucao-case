@@ -9,6 +9,7 @@ import { ApprovalPolicy } from '../domain/approval-policy.js';
 import { priceDifference } from '../domain/checks/nao-catalogada.js';
 import { draftNotaSemOrdem, resolveProbableOrder } from '../domain/probable-order.js';
 import type { CheckContext } from '../domain/context.js';
+import type { InvoiceView } from '../domain/invoice.js';
 import { Title } from '../domain/title.js';
 import { todayInBrasilia } from '../http/approval.js';
 import { dockActionToJson, loadCheckedInvoices } from './supabase-store.js';
@@ -29,6 +30,12 @@ export type ProposeResult = {
   readonly proposed: number;
   /** #63 Delas, as que a régua aprovou sem pessoa e foram para a lista do dia (AC-1). */
   readonly approvedByRule: number;
+  /**
+   * #38 Delas, as que a régua encaminhou a uma pessoa (nível acima de regra): o evento que dispara o
+   * dossiê reativo, sem rodada agendada (AC-1). Só as registradas nesta chamada — a restrição única de
+   * `proposals` garante que uma nota não entra aqui duas vezes em rodadas diferentes.
+   */
+  readonly awaitingApproval: readonly InvoiceView[];
 };
 
 /**
@@ -38,7 +45,7 @@ export type ProposeResult = {
  */
 export async function proposeChecked(deps: ProposeDeps): Promise<ProposeResult> {
   const invoices = await loadCheckedInvoices(deps.rest);
-  if (invoices.length === 0) return { proposed: 0, approvedByRule: 0 };
+  if (invoices.length === 0) return { proposed: 0, approvedByRule: 0, awaitingApproval: [] };
   const now = (deps.now ?? (() => new Date()))();
   const today = todayInBrasilia(now);
   const e5Keys = invoices.filter((i) => i.classification === 'E5').map((i) => i.accessKey);
@@ -129,5 +136,8 @@ export async function proposeChecked(deps: ProposeDeps): Promise<ProposeResult> 
       { state },
     );
   }
-  return { proposed: fresh.length, approvedByRule: byRule.length };
+  // #38 As que a régua não decidiu sozinha (approval === null) são exatamente as que esperam uma pessoa
+  // (needsDossier, em claude/tasks/dossier.ts, confere o mesmo): o evento do dossiê dispara para estas.
+  const awaitingApproval = fresh.filter((p) => p.approval === null).map((p) => p.invoice);
+  return { proposed: fresh.length, approvedByRule: byRule.length, awaitingApproval };
 }
