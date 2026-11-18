@@ -39,7 +39,7 @@ function protectedRoutes(deps: RouterDeps): Record<string, Record<string, Protec
     "/api/motor/acerto": { GET: engineAgreement },
     "/api/doca": { GET: (_identity, request, env) => dock(request, env) },
     "/api/recebimento-loja": { GET: (_identity, request, env) => storeReceiving(request, env) },
-    "/api/duplicates": { GET: (_identity, _request, env) => listDuplicates(duplicates(env)) },
+    "/api/duplicates": { GET: (_identity, request, env) => listDuplicates(duplicates(env), new URL(request.url).searchParams) },
   };
 }
 
