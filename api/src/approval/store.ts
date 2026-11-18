@@ -38,6 +38,8 @@ export type CaseFile = {
   readonly supplierBlocked: boolean;
   /** #230 AC-7 A auditoria da nota; null = ainda não auditada. Só `find` a carrega. */
   readonly audit?: StoredAudit | null;
+  /** #295 A versão da proposta quando foi lida (`proposals.version`); a loja em memória não tem. */
+  readonly version?: number;
 };
 
 export interface ApprovalStore {
@@ -59,6 +61,19 @@ export class AlreadyDecidedError extends Error {
   constructor(invoiceAccessKey: string) {
     super(`Proposta da nota ${invoiceAccessKey} já foi decidida`);
     this.name = 'AlreadyDecidedError';
+  }
+}
+
+/**
+ * #295 A proposta mudou entre a leitura e a gravação da decisão (a versão lida não é mais a atual): nada foi gravado.
+ * Estende `AlreadyDecidedError` de propósito: a API (`http/approval.ts`) já responde 409 a ele e o motor
+ * (`engine/delegated.ts`) já deixa a proposta com a pessoa; quem decide de novo lê a proposta como ela está agora.
+ */
+export class ProposalVersionConflictError extends AlreadyDecidedError {
+  constructor(invoiceAccessKey: string) {
+    super(invoiceAccessKey);
+    this.name = 'ProposalVersionConflictError';
+    this.message = `Proposta da nota ${invoiceAccessKey} mudou desde a leitura`;
   }
 }
 
