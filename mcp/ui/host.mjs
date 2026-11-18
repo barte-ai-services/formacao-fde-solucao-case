@@ -1,4 +1,4 @@
-// O host falso do MCP App: fala com a tela só por postMessage, como o Claude faria (extensão io.modelcontextprotocol/ui).
+// O host falso do MCP App: fala com a tela só por postMessage, como o Claude faria (extensão io.modelcontextprotocol/ui) (#274).
 import { readFileSync } from "node:fs";
 import { JSDOM } from "jsdom";
 
@@ -18,7 +18,7 @@ export function openScreen(routes = {}) {
     setTimeout(() => deliver({ jsonrpc: "2.0", id, ...payload }), 0);
 
   function receive(raw) {
-    const message = JSON.parse(JSON.stringify(raw)); // sai do mundo do jsdom, como num postMessage de verdade
+    const message = JSON.parse(JSON.stringify(raw)); // sai do mundo do jsdom, como num postMessage de verdade (#274)
     sent.push(message);
     if (message.method === "ui/initialize") {
       reply(message.id, {
@@ -46,7 +46,7 @@ export function openScreen(routes = {}) {
     pretendToBeVisual: true,
     url: "https://host.exemplo/",
     beforeParse(window) {
-      window.postMessage = receive; // a tela escreve em window.parent, que no jsdom é a própria janela
+      window.postMessage = receive; // a tela escreve em window.parent, que no jsdom é a própria janela (#274)
     },
   });
   const document = dom.window.document;
@@ -56,9 +56,9 @@ export function openScreen(routes = {}) {
     calls,
     document,
     window: dom.window,
-    /** Os resultados de `name` já pedidos pela tela, só os argumentos. */
+    /** Os resultados de `name` já pedidos pela tela, só os argumentos. (#274) */
     callsOf: (name) => calls.filter((c) => c.name === name).map((c) => c.arguments),
-    /** O que o Claude faz ao chamar open_approval_app: manda o input e o resultado para a tela. */
+    /** O que o Claude faz ao chamar open_approval_app: manda o input e o resultado para a tela. (#274) */
     async openApp(structured = { view: "queue", invoice_access_key: null }) {
       await flush();
       deliver({ jsonrpc: "2.0", method: "ui/notifications/tool-input", params: { arguments: { view: structured.view } } });

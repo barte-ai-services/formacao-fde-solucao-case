@@ -90,8 +90,8 @@ def queue(
     for line in items:
         item = queue_item(line)
         if item["can_decide"]:
-            # #274 o cabeçalho "N propostas esperando você · R$ X em risco" é desta tool: a tela não conta nem soma.
-            # Vale para toda a fila da pessoa, qualquer que seja o escopo ou o filtro da listagem.
+            # #274 o cabeçalho "N propostas esperando você · R$ X em risco" é desta tool: a tela não conta nem soma;
+            # vale para toda a fila da pessoa, qualquer que seja o escopo ou o filtro da listagem (#274).
             cents = (item["amount_at_risk"] or {}).get("cents")
             if not isinstance(cents, int) or isinstance(cents, bool):
                 raise ValueError("valor em risco fora do contrato")
@@ -315,11 +315,34 @@ def _audit(audit: JsonValue) -> Optional[JsonObject]:
 
 # #274 Porte de web/src/approval/partial-prefill.ts: só o E3 devolve, e só a diferença; as demais seguram o item inteiro.
 _RETURNS = ("E3",)
-_COUNTED = re.compile(r"^Contado ([\d.]+) \S+ de ([\d.]+) \S+: (.+)$")
+_COUNTED = re.compile(r"^Contado (\d+(?:\.\d+)?) \S+ de (\d+(?:\.\d+)?) \S+: (.+)$")
 
 
 def _number(value: float) -> float | int:
     return int(value) if float(value).is_integer() else value
+
+
+def _counted_difference(divergence: JsonObject, item: JsonObject, amount: float) -> float:
+    """#274: a diferença entre o esperado e o contado, citada na evidência do E3; sem evidência, a quantidade do item."""
+    for evidence in divergence.get("evidence") or []:
+        counted = _COUNTED.match(str(evidence.get("description"))) if isinstance(evidence, dict) else None
+        if counted and counted.group(3) == item.get("description"):
+            # #274 Arredonda: 1,5 - 1,2 não pode virar 0.30000000000000004 no campo.
+            return _number(round((float(counted.group(2)) - float(counted.group(1))) * 1000) / 1000)
+    return amount
+
+
+def _line_for(divergence: JsonObject, item: JsonObject, sku: str, quantity: JsonObject) -> JsonObject:
+    """#274: a linha do receber parcial para o item que a divergência cita."""
+    code = divergence.get("classification")
+    amount = quantity.get("amount")
+    if code == "E3" and isinstance(amount, (int, float)):
+        amount = _counted_difference(divergence, item, amount)
+    return {
+        "sku": sku,
+        "quantity": {"amount": amount, "unit": quantity.get("unit")},
+        "disposition": "devolver" if code in _RETURNS else "segurar",
+    }
 
 
 def _partial_lines(body: JsonObject) -> list[JsonValue]:
@@ -330,24 +353,11 @@ def _partial_lines(body: JsonObject) -> list[JsonValue]:
     for divergence in body.get("divergences") or []:
         if not isinstance(divergence, dict):
             continue
-        code = divergence.get("classification")
         for sku in divergence.get("skus") or []:
             item = next((i for i in items if (i.get("sku") or i.get("supplierCode")) == sku), None)
             quantity = item.get("quantity") if item else None
-            if item is None or sku in lines or not isinstance(quantity, dict):
-                continue
-            amount = quantity.get("amount")
-            if code == "E3" and isinstance(amount, (int, float)):
-                for evidence in divergence.get("evidence") or []:
-                    counted = _COUNTED.match(str(evidence.get("description"))) if isinstance(evidence, dict) else None
-                    if counted and counted.group(3) == item.get("description"):
-                        # Arredonda: 1,5 - 1,2 não pode virar 0.30000000000000004 no campo.
-                        amount = _number(round((float(counted.group(2)) - float(counted.group(1))) * 1000) / 1000)
-            lines[sku] = {
-                "sku": sku,
-                "quantity": {"amount": amount, "unit": quantity.get("unit")},
-                "disposition": "devolver" if code in _RETURNS else "segurar",
-            }
+            if item is not None and sku not in lines and isinstance(quantity, dict):
+                lines[sku] = _line_for(divergence, item, sku, quantity)
     return list(lines.values())
 
 

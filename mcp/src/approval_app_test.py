@@ -109,7 +109,7 @@ class ResourcesTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(content["mimeType"], MIME)
         self.assertEqual(content["text"], approval_screen.APPROVAL_HTML)
         self.assertTrue(content["text"].lstrip().lower().startswith("<!doctype html>"))
-        # O host abre a tela sem rede: nenhuma origem externa liberada.
+        # O host abre a tela sem rede: nenhuma origem externa liberada (#274).
         self.assertEqual(content["_meta"]["ui"]["csp"], {"connectDomains": [], "resourceDomains": []})
 
     async def test_ac1_resources_read_nao_exige_sessao(self) -> None:  # ADR-002

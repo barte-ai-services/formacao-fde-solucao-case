@@ -1,5 +1,5 @@
-// Os resultados das tools como o servidor os devolve (snake_case, dinheiro { cents, text }), para o host falso.
-// A tela só mostra o que está aqui: o teste confere que nenhum número aparece sem ter vindo deste arquivo.
+// Os resultados das tools como o servidor os devolve (snake_case, dinheiro { cents, text }), para o host falso (#274).
+// A tela só mostra o que está aqui: o teste confere que nenhum número aparece sem ter vindo deste arquivo (#274).
 
 export const KEY = "35261174055489000148550010000438941174512643";
 export const OTHER_KEY = "35261174055489000148550010000204601174512644";
@@ -51,7 +51,7 @@ export const ITEM_BLOCKED = queueItem({
   can_decide: false,
 });
 
-// O cabeçalho vem da tool (12 propostas, R$ 84.310,20), e não é a soma das linhas da lista: a tela não soma.
+// O cabeçalho vem da tool (12 propostas, R$ 84.310,20), e não é a soma das linhas da lista: a tela não soma (#274).
 export function queueOutput(items = [queueItem(), ITEM_E3], over = {}) {
   return {
     approver: { email: "ana@exemplo.com", level: "analista" },
@@ -112,14 +112,14 @@ export function decisionOutput(over = {}) {
   return {
     approval: {
       approver: "ana@exemplo.com", approver_level: "analista", decided_at: "2026-11-18", decision: "approve",
-      decided_hour: "10h12", dock_action: { kind: "receber" }, justification: "",
+      decided_hour: null, dock_action: { kind: "receber" }, justification: "", // #274 a API só grava o dia: a hora vem null
     },
     title_state: "na_lista_do_dia",
     ...over,
   };
 }
 
-// O resultado de uma tool como o host o entrega à tela (CallToolResult).
+// O resultado de uma tool como o host o entrega à tela (CallToolResult) (#274).
 export function ok(structured) {
   return { content: [{ type: "text", text: JSON.stringify(structured) }], structuredContent: structured, isError: false };
 }

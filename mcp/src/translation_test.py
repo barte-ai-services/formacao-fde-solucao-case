@@ -227,6 +227,10 @@ class ProposedPartialLinesTest(unittest.TestCase):
         found = self.lines([divergence("E3", ["S1"], "Contado 1.2 UN de 1.5 UN: Arroz 5kg")])
         self.assertEqual(found, [{"sku": "S1", "quantity": {"amount": 0.3, "unit": "UN"}, "disposition": "devolver"}])
 
+    def test_contagem_malformada_nao_derruba_a_proposta(self) -> None:  # #274
+        found = self.lines([divergence("E3", ["S1"], "Contado 1.2.3 UN de 4 UN: Arroz 5kg")])
+        self.assertEqual(found, [{"sku": "S1", "quantity": {"amount": 10, "unit": "UN"}, "disposition": "devolver"}])
+
     def test_as_outras_excecoes_seguram_o_item_inteiro_na_unidade_dele(self) -> None:  # ADR-002
         for code in ("E1", "E2", "E4"):
             found = self.lines([divergence(code, ["S1", "S2"])])

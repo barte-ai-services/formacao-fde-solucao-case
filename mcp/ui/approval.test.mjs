@@ -12,14 +12,14 @@ import { openScreen } from "./host.mjs";
 let screen = null;
 afterEach(() => screen?.close());
 
-/** Abre a tela com as rotas dadas e a fila pedida pelo Claude. */
+/** Abre a tela com as rotas dadas e a fila pedida pelo Claude. (#274) */
 async function openQueue(routes = {}, view = { view: "queue", invoice_access_key: null }) {
   screen = openScreen({ list_approval_queue: () => ok(queueOutput()), ...routes });
   await screen.openApp(view);
   return screen;
 }
 
-/** Abre a proposta de `KEY` pela fila, clicando na linha. */
+/** Abre a proposta de `KEY` pela fila, clicando na linha. (#274) */
 async function openProposal(proposal = proposalOutput(), routes = {}) {
   await openQueue({ get_proposal: () => ok(proposal), ...routes });
   await screen.click(screen.$(`tr[data-key="${KEY}"]`));
@@ -28,6 +28,36 @@ async function openProposal(proposal = proposalOutput(), routes = {}) {
 
 const headers = () => screen.$$("table[data-table=queue] th").map((th) => screen.text(th));
 const cells = (row) => screen.$$("td", row).map((td) => screen.text(td));
+
+describe("respostas atrasadas (#274)", () => {
+  const later = () => {
+    let release = () => {};
+    const promise = new Promise((resolve) => { release = resolve; });
+    return { promise, release };
+  };
+
+  test("voltar à Fila antes de get_proposal responder não deixa a proposta cobrir a fila", async () => {
+    const slow = later();
+    await openQueue({ get_proposal: () => slow.promise });
+    await screen.click(screen.$(`tr[data-key="${KEY}"]`));
+    await screen.click(screen.$("button[data-action=back]"));
+    slow.release(ok(proposalOutput()));
+    await screen.flush();
+    assert.notEqual(screen.$("[data-screen=queue]"), null);
+    assert.equal(screen.$("[data-screen=proposal]"), null);
+  });
+
+  test("um tool-result que chega com a proposta carregando vence a resposta antiga", async () => {
+    const slow = later();
+    await openQueue({ get_proposal: () => slow.promise });
+    await screen.click(screen.$(`tr[data-key="${KEY}"]`));
+    await screen.openApp({ view: "queue", invoice_access_key: null });
+    slow.release(ok(proposalOutput()));
+    await screen.flush();
+    assert.notEqual(screen.$("[data-screen=queue]"), null);
+    assert.equal(screen.$("[data-screen=proposal]"), null);
+  });
+});
 
 describe("o protocolo do MCP App", () => {
   test("AC-1: inicia com ui/initialize, avisa que iniciou e só chama tool depois do resultado de open_approval_app", async () => {
@@ -527,7 +557,7 @@ describe("Sua decisão", () => {
     await screen.click(screen.$(`tr[data-key="${KEY}"]`));
     await screen.click(register());
     const seal = screen.$("[data-state=decided]");
-    assert.equal(screen.text(seal), "Decidida por você às 10h12 · Receber");
+    assert.equal(screen.text(seal), "Decidida por você · Receber");
     assert.equal(seal.classList.contains("seal-ok"), true);
     assert.equal(screen.$("[data-block=decision]"), null);
     assert.equal(screen.$("button[data-action=register]"), null);
@@ -536,12 +566,18 @@ describe("Sua decisão", () => {
     assert.notEqual(screen.$(`tr[data-key="${OTHER_KEY}"]`), null);
   });
 
-  test("AC-4: o selo sem a hora da tool não inventa uma", async () => {
-    const output = decisionOutput();
-    output.approval.decided_hour = null;
-    await openProposal(proposalOutput(), { decide_proposal: () => ok(output) });
+  test("AC-4: o selo sem a hora da tool não inventa uma (#274: a API só grava o dia)", async () => {
+    await openProposal(proposalOutput(), { decide_proposal: () => ok(decisionOutput()) });
     await screen.click(register());
     assert.equal(screen.text(screen.$("[data-state=decided]")), "Decidida por você · Receber");
+  });
+
+  test("AC-4: o selo mostra a hora quando a tool a devolve (#274)", async () => {
+    const output = decisionOutput();
+    output.approval.decided_hour = "10h12";
+    await openProposal(proposalOutput(), { decide_proposal: () => ok(output) });
+    await screen.click(register());
+    assert.equal(screen.text(screen.$("[data-state=decided]")), "Decidida por você às 10h12 · Receber");
   });
 
   test("AC-4: a ação do selo é a que a tool gravou, ao alterar", async () => {
@@ -552,7 +588,7 @@ describe("Sua decisão", () => {
     await screen.check(choice("recusar"));
     await screen.type(screen.$("textarea[data-field=justification]"), "Produto errado");
     await screen.click(register());
-    assert.equal(screen.text(screen.$("[data-state=decided]")), "Decidida por você às 10h12 · Recusar");
+    assert.equal(screen.text(screen.$("[data-state=decided]")), "Decidida por você · Recusar");
   });
 
   test("AC-4: já decidida por outra pessoa mostra o aviso amarelo e recarrega a proposta", async () => {
@@ -598,15 +634,15 @@ describe("Sua decisão", () => {
     assert.equal(screen.$("button[data-action=register]"), null);
   });
 
-  test("AC-4: sessão expirada ao registrar mostra o aviso e Entrar, que registra de novo", async () => {
-    let expired = true;
-    await openProposal(proposalOutput(), { decide_proposal: () => (expired ? fail("session_expired", SESSION_EXPIRED) : ok(decisionOutput())) });
+  test("AC-4: sessão expirada ao registrar mostra o aviso; Entrar só limpa o aviso e não chama decide_proposal (#274, #275)", async () => {
+    await openProposal(proposalOutput(), { decide_proposal: () => fail("session_expired", SESSION_EXPIRED) });
     await screen.click(register());
     assert.equal(screen.text(screen.$("[data-state=session-expired]")), `${SESSION_EXPIRED} Entrar`);
-    expired = false;
+    assert.equal(decideCalls().length, 1);
     await screen.click(screen.$("[data-action=sign-in]"));
-    assert.equal(decideCalls().length, 2, "Entrar repete o pedido que falhou, a pedido da pessoa");
-    assert.match(screen.text(screen.$("[data-state=decided]")), /Decidida por você/);
+    assert.equal(decideCalls().length, 1, "decide_proposal só sai no clique em Registrar");
+    assert.equal(screen.$("[data-state=session-expired]"), null);
+    assert.notEqual(screen.$("button[data-action=register]"), null);
   });
 
   test("AC-4: falha ao registrar mostra a mensagem da tool e mantém o bloco para tentar de novo", async () => {
@@ -645,11 +681,11 @@ describe("AC-5: a tela não calcula nem inventa número", () => {
     const proposal = proposalOutput();
     const queue = queueOutput([queueItem(), ITEM_E3, ITEM_BLOCKED]);
     await openQueue({ list_approval_queue: () => ok(queue), get_proposal: () => ok(proposal) });
-    // Os filtros de exceção listam E1 a E8, rótulos do glossário e não dado: ficam de fora da conferência.
+    // Os filtros de exceção listam E1 a E8, rótulos do glossário e não dado: ficam de fora da conferência (#274).
     const visibleText = () => {
       const copy = screen.document.body.cloneNode(true);
       copy.querySelectorAll("[data-filter], script, style").forEach((filter) => filter.remove());
-      copy.querySelectorAll("*").forEach((element) => element.append(" ")); // separa as células, como a vista separa
+      copy.querySelectorAll("*").forEach((element) => element.append(" ")); // separa as células, como a vista separa (#274)
       return copy.textContent.replace(/\s+/g, " ");
     };
     const seen = [visibleText()];

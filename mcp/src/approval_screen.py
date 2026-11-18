@@ -14,13 +14,14 @@ APPROVAL_HTML = """<!doctype html>
   /* Os tokens do barte-design-tokens (a base do barte-ui-kit), tema claro, embutidos: a tela não carrega o kit. */
   :root {
     color-scheme: light;
+    --title-size: 1.25rem; /* local da tela (#274): não é token do kit */
     --bg-primary: #fefefe; --bg-secondary: #f9f9f9; --bg-tertiary: #efefef; --bg-brand: #df285d;
     --content-primary: #171717; --content-secondary: #404040; --content-tertiary: #737373; --content-alwaysLight: #fefefe;
     --stroke-primary: #efefef; --stroke-brand: #df285d; --actions-bg-pressed: #ce1b4f;
     --accent-green: #169e72; --accent-green-light: #d2fff1; --accent-green-dark: #12805c;
     --accent-red: #d63939; --accent-red-light: #f7e0e0; --accent-red-dark: #c62828;
     --accent-orange: #ec9732; --accent-orange-light: #fff0db; --accent-yellow-dark: #935019;
-    --accent-blue: #1fa3d4; --accent-blue-light: #e1f7ff; --accent-blue-dark: #00749e;
+    --accent-blue-light: #e1f7ff; --accent-blue-dark: #00749e;
     --border-width-sm: 0.0625rem; --border-radius-sm: 0.25rem; --border-radius-md: 0.375rem; --border-radius-lg: 0.5rem;
     --border-radius-xl: 0.75rem; --border-radius-full: 624.9375rem;
     --spacing-2xs: 0.125rem; --spacing-xs: 0.25rem; --spacing-sm: 0.5rem; --spacing-md: 0.75rem; --spacing-xl: 1rem;
@@ -28,7 +29,6 @@ APPROVAL_HTML = """<!doctype html>
     --typography-fontFamily: Inter;
     --typography-body-sm-fontSize: 0.875rem; --typography-body-sm-lineHeight: 1.429;
     --typography-body-xs-fontSize: 0.75rem; --typography-body-xs-lineHeight: 1.333;
-    --typography-title-fontSize: 1.25rem;
   }
   * { box-sizing: border-box; }
   body {
@@ -36,7 +36,7 @@ APPROVAL_HTML = """<!doctype html>
     font-family: var(--typography-fontFamily), system-ui, sans-serif;
     font-size: var(--typography-body-sm-fontSize); line-height: var(--typography-body-sm-lineHeight);
   }
-  h1 { margin: 0; font-size: var(--typography-title-fontSize); line-height: 1.3; font-weight: 600; }
+  h1 { margin: 0; font-size: var(--title-size); line-height: 1.3; font-weight: 600; }
   h2 { margin: 0 0 var(--spacing-sm); font-size: var(--typography-body-sm-fontSize); font-weight: 600; color: var(--content-secondary); }
   h2.ai::before { content: "\\2726  "; color: var(--bg-brand); }
   p { margin: 0 0 var(--spacing-sm); }
@@ -257,6 +257,7 @@ function onToolResult(params) {
   const result = params && params.structuredContent;
   if (params && params.isError) {
     const message = result && typeof result.message === "string" ? result.message : GENERIC_FAILURE;
+    screenSerial += 1;
     show(errorState({ code: "unavailable", message }));
   } else if (result && result.view === "proposal" && typeof result.invoice_access_key === "string") {
     showProposal(result.invoice_access_key);
@@ -273,12 +274,15 @@ function onToolResult(params) {
 const queueState = { scope: "mine", classification: "", level: "" };
 let queueView = null;
 let queueSerial = 0;
+// #274 Conta as telas abertas: a resposta de uma tela que já foi trocada não desenha por cima da atual.
+let screenSerial = 0;
 
 function filtersActive() {
   return queueState.classification !== "" || queueState.level !== "";
 }
 
 function showQueue() {
+  screenSerial += 1;
   const scopeButton = (scope, label) =>
     h("button", { type: "button", "data-scope": scope, "aria-pressed": String(queueState.scope === scope), onclick: () => chooseScope(scope) }, label);
   const filter = (name, label, allLabel, options) => {
@@ -392,8 +396,10 @@ function backButton() {
 }
 
 async function showProposal(key, options) {
+  const screenId = ++screenSerial;
   show(h("section", { "data-screen": "proposal", class: "stack" }, h("div", { class: "row" }, backButton()), skeleton()));
   const reply = await callTool("get_proposal", { invoice_access_key: key });
+  if (screenId !== screenSerial) return; // #274 a pessoa já saiu desta proposta
   if (reply.error) {
     show(h("section", { "data-screen": "proposal", class: "stack" }, h("div", { class: "row" }, backButton()),
       errorState(reply.error, () => showProposal(key))));
@@ -452,7 +458,7 @@ function engineBlock(p) {
     h("p", { "data-field": "engine-verdict" }, parts.join(" · ")),
     e.mode ? h("p", { "data-field": "engine-mode", class: "muted" }, e.mode === "delegated" ? "Modo delegado" : "Modo sombra: só registra o que faria") : null,
     e.reason ? h("p", { "data-field": "engine-reason", class: "quote" }, `“${e.reason}”`) : null,
-    typeof e.similar_cases_count === "number" ? h("p", { "data-field": "engine-similar", class: "muted" }, `Casos parecidos: ${e.similar_cases_count}`) : null);
+    /* #138 a API ainda não emite similar_cases: a contagem aparece só quando vier, sem abrir a lista. */ typeof e.similar_cases_count === "number" ? h("p", { "data-field": "engine-similar", class: "muted" }, `Casos parecidos: ${e.similar_cases_count}`) : null);
 }
 
 function auditBlock(p) {
@@ -599,7 +605,8 @@ function decisionBlock(p) {
     if (code === "already_decided") { showProposal(p.invoice_access_key, { notice: message }); return; }
     if (code === "forbidden_level") { root.replaceWith(h("section", { "data-block": "decision", class: "panel" }, h("h2", null, "Sua decisão"), h("p", { "data-state": "forbidden", class: "notice notice-info" }, message))); return; }
     if (code === "justification_required") { markInvalid(message); return; }
-    errorSlot.replaceChildren(errorState(reply.error, code === "session_expired" ? send : null));
+    // #274 Na decisão, Entrar só limpa o aviso: decide_proposal sai só no clique em Registrar. O link de login do Access entra na #275.
+    errorSlot.replaceChildren(errorState(reply.error, code === "session_expired" ? () => errorSlot.replaceChildren() : null));
   };
   register.addEventListener("click", send);
 
@@ -659,6 +666,7 @@ function decidedSeal(approval) {
 // 3. Relatório do motor (a #138 traz o dado)
 
 function showReport() {
+  screenSerial += 1;
   show(h("section", { "data-screen": "report", class: "stack" }, h("div", { class: "row" }, backButton()),
     h("div", { "data-state": "report", class: "notice notice-info" }, h("p", null, "O relatório do motor chega na #138."))));
 }

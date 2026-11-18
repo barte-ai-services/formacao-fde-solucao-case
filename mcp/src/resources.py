@@ -11,7 +11,7 @@ from json_types import JsonObject
 from protocol import MethodCall, Server
 from tools import APPROVAL_APP_URI
 
-APP_MIME_TYPE = "text/html;profile=mcp-app"  # a extensão MCP Apps (io.modelcontextprotocol/ui)
+APP_MIME_TYPE = "text/html;profile=mcp-app"  # a extensão MCP Apps (io.modelcontextprotocol/ui) (#274)
 _APPROVAL_NAME = "Fila de aprovação"
 _APPROVAL_DESCRIPTION = "A tela do analista: a fila de aprovação, a proposta e a decisão."
 
@@ -36,7 +36,7 @@ async def _resources_read(call: MethodCall) -> JsonObject:
                 "uri": APPROVAL_APP_URI,
                 "mimeType": APP_MIME_TYPE,
                 "text": APPROVAL_HTML,
-                # Sem rede: a tela não busca nada de fora, então o host não libera nenhuma origem.
+                # Sem rede: a tela não busca nada de fora, então o host não libera nenhuma origem (#274).
                 "_meta": {"ui": {"csp": {"connectDomains": [], "resourceDomains": []}, "prefersBorder": False}},
             }
         ]
