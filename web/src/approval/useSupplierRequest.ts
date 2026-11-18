@@ -48,19 +48,28 @@ export function useSupplierRequest(port: SupplierRequestPort, accessKey: string,
   useEffect(() => {
     if (!polling) return undefined;
     const controller = new AbortController();
-    const timer = setInterval(() => {
-      portRef.current
-        .load(accessKey, controller.signal)
-        .then((request) => {
-          if (!controller.signal.aborted) dispatch({ type: "loaded", request });
-        })
-        // #3/AC-9 Uma consulta que falha conta; com 5 seguidas o estado para a consulta e mostra a falha de carga.
-        .catch(() => {
-          if (!controller.signal.aborted) dispatch({ type: "pollFailed" });
-        });
-    }, pollMs);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    // #3/AC-9 Uma consulta por vez: a próxima só é agendada quando a anterior volta, para uma resposta
+    // atrasada nunca passar na frente da falha que para a consulta.
+    const schedule = (): void => {
+      timer = setTimeout(() => {
+        portRef.current
+          .load(accessKey, controller.signal)
+          .then((request) => {
+            if (!controller.signal.aborted) dispatch({ type: "loaded", request });
+          })
+          // #3/AC-9 Uma consulta que falha conta; com 5 seguidas o estado para a consulta e mostra a falha de carga.
+          .catch(() => {
+            if (!controller.signal.aborted) dispatch({ type: "pollFailed" });
+          })
+          .finally(() => {
+            if (!controller.signal.aborted) schedule();
+          });
+      }, pollMs);
+    };
+    schedule();
     return () => {
-      clearInterval(timer);
+      clearTimeout(timer);
       controller.abort();
     };
   }, [polling, accessKey, pollMs]);
