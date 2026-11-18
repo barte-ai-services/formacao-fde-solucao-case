@@ -7,11 +7,11 @@ APPROVAL_HTML = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<!-- Sem rede: nada é buscado de fora, e o único script é o desta página. -->
+<!-- #274 Sem rede: nada é buscado de fora, e o único script é o desta página. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
 <title>Fila de aprovação</title>
 <style>
-  /* Os tokens do barte-design-tokens (a base do barte-ui-kit), tema claro, embutidos: a tela não carrega o kit. */
+  /* #274 Os tokens do barte-design-tokens (a base do barte-ui-kit), tema claro, embutidos: a tela não carrega o kit. */
   :root {
     color-scheme: light;
     --title-size: 1.25rem; /* local da tela (#274): não é token do kit */
@@ -91,7 +91,7 @@ APPROVAL_HTML = """<!doctype html>
   .badge-negative { background: var(--accent-red-light); color: var(--accent-red-dark); }
   .badge-info { background: var(--accent-blue-light); color: var(--accent-blue-dark); }
 
-  /* Esqueleto de carregamento: barras cinza paradas, sem animação e sem spinner. */
+  /* #274 Esqueleto de carregamento: barras cinza paradas, sem animação e sem spinner. */
   .skeleton-row { display: flex; gap: var(--spacing-md); padding: var(--spacing-md); border-bottom: var(--border-width-sm) solid var(--stroke-primary); }
   .skeleton-row .bar { flex: 1 1 0; height: 1rem; border-radius: var(--border-radius-sm); background: var(--bg-tertiary); }
 
@@ -119,11 +119,11 @@ APPROVAL_HTML = """<!doctype html>
 <main id="app" aria-live="polite"></main>
 <script>
 "use strict";
-// A tela não decide nem calcula: mostra o que as tools devolvem e chama list_approval_queue, get_proposal e
-// decide_proposal pelo host (MCP Apps, extensão io.modelcontextprotocol/ui, por postMessage). Todo número vem de uma
-// tool. Texto vindo de tool entra só por textContent (nós de texto), nunca como marcação.
+// #274 A tela não decide nem calcula: mostra o que as tools devolvem e chama list_approval_queue, get_proposal e
+// #274 decide_proposal pelo host (MCP Apps, extensão io.modelcontextprotocol/ui, por postMessage). Todo número vem de uma
+// #274 tool. Texto vindo de tool entra só por textContent (nós de texto), nunca como marcação.
 
-// Os rótulos da web (web/src/texts.ts) e do glossário.
+// #274 Os rótulos da web (web/src/texts.ts) e do glossário.
 const LEVEL = { regra: "Regra", analista: "Analista", coordenacao: "Coordenação", diretoria: "Diretoria", bloqueio: "Bloqueio" };
 const LEVEL_TONE = { regra: "positive", analista: "info", coordenacao: "neutral", diretoria: "waiting", bloqueio: "negative" };
 const PERSON_LEVELS = ["analista", "coordenacao", "diretoria"];
@@ -146,7 +146,7 @@ const GENERIC_FAILURE = "Não foi possível concluir agora. Tente de novo em ins
 const APP_ROOT = document.getElementById("app");
 
 // ---------------------------------------------------------------------------------------------------------------
-// Pequenos auxiliares de tela
+// #274 Pequenos auxiliares de tela
 
 function h(tag, attributes, ...children) {
   const element = document.createElement(tag);
@@ -164,7 +164,7 @@ function h(tag, attributes, ...children) {
 }
 
 const orDash = (value) => (value === null || value === undefined || value === "" ? "—" : String(value));
-const decimal = (value) => String(value).replace(".", ","); // só troca o separador: o número é o da tool
+const decimal = (value) => String(value).replace(".", ","); // #274 só troca o separador: o número é o da tool
 const lower = (text) => text.charAt(0).toLowerCase() + text.slice(1);
 const money = (value) => (value && typeof value.text === "string" ? value.text : "—");
 const groupKey = (key) => (/^\\d+$/.test(String(key)) ? String(key).replace(/(\\d{4})(?=\\d)/g, "$1 ") : orDash(key));
@@ -185,8 +185,10 @@ function skeleton() {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// O protocolo com o host
+// #274 O protocolo com o host
 
+// #274 Prazo da resposta do host: sem resposta, a chamada rejeita e a tela cai no erro genérico, em vez de ficar parada.
+const REQUEST_TIMEOUT_MS = 30000;
 let nextRequestId = 1;
 const pendingRequests = new Map();
 
@@ -197,14 +199,23 @@ function post(message) {
 function request(method, params) {
   const id = nextRequestId++;
   post({ jsonrpc: "2.0", id, method, params });
-  return new Promise((resolve, reject) => pendingRequests.set(id, { resolve, reject }));
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pendingRequests.delete(id);
+      reject(new Error("timeout"));
+    }, REQUEST_TIMEOUT_MS);
+    pendingRequests.set(id, {
+      resolve: (result) => { clearTimeout(timer); resolve(result); },
+      reject: (error) => { clearTimeout(timer); reject(error); },
+    });
+  });
 }
 
 function notify(method, params) {
   post({ jsonrpc: "2.0", method, params });
 }
 
-/** Chama uma tool pelo host. Devolve { data } ou { error: { code, message } }, nunca o texto de um erro do host. */
+/** #274 Chama uma tool pelo host. Devolve { data } ou { error: { code, message } }, nunca o texto de um erro do host. */
 async function callTool(name, args) {
   let result;
   try {
@@ -223,7 +234,7 @@ async function callTool(name, args) {
 }
 
 window.addEventListener("message", (event) => {
-  if (event.source !== window.parent) return; // só o host fala com a tela
+  if (event.source !== window.parent) return; // #274 só o host fala com a tela
   const message = event.data;
   if (!message || message.jsonrpc !== "2.0") return;
   if (message.method === undefined) {
@@ -240,7 +251,7 @@ window.addEventListener("message", (event) => {
 });
 
 // ---------------------------------------------------------------------------------------------------------------
-// Estados que valem para a fila e para a proposta
+// #274 Estados que valem para a fila e para a proposta
 
 function errorState(error, retry) {
   if (error.code === "session_expired") {
@@ -269,7 +280,7 @@ function onToolResult(params) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// 1. Fila
+// #274 1. Fila
 
 const queueState = { scope: "mine", classification: "", level: "" };
 let queueView = null;
@@ -331,7 +342,7 @@ async function loadQueue() {
   if (queueState.classification) args.classification = [queueState.classification];
   if (queueState.level) args.level = [queueState.level];
   const reply = await callTool("list_approval_queue", args);
-  if (serial !== queueSerial || view !== queueView) return; // uma resposta antiga não apaga a mais nova
+  if (serial !== queueSerial || view !== queueView) return; // #274 uma resposta antiga não apaga a mais nova
   if (reply.error) {
     view.summary.textContent = "";
     view.results.replaceChildren(errorState(reply.error, loadQueue));
@@ -389,7 +400,7 @@ function queueTable(items) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// 2. Proposta
+// #274 2. Proposta
 
 function backButton() {
   return h("button", { type: "button", "data-action": "back", onclick: () => showQueue() }, "← Fila");
@@ -506,7 +517,7 @@ function drawProposal(p, notice) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Sua decisão
+// #274 Sua decisão
 
 function decidedByBlock(approval) {
   const hour = approval.decided_hour ? ` às ${approval.decided_hour}` : "";
@@ -521,7 +532,7 @@ function forbiddenText(p) {
     : "Esta proposta pede um nível acima do seu.";
 }
 
-/** As evidências que a pessoa pode marcar como "pesaram": as da proposta, e as do dossiê quando ele está pronto. */
+/** #274 As evidências que a pessoa pode marcar como "pesaram": as da proposta, e as do dossiê quando ele está pronto. */
 function weighableEvidence(p) {
   const found = [];
   const add = (text) => { if (typeof text === "string" && text && !found.includes(text)) found.push(text); };
@@ -627,7 +638,7 @@ function freshForm(p) {
     choice: "approve",
     justification: "",
     evidence: new Set(),
-    // As linhas e as quantidades são as que a tool propõe (a regra); a pessoa edita, a tela não calcula.
+    // #274 As linhas e as quantidades são as que a tool propõe (a regra); a pessoa edita, a tela não calcula.
     lines: proposed.map((line) => ({
       sku: line.sku,
       amount: line.quantity && line.quantity.amount !== null && line.quantity.amount !== undefined ? String(line.quantity.amount) : "",
@@ -672,7 +683,7 @@ function showReport() {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Início: ui/initialize e, depois, o que o Claude pediu em open_approval_app (ui/notifications/tool-result)
+// #274 Início: ui/initialize e, depois, o que o Claude pediu em open_approval_app (ui/notifications/tool-result)
 
 request("ui/initialize", { protocolVersion: "2026-01-26", appInfo: { name: "fila-de-aprovacao", version: "0.1.0" }, appCapabilities: {} })
   .then(() => notify("ui/notifications/initialized", {}))

@@ -9,6 +9,10 @@ import {
 } from "./fixtures.mjs";
 import { openScreen } from "./host.mjs";
 
+const DEADLINE_MS = 200;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const GENERIC = "Não foi possível concluir agora. Tente de novo em instantes.";
+
 let screen = null;
 afterEach(() => screen?.close());
 
@@ -753,5 +757,51 @@ describe("texto vindo de tool entra por textContent", () => {
     assert.equal(screen.$("b"), null);
     await openQueue({ list_approval_queue: () => fail("unavailable", hostile) });
     assert.equal(screen.$("img"), null);
+  });
+});
+
+describe("um host que não responde (#274)", () => {
+  test("a tool que o host nunca responde acaba na mensagem genérica, sem ficar no esqueleto", async () => {
+    screen = openScreen({}, { unanswered: ["tools/call"], requestTimeoutMs: DEADLINE_MS });
+    await screen.openApp();
+    assert.notEqual(screen.$("[data-skeleton]"), null);
+    await sleep(DEADLINE_MS * 2);
+    await screen.flush();
+    assert.equal(screen.$("[data-skeleton]"), null);
+    assert.equal((screen.$("[data-state=error]")?.textContent ?? "").includes(GENERIC), true);
+  });
+
+  test("a decisão sem resposta do host mostra a mensagem genérica e o Registrar volta a habilitar", async () => {
+    screen = openScreen(
+      { list_approval_queue: () => ok(queueOutput()), get_proposal: () => ok(proposalOutput()) },
+      { unanswered: ["tools/call:decide_proposal"], requestTimeoutMs: DEADLINE_MS },
+    );
+    await screen.openApp();
+    await screen.click(screen.$(`tr[data-key="${KEY}"]`));
+    const register = screen.$("button[data-action=register]");
+    await screen.click(register);
+    assert.equal(register.disabled, true);
+    await sleep(DEADLINE_MS * 2);
+    await screen.flush();
+    assert.equal(register.disabled, false);
+    assert.equal((screen.$("[data-block=decision] [data-state=error]")?.textContent ?? "").includes(GENERIC), true);
+  });
+
+  test("o ui/initialize sem resposta mostra o estado de erro genérico", async () => {
+    screen = openScreen({}, { unanswered: ["ui/initialize"], requestTimeoutMs: DEADLINE_MS });
+    await screen.flush();
+    assert.equal(screen.$("[data-state=error]"), null);
+    await sleep(DEADLINE_MS * 2);
+    await screen.flush();
+    assert.equal((screen.$("[data-state=error]")?.textContent ?? "").includes(GENERIC), true);
+  });
+
+  test("a resposta que chega a tempo não dispara o prazo", async () => {
+    screen = openScreen({ list_approval_queue: () => ok(queueOutput()) }, { requestTimeoutMs: DEADLINE_MS });
+    await screen.openApp();
+    await sleep(DEADLINE_MS * 2);
+    await screen.flush();
+    assert.notEqual(screen.$("[data-screen=queue]"), null);
+    assert.equal(screen.$("[data-state=error]"), null);
   });
 });

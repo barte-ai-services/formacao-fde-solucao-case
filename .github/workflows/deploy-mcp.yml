@@ -41,7 +41,7 @@ jobs:
       # O teste da tela (#274) roda com o jsdom do lockfile, sem rede e sem credencial, antes de publicar.
       - run: npm test
         working-directory: mcp
-      # Só este passo tem as credenciais, e roda o wrangler que a instalação do lockfile trouxe, na versão travada.
+      # #274 Só este passo tem as credenciais, e roda o wrangler que a instalação do lockfile trouxe, na versão travada.
       - run: npx wrangler deploy
         working-directory: mcp
         env:

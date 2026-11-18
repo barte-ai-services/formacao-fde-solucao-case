@@ -3,14 +3,19 @@ import { readFileSync } from "node:fs";
 import { JSDOM } from "jsdom";
 
 const HTML = readFileSync(new URL("./approval.html", import.meta.url), "utf8");
+const DEADLINE = /const REQUEST_TIMEOUT_MS = \d+;/;
 
 export const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 export async function flush() {
   for (let i = 0; i < 10; i += 1) await tick();
 }
 
-/** `routes`: nome da tool -> (arguments) => CallToolResult (ou promessa dele). Tool sem rota responde erro do host. */
-export function openScreen(routes = {}) {
+/**
+ * `routes`: nome da tool -> (arguments) => CallToolResult (ou promessa dele). Tool sem rota responde erro do host.
+ * `unanswered`: métodos (ou `tools/call:<tool>`) que o host nunca responde (um host travado). `requestTimeoutMs`: encurta o prazo da tela
+ * para o teste, trocando o valor da constante REQUEST_TIMEOUT_MS no HTML que o jsdom carrega, sem gancho no código. (#274)
+ */
+export function openScreen(routes = {}, { unanswered = [], requestTimeoutMs = null } = {}) {
   const sent = [];
   const calls = [];
   let dom = null;
@@ -20,6 +25,11 @@ export function openScreen(routes = {}) {
   function receive(raw) {
     const message = JSON.parse(JSON.stringify(raw)); // sai do mundo do jsdom, como num postMessage de verdade (#274)
     sent.push(message);
+    const toolKey = message.method === "tools/call" ? `tools/call:${message.params.name}` : message.method;
+    if (unanswered.includes(message.method) || unanswered.includes(toolKey)) {
+      if (message.method === "tools/call") calls.push({ name: message.params.name, arguments: message.params.arguments });
+      return;
+    }
     if (message.method === "ui/initialize") {
       reply(message.id, {
         result: { protocolVersion: "2026-01-26", hostInfo: { name: "host-falso", version: "0" }, hostCapabilities: {}, hostContext: {} },
@@ -41,7 +51,8 @@ export function openScreen(routes = {}) {
     window.dispatchEvent(new window.MessageEvent("message", { data, source: source === undefined ? window : source }));
   }
 
-  dom = new JSDOM(HTML, {
+  const html = requestTimeoutMs === null ? HTML : HTML.replace(DEADLINE, `const REQUEST_TIMEOUT_MS = ${requestTimeoutMs};`);
+  dom = new JSDOM(html, {
     runScripts: "dangerously",
     pretendToBeVisual: true,
     url: "https://host.exemplo/",
