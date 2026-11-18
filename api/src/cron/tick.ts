@@ -48,7 +48,7 @@ export const DOSSIER_EVENT_LIMIT = 5;
 
 /** #38 Agenda o trabalho que segue depois da resposta do Cron (o waitUntil do Worker), como em http/approval.ts. */
 export type Defer = (work: Promise<unknown>) => void;
-/** #9/AC-2 O teto de devoluções publicadas por rodada, para caber nas ~50 subrequisições do plano gratuito. */
+/** #156 O teto de devoluções publicadas por rodada, para caber nas ~50 subrequisições do plano gratuito. */
 const RETURN_NOTES_PER_ROUND = 20;
 
 /** #174 O que uma rodada fez, para a reconferência devolver. Nulo quando a rodada foi pulada. */
@@ -127,11 +127,11 @@ async function runRound(
   // #43 AC-1 O que a regra aprovou agora (e o que falhou na hora da aprovação) vai para a doca.
   const dock = await publishDock(rest);
   const storeActions = await publishStoreActions(rest);
-  // #9/AC-2 A devolução das decisões da regra e das que falharam na rota entra na fila das notas de devolução.
+  // #156 A devolução das decisões da regra e das que falharam na rota entra na fila das notas de devolução.
   const returnNotes = await publishReturnNotes(rest);
   const duplicates = await blockDuplicateTitles(rest); // #31/AC-5: o título da E6 fica bloqueado já na detecção.
-  // #36/AC-4 (#4/AC-2) O pedido ao fornecedor sem resposta depois do prazo vira no_reply, sem o Claude: a regra roda mesmo sem credencial.
-  // #36 Vai antes da rodada do Claude; a cobrança é montada pela própria varredura (#58/AC-1).
+  // #157 (#157) O pedido ao fornecedor sem resposta depois do prazo vira no_reply, sem o Claude: a regra roda mesmo sem credencial.
+  // #157 Vai antes da rodada do Claude; a cobrança é montada pela própria varredura (#157).
   const overdueRequests = await markOverdueRequests(rest);
   // #171 O Claude vai por último: é periférico, e a captura (o caminho crítico) fica com os subrequests da
   // invocação. As sugestões que ele grava aqui a próxima rodada lê. Falha fechada: a regra decide sozinha.
@@ -321,7 +321,7 @@ async function runEngine(rest: SupabaseRest, env: Env): Promise<{ evaluated: num
 }
 
 /**
- * #9/AC-2 Publica a devolução das decisões que devolvem e ainda não estão na fila, até o teto por rodada. Se
+ * #156 Publica a devolução das decisões que devolvem e ainda não estão na fila, até o teto por rodada. Se
  * falha, registra uma linha sem dado (só o status ou a tabela de uma linha fora do formato) e a rodada segue:
  * a varredura é idempotente e a próxima rodada repete.
  */
@@ -342,7 +342,7 @@ async function publishReturnNotes(rest: SupabaseRest): Promise<number> {
 }
 
 /**
- * #36/AC-4 Marca no_reply o pedido ao fornecedor enviado, sem leitura, depois do prazo. Se falha, registra uma linha sem dado
+ * #157 Marca no_reply o pedido ao fornecedor enviado, sem leitura, depois do prazo. Se falha, registra uma linha sem dado
  * (só o status ou a tabela) e a rodada segue: a varredura é idempotente e a próxima rodada repete.
  */
 async function markOverdueRequests(rest: SupabaseRest): Promise<number> {

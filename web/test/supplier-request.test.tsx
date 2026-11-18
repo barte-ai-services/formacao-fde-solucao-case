@@ -4,10 +4,10 @@ import { Frame } from "../src/App";
 import { fallbackContext } from "../src/shell/context";
 import { texts } from "../src/texts";
 
-// #3 O bloco "Pedido ao fornecedor" na gaveta da proposta decidida, como no wireframe
-// artifacts/wireframe-pedido-ao-fornecedor/index.html. Esqueleto de ponta a ponta (#14), vermelho até a #17:
-// #17 agora a gaveta inteira roda contra a API falsa, nos caminhos e na forma que api/src/http/supplier-requests.ts
-// #17 fixa (rotas pela chave de acesso da nota, PATCH com `template`, anexo em return-note.json, `failure` em código).
+// #156 O bloco "Pedido ao fornecedor" na gaveta da proposta decidida, como no wireframe
+// artifacts/wireframe-pedido-ao-fornecedor/index.html. Esqueleto de ponta a ponta (#156), vermelho até a #156:
+// #156 agora a gaveta inteira roda contra a API falsa, nos caminhos e na forma que api/src/http/supplier-requests.ts
+// #156 fixa (rotas pela chave de acesso da nota, PATCH com `template`, anexo em return-note.json, `failure` em código).
 
 const KEY = "35261100000000000000550010000200461000200461";
 const BASE = `/api/supplier-requests/${KEY}`;
@@ -102,8 +102,8 @@ const region = () => screen.getByRole("region", { name: "Pedido ao fornecedor" }
 const sentTo = (method: string, suffix: string) => calls.some((c) => c.method === method && c.path === `${BASE}${suffix}`);
 const button = (name: string) => screen.getByRole("button", { name }) as HTMLButtonElement;
 
-describe("#3 bloco Pedido ao fornecedor na gaveta, de ponta a ponta (#17)", () => {
-  it("#3/AC-1: a proposta decidida com pedido mostra o bloco com o selo do Claude, abaixo da decisão", async () => {
+describe("#156 bloco Pedido ao fornecedor na gaveta, de ponta a ponta (#156)", () => {
+  it("#156: a proposta decidida com pedido mostra o bloco com o selo do Claude, abaixo da decisão", async () => {
     current = draft;
     await openDrawer();
     const block = await screen.findByRole("region", { name: "Pedido ao fornecedor" });
@@ -112,7 +112,7 @@ describe("#3 bloco Pedido ao fornecedor na gaveta, de ponta a ponta (#17)", () =
     expect(calls.some((c) => c.method === "GET" && c.path === BASE)).toBe(true);
   });
 
-  it("#3/AC-1: sem pedido, o bloco não existe, nem o título", async () => {
+  it("#156: sem pedido, o bloco não existe, nem o título", async () => {
     current = null;
     await openDrawer();
     await waitFor(() => expect(calls.some((c) => c.path === BASE)).toBe(true));
@@ -120,14 +120,14 @@ describe("#3 bloco Pedido ao fornecedor na gaveta, de ponta a ponta (#17)", () =
     expect(screen.queryByText("Pedido ao fornecedor")).toBeNull();
   });
 
-  it("#3/AC-2: escrevendo mostra que o Claude está preparando, sem botões do pedido", async () => {
+  it("#156: escrevendo mostra que o Claude está preparando, sem botões do pedido", async () => {
     current = { status: "writing" };
     await openDrawer();
     expect(await screen.findByText(t.writing)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Emitir e enviar" })).toBeNull();
   });
 
-  it("#3/AC-3: o rascunho mostra a nota (itens, valores, total) e o e-mail (para, prazo, assunto, texto), ainda sem anexo", async () => {
+  it("#156: o rascunho mostra a nota (itens, valores, total) e o e-mail (para, prazo, assunto, texto), ainda sem anexo", async () => {
     current = draft;
     await openDrawer();
     const inBlock = within(await screen.findByRole("region", { name: "Pedido ao fornecedor" }));
@@ -135,20 +135,20 @@ describe("#3 bloco Pedido ao fornecedor na gaveta, de ponta a ponta (#17)", () =
     expect(inBlock.getByText(/Condicionador 350 ml/)).toBeTruthy();
     expect(inBlock.getByText(/40 UN/)).toBeTruthy();
     expect(inBlock.getByText(/R\$ 54,08/)).toBeTruthy();
-    expect(inBlock.getByText(/R\$ 2163,20/)).toBeTruthy(); // #3/AC-3 total da linha 1
-    expect(inBlock.getByText(/R\$ 300,00/)).toBeTruthy(); // #3/AC-3 total da linha 2
-    expect(inBlock.getByText(/R\$ 2463,20/)).toBeTruthy(); // #3/AC-3 total da nota, diferente de cada linha
+    expect(inBlock.getByText(/R\$ 2163,20/)).toBeTruthy(); // #156 total da linha 1
+    expect(inBlock.getByText(/R\$ 300,00/)).toBeTruthy(); // #156 total da linha 2
+    expect(inBlock.getByText(/R\$ 2463,20/)).toBeTruthy(); // #156 total da nota, diferente de cada linha
     expect(inBlock.getByText(/Para: F11 · Ref\.: 20046/)).toBeTruthy();
     expect(inBlock.getByText(/fiscal@higienetotal\.test/)).toBeTruthy();
     expect(inBlock.getByText(/Prazo: 18\/11/)).toBeTruthy();
     expect(inBlock.getByText(/NF 20046 · devolução do item trocado/)).toBeTruthy();
     expect(inBlock.getByText(MAIL_TEXT, { exact: false })).toBeTruthy();
-    expect(inBlock.queryByText(/\{\{/)).toBeNull(); // #17 o corpo desenhado é o renderizado, nunca o molde
-    expect(inBlock.queryByRole("link")).toBeNull(); // #17 o anexo só existe depois da emissão
+    expect(inBlock.queryByText(/\{\{/)).toBeNull(); // #156 o corpo desenhado é o renderizado, nunca o molde
+    expect(inBlock.queryByRole("link")).toBeNull(); // #156 o anexo só existe depois da emissão
     expect(inBlock.getByRole("button", { name: "Emitir e enviar" })).toBeTruthy();
   });
 
-  it("#3/AC-4: Emitir e enviar chama POST /send, sem confirmação, e mostra emitida e enviada com o anexo", async () => {
+  it("#156: Emitir e enviar chama POST /send, sem confirmação, e mostra emitida e enviada com o anexo", async () => {
     current = draft;
     onWrite = () => {
       current = sent;
@@ -163,7 +163,7 @@ describe("#3 bloco Pedido ao fornecedor na gaveta, de ponta a ponta (#17)", () =
     expect(link.getAttribute("href")).toBe(`${BASE}/return-note.json`);
   });
 
-  it("#3/AC-4: o envio recusado pela API mostra a mensagem fixa, sem o código nem o corpo do erro, e o rascunho segue", async () => {
+  it("#156: o envio recusado pela API mostra a mensagem fixa, sem o código nem o corpo do erro, e o rascunho segue", async () => {
     current = draft;
     onWrite = () => Response.json({ error: "supabase_unavailable", correlationId: "c0ffee-123" }, { status: 502 });
     await openDrawer();
@@ -173,11 +173,11 @@ describe("#3 bloco Pedido ao fornecedor na gaveta, de ponta a ponta (#17)", () =
     expect(button("Emitir e enviar").disabled).toBe(false);
   });
 
-  it("#3/AC-5: com o envio falho mostra o motivo fixo e Tentar enviar de novo, sem Descartar nem Editar, e reenvia só pelo /resend", async () => {
+  it("#156: com o envio falho mostra o motivo fixo e Tentar enviar de novo, sem Descartar nem Editar, e reenvia só pelo /resend", async () => {
     current = sendFailed;
     await openDrawer();
     expect(await screen.findByText(t.sendFailedWithNote("ND-0012", t.sendFailureReasons.resend_unavailable))).toBeTruthy();
-    expect(region().textContent).not.toContain("resend_unavailable"); // #17 o código nunca aparece cru
+    expect(region().textContent).not.toContain("resend_unavailable"); // #156 o código nunca aparece cru
     expect(screen.queryByRole("button", { name: "Descartar" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Editar" })).toBeNull();
     onWrite = () => {
@@ -187,10 +187,10 @@ describe("#3 bloco Pedido ao fornecedor na gaveta, de ponta a ponta (#17)", () =
     fireEvent.click(button("Tentar enviar de novo"));
     expect(await screen.findByText(/emitida e enviada por você/)).toBeTruthy();
     expect(sentTo("POST", "/resend")).toBe(true);
-    expect(sentTo("POST", "/send")).toBe(false); // #17 reenviar nunca emite outra nota
+    expect(sentTo("POST", "/send")).toBe(false); // #156 reenviar nunca emite outra nota
   });
 
-  it("#3/AC-5: o envio que falha na hora vira o estado envio falho (200 com send_failed)", async () => {
+  it("#156: o envio que falha na hora vira o estado envio falho (200 com send_failed)", async () => {
     current = draft;
     onWrite = () => Response.json({ request: sendFailed });
     await openDrawer();
@@ -199,7 +199,7 @@ describe("#3 bloco Pedido ao fornecedor na gaveta, de ponta a ponta (#17)", () =
     expect(button("Tentar enviar de novo")).toBeTruthy();
   });
 
-  it("#3/AC-6: Editar libera só o texto, com o molde e os marcadores; salvar manda PATCH com `template`", async () => {
+  it("#156: Editar libera só o texto, com o molde e os marcadores; salvar manda PATCH com `template`", async () => {
     current = draft;
     await openDrawer();
     fireEvent.click(await screen.findByRole("button", { name: "Editar" }));
@@ -220,7 +220,7 @@ describe("#3 bloco Pedido ao fornecedor na gaveta, de ponta a ponta (#17)", () =
     expect(screen.queryByRole("textbox")).toBeNull();
   });
 
-  it("#3/AC-6: Cancelar edição fecha a edição sem chamar a API", async () => {
+  it("#156: Cancelar edição fecha a edição sem chamar a API", async () => {
     current = draft;
     await openDrawer();
     fireEvent.click(await screen.findByRole("button", { name: "Editar" }));
@@ -229,7 +229,7 @@ describe("#3 bloco Pedido ao fornecedor na gaveta, de ponta a ponta (#17)", () =
     expect(calls.some((c) => c.method === "PATCH")).toBe(false);
   });
 
-  it("#3/AC-6: o texto com número fora do banco (422) mostra a mensagem fixa e a edição segue aberta com o que foi digitado", async () => {
+  it("#156: o texto com número fora do banco (422) mostra a mensagem fixa e a edição segue aberta com o que foi digitado", async () => {
     current = draft;
     onWrite = () => Response.json({ error: "invalid", reason: "number_mismatch", field: "body" }, { status: 422 });
     await openDrawer();
@@ -241,7 +241,7 @@ describe("#3 bloco Pedido ao fornecedor na gaveta, de ponta a ponta (#17)", () =
     expect(region().textContent).not.toMatch(/number_mismatch|invalid_shape/);
   });
 
-  it("#3/AC-7: Descartar, sem confirmação, leva ao descartado, e Refazer volta a escrevendo", async () => {
+  it("#156: Descartar, sem confirmação, leva ao descartado, e Refazer volta a escrevendo", async () => {
     current = draft;
     onWrite = (_method, path) => {
       current = path.endsWith("/discard")
@@ -258,7 +258,7 @@ describe("#3 bloco Pedido ao fornecedor na gaveta, de ponta a ponta (#17)", () =
     expect(sentTo("POST", "/redo")).toBe(true);
   });
 
-  it("#3/AC-8: sem rascunho por número fora do catálogo, mostra o motivo fixo e Refazer, sem nota nem e-mail", async () => {
+  it("#156: sem rascunho por número fora do catálogo, mostra o motivo fixo e Refazer, sem nota nem e-mail", async () => {
     current = { status: "failed", failure: "number_mismatch" };
     await openDrawer();
     expect(await screen.findByText(t.notPrepared(t.notPreparedReasons.number_mismatch))).toBeTruthy();
@@ -273,7 +273,7 @@ describe("#3 bloco Pedido ao fornecedor na gaveta, de ponta a ponta (#17)", () =
     expect(sentTo("POST", "/redo")).toBe(true);
   });
 
-  it("#3/AC-9: a leitura que falha mostra Não foi possível carregar o pedido, sem o erro, e Tentar de novo busca outra vez", async () => {
+  it("#156: a leitura que falha mostra Não foi possível carregar o pedido, sem o erro, e Tentar de novo busca outra vez", async () => {
     current = draft;
     readStatus = 500;
     await openDrawer();
@@ -286,7 +286,7 @@ describe("#3 bloco Pedido ao fornecedor na gaveta, de ponta a ponta (#17)", () =
     expect(screen.queryByText("Não foi possível carregar o pedido")).toBeNull();
   });
 
-  it("#3/AC-9: cinco consultas seguidas que falham enquanto escreve trocam o bloco pelo alerta com Tentar de novo", async () => {
+  it("#156: cinco consultas seguidas que falham enquanto escreve trocam o bloco pelo alerta com Tentar de novo", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     current = { status: "writing" };
     await openDrawer();
@@ -300,9 +300,9 @@ describe("#3 bloco Pedido ao fornecedor na gaveta, de ponta a ponta (#17)", () =
   });
 });
 
-describe("#3 página inteira: acessibilidade da gaveta montada (#17)", () => {
-  // #17 Sem axe no projeto, a verificação de página é por papéis e nomes do Testing Library sobre a gaveta toda.
-  it("#3/AC-3: uma só região chamada Pedido ao fornecedor, título dentro dela, botões nomeados e controles focáveis", async () => {
+describe("#156 página inteira: acessibilidade da gaveta montada (#156)", () => {
+  // #156 Sem axe no projeto, a verificação de página é por papéis e nomes do Testing Library sobre a gaveta toda.
+  it("#156: uma só região chamada Pedido ao fornecedor, título dentro dela, botões nomeados e controles focáveis", async () => {
     current = draft;
     await openDrawer();
     await screen.findByRole("region", { name: "Pedido ao fornecedor" });
@@ -319,7 +319,7 @@ describe("#3 página inteira: acessibilidade da gaveta montada (#17)", () => {
     }
   });
 
-  it("#3/AC-6: na edição o campo de texto tem nome e recebe o foco, e a ordem de leitura vai da decisão ao bloco", async () => {
+  it("#156: na edição o campo de texto tem nome e recebe o foco, e a ordem de leitura vai da decisão ao bloco", async () => {
     current = draft;
     await openDrawer();
     fireEvent.click(await screen.findByRole("button", { name: "Editar" }));
@@ -330,7 +330,7 @@ describe("#3 página inteira: acessibilidade da gaveta montada (#17)", () => {
     expect(screen.getByText("Decisão registrada").compareDocumentPosition(region()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("#3/AC-4: depois do envio o anexo é um link com nome, e continua uma só região", async () => {
+  it("#156: depois do envio o anexo é um link com nome, e continua uma só região", async () => {
     current = sent;
     await openDrawer();
     await screen.findByRole("region", { name: "Pedido ao fornecedor" });

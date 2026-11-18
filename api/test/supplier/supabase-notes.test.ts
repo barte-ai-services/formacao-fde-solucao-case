@@ -4,12 +4,12 @@ import { supabaseIssuedNoteStore } from '../../src/supplier/supabase-notes.js';
 import { SOURCE_KEY, returnNote } from '../domain/supplier-request-fixtures.js';
 import { harness } from './supabase-support.js';
 
-// #12: a emissão mock sobre o PostgREST falso: a nota emitida é um fato (append-only), uma por devolução da fila.
+// #156: a emissão mock sobre o PostgREST falso: a nota emitida é um fato (append-only), uma por devolução da fila.
 
 const TABLE = 'issued_return_notes';
 const DAY = '2026-11-12';
 
-describe('#12/AC-2 uma devolução da fila tem no máximo uma nota emitida', () => { // ADR-002
+describe('#156 uma devolução da fila tem no máximo uma nota emitida', () => { // ADR-002
   it('a primeira emissão usa o id da tabela como sequência: ND-<id>, número <id>, série 9', async () => { // ADR-002
     const { fake, rest } = harness();
     const issued = await supabaseIssuedNoteStore(rest).issue(7, returnNote(), DAY);
@@ -48,7 +48,7 @@ describe('#12/AC-2 uma devolução da fila tem no máximo uma nota emitida', () 
     const { fake, rest } = harness();
     const store = supabaseIssuedNoteStore(rest);
     const winner = await store.issue(7, returnNote(), DAY);
-    // #12: a leitura prévia não acha nada, como se a outra emissão tivesse confirmado depois dela.
+    // #156: a leitura prévia não acha nada, como se a outra emissão tivesse confirmado depois dela.
     fake.failNext(TABLE, 'GET', 200, []);
     const loser = await store.issue(7, returnNote(), DAY);
     expect(loser).toEqual(winner);

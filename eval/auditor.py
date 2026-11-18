@@ -68,14 +68,19 @@ def _check_line_shape(obj: Record, number: int) -> None:
     for field in ("model", "prompt_version"):  # entram em conjunto, ordenação e junção (#239)
         if obj.get(field) is not None and not isinstance(obj[field], str):
             raise InvalidInput(f"linha {number}: `{field}` deve ser texto")
-    if not isinstance(obj.get("rule"), dict):
-        raise InvalidInput(f"linha {number}: `rule` ausente ou não é objeto")
+    if obj.get("rule") is not None and not isinstance(obj["rule"], dict):  # sem `rule` é válido (#262)
+        raise InvalidInput(f"linha {number}: `rule` não é objeto")
     skipped = obj.get("not_audited")
     if skipped is not None and not (isinstance(skipped, dict) and isinstance(skipped.get("reason"), str)):
         raise InvalidInput(f"linha {number}: `not_audited` deve ser objeto com `reason` em texto")
     refusals = obj.get("refusals")
     if refusals is not None and not (isinstance(refusals, list) and all(isinstance(r, dict) for r in refusals)):
         raise InvalidInput(f"linha {number}: `refusals` deve ser lista de objetos")
+
+
+def _lacks_rule(line: Record | None) -> bool:
+    """Há a linha da nota e ela veio sem a proposta da regra (#262). Nota sem linha não entra aqui."""
+    return line is not None and line.get("rule") is None
 
 
 def _is_not_audited(line: Record) -> bool:
@@ -182,7 +187,10 @@ def measure(lines: list[Record], answer_key: list[Record]) -> Record:
     lines = deduplicate(lines)
     by_key = {x["invoice_access_key"]: x for x in lines}
     agent = _count(answer_key, lambda n: _valid_audit(by_key.get(n["chave"])))
-    rule = _count(answer_key, lambda n: (by_key.get(n["chave"]) or {}).get("rule"))
+    # Contra a regra, os dois lados valem sobre as mesmas notas: as que vieram sem `rule` ficam fora (#262).
+    compared = [n for n in answer_key if not _lacks_rule(by_key.get(n["chave"]))]
+    agent_compared = _count(compared, lambda n: _valid_audit(by_key.get(n["chave"])))
+    rule = _count(compared, lambda n: (by_key.get(n["chave"]) or {}).get("rule"))
     total = len(answer_key)
     by_field = {field: _rate(sum(agent[c][field] for c in EXCEPTIONS), total) for field in FIELDS}
     below, first_try = _refusal_metrics(lines, by_key, answer_key)
@@ -196,7 +204,8 @@ def measure(lines: list[Record], answer_key: list[Record]) -> Record:
         "routing_below_regua": below,
         "first_try_routing_rate": first_try,
         "errors": _errors(answer_key, by_key),
-        "vs_baseline": _vs_baseline(agent, rule),
+        "notes_without_rule": len(answer_key) - len(compared),
+        "vs_baseline": _vs_baseline(agent_compared, rule),
     }
 
 
@@ -286,6 +295,8 @@ def _section_rule(r: Record) -> list[str]:
             f"| {name} | {_pct(v['agent_full'])} | {_pct(v['rule_full'])} | "
             f"{_pct(v['agent_classification'])} | {_pct(v['rule_classification'])} |"
         )
+    if r["notes_without_rule"]:
+        lines += ["", f"{r['notes_without_rule']} nota(s) sem `rule` (proposta alterada pela pessoa) ficam fora desta comparação."]
     return [*lines, ""]
 
 

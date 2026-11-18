@@ -5,14 +5,14 @@ import { SUPPLIER_READING_TASK } from '../../src/supplier/reply-task.js';
 import { NOW } from './reply-doubles.js';
 import { INBOX, inboxRow, replyHarness } from './supabase-reply-support.js';
 
-// #35: o adaptador da caixa de entrada mock sobre o PostgREST falso (cada transição é um PATCH condicional, sem banco real).
+// #157: o adaptador da caixa de entrada mock sobre o PostgREST falso (cada transição é um PATCH condicional, sem banco real).
 
 const inbox = (rows: Record<string, unknown>[]) => {
   const h = replyHarness({ [INBOX]: rows });
   return { ...h, inbox: supabaseSupplierInbox(h.rest, { now: () => NOW }) };
 };
 
-describe('#35/AC-1 a caixa de entrada: as mensagens pendentes', () => {
+describe('#157 a caixa de entrada: as mensagens pendentes', () => {
   it('lista só as pendentes, da mais antiga para a mais nova, com o texto da resposta', async () => {
     const { inbox: box } = inbox([inboxRow(9, 2), inboxRow(4, 1, { read_status: 'ok', read_status_at: '2026-11-13T10:00:00Z' }), inboxRow(5, 1, { body: 'Olá' })]);
     expect(await box.listPending()).toEqual([
@@ -30,7 +30,7 @@ describe('#35/AC-1 a caixa de entrada: as mensagens pendentes', () => {
   });
 });
 
-describe('#35/AC-1 markRead e markError: uma transição guardada, a partir de pendente', () => {
+describe('#157 markRead e markError: uma transição guardada, a partir de pendente', () => {
   it('markRead sai de pending para ok com o carimbo da hora, num PATCH filtrado por read_status=eq.pending', async () => {
     const { fake, inbox: box } = inbox([inboxRow(1, 1)]);
     await box.markRead(1);
@@ -70,7 +70,7 @@ describe('#35/AC-1 markRead e markError: uma transição guardada, a partir de p
   });
 });
 
-describe('#35 a falha do banco só com campos nomeados, nunca o texto da resposta', () => {
+describe('#157 a falha do banco só com campos nomeados, nunca o texto da resposta', () => {
   it('o erro do PostgREST vira SupplierStoreError com a operação, a tabela, o status e o código; o corpo não passa', async () => {
     const { fake, inbox: box } = inbox([inboxRow(1, 1)]);
     fake.failNext(INBOX, 'GET', 500, { code: '57014', message: 'segredo da conexão postgres://u:senha@host', details: 'tabela interna' });

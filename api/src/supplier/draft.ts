@@ -14,11 +14,11 @@ import type { ReturnNoteView } from '../returns/return-notes.js';
 import { buildSupplierRequestPrompt } from './prompt.js';
 import type { DraftOutcome, RequestRecord, SupplierDeps } from './ports.js';
 
-// #11: o caminho único do rascunho (#2): a tarefa do Cron e o "refazer" da pessoa passam por aqui.
-// #11: preparar o rascunho nunca emite nota nem envia e-mail (#2/AC-3).
+// #156: o caminho único do rascunho (#156): a tarefa do Cron e o "refazer" da pessoa passam por aqui.
+// #156: preparar o rascunho nunca emite nota nem envia e-mail (#156).
 
 const REQUEST_TYPE = 'return_note';
-/** #12/AC-4: quem consta no histórico de um rascunho: o agente do Claude, no Cron e no refazer. */
+/** #156: quem consta no histórico de um rascunho: o agente do Claude, no Cron e no refazer. */
 export const AGENT_ACTOR = 'agente';
 
 export type DraftResult =
@@ -28,10 +28,10 @@ export type DraftResult =
 
 const TIME_ZONE = 'America/Sao_Paulo';
 
-/** #11: o dia de hoje no fuso do caso, AAAA-MM-DD (o en-CA formata assim). */
+/** #156: o dia de hoje no fuso do caso, AAAA-MM-DD (o en-CA formata assim). */
 export const todayIso = (now: Date): string => new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE }).format(now);
 
-/** #12: a devolução da fila como o rascunho a usa: o id, a chave da nota de origem e as linhas (código, quantidade, unidade). */
+/** #156: a devolução da fila como o rascunho a usa: o id, a chave da nota de origem e as linhas (código, quantidade, unidade). */
 export type QueueEntry = {
   readonly id: number;
   readonly invoiceAccessKey: string;
@@ -44,7 +44,7 @@ export const queueEntryOf = (entry: ReturnNoteView): QueueEntry => ({
   lines: entry.lines.map((l) => ({ supplierCode: l.supplierCode, amount: l.quantity.amount, unit: l.quantity.unit })),
 });
 
-/** #11/AC-2: o que o Claude escreveu, aceito pelo catálogo ou recusado com o motivo. */
+/** #156: o que o Claude escreveu, aceito pelo catálogo ou recusado com o motivo. */
 function judge(raw: unknown, catalog: FactCatalog): DraftOutcome {
   const checked = validateRequestText(raw, catalog);
   if (!checked.ok) return { kind: 'rejected', rejection: checked };
@@ -52,8 +52,8 @@ function judge(raw: unknown, catalog: FactCatalog): DraftOutcome {
   return { kind: 'draft', text };
 }
 
-// #11/AC-1: prepara o rascunho da devolução `queueId` da fila: a nota pela regra, o e-mail pelo Claude.
-// #11/AC-1: erro do Claude (inclusive 401 e 429) sobe como está: nada é gravado.
+// #156: prepara o rascunho da devolução `queueId` da fila: a nota pela regra, o e-mail pelo Claude.
+// #156: erro do Claude (inclusive 401 e 429) sobe como está: nada é gravado.
 export async function draftRequest(deps: SupplierDeps, queueId: number, ask: Ask): Promise<DraftResult> {
   const found = (await deps.queue.list('pendente', deps.clock.now())).find((e) => e.id === queueId);
   if (found === undefined) return { kind: 'conflict', reason: 'queue_not_pending' };
@@ -64,8 +64,8 @@ export async function draftRequest(deps: SupplierDeps, queueId: number, ask: Ask
   return draftFromEntry(deps, entry, ask);
 }
 
-// #12/AC-1: o rascunho de uma devolução que quem chama já leu (a tarefa do Cron guarda a entrada no `pending()`): não relê a fila
-// #12/AC-1: nem o pedido aberto, para caber no orçamento de subrequests; a corrida com outro pedido volta pelo conflito do `create`.
+// #156: o rascunho de uma devolução que quem chama já leu (a tarefa do Cron guarda a entrada no `pending()`): não relê a fila
+// #156: nem o pedido aberto, para caber no orçamento de subrequests; a corrida com outro pedido volta pelo conflito do `create`.
 export async function draftFromEntry(deps: SupplierDeps, entry: QueueEntry, ask: Ask): Promise<DraftResult> {
   const now = deps.clock.now();
   const source = await deps.source.find(entry.invoiceAccessKey);

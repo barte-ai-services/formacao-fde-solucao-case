@@ -55,7 +55,11 @@ def not_audited(key: str, row_id: int = 2, reason: str = "claude_falhou") -> dic
 def proposal(key: str, classification: str = "E1", kind: str = "receber_parcial",
              level: str = "regra") -> dict[str, Json]:
     return {"invoice_access_key": key, "classification": classification,
-            "dock_action": {"kind": kind}, "approval_level": level}
+            "dock_action": {"kind": kind}, "approval_level": level, "state": "registrada"}
+
+
+def in_state(row: dict[str, Json], state: str) -> dict[str, Json]:
+    return {**row, "state": state}
 
 
 class FakeReader:
@@ -139,6 +143,87 @@ class BuildLinesTest(unittest.TestCase):
         proposals = [proposal(k) for k in (KEY_D, KEY_B, KEY_A)]
         lines = ea.build_lines(audits, proposals)
         self.assertEqual([x["invoice_access_key"] for x in lines], [KEY_A, KEY_B, KEY_D])
+
+
+class EditedProposalTest(unittest.TestCase):
+    """#262: a proposta alterada pela pessoa não é a proposta da regra."""
+
+    def test_edited_proposal_never_goes_out_as_the_rule(self) -> None:
+        """#262/AC-1: nota com proposta `alterada` sai sem `rule`, auditada ou não, com o resto da linha."""
+        audits = [audited(KEY_A), not_audited(KEY_B)]
+        proposals = [in_state(proposal(KEY_A, "E2", "recusar", "diretoria"), "alterada"),
+                     in_state(proposal(KEY_B, "E2", "recusar", "diretoria"), "alterada")]
+        lines = ea.build_lines(audits, proposals)
+        self.assertEqual([x["invoice_access_key"] for x in lines], [KEY_A, KEY_B])
+        for line in lines:
+            self.assertNotIn("rule", line)
+        self.assertEqual(lines[0]["classification"], "E6")
+        self.assertEqual(lines[1]["not_audited"], {"reason": "claude_falhou"})
+        self.assertNotIn("diretoria", json.dumps(lines))
+
+    def test_every_state_but_edited_keeps_the_rule(self) -> None:
+        """#262/AC-3: registrada, aguardando_aprovacao e aprovada saem com a `rule`, como antes."""
+        for state in ("registrada", "aguardando_aprovacao", "aprovada"):
+            with self.subTest(state=state):
+                lines = ea.build_lines([audited(KEY_A)], [in_state(proposal(KEY_A, "E1", "receber_parcial", "analista"), state)])
+                self.assertEqual(lines[0]["rule"],
+                                 {"classification": "E1", "dock_action": "receber_parcial", "routing": "analista"})
+
+    def test_proposal_without_state_is_not_taken_as_the_rule(self) -> None:
+        """#262/AC-2: proposta cujo estado não pode ser lido é proposta original ilegível: sai sem `rule`."""
+        row = proposal(KEY_A)
+        del row["state"]
+        self.assertNotIn("rule", ea.build_lines([audited(KEY_A)], [row])[0])
+
+    def test_count_of_notes_without_rule_counts_only_those(self) -> None:
+        """#262/AC-2: a contagem é das linhas sem `rule`, e só um número."""
+        lines = ea.build_lines([audited(KEY_A), audited(KEY_B), audited(KEY_D)],
+                               [in_state(proposal(KEY_A), "alterada"), proposal(KEY_B), in_state(proposal(KEY_D), "alterada")])
+        self.assertEqual(ea.without_rule(lines), 2)
+
+    def test_main_reports_how_many_notes_left_without_rule_and_echoes_no_value(self) -> None:
+        """#262/AC-2: main imprime quantas notas saíram sem `rule`, sem chave nem valor da proposta."""
+        reader = FakeReader({
+            "invoice_audits": [audited(KEY_A), audited(KEY_B)],
+            "proposals": [in_state(proposal(KEY_A, "E4", "recusar", "diretoria"), "alterada"), proposal(KEY_B)],
+        })
+        out = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(out):
+            self.assertEqual(ea.main([os.path.join(tmp, "a.jsonl")], reader=reader), 0)
+        text = out.getvalue()
+        self.assertIn("1 sem rule", text)
+        for secret in (KEY_A, KEY_B, "diretoria", "recusar", "E4"):
+            self.assertNotIn(secret, text)
+
+    def test_main_reports_zero_when_no_note_left_without_rule(self) -> None:
+        """#262/AC-3: sem proposta alterada, a contagem é 0 e o arquivo sai como antes."""
+        reader = FakeReader({"invoice_audits": [audited(KEY_A)], "proposals": [proposal(KEY_A)]})
+        out = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(out):
+            path = os.path.join(tmp, "a.jsonl")
+            self.assertEqual(ea.main([path], reader=reader), 0)
+            with open(path, encoding="utf-8") as f:
+                self.assertIn('"rule"', f.read())
+        self.assertIn("0 sem rule", out.getvalue())
+
+    def test_auditor_eval_accepts_the_file_with_a_note_without_rule(self) -> None:
+        """#262/AC-2: o eval/auditor.py roda sobre o arquivo com nota sem `rule` e informa quantas."""
+        reader = FakeReader({
+            "invoice_audits": [audited(KEY_A, classification="match"), audited(KEY_B, classification="match")],
+            "proposals": [in_state(proposal(KEY_A, "MATCH", "receber"), "alterada"), proposal(KEY_B, "MATCH", "receber")],
+        })
+        key = [{"chave": k, "classificacao": "match", "acao_doca": "receber", "encaminhamento": "regra"}  # ADR-001
+               for k in (KEY_A, KEY_B)]
+        with tempfile.TemporaryDirectory() as tmp:
+            audits_file, key_file = os.path.join(tmp, "a.jsonl"), os.path.join(tmp, "g.json")
+            with open(key_file, "w", encoding="utf-8") as f:
+                json.dump(key, f)
+            ea.write_jsonl(audits_file, ea.export(reader))
+            done = subprocess.run(
+                [sys.executable, AUDITOR, audits_file, "--answer-key", key_file, "--runs-dir", os.path.join(tmp, "rodadas")],
+                capture_output=True, text=True, check=False)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(json.loads(done.stdout)["notes_without_rule"], 1)
 
 
 class ExportReadsOnlyAuditAndProposalTest(unittest.TestCase):

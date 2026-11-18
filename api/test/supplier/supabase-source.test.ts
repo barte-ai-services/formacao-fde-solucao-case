@@ -4,9 +4,9 @@ import { SOURCE_KEY } from '../domain/supplier-request-fixtures.js';
 import { SUPPLIER_EMAIL } from './doubles.js';
 import { harness, invoiceRow, supplierRow } from './supabase-support.js';
 
-// #12: a nota de origem e o e-mail de teste do fornecedor, lidos de invoices e kit_fornecedores.
+// #156: a nota de origem e o e-mail de teste do fornecedor, lidos de invoices e kit_fornecedores.
 
-describe('#12/AC-1 o e-mail do fornecedor vem de kit_fornecedores', () => { // ADR-002
+describe('#156 o e-mail do fornecedor vem de kit_fornecedores', () => { // ADR-002
   it('devolve a nota de origem no domínio e o e-mail do fornecedor dela', async () => { // ADR-002
     const { rest } = harness({ invoices: [invoiceRow()], kit_fornecedores: [supplierRow()] });
     const found = await supabaseSourceInvoices(rest).find(SOURCE_KEY);

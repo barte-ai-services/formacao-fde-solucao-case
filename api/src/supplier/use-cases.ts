@@ -10,16 +10,16 @@ import { draftRequest, todayIso, type DraftResult } from './draft.js';
 import { kitNoteAttachment, kitNotePdfAttachment } from './kit-note.js';
 import type { MailMessage, MailResult, RequestRecord, SourceInvoice, SupplierDeps } from './ports.js';
 
-// #11: os casos de uso do pedido ao fornecedor (#2): emitir e enviar, editar o corpo, descartar e refazer.
-// #11: cada um devolve um resultado tipado que a camada da API mapeia para HTTP; aqui não há HTTP.
-// #11: cada escrita confirma sozinha (PostgREST não tem transação entre tabelas); o pedido (SupplierRequest) é a raiz que manda.
-// #11: a ordem do envio é: conferir a fila, emitir (idempotente por devolução), registrar no pedido, mover a fila (com guarda),
-// #11: enviar o e-mail e marcar. Uma falha no meio deixa um estado que reenviar conserta, sem segunda nota: a janela é entre
-// #11: emitir e registrar (a emissão idempotente devolve a mesma nota) e entre mover a fila e marcar (o reenvio vê a fila emitida
-// #11: com o número do pedido e segue). A transação de um só commit, se vier, é da unidade de trabalho do OLTP, não daqui.
-// #12: o envio toma a trava (claimSend) antes de qualquer efeito: só um envio por vez emite, move a fila e manda o e-mail.
-// #12: a chave da trava viaja no `RequestChange` de cada gravação do envio e em `releaseSend`; o adaptador não a guarda.
-// #12: gravação que não acha a versão lida volta `stale` e vira conflito; ninguém grava por cima de outra pessoa.
+// #156: os casos de uso do pedido ao fornecedor (#156): emitir e enviar, editar o corpo, descartar e refazer.
+// #156: cada um devolve um resultado tipado que a camada da API mapeia para HTTP; aqui não há HTTP.
+// #156: cada escrita confirma sozinha (PostgREST não tem transação entre tabelas); o pedido (SupplierRequest) é a raiz que manda.
+// #156: a ordem do envio é: conferir a fila, emitir (idempotente por devolução), registrar no pedido, mover a fila (com guarda),
+// #156: enviar o e-mail e marcar. Uma falha no meio deixa um estado que reenviar conserta, sem segunda nota: a janela é entre
+// #156: emitir e registrar (a emissão idempotente devolve a mesma nota) e entre mover a fila e marcar (o reenvio vê a fila emitida
+// #156: com o número do pedido e segue). A transação de um só commit, se vier, é da unidade de trabalho do OLTP, não daqui.
+// #156: o envio toma a trava (claimSend) antes de qualquer efeito: só um envio por vez emite, move a fila e manda o e-mail.
+// #156: a chave da trava viaja no `RequestChange` de cada gravação do envio e em `releaseSend`; o adaptador não a guarda.
+// #156: gravação que não acha a versão lida volta `stale` e vira conflito; ninguém grava por cima de outra pessoa.
 
 const SEND_FAILED_FALLBACK = 'send_failed';
 const MAILER_ERROR = 'mailer_error';
@@ -50,23 +50,23 @@ export type DiscardResult =
 export type RedraftResult = DraftResult | { readonly kind: 'not_found' };
 
 export type SupplierUseCases = {
-  /** #11/AC-4, AC-5: emite a nota (uma vez só), passa a fila para emitida e envia o e-mail com a nota anexa. */
+  /** #156, AC-5: emite a nota (uma vez só), passa a fila para emitida e envia o e-mail com a nota anexa. */
   send(id: number, by: string): Promise<SendResult>;
-  /** #11/AC-6: troca só o corpo de um rascunho (forma com {{chave}}), revalidado contra o catálogo. */
+  /** #156: troca só o corpo de um rascunho (forma com {{chave}}), revalidado contra o catálogo. */
   editBody(id: number, body: string, by: string): Promise<EditResult>;
-  /** #11/AC-6: descarta um rascunho, com o motivo e quem descartou. */
+  /** #156: descarta um rascunho, com o motivo e quem descartou. */
   discard(id: number, by: string, reason: string): Promise<DiscardResult>;
-  /** #11/AC-6: novo rascunho da devolução de um pedido já feito, só se não houver pedido aberto da nota. */
+  /** #156: novo rascunho da devolução de um pedido já feito, só se não houver pedido aberto da nota. */
   redraft(id: number, ask: Ask): Promise<RedraftResult>;
 };
 
-/** #11: o catálogo do pedido é refeito da nota guardada, da nota de origem e do prazo gravado. */
+/** #156: o catálogo do pedido é refeito da nota guardada, da nota de origem e do prazo gravado. */
 const catalogOf = (record: RequestRecord, source: SourceInvoice) =>
   buildSupplierRequestFacts(record.request.note, source.invoice, record.request.dueOn);
 
 const STALE: SendResult = { kind: 'conflict', reason: 'stale' };
 
-/** #11/AC-4: a nota emitida é a do pedido; sem ela, emite (idempotente por devolução) e registra. */
+/** #156: a nota emitida é a do pedido; sem ela, emite (idempotente por devolução) e registra. */
 async function ensureIssued(deps: SupplierDeps, record: RequestRecord, by: string, claim: string): Promise<IssuedReturnNote | 'stale' | null> {
   const { request } = record;
   if (request.issuedNote !== null) return request.issuedNote;
@@ -78,7 +78,7 @@ async function ensureIssued(deps: SupplierDeps, record: RequestRecord, by: strin
   return saved === 'ok' ? issued : 'stale';
 }
 
-/** #11/AC-4: a fila é conferida ANTES de emitir: pendente, ou emitida com o número já emitido deste pedido (reenvio). */
+/** #156: a fila é conferida ANTES de emitir: pendente, ou emitida com o número já emitido deste pedido (reenvio). */
 async function checkQueue(deps: SupplierDeps, record: RequestRecord): Promise<'pending' | 'already_moved' | SendResult> {
   const now = deps.clock.now();
   const pending = (await deps.queue.list('pendente', now)).find((e) => e.id === record.queueId);
@@ -92,14 +92,14 @@ async function checkQueue(deps: SupplierDeps, record: RequestRecord): Promise<'p
   return { kind: 'conflict', reason: cancelled === undefined ? 'queue_entry_missing' : 'queue_not_pending' };
 }
 
-/** #11/AC-4: a devolução pendente vira emitida com o número; se mudou entre a conferência e agora, é conflito. */
+/** #156: a devolução pendente vira emitida com o número; se mudou entre a conferência e agora, é conflito. */
 async function moveQueue(deps: SupplierDeps, record: RequestRecord, issued: IssuedReturnNote, by: string): Promise<SendResult | null> {
   const moved = await deps.queue.emit(record.queueId, String(issued.number), by, deps.clock.now());
   if (moved.kind === 'ok') return null;
   return { kind: 'conflict', reason: moved.kind === 'not_found' ? 'queue_entry_missing' : 'queue_not_pending' };
 }
 
-/** #11/AC-5: o envio; falha do envio, ou erro lançado pela porta, vira send_failed com um motivo sem o texto do erro. */
+/** #156: o envio; falha do envio, ou erro lançado pela porta, vira send_failed com um motivo sem o texto do erro. */
 async function mail(
   deps: SupplierDeps,
   record: RequestRecord,
@@ -113,12 +113,12 @@ async function mail(
   try {
     result = await deps.mailer.send(message);
   } catch {
-    // #11/AC-5: o texto do erro da porta não vai para o pedido nem para quem chama (layer-exposure).
+    // #156: o texto do erro da porta não vai para o pedido nem para quem chama (layer-exposure).
     result = { ok: false, reason: MAILER_ERROR };
   }
   if (result.ok) {
     record.request.markSent();
-    // #12/AC-4: o anexo vai para o pedido como referência à nota emitida, não como cópia do conteúdo.
+    // #156: o anexo vai para o pedido como referência à nota emitida, não como cópia do conteúdo.
     const attachments = message.attachments.map((a) => ({
       filename: a.filename,
       contentType: a.contentType,
@@ -139,10 +139,10 @@ async function mail(
   return saved === 'ok' ? { kind: 'send_failed', record, reason } : STALE;
 }
 
-/** #12/AC-4: o que sobra do envio antes do e-mail: o resultado que o encerra, ou a mensagem pronta e a nota emitida. */
+/** #156: o que sobra do envio antes do e-mail: o resultado que o encerra, ou a mensagem pronta e a nota emitida. */
 type Prepared = { readonly done: SendResult } | { readonly message: MailMessage; readonly issued: IssuedReturnNote };
 
-/** #12/AC-4: os passos antes do e-mail (fila, emissão, registro, movimento da fila); quem chama solta a trava se algum lança. */
+/** #156: os passos antes do e-mail (fila, emissão, registro, movimento da fila); quem chama solta a trava se algum lança. */
 async function prepareSend(deps: SupplierDeps, record: RequestRecord, rendered: SupplierRequestText, claim: string, by: string): Promise<Prepared> {
   const { request } = record;
   const gate = await checkQueue(deps, record);
@@ -158,19 +158,19 @@ async function prepareSend(deps: SupplierDeps, record: RequestRecord, rendered: 
     requestType: request.requestType,
     to: record.to,
     ...rendered,
-    attachments: [kitNoteAttachment(issued), kitNotePdfAttachment(issued)], // #57/AC-1 #57/AC-6: o PDF sai da nota emitida, então o reenvio leva o mesmo
+    attachments: [kitNoteAttachment(issued), kitNotePdfAttachment(issued)], // #156: o PDF sai da nota emitida, então o reenvio leva o mesmo
     dueOn: request.dueOn,
     idempotencyKey: claim,
   };
   return { message, issued };
 }
 
-/** #12/AC-4: um erro antes do e-mail solta a trava e sobe; o e-mail ainda não saiu, então o reenvio não abre segundo e-mail. */
+/** #156: um erro antes do e-mail solta a trava e sobe; o e-mail ainda não saiu, então o reenvio não abre segundo e-mail. */
 async function prepareOrRelease(deps: SupplierDeps, id: number, record: RequestRecord, rendered: SupplierRequestText, claim: string, by: string): Promise<Prepared> {
   try {
     return await prepareSend(deps, record, rendered, claim, by);
   } catch (error) {
-    // #12/AC-4: se soltar também falhar, a trava vence sozinha pelo prazo (LEASE_MS) e o erro original é o que sobe.
+    // #156: se soltar também falhar, a trava vence sozinha pelo prazo (LEASE_MS) e o erro original é o que sobe.
     await deps.requests.releaseSend(id, claim, by, deps.clock.now()).catch(() => undefined);
     throw error;
   }
@@ -188,7 +188,7 @@ async function send(deps: SupplierDeps, id: number, by: string): Promise<SendRes
   const claimed = await deps.requests.claimSend(id, by, deps.clock.now());
   if (claimed.kind === 'conflict') return { kind: 'conflict', reason: 'send_in_progress' };
   const prepared = await prepareOrRelease(deps, id, record, text.rendered, claimed.claim, by);
-  // #12/AC-4: o envio que para antes do e-mail solta a trava aqui, pela chave dela; o que chega ao e-mail a limpa no último save.
+  // #156: o envio que para antes do e-mail solta a trava aqui, pela chave dela; o que chega ao e-mail a limpa no último save.
   if ('done' in prepared) {
     await deps.requests.releaseSend(id, claimed.claim, by, deps.clock.now());
     return prepared.done;
@@ -227,7 +227,7 @@ async function redraft(deps: SupplierDeps, id: number, ask: Ask): Promise<Redraf
   return draftRequest(deps, previous.queueId, ask);
 }
 
-/** #11: os casos de uso ligados às portas. */
+/** #156: os casos de uso ligados às portas. */
 export const createSupplierUseCases = (deps: SupplierDeps): SupplierUseCases => ({
   send: (id, by) => send(deps, id, by),
   editBody: (id, body, by) => editBody(deps, id, body, by),

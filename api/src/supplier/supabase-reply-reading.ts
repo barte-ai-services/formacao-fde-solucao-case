@@ -1,8 +1,8 @@
 import { arrayOf, isInteger, isString, nullable, oneOf, parseOne, shaped, type Shape } from '../connectors/guards.js';
 import type { NextStep, ReplyOutcome, SupplierReading } from '../domain/index.js';
 
-// #35: a leitura da resposta do fornecedor como a tabela supplier_reply_readings a guarda: um fato por mensagem, em log append-only.
-// #35: a leitura atual do pedido é derivada daqui pela ordem das mensagens, nunca gravada por cima (supabase/persistence-supplier-reply.md).
+// #157: a leitura da resposta do fornecedor como a tabela supplier_reply_readings a guarda: um fato por mensagem, em log append-only.
+// #157: a leitura atual do pedido é derivada daqui pela ordem das mensagens, nunca gravada por cima (supabase/persistence-supplier-reply.md).
 
 export const READINGS_TABLE = 'supplier_reply_readings';
 
@@ -28,10 +28,10 @@ export const isReadingRow = shaped<Row>({
   injection_flag: nullable(isString),
 } satisfies Shape<Row>);
 
-/** #35: uma leitura gravada, com a mensagem de onde veio (nula na da varredura do prazo). */
+/** #157: uma leitura gravada, com a mensagem de onde veio (nula na da varredura do prazo). */
 export type ReadingRow = { readonly id: number; readonly messageId: number | null; readonly reading: SupplierReading };
 
-/** #35: a linha da tabela vira a leitura do domínio; linha fora do formato é erro nomeado, nunca com os dados. */
+/** #157: a linha da tabela vira a leitura do domínio; linha fora do formato é erro nomeado, nunca com os dados. */
 export function readingFromRow(raw: unknown): ReadingRow {
   const row = parseOne(raw, isReadingRow, READINGS_TABLE);
   return {
@@ -48,7 +48,7 @@ export function readingFromRow(raw: unknown): ReadingRow {
   };
 }
 
-/** #35/AC-2: só as colunas da leitura; não há coluna de proposta, título nem valor em risco (#4/AC-6). */
+/** #157: só as colunas da leitura; não há coluna de proposta, título nem valor em risco (#157). */
 export const readingToRow = (requestId: number, messageId: number | null, reading: SupplierReading): Record<string, unknown> => ({
   request_id: requestId,
   message_id: messageId,
@@ -61,8 +61,8 @@ export const readingToRow = (requestId: number, messageId: number | null, readin
 });
 
 /**
- * #35: a leitura atual do pedido (a projeção do log): a da mensagem de maior id; a da varredura só vale quando não há
- * leitura de mensagem, então a resposta tardia vence o no_reply (#34). Não depende da ordem em que as linhas chegam.
+ * #157: a leitura atual do pedido (a projeção do log): a da mensagem de maior id; a da varredura só vale quando não há
+ * leitura de mensagem, então a resposta tardia vence o no_reply (#157). Não depende da ordem em que as linhas chegam.
  */
 export function currentReading(rows: readonly ReadingRow[]): ReadingRow | null {
   let swept: ReadingRow | null = null;

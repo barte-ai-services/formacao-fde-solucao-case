@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-// #35: asserções sobre o texto da migração e o registro dos modos. Elas valem sem banco; o mesmo SQL também foi aplicado
-// #35: num PostgreSQL de verdade na construção da camada (o relatório da entrega diz como), e esta é a rede que fica no gate.
+// #157: asserções sobre o texto da migração e o registro dos modos. Elas valem sem banco; o mesmo SQL também foi aplicado
+// #157: num PostgreSQL de verdade na construção da camada (o relatório da entrega diz como), e esta é a rede que fica no gate.
 
 const SQL = readFileSync(new URL('../../../supabase/migrations/20261117170000_inbox_supplier_messages.sql', import.meta.url), 'utf8');
 const REGISTRY = readFileSync(new URL('../../../supabase/persistence-modes.yaml', import.meta.url), 'utf8');
@@ -12,9 +12,9 @@ const section = (table: string): string => {
   return start < 0 ? '' : flat.slice(start, flat.indexOf('); ', start));
 };
 
-describe('#35/AC-1 inbox_supplier_messages: a caixa de entrada mock', () => { // ADR-002
+describe('#157 inbox_supplier_messages: a caixa de entrada mock', () => { // ADR-002
   const t = section('inbox_supplier_messages');
-  it('a mensagem é do pedido (FK) e a identidade na origem é única, para o script rodar de novo sem duplicar (#4/AC-7)', () => { // ADR-002
+  it('a mensagem é do pedido (FK) e a identidade na origem é única, para o script rodar de novo sem duplicar (#157)', () => { // ADR-002
     expect(t).toContain('foreign key (request_id) references public.outbox_supplier_emails (id)');
     expect(t).toContain('unique (source_message_id)');
     expect(t).toContain('unique (id, request_id)');
@@ -49,7 +49,7 @@ describe('#35/AC-1 inbox_supplier_messages: a caixa de entrada mock', () => { //
   });
 });
 
-describe('#35/AC-1 supplier_reply_readings: as leituras, um log append-only', () => { // ADR-002
+describe('#157 supplier_reply_readings: as leituras, um log append-only', () => { // ADR-002
   const t = section('supplier_reply_readings');
   it('uma leitura por mensagem, e a mensagem é do mesmo pedido (FK composta)', () => { // ADR-002
     expect(t).toContain('constraint supplier_reply_readings_message_key unique (message_id)');
@@ -74,10 +74,10 @@ describe('#35/AC-1 supplier_reply_readings: as leituras, um log append-only', ()
     expect(t).toContain("reply_outcome <> 'fulfilled' or supplier_document is null or next_step = 'confirm_document'");
     expect(t).toContain("next_step <> 'close' or reply_outcome = 'fulfilled'");
   });
-  it('não copia a regra da PR #40 que impediria o fulfilled sem documento de fechar', () => { // ADR-002
+  it('não copia a regra da PR Djegao/grupo-5-slucao#40 que impediria o fulfilled sem documento de fechar', () => { // ADR-002
     expect(t).not.toContain("reply_outcome <> 'fulfilled' or next_step = 'confirm_document'");
   });
-  it('nenhuma coluna aponta para proposta, título ou valor em risco (#4/AC-6)', () => { // ADR-002
+  it('nenhuma coluna aponta para proposta, título ou valor em risco (#157)', () => { // ADR-002
     expect(t).not.toMatch(/proposal|title|amount|risk|decision/);
   });
   it('é append-only: update, delete e truncate revogados dos três papéis; RLS ligado e nenhuma política', () => { // ADR-002
@@ -86,7 +86,7 @@ describe('#35/AC-1 supplier_reply_readings: as leituras, um log append-only', ()
   });
 });
 
-describe('#35/AC-3 outbox_supplier_emails ganha as colunas da cobrança (sem tabela nova do pedido)', () => { // ADR-002
+describe('#157 outbox_supplier_emails ganha as colunas da cobrança (sem tabela nova do pedido)', () => { // ADR-002
   const start = flat.indexOf('alter table public.outbox_supplier_emails');
   const t = flat.slice(start, flat.indexOf('; ', start));
   it('as colunas follow_up_* são anuláveis e sem default, num único alter table', () => { // ADR-002
@@ -113,30 +113,29 @@ describe('#35/AC-3 outbox_supplier_emails ganha as colunas da cobrança (sem tab
   it('a coerência: rascunho ou recusa, reivindicação exige rascunho, envio mantém a reivindicação e limpa a falha', () => { // ADR-002
     expect(t).toContain('follow_up_draft is null or follow_up_rejection is null');
     expect(t).toContain('follow_up_claimed_at is null or follow_up_draft is not null');
-    expect(t).toContain('(follow_up_claim is null) = (follow_up_claimed_at is null)'); // #35 a ficha da reivindicação anda junto com o prazo
+    expect(t).toContain('(follow_up_claim is null) = (follow_up_claimed_at is null)'); // #157 a ficha da reivindicação anda junto com o prazo
     expect(t).toContain('follow_up_sent_at is null or follow_up_claimed_at is not null');
     expect(t).toContain('follow_up_sent_at is null or follow_up_failure is null');
     expect(t).toMatch(/status = 'sent' or \(follow_up_draft is null and follow_up_rejection is null/);
-    expect(t).toContain('follow_up_claimed_at is null and follow_up_claim is null and follow_up_sent_at is null'); // #35 só pedido enviado tem ficha
+    expect(t).toContain('follow_up_claimed_at is null and follow_up_claim is null and follow_up_sent_at is null'); // #157 só pedido enviado tem ficha
   });
   it('nenhuma tabela nova representa o pedido', () => { // ADR-002
     expect(flat).not.toMatch(/create table public\.(supplier_requests|supplier_request)\b/);
   });
 });
 
-describe('#35 o registro dos modos', () => { // ADR-002
-  it('declara as duas tabelas novas e a extensão da #12', () => { // ADR-002
+describe('#157 o registro dos modos', () => { // ADR-002
+  it('declara as duas tabelas novas e a extensão da #156', () => { // ADR-002
     expect(REGISTRY).toContain('inbox_supplier_messages:');
     expect(REGISTRY).toContain('supplier_reply_readings:');
-    expect(REGISTRY).toContain('extended_by: "#35"');
+    expect(REGISTRY).toContain('extended_by: "#157"');
     expect(REGISTRY).toMatch(/supplier_reply_readings:\s+mode: append-only/);
   });
 });
 
-describe('#35 o texto da migração segue o projeto', () => { // ADR-002
+describe('#157 o texto da migração segue o projeto', () => { // ADR-002
   it('o carimbo é o último da árvore e as comentadas de enum levam ADR-002', () => { // ADR-002
     expect(SQL).toMatch(/-- ADR-002/);
-    expect(SQL).toMatch(/-- #35/);
-    expect(SQL).toMatch(/-- #4\/AC-\d/);
+    expect(SQL).toMatch(/-- #157/);
   });
 });

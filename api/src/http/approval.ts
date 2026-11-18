@@ -57,12 +57,12 @@ export interface ApprovalDeps {
   /** #135 A caixa de saída do app da loja: a ação da nota de loja (`LJ-*`) vai para ela, não para o WMS. */
   storeOutbox?: StoreActionOutbox;
   /**
-   * #9/AC-1 A caixa de saída das notas de devolução (#1): aprovar ou alterar publica nela a devolução da
+   * #156 A caixa de saída das notas de devolução (#156): aprovar ou alterar publica nela a devolução da
    * decisão que devolve, depois de gravar a decisão. Sem ela, ou sem `receipts` e `products`, a decisão fica
    * só gravada e a varredura do Cron publica depois.
    */
   returnOutbox?: ReturnNoteOutbox;
-  /** #9/AC-1 Os recebimentos do WMS, para a devolução da recusa de nota que já entrou. */
+  /** #156 Os recebimentos do WMS, para a devolução da recusa de nota que já entrou. */
   receipts?: (invoiceAccessKey: string) => Promise<readonly Receipt[]>;
   /** #211 Os horários da linha do tempo da nota. Sem ele, `timeline` vai vazia. */
   timeline?: TimelineSource;
@@ -421,7 +421,7 @@ async function decide(
 }
 
 /**
- * #9/AC-1 Publica a decisão gravada: a ação na doca (#43) e a devolução (#1). Cada uma tem a sua falha
+ * #156 Publica a decisão gravada: a ação na doca (#43) e a devolução (#156). Cada uma tem a sua falha
  * isolada, para que uma não pule a outra; nenhuma desfaz a decisão, que já está gravada.
  */
 async function publishDecision(deps: ApprovalDeps, key: string, file: CaseFile, decidedOn: string): Promise<void> {
@@ -451,10 +451,10 @@ async function publishDockAction(deps: ApprovalDeps, key: string, file: CaseFile
 }
 
 /**
- * #1/AC-1 a AC-5, AC-8 e #9/AC-1: a devolução da decisão chega à fila das notas de devolução, idempotente.
+ * #156 a AC-5, AC-8 e #156: a devolução da decisão chega à fila das notas de devolução, idempotente.
  * Receber nunca devolve, então não lê nada. Se a leitura ou a publicação falha, a decisão continua valendo:
  * o log leva só a chave e o status HTTP (nunca o texto do erro, que pode trazer o corpo da resposta) e a
- * varredura do Cron publica na próxima rodada (#1/AC-6).
+ * varredura do Cron publica na próxima rodada (#156).
  */
 async function publishReturn(deps: ApprovalDeps, key: string, file: CaseFile, decidedOn: string): Promise<void> {
   const { returnOutbox, receipts, products } = deps;

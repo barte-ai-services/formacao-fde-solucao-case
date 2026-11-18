@@ -6,11 +6,11 @@ import { supabaseIssuedNoteStore } from './supabase-notes.js';
 import { supabaseSourceInvoices } from './supabase-source.js';
 import { supabaseSupplierRequestStore } from './supabase-store.js';
 
-// #12: as portas do pedido ao fornecedor (#2) ligadas ao Supabase; o envio é o mock enquanto ninguém passa outro `mailer`.
+// #156: as portas do pedido ao fornecedor (#156) ligadas ao Supabase; o envio é o mock enquanto ninguém passa outro `mailer`.
 
 export type SupplierDepsOptions = {
   readonly clock?: Clock;
-  /** #12/AC-5: quem monta escolhe o envio (`mailerFromEnv`); sem escolha, a caixa de saída mock. */
+  /** #156: quem monta escolhe o envio (`mailerFromEnv`); sem escolha, a caixa de saída mock. */
   readonly mailer?: SupplierMailer;
 };
 
