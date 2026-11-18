@@ -185,11 +185,11 @@ const QUEUE_ORDER: Ordering<QueueItem> = {
 };
 
 /** #323 ADR-006 A fila filtrada por `pode_aprovar=1`: a mesma ordem e a mesma tupla, com outra identidade, e o cursor de uma não serve na outra. */
-const APPROVABLE_QUEUE_ORDER: Ordering<QueueItem> = { ...QUEUE_ORDER, list: 'fila:pode_aprovar' };
+const APPROVABLE_QUEUE_ORDER: Ordering<QueueItem> = { ...QUEUE_ORDER, list: 'fila:pode_aprovar' }; // ADR-006
 
 /** #323 ADR-006 `pode_aprovar` só aceita `1`. Ausente: sem filtro. Qualquer outro valor (inclusive `0` e vazio): nulo, e o handler responde 400 `pode_aprovar_invalido`. */
 function readApprovableFilter(params: URLSearchParams): boolean | null {
-  const raw = params.get('pode_aprovar');
+  const raw = params.get('pode_aprovar'); // ADR-006
   if (raw === null) return false;
   return raw === '1' ? true : null;
 }
@@ -213,8 +213,7 @@ async function queue(
   params: URLSearchParams,
 ): Promise<Response> {
   const approvableOnly = readApprovableFilter(params);
-  // #323 ADR-006 O código de erro fica em português, como `limite_invalido`.
-  if (approvableOnly === null) return error(400, 'pode_aprovar_invalido');
+  if (approvableOnly === null) return error(400, 'pode_aprovar_invalido'); // ADR-006
   const read = readPageQuery(params);
   if (read.kind === 'invalid') return read.response;
   // #323 O filtro sozinho ativa a página com o limite padrão; só vale na fila, as outras listas não leem `pode_aprovar`.
