@@ -48,7 +48,7 @@ export interface Env {
    */
   ai?: Ai;
   /**
-   * #13 Chave do Resend, secret do Worker (#2/AC-6). Sem ela, o envio do pedido ao fornecedor vai pela caixa de saída mock;
+   * #156 Chave do Resend, secret do Worker (#156). Sem ela, o envio do pedido ao fornecedor vai pela caixa de saída mock;
    * só se olha se está em branco, o valor nunca é lido nem registrado.
    */
   RESEND_API_KEY?: string;

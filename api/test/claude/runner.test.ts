@@ -257,7 +257,7 @@ describe('runTasks (#66)', () => {
   });
 });
 
-describe('limite por tarefa (#12)', () => { // ADR-002
+describe('limite por tarefa (#156)', () => { // ADR-002
   const keys = ['a', 'b', 'c', 'd', 'e'];
 
   it('o limite da tarefa vale quando é menor que o da rodada', async () => { // ADR-002

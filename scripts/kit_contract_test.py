@@ -49,7 +49,7 @@ def load_sql() -> str:
 
 
 def read_added_columns(tables: dict[str, "SqlTable"]) -> None:
-    """Colunas que migrações posteriores à base acrescentam a uma tabela kit_ (alter table ... add column, #12)."""
+    """Colunas que migrações posteriores à base acrescentam a uma tabela kit_ (alter table ... add column, #156)."""
     for path in sorted(glob.glob(os.path.join(MIGRATIONS, "*.sql"))):
         if path.endswith("_base_do_kit.sql"):
             continue
@@ -157,7 +157,7 @@ class ContractTest(unittest.TestCase):
                 self.assertEqual([c["name"] for c in t["columns"]], list(self.tables[t["name"]].columns))
 
     def test_every_supplier_column_the_contract_declares_comes_from_a_migration(self) -> None:
-        # #12: o e-mail do fornecedor entra por migração posterior; o contrato o declara anulável.
+        # #156: o e-mail do fornecedor entra por migração posterior; o contrato o declara anulável.
         supplier = next(t for t in self.contract["tables"] if t["name"] == "kit_fornecedores")
         email = next(c for c in supplier["columns"] if c["name"] == "email")
         self.assertEqual({"name": "email", "type": "text", "nullable": True}, email)

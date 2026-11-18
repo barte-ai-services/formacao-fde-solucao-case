@@ -3,9 +3,9 @@ import { SupabaseRestError } from '../../src/connectors/supabase-rest.js';
 import { guarded, pgCode, refused } from '../../src/supplier/supabase-reply-call.js';
 import { SupplierStoreError } from '../../src/supplier/supabase-store.js';
 
-// #35 (ADR-003): o teste de supabase-reply-call.ts ao lado do espelho: o código do Postgres e a tradução do erro do PostgREST.
+// #157 (ADR-003): o teste de supabase-reply-call.ts ao lado do espelho: o código do Postgres e a tradução do erro do PostgREST.
 
-describe('#35 pgCode: só o código de 5 caracteres do corpo do erro', () => {
+describe('#157 pgCode: só o código de 5 caracteres do corpo do erro', () => {
   it('extrai o código do corpo do PostgREST', () => {
     expect(pgCode('{"code":"23505","message":"duplicate key","details":"x"}')).toBe('23505');
     expect(pgCode('{"code": "57014", "x": 1}')).toBe('57014');
@@ -18,7 +18,7 @@ describe('#35 pgCode: só o código de 5 caracteres do corpo do erro', () => {
   });
 });
 
-describe('#35 guarded: a falha do PostgREST vira SupplierStoreError sem o corpo', () => {
+describe('#157 guarded: a falha do PostgREST vira SupplierStoreError sem o corpo', () => {
   it('um erro que não é de formato vira SupplierStoreError com a operação, a tabela, o status e o código, e sem o detalhe', async () => {
     const failure = new SupabaseRestError('update', 'outbox_supplier_emails', 500, '{"code":"57014","message":"detalhe interno da conexão"}');
     const error = await guarded(() => Promise.reject(failure)).then(
@@ -46,7 +46,7 @@ describe('#35 guarded: a falha do PostgREST vira SupplierStoreError sem o corpo'
   });
 });
 
-describe('#35 refused: a transição que o banco não deixou fazer, sem dado algum', () => {
+describe('#157 refused: a transição que o banco não deixou fazer, sem dado algum', () => {
   it('leva só a operação e a tabela, com status 0 e sem código', () => {
     expect(refused('mark_read', 'inbox_supplier_messages')).toMatchObject({ operation: 'mark_read', table: 'inbox_supplier_messages', status: 0, code: null });
   });

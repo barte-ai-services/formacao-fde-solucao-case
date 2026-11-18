@@ -15,7 +15,7 @@ export type PendingResult<I> = { readonly requests: PendingRequest<I>[]; readonl
 export type ClaudeTask<I, O> = {
   /** #66 Nome gravado em claude_suggestions.task; o Worker lê por ele. */
   readonly name: string;
-  /** #12 Teto de pedidos desta tarefa a cada rodada; vale o menor entre ele e o da rodada. Sem ele, vale o da rodada. */
+  /** #156 Teto de pedidos desta tarefa a cada rodada; vale o menor entre ele e o da rodada. Sem ele, vale o da rodada. */
   readonly limit?: number;
   /** #66 O que falta sugerir, lido do banco e estreitado por guard. O laço tira o que já está ok. */
   pending(db: Db): Promise<PendingResult<I>>;

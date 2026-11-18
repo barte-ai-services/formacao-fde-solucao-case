@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-// #12: asserções sobre o texto da migração e o registro dos modos: não há banco real nos testes (IDX-1 e o grant sem detector).
+// #156: asserções sobre o texto da migração e o registro dos modos: não há banco real nos testes (IDX-1 e o grant sem detector).
 
 const SQL = readFileSync(new URL('../../../supabase/migrations/20261117160000_supplier_request.sql', import.meta.url), 'utf8');
 const REGISTRY = readFileSync(new URL('../../../supabase/persistence-modes.yaml', import.meta.url), 'utf8');
@@ -11,14 +11,14 @@ const section = (table: string): string => {
   return start < 0 ? '' : flat.slice(start, flat.indexOf('); ', start));
 };
 
-describe('#12/AC-1 kit_fornecedores ganha o e-mail', () => { // ADR-002
+describe('#156 kit_fornecedores ganha o e-mail', () => { // ADR-002
   it('a coluna é anulável (a migração roda antes da carga) e tem a restrição de formato', () => { // ADR-002
     expect(flat).toContain('alter table public.kit_fornecedores add column email text');
     expect(flat).toMatch(/check \(email is null or email ~ '\^\[\^@\[:space:\]\]\+@\[\^@\[:space:\]\]\+\$'\)/);
   });
 });
 
-describe('#12/AC-2 issued_return_notes: a nota emitida, única por devolução da fila', () => { // ADR-002
+describe('#156 issued_return_notes: a nota emitida, única por devolução da fila', () => { // ADR-002
   const t = section('issued_return_notes');
   it('o id é a sequência da emissão, com o teto do domínio', () => { // ADR-002
     expect(t).toContain('id bigint generated always as identity (maxvalue 999999999)');
@@ -44,7 +44,7 @@ describe('#12/AC-2 issued_return_notes: a nota emitida, única por devolução d
   });
 });
 
-describe('#12/AC-3 outbox_supplier_emails: um pedido aberto por nota de origem e tipo', () => { // ADR-002
+describe('#156 outbox_supplier_emails: um pedido aberto por nota de origem e tipo', () => { // ADR-002
   it('o índice único parcial tem o predicado exato dos estados abertos', () => { // ADR-002
     expect(flat).toContain(
       "create unique index outbox_supplier_emails_open_key on public.outbox_supplier_emails (invoice_access_key, request_type) where status in ('draft', 'sent', 'send_failed')",
@@ -52,7 +52,7 @@ describe('#12/AC-3 outbox_supplier_emails: um pedido aberto por nota de origem e
   });
 });
 
-describe('#12/AC-4 outbox_supplier_emails guarda o pedido, o envio e o histórico', () => { // ADR-002
+describe('#156 outbox_supplier_emails guarda o pedido, o envio e o histórico', () => { // ADR-002
   const t = section('outbox_supplier_emails');
   it('as colunas do pedido: destinatário, assunto, corpo, o que pedimos, anexos, prazo, modelo e motivos', () => { // ADR-002
     for (const column of [
@@ -106,7 +106,7 @@ describe('#12/AC-4 outbox_supplier_emails guarda o pedido, o envio e o históric
   });
 });
 
-describe('#12 a migração segue as convenções do projeto', () => { // ADR-002
+describe('#156 a migração segue as convenções do projeto', () => { // ADR-002
   it('RLS ligado nas duas tabelas novas e nenhuma política', () => { // ADR-002
     expect(flat).toContain('alter table public.issued_return_notes enable row level security');
     expect(flat).toContain('alter table public.outbox_supplier_emails enable row level security');
@@ -129,7 +129,7 @@ describe('#12 a migração segue as convenções do projeto', () => { // ADR-002
   });
 });
 
-describe('#12 o registro dos modos de persistência', () => { // ADR-002
+describe('#156 o registro dos modos de persistência', () => { // ADR-002
   it('declara as três tabelas desta camada, cada uma no seu modo', () => { // ADR-002
     expect(REGISTRY).toMatch(/issued_return_notes:\s*\n\s*mode: append-only/);
     expect(REGISTRY).toMatch(/outbox_supplier_emails:\s*\n\s*mode: upsert-with-history/);

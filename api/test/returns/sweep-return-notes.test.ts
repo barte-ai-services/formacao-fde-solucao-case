@@ -6,7 +6,7 @@ import type { DecidedReturnCase } from '../../src/returns/publish-return-note.js
 import { sweepReturnNotes } from '../../src/returns/sweep-return-notes.js';
 import { decided, KEY, memoryOutbox, OTHER_KEY, partialE3 } from './support.js';
 
-/** #7 Fonte em memória das decisões: devolve os casos dados e conta as leituras. */
+/** #156 Fonte em memória das decisões: devolve os casos dados e conta as leituras. */
 function memorySource(cases: readonly DecidedReturnCase[]) {
   const calls = { listDecided: 0 };
   const source: DecidedReturnSource = {
@@ -25,7 +25,7 @@ const queued = (accessKey: string): ReturnNoteMessage => ({
 });
 
 describe('a varredura das decisões: sweepReturnNotes', () => {
-  it('#1/AC-6 #7/AC-2: publica a devolução de toda decisão que devolve e ainda não está na fila', async () => {
+  it('#156: publica a devolução de toda decisão que devolve e ainda não está na fila', async () => {
     const { outbox, rows } = memoryOutbox();
     const { source } = memorySource([
       decided('E3', partialE3()),
@@ -37,7 +37,7 @@ describe('a varredura das decisões: sweepReturnNotes', () => {
     expect(rows.map((r) => r.invoiceAccessKey)).toEqual([KEY, OTHER_KEY]);
   });
 
-  it('#1/AC-7 #7/AC-3: com tudo na fila, em qualquer situação, não publica de novo', async () => {
+  it('#156: com tudo na fila, em qualquer situação, não publica de novo', async () => {
     const { outbox, calls } = memoryOutbox([queued(KEY), queued(OTHER_KEY)]);
     const { source } = memorySource([decided('E3', partialE3()), decided('E3', partialE3(), {}, OTHER_KEY)]);
     const result = await sweepReturnNotes(source, outbox);
@@ -45,7 +45,7 @@ describe('a varredura das decisões: sweepReturnNotes', () => {
     expect(calls.publish).toBe(0);
   });
 
-  it('#1/AC-7 #7/AC-3: rodar duas vezes seguidas deixa uma linha só por nota', async () => {
+  it('#156: rodar duas vezes seguidas deixa uma linha só por nota', async () => {
     const { outbox, rows } = memoryOutbox();
     const { source } = memorySource([decided('E3', partialE3())]);
     await sweepReturnNotes(source, outbox);
@@ -54,7 +54,7 @@ describe('a varredura das decisões: sweepReturnNotes', () => {
     expect(rows).toHaveLength(1);
   });
 
-  it('#1/AC-7 #7/AC-3: duas decisões da mesma nota na mesma rodada publicam uma vez só', async () => {
+  it('#156: duas decisões da mesma nota na mesma rodada publicam uma vez só', async () => {
     const { outbox, rows } = memoryOutbox();
     const { source } = memorySource([decided('E3', partialE3()), decided('E3', partialE3())]);
     const result = await sweepReturnNotes(source, outbox);
@@ -62,7 +62,7 @@ describe('a varredura das decisões: sweepReturnNotes', () => {
     expect(rows).toHaveLength(1);
   });
 
-  it('#1/AC-6 #7/AC-2: uma leitura da fonte, uma listagem da fila e uma publicação por nota nova', async () => {
+  it('#156: uma leitura da fonte, uma listagem da fila e uma publicação por nota nova', async () => {
     const { outbox, calls } = memoryOutbox([queued(OTHER_KEY)]);
     const { source, calls: sourceCalls } = memorySource([
       decided('E3', partialE3()),
@@ -74,14 +74,14 @@ describe('a varredura das decisões: sweepReturnNotes', () => {
     expect(calls.publish).toBe(1);
   });
 
-  it('#1/AC-8 #7/AC-2: sem decisão que devolva, não publica nada', async () => {
+  it('#156: sem decisão que devolva, não publica nada', async () => {
     const { outbox, calls } = memoryOutbox();
     const { source } = memorySource([decided('E5', DockAction.receive())]);
     expect(await sweepReturnNotes(source, outbox)).toEqual({ published: 0, alreadyQueued: 0, withoutReturn: 1 });
     expect(calls.publish).toBe(0);
   });
 
-  it('#9/AC-2: com limite, para ao publicar o limite e a rodada seguinte continua do que faltou', async () => {
+  it('#156: com limite, para ao publicar o limite e a rodada seguinte continua do que faltou', async () => {
     const { outbox, rows } = memoryOutbox();
     const third = '35261100000000000000550010000066661000066666';
     const { source } = memorySource([
@@ -99,7 +99,7 @@ describe('a varredura das decisões: sweepReturnNotes', () => {
     expect(rows.map((r) => r.invoiceAccessKey)).toEqual([KEY, OTHER_KEY, third]);
   });
 
-  it('#9/AC-2: o limite conta só o que publica: nota já na fila e decisão sem devolução não gastam', async () => {
+  it('#156: o limite conta só o que publica: nota já na fila e decisão sem devolução não gastam', async () => {
     const { outbox, rows } = memoryOutbox([queued(KEY)]);
     const { source } = memorySource([
       decided('E3', partialE3()),

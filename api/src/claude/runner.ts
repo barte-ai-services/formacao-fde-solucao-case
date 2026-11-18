@@ -179,7 +179,7 @@ async function runTask(task: ClaudeTask<unknown, unknown>, options: RunOptions):
   const { requests, dropped } = await task.pending(options.db);
   const pending = requests.filter((request) => existing.byKey.get(request.key)?.status !== 'ok');
   const now = (options.now ?? (() => new Date()))();
-  // #230 O teto da tarefa (`maxPerRun`) e o do #12/#36 (`limit`), quando houver, valem sobre o da rodada: vale o menor.
+  // #230 O teto da tarefa (`maxPerRun`) e o do #156/#36 (`limit`), quando houver, valem sobre o da rodada: vale o menor.
   const limit = Math.min(options.limit ?? MAX_PER_RUN, task.limit ?? Number.POSITIVE_INFINITY, task.maxPerRun ?? Number.POSITIVE_INFINITY);
   const plan = planQueue(pending, existing, now, limit);
   const counts: Counts = { ok: 0, failed: 0, firstError: undefined };

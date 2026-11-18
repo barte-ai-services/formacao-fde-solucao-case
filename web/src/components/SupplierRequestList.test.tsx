@@ -6,8 +6,8 @@ import type { SupplierRequestRow } from "./supplier-request-view";
 const navigate = vi.hoisted(() => vi.fn());
 vi.mock("../router", () => ({ navigate }));
 
-// #19 A lista "Pedidos ao fornecedor" por props, um teste por estado do wireframe aprovado (#18). Sem Storybook nem axe em web/ (#25):
-// #19 a consulta por papel e nome acessível faz o papel da checagem de acessibilidade. Dados fictícios.
+// #157 A lista "Pedidos ao fornecedor" por props, um teste por estado do wireframe aprovado (#157). Sem Storybook nem axe em web/ (#155):
+// #157 a consulta por papel e nome acessível faz o papel da checagem de acessibilidade. Dados fictícios.
 
 const late: SupplierRequestRow = {
   id: "sr-1",
@@ -37,8 +37,8 @@ function renderList(props: Partial<SupplierRequestListProps> = {}) {
   return handlers;
 }
 
-describe("#19 SupplierRequestList", () => {
-  it("#5/AC-1: mostra o título, o subtítulo e as seis colunas Nota, Fornecedor, Solicitação, Valor, Prazo e Status", () => {
+describe("#157 SupplierRequestList", () => {
+  it("#157: mostra o título, o subtítulo e as seis colunas Nota, Fornecedor, Solicitação, Valor, Prazo e Status", () => {
     renderList();
     expect(screen.getByRole("heading", { name: "Pedidos ao fornecedor" })).toBeTruthy();
     expect(screen.getByText("O que pedimos aos fornecedores, quem respondeu e quem está devendo resposta.")).toBeTruthy();
@@ -47,7 +47,7 @@ describe("#19 SupplierRequestList", () => {
     }
   });
 
-  it("#5/AC-1: cada linha traz nota, fornecedor, solicitação, valor, prazo e status, na ordem recebida", () => {
+  it("#157: cada linha traz nota, fornecedor, solicitação, valor, prazo e status, na ordem recebida", () => {
     renderList();
     const rows = screen.getAllByRole("row").slice(1);
     expect(rows).toHaveLength(2);
@@ -61,7 +61,7 @@ describe("#19 SupplierRequestList", () => {
     expect(within(rows[1]!).getByText("F09 Embalagens")).toBeTruthy();
   });
 
-  it("#5/AC-2: os quatro chips são radios com a contagem, e o do filtro está marcado", () => {
+  it("#157: os quatro chips são radios com a contagem, e o do filtro está marcado", () => {
     renderList();
     const late = screen.getByRole("radio", { name: /^Atrasados/ });
     expect(late.getAttribute("aria-checked")).toBe("true");
@@ -71,13 +71,13 @@ describe("#19 SupplierRequestList", () => {
     expect(screen.getByRole("radio", { name: /^Precisam de você/ }).textContent).toMatch(/3/);
   });
 
-  it("#5/AC-2: escolher um chip avisa o filtro escolhido", () => {
+  it("#157: escolher um chip avisa o filtro escolhido", () => {
     const { onFilterChange } = renderList();
     fireEvent.click(screen.getByRole("radio", { name: /^Aguardando/ }));
     expect(onFilterChange).toHaveBeenCalledWith("waiting");
   });
 
-  it("#5/AC-3: a linha abre a gaveta pelo clique e pelo teclado, com o rótulo 'Nota 59738, F07 Limpeza'", () => {
+  it("#157: a linha abre a gaveta pelo clique e pelo teclado, com o rótulo 'Nota 59738, F07 Limpeza'", () => {
     const { onOpenRow } = renderList();
     const row = screen.getByRole("row", { name: "Nota 59738, F07 Limpeza" });
     fireEvent.click(row);
@@ -86,7 +86,7 @@ describe("#19 SupplierRequestList", () => {
     expect(onOpenRow).toHaveBeenCalledTimes(2);
   });
 
-  it("#5/AC-4: 'Cobrar' na linha atrasada pede o rascunho e não abre a linha", () => {
+  it("#157: 'Cobrar' na linha atrasada pede o rascunho e não abre a linha", () => {
     const { onFollowUp, onOpenRow } = renderList();
     const row = screen.getByRole("row", { name: "Nota 59738, F07 Limpeza" });
     fireEvent.click(within(row).getByRole("button", { name: "Cobrar" }));
@@ -94,18 +94,18 @@ describe("#19 SupplierRequestList", () => {
     expect(onOpenRow).not.toHaveBeenCalled();
   });
 
-  it("#5/AC-4: só a linha atrasada tem 'Cobrar'", () => {
+  it("#157: só a linha atrasada tem 'Cobrar'", () => {
     renderList({ filter: "all", rows: [waiting, toConfirm, late] });
     expect(screen.getAllByRole("button", { name: "Cobrar" })).toHaveLength(1);
   });
 
-  it("#5/AC-4: a linha atrasada que o servidor já cobrou lê 'Atrasado (cobrado)' e não tem 'Cobrar'", () => {
+  it("#157: a linha atrasada que o servidor já cobrou lê 'Atrasado (cobrado)' e não tem 'Cobrar'", () => {
     renderList({ filter: "late", rows: [{ ...late, alreadyCharged: true }] });
     expect(screen.getByText("Atrasado (cobrado)")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Cobrar" })).toBeNull();
   });
 
-  it("#5/AC-1: a coluna Status desenha a variante de cada situação, e o documento citado a confirmar", () => {
+  it("#157: a coluna Status desenha a variante de cada situação, e o documento citado a confirmar", () => {
     renderList({
       filter: "all",
       rows: [
@@ -123,7 +123,7 @@ describe("#19 SupplierRequestList", () => {
     expect(screen.getByText("(citada, falta confirmar)")).toBeTruthy();
   });
 
-  it("#5/AC-2: atendeu com próximo passo responder ou cobrar diz 'Atendeu, falta responder' e 'Atendeu, falta cobrar', sem a nota de documento", () => {
+  it("#157: atendeu com próximo passo responder ou cobrar diz 'Atendeu, falta responder' e 'Atendeu, falta cobrar', sem a nota de documento", () => {
     renderList({
       filter: "all",
       rows: [
@@ -137,14 +137,14 @@ describe("#19 SupplierRequestList", () => {
     expect(screen.queryByRole("button", { name: "Cobrar" })).toBeNull();
   });
 
-  it("#18: carregando mostra o aviso de carga e os chips sem contagem inventada", () => {
+  it("#157: carregando mostra o aviso de carga e os chips sem contagem inventada", () => {
     renderList({ state: "loading", rows: [] });
     expect(screen.getByText("Carregando os pedidos ao fornecedor…")).toBeTruthy();
     expect(screen.getByRole("radio", { name: /^Atrasados/ }).textContent).not.toMatch(/\d/);
     expect(screen.queryByRole("row")).toBeNull();
   });
 
-  it("#18: erro mostra a mensagem do wireframe, sem lista parcial, e 'Tentar de novo' tenta de novo", () => {
+  it("#157: erro mostra a mensagem do wireframe, sem lista parcial, e 'Tentar de novo' tenta de novo", () => {
     const { onRetry } = renderList({ state: "error", rows: [] });
     expect(screen.getByText("Não consegui carregar os pedidos ao fornecedor.")).toBeTruthy();
     expect(screen.queryByRole("row")).toBeNull();
@@ -152,7 +152,7 @@ describe("#19 SupplierRequestList", () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
-  it("#18: vazio geral diz o que fazer e oferece ir à Fila de aprovação", () => {
+  it("#157: vazio geral diz o que fazer e oferece ir à Fila de aprovação", () => {
     renderList({ state: "empty", rows: [] });
     expect(screen.getByText("Nenhum pedido ao fornecedor ainda.")).toBeTruthy();
     expect(screen.getByText(/depois que você emite e envia a nota de devolução/)).toBeTruthy();
@@ -160,7 +160,7 @@ describe("#19 SupplierRequestList", () => {
     expect(navigate).toHaveBeenCalledWith("/pagar/fila"); // ADR-004
   });
 
-  it("#5/AC-2: chip com 0 diz 'Nenhum pedido atrasado.' e 'Ver todos' limpa o filtro", () => {
+  it("#157: chip com 0 diz 'Nenhum pedido atrasado.' e 'Ver todos' limpa o filtro", () => {
     const { onShowAll } = renderList({ rows: [], counts: { waiting: 7, fulfilled: 12, needsYou: 3, late: 0 } });
     expect(screen.getByRole("radio", { name: /^Atrasados/ }).textContent).toMatch(/0/);
     expect(screen.getByText("Nenhum pedido atrasado.")).toBeTruthy();
@@ -170,7 +170,7 @@ describe("#19 SupplierRequestList", () => {
     expect(onShowAll).toHaveBeenCalledTimes(1);
   });
 
-  it("#65/AC-1: a linha cuja leitura tem ordem escondida mostra o selo '⚠ Ordem escondida', com nome acessível; as outras não", () => {
+  it("#157: a linha cuja leitura tem ordem escondida mostra o selo '⚠ Ordem escondida', com nome acessível; as outras não", () => {
     renderList({ rows: [{ ...late, hiddenOrder: true }, lateToo] });
     const rows = screen.getAllByRole("row").slice(1);
     const flagged = within(rows[0]!);

@@ -1,10 +1,10 @@
 import type { KitReturnNote } from './kit-note.js';
 
-// #57: o PDF da nota de devolução emitida, anexo do e-mail ao fornecedor junto do JSON (#2, história #155/#156).
-// #57: função pura, sem dependência: um PDF 1.4, Helvetica em WinAnsi, A4, que desenha a nota no formato do kit (a mesma
-// #57: `KitReturnNote` do JSON, então os valores batem). É uma representação da nota emulada, não um DANFE.
-// #57: o PDF sai como texto só de ASCII (o que não é ASCII vai em octal do WinAnsi), um byte por caractere, que é o que o anexo
-// #57: (`MailAttachment.content`, string) e a resposta HTTP levam. Ideia de PR #40, adaptada ao modelo da main.
+// #156: o PDF da nota de devolução emitida, anexo do e-mail ao fornecedor junto do JSON (#156, história #155/#156).
+// #156: função pura, sem dependência: um PDF 1.4, Helvetica em WinAnsi, A4, que desenha a nota no formato do kit (a mesma
+// #156: `KitReturnNote` do JSON, então os valores batem). É uma representação da nota emulada, não um DANFE.
+// #156: o PDF sai como texto só de ASCII (o que não é ASCII vai em octal do WinAnsi), um byte por caractere, que é o que o anexo
+// #156: (`MailAttachment.content`, string) e a resposta HTTP levam. Ideia de PR Djegao/grupo-5-slucao#40, adaptada ao modelo da main.
 
 type Text = readonly [x: number, y: number, size: number, text: string];
 type Page = Text[];
@@ -12,14 +12,14 @@ type Page = Text[];
 const TOP = 800;
 const BOTTOM = 60;
 const LEFT = 50;
-const DESCRIPTION_WIDTH = 38; // #57: caracteres da coluna Descrição, a 9 pt, antes de quebrar a linha
+const DESCRIPTION_WIDTH = 38; // #156: caracteres da coluna Descrição, a 9 pt, antes de quebrar a linha
 const LINE = 14;
 
 const reais = (value: number): string => `R$ ${value.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`;
 
 const dayMonthYear = (iso: string): string => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 
-/** #57: texto de PDF: escapa `\`, `(` e `)` e leva cada caractere fora do ASCII para o octal do WinAnsi (Latin-1). */
+/** #156: texto de PDF: escapa `\`, `(` e `)` e leva cada caractere fora do ASCII para o octal do WinAnsi (Latin-1). */
 function pdfString(text: string): string {
   let out = '';
   for (const ch of text) {
@@ -32,7 +32,7 @@ function pdfString(text: string): string {
   return `(${out})`;
 }
 
-/** #57: quebra o texto em linhas de até `width` caracteres, nos espaços; uma palavra maior que a linha é partida. Nada se perde. */
+/** #156: quebra o texto em linhas de até `width` caracteres, nos espaços; uma palavra maior que a linha é partida. Nada se perde. */
 function wrap(text: string, width: number): string[] {
   const lines: string[] = [];
   let current = '';
@@ -55,7 +55,7 @@ function wrap(text: string, width: number): string[] {
   return lines.length === 0 ? [''] : lines;
 }
 
-/** #57: a folha em montagem: as páginas, a página corrente e a altura em que a próxima linha entra. */
+/** #156: a folha em montagem: as páginas, a página corrente e a altura em que a próxima linha entra. */
 class Sheet {
   y = TOP;
   private current: Page = [];
@@ -127,7 +127,7 @@ function drawTotal(sheet: Sheet, note: KitReturnNote): void {
   sheet.add(420, 11, `Total: ${reais(note.valor_total)}`);
 }
 
-/** #57: as páginas: o cabeçalho da nota, os itens (passam de página sem perder nenhum) e o total. */
+/** #156: as páginas: o cabeçalho da nota, os itens (passam de página sem perder nenhum) e o total. */
 function layout(note: KitReturnNote): Page[] {
   const sheet = new Sheet();
   drawHeader(sheet, note);
@@ -140,7 +140,7 @@ function layout(note: KitReturnNote): Page[] {
 const contentOf = (page: Page): string =>
   page.map(([x, y, size, text]) => `BT /F1 ${size} Tf ${x} ${y} Td ${pdfString(text)} Tj ET`).join('\n');
 
-/** #57: o PDF da nota como texto ASCII (um byte por caractere). Dois objetos por página: a página e o conteúdo dela. */
+/** #156: o PDF da nota como texto ASCII (um byte por caractere). Dois objetos por página: a página e o conteúdo dela. */
 export function returnNotePdf(note: KitReturnNote): string {
   const pages = layout(note);
   const firstPageObject = 4;

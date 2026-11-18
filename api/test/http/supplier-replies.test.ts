@@ -1,5 +1,5 @@
-// #36: os cenários de aceite da leitura da resposta do fornecedor (#4/AC-1 a AC-7), de ponta a ponta pela API montada sobre o
-// #36: PostgREST falso, com o Claude falso e o laço do Cron de verdade (as tarefas vêm de tasksFor, como em produção). ADR-003.
+// #157: os cenários de aceite da leitura da resposta do fornecedor (#157 a AC-7), de ponta a ponta pela API montada sobre o
+// #157: PostgREST falso, com o Claude falso e o laço do Cron de verdade (as tarefas vêm de tasksFor, como em produção). ADR-003.
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { runClaudeRound } from '../../src/claude/cron.js';
@@ -9,8 +9,8 @@ import { fakeMailer } from '../supplier/doubles.js';
 import { AFTER_DUE, ANA, ASK_OK, HIDDEN_ORDER, READING, listOf, replyAsk, sentWorld, viewOf, type Json } from '../support/reply-scenarios.js';
 import { askFailingWith, supplierWorld, type SupplierWorld } from '../support/supplier-world.js';
 
-describe('#4/AC-1 Dado uma resposta pendente, quando o Cron roda a leitura, então o pedido ganha a leitura e a mensagem fica lida', () => {
-  it('#4/AC-1: a leitura traz o desfecho, os itens atendidos, o documento, o resumo e o próximo passo, e a mensagem fica lida', async () => {
+describe('#157 Dado uma resposta pendente, quando o Cron roda a leitura, então o pedido ganha a leitura e a mensagem fica lida', () => {
+  it('#157: a leitura traz o desfecho, os itens atendidos, o documento, o resumo e o próximo passo, e a mensagem fica lida', async () => {
     const w = await sentWorld();
     w.receive('Bom dia. Emitimos a NF-D 881 para a devolução.');
 
@@ -27,7 +27,7 @@ describe('#4/AC-1 Dado uma resposta pendente, quando o Cron roda a leitura, ent�
     expect(w.rows('inbox_supplier_messages')[0]).toMatchObject({ read_status: 'ok' });
   });
 
-  it('#4/AC-1: um número do resumo que não vem do catálogo nem do documento recusa a leitura e a mensagem fica com erro', async () => {
+  it('#157: um número do resumo que não vem do catálogo nem do documento recusa a leitura e a mensagem fica com erro', async () => {
     const w = await sentWorld();
     w.receive('Emitimos a NF-D 881.');
 
@@ -38,8 +38,8 @@ describe('#4/AC-1 Dado uma resposta pendente, quando o Cron roda a leitura, ent�
   });
 });
 
-describe('#4/AC-4 atendeu com documento citado nunca fecha sozinho', () => {
-  it('#4/AC-4: fulfilled com documento e next_step close fica confirm_document e cai em "precisam de você", não em "atendidos"', async () => {
+describe('#157 atendeu com documento citado nunca fecha sozinho', () => {
+  it('#157: fulfilled com documento e next_step close fica confirm_document e cai em "precisam de você", não em "atendidos"', async () => {
     const w = await sentWorld();
     w.receive('Emitimos a NF-D 881 para a devolução.');
 
@@ -50,7 +50,7 @@ describe('#4/AC-4 atendeu com documento citado nunca fecha sozinho', () => {
     expect((await listOf(w, 'answered')).requests).toHaveLength(0);
   });
 
-  it('#4/AC-4: fulfilled sem documento e com close é atendido', async () => {
+  it('#157: fulfilled sem documento e com close é atendido', async () => {
     const w = await sentWorld();
     w.receive('Tudo certo, já tratamos a devolução.');
 
@@ -60,8 +60,8 @@ describe('#4/AC-4 atendeu com documento citado nunca fecha sozinho', () => {
   });
 });
 
-describe('#4/AC-5 e #4/AC-6 uma ordem escondida na resposta só chega a injectionFlag', () => {
-  it('#4/AC-5 #4/AC-6: o trecho aparece em injectionFlag e o pedido, a nota e o resto ficam como estavam; nada fora da leitura é gravado', async () => {
+describe('#157 e #157 uma ordem escondida na resposta só chega a injectionFlag', () => {
+  it('#157: o trecho aparece em injectionFlag e o pedido, a nota e o resto ficam como estavam; nada fora da leitura é gravado', async () => {
     const w = await sentWorld();
     const before = await viewOf(w);
     const writesBefore = w.fake.requests.length;
@@ -76,12 +76,12 @@ describe('#4/AC-5 e #4/AC-6 uma ordem escondida na resposta só chega a injectio
     const { reading: _r, followUp: _f, ...rest } = after;
     const { reading: _r0, followUp: _f0, ...rest0 } = before;
     expect(rest).toEqual(rest0);
-    // #4/AC-6: as únicas tabelas que a rodada escreve são a leitura, a caixa de entrada e o registro do Claude (nenhuma proposta, título ou valor em risco).
+    // #157: as únicas tabelas que a rodada escreve são a leitura, a caixa de entrada e o registro do Claude (nenhuma proposta, título ou valor em risco).
     const written = new Set(w.fake.requests.slice(writesBefore).filter((r) => r.method !== 'GET').map((r) => new URL(r.url).pathname.split('/').pop()));
     expect([...written].sort()).toEqual(['claude_suggestions', 'inbox_supplier_messages', 'supplier_reply_readings']);
   });
 
-  it('#4/AC-5: um trecho que o modelo inventou, que não está na resposta, recusa a leitura', async () => {
+  it('#157: um trecho que o modelo inventou, que não está na resposta, recusa a leitura', async () => {
     const w = await sentWorld();
     w.receive('Emitimos a NF-D 881.');
 
@@ -92,8 +92,8 @@ describe('#4/AC-5 e #4/AC-6 uma ordem escondida na resposta só chega a injectio
   });
 });
 
-describe('#4/AC-2 passado o prazo sem resposta, o pedido vira no_reply e ganha o rascunho da cobrança', () => {
-  it('#4/AC-2 #58/AC-1: a varredura marca no_reply com follow_up e deixa, pela regra, o rascunho da cobrança no formato do pedido', async () => {
+describe('#157 passado o prazo sem resposta, o pedido vira no_reply e ganha o rascunho da cobrança', () => {
+  it('#157: a varredura marca no_reply com follow_up e deixa, pela regra, o rascunho da cobrança no formato do pedido', async () => {
     const w = await sentWorld();
     w.setNow(AFTER_DUE);
 
@@ -123,7 +123,7 @@ describe('#4/AC-2 passado o prazo sem resposta, o pedido vira no_reply e ganha o
     expect((await listOf(w, 'overdue')).requests).toHaveLength(1);
   });
 
-  it('#4/AC-2: no dia do prazo o pedido ainda está aguardando, e nada é marcado', async () => {
+  it('#157: no dia do prazo o pedido ainda está aguardando, e nada é marcado', async () => {
     const w = await sentWorld();
     const dueDay = new Date('2026-11-17T15:00:00Z');
     w.setNow(dueDay);
@@ -134,7 +134,7 @@ describe('#4/AC-2 passado o prazo sem resposta, o pedido vira no_reply e ganha o
     expect((await viewOf(w)).reading).toBeNull();
   });
 
-  it('#4/AC-2 #58/AC-1: a varredura roda sem o Claude: sem credencial a rodada pula as tarefas, o pedido está atrasado e a cobrança já está montada', async () => {
+  it('#157: a varredura roda sem o Claude: sem credencial a rodada pula as tarefas, o pedido está atrasado e a cobrança já está montada', async () => {
     const w = await sentWorld();
     w.setNow(AFTER_DUE);
 
@@ -147,7 +147,7 @@ describe('#4/AC-2 passado o prazo sem resposta, o pedido vira no_reply e ganha o
   });
 });
 
-describe('#4/AC-3 a cobrança só sai quando uma pessoa a envia pela rota de envio', () => {
+describe('#157 a cobrança só sai quando uma pessoa a envia pela rota de envio', () => {
   const overdueWorld = async (mailer = fakeMailer()): Promise<SupplierWorld> => {
     const w = await sentWorld({ mailer });
     mailer.sent.length = 0;
@@ -156,7 +156,7 @@ describe('#4/AC-3 a cobrança só sai quando uma pessoa a envia pela rota de env
     return w;
   };
 
-  it('#4/AC-3: nem o Cron nem a tarefa enviam; a pessoa envia pela rota da #2 e o carimbo traz quem e quando', async () => {
+  it('#157: nem o Cron nem a tarefa enviam; a pessoa envia pela rota da #156 e o carimbo traz quem e quando', async () => {
     const mailer = fakeMailer();
     const w = await overdueWorld(mailer);
     expect(mailer.sent).toHaveLength(0);
@@ -169,7 +169,7 @@ describe('#4/AC-3 a cobrança só sai quando uma pessoa a envia pela rota de env
     expect((sent.body.request as Json).followUp).toMatchObject({ drafted: true, sent: true, sentBy: ANA, sentAt: AFTER_DUE.toISOString(), failure: null });
   });
 
-  it('#4/AC-3: um segundo envio da cobrança é recusado com 409 already_sent e não manda outro e-mail', async () => {
+  it('#157: um segundo envio da cobrança é recusado com 409 already_sent e não manda outro e-mail', async () => {
     const mailer = fakeMailer();
     const w = await overdueWorld(mailer);
     await w.call('POST', w.path('/send'), { body: {} });
@@ -180,7 +180,7 @@ describe('#4/AC-3 a cobrança só sai quando uma pessoa a envia pela rota de env
     expect(mailer.sent).toHaveLength(1);
   });
 
-  it('#4/AC-3: pedido enviado com resposta lida não tem cobrança: o envio é 409 not_draft e nada sai', async () => {
+  it('#157: pedido enviado com resposta lida não tem cobrança: o envio é 409 not_draft e nada sai', async () => {
     const mailer = fakeMailer();
     const w = await sentWorld({ mailer });
     mailer.sent.length = 0;
@@ -191,7 +191,7 @@ describe('#4/AC-3 a cobrança só sai quando uma pessoa a envia pela rota de env
     expect(mailer.sent).toHaveLength(0);
   });
 
-  it('#4/AC-3: falha do envio vira o motivo curto no pedido, sem o texto do provedor, e a pessoa pode tentar de novo', async () => {
+  it('#157: falha do envio vira o motivo curto no pedido, sem o texto do provedor, e a pessoa pode tentar de novo', async () => {
     const provider = 'smtp 550 caixa cheia de compras@bebidas-rio-claro.example token=sk-segredo';
     const mailer = fakeMailer();
     const w = await overdueWorld(mailer);
@@ -205,7 +205,7 @@ describe('#4/AC-3 a cobrança só sai quando uma pessoa a envia pela rota de env
     expect((await w.call('POST', w.path('/send'), { body: {} })).status).toBe(200);
   });
 
-  it('#4/AC-3: sem e-mail na identidade do Access a rota não envia a cobrança: 403', async () => {
+  it('#157: sem e-mail na identidade do Access a rota não envia a cobrança: 403', async () => {
     const mailer = fakeMailer();
     const w = await supplierWorld({ email: '', mailer });
     expect((await w.call('POST', w.path('/send'), { body: {} })).status).toBe(403);
@@ -213,15 +213,15 @@ describe('#4/AC-3 a cobrança só sai quando uma pessoa a envia pela rota de env
   });
 });
 
-describe('#4/AC-7 as respostas de exemplo do script', () => {
+describe('#157 as respostas de exemplo do script', () => {
   const script = readFileSync(new URL('../../../scripts/sample_supplier_replies.py', import.meta.url), 'utf8');
 
-  it('#4/AC-7: o script traz as quatro respostas (atendeu, recusou, pediu informação e a com ordem escondida); o teste dele é scripts/sample_supplier_replies_test.py', () => {
+  it('#157: o script traz as quatro respostas (atendeu, recusou, pediu informação e a com ordem escondida); o teste dele é scripts/sample_supplier_replies_test.py', () => {
     const kinds = [...script.matchAll(/^\s+\("(\w+)", "/gm)].map((m) => m[1]);
     expect(kinds).toEqual(['atendeu', 'recusou', 'pediu_informacao', 'ordem_escondida']);
   });
 
-  it('#4/AC-7: a resposta de exemplo com ordem escondida, lida pelo Cron, vira injectionFlag citado do texto do script', async () => {
+  it('#157: a resposta de exemplo com ordem escondida, lida pelo Cron, vira injectionFlag citado do texto do script', async () => {
     const hidden = /"ordem_escondida", "([^"]+)"/.exec(script)?.[1]?.replace(/\\n/g, '\n') ?? '';
     expect(hidden).toContain(HIDDEN_ORDER);
     const w = await sentWorld();
@@ -235,8 +235,8 @@ describe('#4/AC-7 as respostas de exemplo do script', () => {
   });
 });
 
-describe('#36/AC-4 #4 canto: sem credencial do Claude, ou com 401 ou 429, nenhuma leitura nem cobrança é gravada', () => {
-  it('#4/AC-1: sem credencial a rodada pula as tarefas: a mensagem fica pendente e não há leitura', async () => {
+describe('#157 canto: sem credencial do Claude, ou com 401 ou 429, nenhuma leitura nem cobrança é gravada', () => {
+  it('#157: sem credencial a rodada pula as tarefas: a mensagem fica pendente e não há leitura', async () => {
     const w = await sentWorld();
     w.receive('Emitimos a NF-D 881.');
 
@@ -247,7 +247,7 @@ describe('#36/AC-4 #4 canto: sem credencial do Claude, ou com 401 ou 429, nenhum
     expect(w.rows('supplier_reply_readings')).toHaveLength(0);
   });
 
-  it.each([401, 429])('#4/AC-1 #4/AC-2: com %i do Claude não há leitura nem rascunho de cobrança, e a mensagem segue pendente', async (status) => {
+  it.each([401, 429])('#157: com %i do Claude não há leitura nem rascunho de cobrança, e a mensagem segue pendente', async (status) => {
     const w = await sentWorld();
     w.receive('Emitimos a NF-D 881.');
     w.setNow(AFTER_DUE);
@@ -261,8 +261,8 @@ describe('#36/AC-4 #4 canto: sem credencial do Claude, ou com 401 ou 429, nenhum
   });
 });
 
-describe('#36/AC-4 o registro de tarefas do Cron tem a leitura e a cobrança, com teto próprio para caber nas subrequests do Worker', () => {
-  it('#36/AC-1: tasksFor registra supplier-reply-reading com limit, e a cobrança já não é tarefa do Claude (#58/AC-1)', async () => {
+describe('#157 o registro de tarefas do Cron tem a leitura e a cobrança, com teto próprio para caber nas subrequests do Worker', () => {
+  it('#157: tasksFor registra supplier-reply-reading com limit, e a cobrança já não é tarefa do Claude (#157)', async () => {
     const w = await supplierWorld();
     const tasks = tasksFor(w.rest);
     const byName = new Map(tasks.map((t) => [t.name, t]));
@@ -273,7 +273,7 @@ describe('#36/AC-4 o registro de tarefas do Cron tem a leitura e a cobrança, co
 });
 
 describe('a lista para a tela de pedidos ao fornecedor', () => {
-  it('#4/AC-1: cada filtro traz os pedidos dele e as contagens dos quatro filtros, sobre todos os enviados', async () => {
+  it('#157: cada filtro traz os pedidos dele e as contagens dos quatro filtros, sobre todos os enviados', async () => {
     const w = await sentWorld();
     w.receive('Emitimos a NF-D 881.');
     await w.runAllTasks(replyAsk());
@@ -299,13 +299,13 @@ describe('a lista para a tela de pedidos ao fornecedor', () => {
     ]);
   });
 
-  it('#4/AC-2: sem leitura e dentro do prazo, aguardando; os outros filtros vêm vazios, com as contagens', async () => {
+  it('#157: sem leitura e dentro do prazo, aguardando; os outros filtros vêm vazios, com as contagens', async () => {
     const w = await sentWorld();
     expect(await listOf(w, 'awaiting')).toMatchObject({ filter: 'awaiting', counts: { awaiting: 1, answered: 0, needs_you: 0, overdue: 0 } });
     expect((await listOf(w, 'overdue')).requests).toEqual([]);
   });
 
-  it('a lista dos estados da #13 segue como estava, e um filtro desconhecido é 400 invalid_status', async () => {
+  it('a lista dos estados da #156 segue como estava, e um filtro desconhecido é 400 invalid_status', async () => {
     const w = await sentWorld();
     const legacy = await w.call('GET', '/api/supplier-requests?status=sent');
     expect(legacy.status).toBe(200);

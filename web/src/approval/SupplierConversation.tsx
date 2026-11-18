@@ -9,7 +9,7 @@ import { texts } from "../texts";
 
 const t = texts.supplierRequests.conversation;
 
-/** #19 O tom do selo do cabeçalho do bloco. */
+/** #157 O tom do selo do cabeçalho do bloco. */
 const BLOCK_TONE: Record<SupplierBlockStatus, "waiting" | "positive" | "negative" | "info"> = {
   waiting: "waiting",
   waitingCharged: "waiting",
@@ -24,7 +24,7 @@ const BLOCK_TONE: Record<SupplierBlockStatus, "waiting" | "positive" | "negative
   refused: "negative",
 };
 
-/** #65/AC-2 O destaque de alerta do aviso de ordem escondida: borda, fundo e cor do texto de erro do design system, ícone ao lado. */
+/** #157 O destaque de alerta do aviso de ordem escondida: borda, fundo e cor do texto de erro do design system, ícone ao lado. */
 const ALERT_STYLE = {
   display: "flex",
   gap: "var(--spacing-sm)",
@@ -38,15 +38,15 @@ const ALERT_STYLE = {
 
 export interface SupplierConversationProps {
   conversation: SupplierConversationView;
-  /** #5/AC-3 O botão do próximo passo da leitura; quem confirma, encerra ou cobra é sempre uma pessoa. */
+  /** #157 O botão do próximo passo da leitura; quem confirma, encerra ou cobra é sempre uma pessoa. */
   onNextStep: (step: SupplierNextStep) => void;
-  /** #64/AC-2 A confirmação do documento está em curso: o botão fica parado e o clique não chama o passo de novo. */
+  /** #157 A confirmação do documento está em curso: o botão fica parado e o clique não chama o passo de novo. */
   confirming?: boolean;
-  /** #64/AC-2 O motivo fechado da última confirmação que falhou; a tela mostra a mensagem dele e o botão segue lá. */
+  /** #157 O motivo fechado da última confirmação que falhou; a tela mostra a mensagem dele e o botão segue lá. */
   confirmFailure?: ConfirmFailure;
 }
 
-/** #64/AC-3 Quem confirmou e quando: "por você" é de quem olha a tela (como a cobrança, #5/AC-4); outra pessoa aparece pelo e-mail do Access, em texto. */
+/** #157 Quem confirmou e quando: "por você" é de quem olha a tela (como a cobrança, #157); outra pessoa aparece pelo e-mail do Access, em texto. */
 function ConfirmationLine({ confirmation }: { confirmation: DocumentConfirmationView }): ReactElement {
   const viewer = useViewer();
   const by = confirmation.by === viewer ? texts.supplierRequest.byYou : texts.supplierRequest.by(confirmation.by);
@@ -60,10 +60,10 @@ function ConfirmationLine({ confirmation }: { confirmation: DocumentConfirmation
 }
 
 /**
- * #19 A conversa do bloco "Pedido ao fornecedor" (história #5): pedido enviado, resposta do fornecedor e leitura do agente.
- * #19 Cabe dentro do bloco da #3, abaixo da decisão registrada; o pedido e o e-mail em si são da #3.
- * #21 A região se chama "Conversa e leitura do pedido", para não repetir o nome do bloco da #3 na mesma gaveta; o título visível segue o wireframe.
- * #19 O texto do fornecedor é dado: sai como texto, nunca como marcação, e não muda decisão, título nem valor.
+ * #157 A conversa do bloco "Pedido ao fornecedor" (história #157): pedido enviado, resposta do fornecedor e leitura do agente.
+ * #157 Cabe dentro do bloco da #156, abaixo da decisão registrada; o pedido e o e-mail em si são da #156.
+ * #157 A região se chama "Conversa e leitura do pedido", para não repetir o nome do bloco da #156 na mesma gaveta; o título visível segue o wireframe.
+ * #157 O texto do fornecedor é dado: sai como texto, nunca como marcação, e não muda decisão, título nem valor.
  */
 export function SupplierConversation({ conversation, onNextStep, confirming = false, confirmFailure }: SupplierConversationProps): ReactElement {
   const { status, sent, reply, asOf, reading, confirmation } = conversation;
@@ -104,12 +104,12 @@ export function SupplierConversation({ conversation, onNextStep, confirming = fa
           </>
         ) : (
           <Text as="p" variant="body-base">
-            {/* #21 Lida, mas sem o texto (o contrato não o traz): não se diz "nenhuma resposta" de quem respondeu. */}
+            {/* #157 Lida, mas sem o texto (o contrato não o traz): não se diz "nenhuma resposta" de quem respondeu. */}
             {reading.replyOutcome === "no_reply" ? t.noReply(shortDate(asOf)) : t.replyNotShown}
           </Text>
         )}
         {reading.injectionExcerpt ? (
-          // #65/AC-2 O aviso é um alerta: papel alert, ícone e cor de alerta (tokens do design system). O trecho segue como texto, nunca marcação.
+          // #157 O aviso é um alerta: papel alert, ícone e cor de alerta (tokens do design system). O trecho segue como texto, nunca marcação.
           <div role="alert" style={ALERT_STYLE}>
             <span aria-hidden="true">⚠</span>
             <div style={{ display: "grid", gap: "var(--spacing-2xs)" }}>
@@ -151,20 +151,20 @@ export function SupplierConversation({ conversation, onNextStep, confirming = fa
             {t.summary(reading.summary)}
           </Text>
         )}
-        {/* #64/AC-3 Confirmado, a conversa diz quem e quando, e não sobra botão de confirmar. */}
+        {/* #157 Confirmado, a conversa diz quem e quando, e não sobra botão de confirmar. */}
         {confirmation ? <ConfirmationLine confirmation={confirmation} /> : null}
         {nextStep && !confirmation ? (
           <>
             <Text as="p" variant="body-base">
               {t.nextStepLabel}:
             </Text>
-            {/* #64/AC-1, AC-2 Confirmar leva o número citado no rótulo e fica parado enquanto confirma. */}
+            {/* #157, AC-2 Confirmar leva o número citado no rótulo e fica parado enquanto confirma. */}
             <Button variant="outline" size="base" onClick={() => onNextStep(nextStep)} disabled={confirming}>
               {nextStep === "confirm_document" && reading.documentCited ? (confirming ? t.confirming : t.confirmDocument(reading.documentCited)) : t.nextStep[nextStep]}
             </Button>
           </>
         ) : null}
-        {/* #64 O conflito segue visível mesmo quando a releitura tira o passo de confirmar (a confirmação, se existe, já mostra quem e quando). */}
+        {/* #157 O conflito segue visível mesmo quando a releitura tira o passo de confirmar (a confirmação, se existe, já mostra quem e quando). */}
         {confirmFailure && !confirmation ? (
           <div role="alert">
             <Text as="p" variant="body-base">

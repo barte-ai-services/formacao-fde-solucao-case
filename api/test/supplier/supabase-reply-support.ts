@@ -7,13 +7,13 @@ import { ASKS, DUE, noReply, reading } from './reply-doubles.js';
 import { SUPPLIER_EMAIL } from './doubles.js';
 import { invoiceRow, supplierRow } from './supabase-support.js';
 
-// #35: apoio dos testes dos adaptadores da leitura da resposta: o banco falso com as restrições da migração e as linhas de partida.
+// #157: apoio dos testes dos adaptadores da leitura da resposta: o banco falso com as restrições da migração e as linhas de partida.
 
 export const OUTBOX = 'outbox_supplier_emails';
 export const INBOX = 'inbox_supplier_messages';
 export const READINGS = 'supplier_reply_readings';
 
-/** #35: as restrições únicas da migração desta camada: a caixa pela origem e o único no_reply por pedido (índice parcial). */
+/** #157: as restrições únicas da migração desta camada: a caixa pela origem e o único no_reply por pedido (índice parcial). */
 export const replyHarness = (seed: Record<string, Record<string, unknown>[]> = {}): { fake: FakePostgrest; rest: SupabaseRest } => {
   const fake = new FakePostgrest({ invoices: [invoiceRow()], kit_fornecedores: [supplierRow()], ...seed });
   fake.unique(INBOX, ['source_message_id']);
@@ -22,7 +22,7 @@ export const replyHarness = (seed: Record<string, Record<string, unknown>[]> = {
   return { fake, rest };
 };
 
-/** #35: um pedido já enviado, como a migração da #12 o guarda, com a cobrança ainda vazia. */
+/** #157: um pedido já enviado, como a migração da #156 o guarda, com a cobrança ainda vazia. */
 export const sentRow = (id: number, over: Record<string, unknown> = {}): Record<string, unknown> => ({
   id,
   invoice_access_key: SOURCE_KEY,
@@ -85,7 +85,7 @@ export const inboxRow = (id: number, requestId: number, over: Record<string, unk
   ...over,
 });
 
-/** #35: uma leitura já gravada, como a tabela a guarda (snake_case); `messageId` nulo é a da varredura. */
+/** #157: uma leitura já gravada, como a tabela a guarda (snake_case); `messageId` nulo é a da varredura. */
 export const readingRow = (id: number, requestId: number, messageId: number | null, over: Partial<SupplierReading> = {}): Record<string, unknown> => {
   const r = messageId === null ? noReply() : reading({ summary: `Leitura da mensagem ${messageId}.`, ...over });
   return {

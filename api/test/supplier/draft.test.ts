@@ -3,9 +3,9 @@ import { ClaudeError } from '../../src/claude/client.js';
 import { draftRequest, todayIso } from '../../src/supplier/draft.js';
 import { GOOD_TEXT, SUPPLIER_EMAIL, fakeAsk, fakeMailer, queueView, statusOf, world } from './doubles.js';
 
-// #11: testes do caminho único do rascunho (api/src/supplier/draft.ts), chamado direto, sem a tarefa.
+// #156: testes do caminho único do rascunho (api/src/supplier/draft.ts), chamado direto, sem a tarefa.
 
-describe('#11/AC-1 o rascunho nasce da devolução pendente', () => { // ADR-002
+describe('#156 o rascunho nasce da devolução pendente', () => { // ADR-002
   it('grava um rascunho com a nota montada pela regra e o e-mail do Claude, para o e-mail do fornecedor', async () => { // ADR-002
     const w = world();
     const ask = fakeAsk();
@@ -66,7 +66,7 @@ describe('#11/AC-1 o rascunho nasce da devolução pendente', () => { // ADR-002
   });
 });
 
-describe('#11/AC-2 texto do Claude recusado pelo catálogo', () => { // ADR-002
+describe('#156 texto do Claude recusado pelo catálogo', () => { // ADR-002
   it('número fora do catálogo: o pedido nasce descartado, com o motivo', async () => { // ADR-002
     const w = world();
     const bad = { ...GOOD_TEXT, body: 'Devolvemos 999 caixas.' };
@@ -90,7 +90,7 @@ describe('#11/AC-2 texto do Claude recusado pelo catálogo', () => { // ADR-002
   });
 });
 
-describe('#11/AC-3 preparar o rascunho não emite nem envia', () => { // ADR-002
+describe('#156 preparar o rascunho não emite nem envia', () => { // ADR-002
   it('nenhuma nota emitida, nenhuma fila movida, nenhum e-mail', async () => { // ADR-002
     const w = world();
     await draftRequest(w.deps, 7, fakeAsk());
@@ -101,7 +101,7 @@ describe('#11/AC-3 preparar o rascunho não emite nem envia', () => { // ADR-002
   });
 });
 
-describe('#11/AC-1 o dia do rascunho é o dia de São Paulo', () => { // ADR-002
+describe('#156 o dia do rascunho é o dia de São Paulo', () => { // ADR-002
   it('todayIso: pouco depois da meia-noite UTC ainda é o dia anterior em São Paulo', () => { // ADR-002
     expect(todayIso(new Date('2026-11-13T02:30:00Z'))).toBe('2026-11-12');
     expect(todayIso(new Date('2026-11-13T03:00:00Z'))).toBe('2026-11-13');
@@ -115,7 +115,7 @@ describe('#11/AC-1 o dia do rascunho é o dia de São Paulo', () => { // ADR-002
   });
 });
 
-describe('#12/AC-4 o rascunho é do agente', () => { // ADR-002
+describe('#156 o rascunho é do agente', () => { // ADR-002
   it('grava o rascunho como feito pelo agente, no histórico do pedido', async () => { // ADR-002
     const w = world();
     await draftRequest(w.deps, 7, fakeAsk());

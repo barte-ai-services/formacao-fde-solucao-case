@@ -7,20 +7,20 @@ import { texts } from "../texts";
 
 const t = texts.supplierRequests.draft;
 
-/** #19 Em que ponto está o rascunho: para revisar, enviando, enviado ou com o envio falho. */
+/** #157 Em que ponto está o rascunho: para revisar, enviando, enviado ou com o envio falho. */
 export type FollowUpPhase = FollowUpPhaseState["phase"];
 
-/** #59 O motivo fechado de um salvamento recusado: 422 (o texto não confere), 409 (o pedido mudou) ou outro; o texto do servidor não chega à tela (layer-exposure). */
+/** #157 O motivo fechado de um salvamento recusado: 422 (o texto não confere), 409 (o pedido mudou) ou outro; o texto do servidor não chega à tela (layer-exposure). */
 export type SaveFailure = "invalid" | "conflict" | "unknown";
 
-/** #19 O motivo do envio falho é um código fechado: o texto de um erro de fora não chega à tela (layer-exposure). */
+/** #157 O motivo do envio falho é um código fechado: o texto de um erro de fora não chega à tela (layer-exposure). */
 export type FollowUpFailure = "mailRefused" | "unknown";
 
-/** #19 O que cada fase exige: `sent` traz quando saiu e `failed` traz o motivo, então nenhuma tela desenha data ou motivo vazio. */
+/** #157 O que cada fase exige: `sent` traz quando saiu e `failed` traz o motivo, então nenhuma tela desenha data ou motivo vazio. */
 export type FollowUpPhaseState =
   | { phase: "review" }
   | { phase: "sending" }
-  /** #5/AC-4 `sentBy` é quem o servidor diz ter enviado; ausente, nulo ou igual a quem olha a tela, a frase diz "por você". */
+  /** #157 `sentBy` é quem o servidor diz ter enviado; ausente, nulo ou igual a quem olha a tela, a frase diz "por você". */
   | { phase: "sent"; sentOn: string; sentTime?: string; sentBy?: string | null }
   | { phase: "failed"; failure: FollowUpFailure };
 
@@ -28,15 +28,15 @@ export type FollowUpDraftProps = FollowUpDraftBaseProps & FollowUpPhaseState;
 
 interface FollowUpDraftBaseProps {
   draft: FollowUpDraftView;
-  /** #19 Só o texto do e-mail se libera para edição; para, assunto, prazo e anexo ficam travados. Editando, o campo abre com o molde `draft.template` (#59). */
+  /** #157 Só o texto do e-mail se libera para edição; para, assunto, prazo e anexo ficam travados. Editando, o campo abre com o molde `draft.template` (#157). */
   editing: boolean;
-  /** #59 O PATCH do texto está em curso: Salvar e Cancelar ficam parados. */
+  /** #157 O PATCH do texto está em curso: Salvar e Cancelar ficam parados. */
   saving?: boolean;
-  /** #59 O motivo fechado do último salvamento recusado; a edição segue aberta. */
+  /** #157 O motivo fechado do último salvamento recusado; a edição segue aberta. */
   saveFailure?: SaveFailure;
-  /** #21 Sem `onEdit`, o texto não se edita e o botão "Editar" não existe: o envio da cobrança não leva texto (o servidor manda o rascunho que guarda, #36). */
+  /** #157 Sem `onEdit`, o texto não se edita e o botão "Editar" não existe: o envio da cobrança não leva texto (o servidor manda o rascunho que guarda, #157). */
   onEdit?: () => void;
-  /** #59 Salvar chama o PATCH da cobrança; cancelar fecha a edição sem salvar. */
+  /** #157 Salvar chama o PATCH da cobrança; cancelar fecha a edição sem salvar. */
   onSave: () => void;
   onCancelEdit: () => void;
   onBodyChange: (body: string) => void;
@@ -51,7 +51,7 @@ function Field({ label, children, keepLineBreaks = false }: { label: string; chi
       <Text as="span" variant="caption-sm" color="var(--content-tertiary)">
         {label}
       </Text>
-      {/* #65/AC-3 O corpo do e-mail traz quebras de linha: `pre-line` as mantém e ainda quebra a linha longa. */}
+      {/* #157 O corpo do e-mail traz quebras de linha: `pre-line` as mantém e ainda quebra a linha longa. */}
       <Text as="span" variant="body-base" style={keepLineBreaks ? { whiteSpace: "pre-line" } : undefined}>
         {children}
       </Text>
@@ -59,14 +59,14 @@ function Field({ label, children, keepLineBreaks = false }: { label: string; chi
   );
 }
 
-/** #5/AC-4 O rascunho da cobrança no formato do pedido da #3 (para, prazo, assunto, texto, anexo): a cobrança só sai no clique em enviar. */
+/** #157 O rascunho da cobrança no formato do pedido da #156 (para, prazo, assunto, texto, anexo): a cobrança só sai no clique em enviar. */
 export function FollowUpDraft(props: FollowUpDraftProps): ReactElement {
   const { draft, editing, saving = false, saveFailure, onEdit, onSave, onCancelEdit, onBodyChange, onSend, onDiscard, onRetry } = props;
   const phase = props.phase;
   const viewer = useViewer();
   const counterId = useId();
   if (props.phase === "sent") {
-    // #5/AC-4 O "por você" é de quem olha a tela, como no pedido da #3 (#17): outro remetente aparece pelo nome.
+    // #157 O "por você" é de quem olha a tela, como no pedido da #156 (#156): outro remetente aparece pelo nome.
     const by = props.sentBy === undefined || props.sentBy === null || props.sentBy === viewer ? texts.supplierRequest.byYou : texts.supplierRequest.by(props.sentBy);
     return (
       <div role="status">
@@ -104,7 +104,7 @@ export function FollowUpDraft(props: FollowUpDraftProps): ReactElement {
             </Text>
             <textarea value={draft.template} rows={5} disabled={saving} aria-describedby={counterId} onChange={(event) => onBodyChange(event.target.value)} />
           </label>
-          {/* #65/AC-5 Conta como a API: `template.length`, unidades UTF-16 do molde (não do texto renderizado). */}
+          {/* #157 Conta como a API: `template.length`, unidades UTF-16 do molde (não do texto renderizado). */}
           <Text as="p" variant="caption-sm" color="var(--content-tertiary)" id={counterId}>
             {t.counter(draft.template.length, MAX_FOLLOW_UP_TEMPLATE)}
           </Text>
@@ -112,7 +112,7 @@ export function FollowUpDraft(props: FollowUpDraftProps): ReactElement {
             {t.keepMarkers}
           </Text>
           {saveFailure ? (
-            // #59/AC-2 O 422 mantém a edição aberta com a mensagem fixa: nunca o texto nem o corpo da resposta do servidor.
+            // #157 O 422 mantém a edição aberta com a mensagem fixa: nunca o texto nem o corpo da resposta do servidor.
             <div role="alert">
               <Text as="p" variant="body-base">
                 {t.saveFailed[saveFailure]}
@@ -139,7 +139,7 @@ export function FollowUpDraft(props: FollowUpDraftProps): ReactElement {
             {t.retry}
           </Button>
         ) : (
-          // #59/AC-3 Editando, o envio espera: o texto que sai é o que o servidor guarda, e o da tela ainda não foi salvo.
+          // #157 Editando, o envio espera: o texto que sai é o que o servidor guarda, e o da tela ainda não foi salvo.
           <Button variant="fill" size="base" onClick={onSend} disabled={busy || editing}>
             {t.send}
           </Button>

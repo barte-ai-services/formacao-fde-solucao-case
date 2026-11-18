@@ -5,8 +5,8 @@ import { supabaseReplyRequestStore } from '../../src/supplier/supabase-reply-sto
 import { NOW } from './reply-doubles.js';
 import { OUTBOX, READINGS, readingRow, replyHarness, sentRow } from './supabase-reply-support.js';
 
-// #63: a confirmação do documento sobre o PostgREST falso, sem migração: ela é uma entrada `document_confirmed` do `history` da linha
-// #63: do pedido (outbox_supplier_emails), gravada num único PATCH guardado pela versão lida, como as gravações da cobrança (#35, #58).
+// #157: a confirmação do documento sobre o PostgREST falso, sem migração: ela é uma entrada `document_confirmed` do `history` da linha
+// #157: do pedido (outbox_supplier_emails), gravada num único PATCH guardado pela versão lida, como as gravações da cobrança (#157, #157).
 // Os nomes de `it` seguem o ADR-004.
 
 const ANA = 'ana@jachegou.example';
@@ -22,8 +22,8 @@ const setup = (outbox: Record<string, unknown>[] = [sentRow(1)], messageDocument
 const outboxRow = (fake: ReturnType<typeof replyHarness>['fake'], id = 1) => fake.rows(OUTBOX).find((r) => r.id === id) as Record<string, unknown>;
 const lastEntry = (row: Record<string, unknown>) => (row.history as Record<string, unknown>[]).at(-1) as Record<string, unknown>;
 
-describe('#63/AC-1 confirmDocument: um PATCH guardado, com a entrada document_confirmed no histórico (ADR-005)', () => {
-  it('#63/AC-1: grava o documento, quem e quando numa entrada do histórico e soma 1 à versão; nenhuma coluna da linha muda', async () => {
+describe('#157 confirmDocument: um PATCH guardado, com a entrada document_confirmed no histórico (ADR-005)', () => {
+  it('#157: grava o documento, quem e quando numa entrada do histórico e soma 1 à versão; nenhuma coluna da linha muda', async () => {
     const { fake, store } = setup();
     const before = { ...outboxRow(fake) };
     expect(await store.confirmDocument(1, confirmation())).toBe('recorded');
@@ -36,7 +36,7 @@ describe('#63/AC-1 confirmDocument: um PATCH guardado, com a entrada document_co
     expect(untouched).toEqual(untouchedBefore);
   });
 
-  it('#63/AC-1: é um único PATCH, filtrado pela versão lida e pelo estado sent, com o corpo só em version, updated_at e history', async () => {
+  it('#157: é um único PATCH, filtrado pela versão lida e pelo estado sent, com o corpo só em version, updated_at e history', async () => {
     const { fake, store } = setup();
     await store.confirmDocument(1, confirmation());
     const patches = fake.requests.filter((r) => r.method === 'PATCH');
@@ -47,19 +47,19 @@ describe('#63/AC-1 confirmDocument: um PATCH guardado, com a entrada document_co
     expect(fake.requests.filter((r) => r.method !== 'GET' && !r.url.includes(OUTBOX))).toEqual([]);
   });
 
-  it('#63/AC-3: depois de gravada, o pedido lido traz a confirmação do documento da leitura: o documento, quem e quando', async () => {
+  it('#157: depois de gravada, o pedido lido traz a confirmação do documento da leitura: o documento, quem e quando', async () => {
     const { store } = setup();
     await store.confirmDocument(1, confirmation());
     expect((await store.get(1))?.documentConfirmation).toEqual(confirmation());
     expect((await store.listSent())[0]?.documentConfirmation).toEqual(confirmation());
   });
 
-  it('#63/AC-3: sem confirmação gravada o pedido lido traz documentConfirmation nulo', async () => {
+  it('#157: sem confirmação gravada o pedido lido traz documentConfirmation nulo', async () => {
     const { store } = setup();
     expect((await store.get(1))?.documentConfirmation).toBeNull();
   });
 
-  it('#63/AC-4: a confirmação já gravada do mesmo documento volta already_confirmed e não grava', async () => {
+  it('#157: a confirmação já gravada do mesmo documento volta already_confirmed e não grava', async () => {
     const { fake, store } = setup();
     await store.confirmDocument(1, confirmation());
     expect(await store.confirmDocument(1, confirmation(BETO))).toBe('already_confirmed');
@@ -68,7 +68,7 @@ describe('#63/AC-1 confirmDocument: um PATCH guardado, com a entrada document_co
     expect((await store.get(1))?.documentConfirmation?.by).toBe(ANA);
   });
 
-  it('#63/AC-4: duas confirmações ao mesmo tempo, na mesma versão: uma grava e a outra volta already_confirmed', async () => {
+  it('#157: duas confirmações ao mesmo tempo, na mesma versão: uma grava e a outra volta already_confirmed', async () => {
     const { fake, store } = setup();
     const results = await Promise.all([store.confirmDocument(1, confirmation(ANA)), store.confirmDocument(1, confirmation(BETO))]);
     expect([...results].sort()).toEqual(['already_confirmed', 'recorded']);
@@ -76,7 +76,7 @@ describe('#63/AC-1 confirmDocument: um PATCH guardado, com a entrada document_co
     expect((outboxRow(fake).history as Record<string, unknown>[]).filter((e) => e.action === 'document_confirmed')).toHaveLength(1);
   });
 
-  it('#63/AC-4: a outra confirmação termina entre a primeira leitura e a gravação: quem chega depois volta already_confirmed, com 1 entrada, a da primeira pessoa', async () => {
+  it('#157: a outra confirmação termina entre a primeira leitura e a gravação: quem chega depois volta already_confirmed, com 1 entrada, a da primeira pessoa', async () => {
     const h = replyHarness({ [OUTBOX]: [sentRow(1)], [READINGS]: [readingRow(1, 1, 5, TO_CONFIRM)] });
     const other = supabaseReplyRequestStore(h.rest, { now: () => NOW });
     let interleaved = false;
@@ -86,7 +86,7 @@ describe('#63/AC-1 confirmDocument: um PATCH guardado, com a entrada document_co
       fetch: async (input, init) => {
         const response = await h.fake.fetch(input, init);
         if (!interleaved && init?.method === 'GET' && String(input).includes(OUTBOX)) {
-          interleaved = true; // #63/AC-4: B termina inteira depois da primeira leitura de A (versão 3, sem confirmação) e antes da gravação de A
+          interleaved = true; // #157: B termina inteira depois da primeira leitura de A (versão 3, sem confirmação) e antes da gravação de A
           expect(await other.confirmDocument(1, confirmation(ANA))).toBe('recorded');
         }
         return response;
@@ -100,7 +100,7 @@ describe('#63/AC-1 confirmDocument: um PATCH guardado, com a entrada document_co
     expect(outboxRow(h.fake).version).toBe(4);
   });
 
-  it('#63/AC-4: a versão que andou por outra gravação entre a leitura e o PATCH volta stale, e nada é gravado', async () => {
+  it('#157: a versão que andou por outra gravação entre a leitura e o PATCH volta stale, e nada é gravado', async () => {
     const h = replyHarness({ [OUTBOX]: [sentRow(1)], [READINGS]: [readingRow(1, 1, 5, TO_CONFIRM)] });
     let moved = false;
     const racing = new SupabaseRest({
@@ -108,7 +108,7 @@ describe('#63/AC-1 confirmDocument: um PATCH guardado, com a entrada document_co
       secretKey: 'sb_secret_teste',
       fetch: (input, init) => {
         if (!moved && init?.method === 'PATCH') {
-          moved = true; // #63/AC-4: outra gravação da linha entra depois da leitura e antes do PATCH
+          moved = true; // #157: outra gravação da linha entra depois da leitura e antes do PATCH
           Object.assign(outboxRow(h.fake), { version: 4 });
         }
         return h.fake.fetch(input, init);
@@ -119,21 +119,21 @@ describe('#63/AC-1 confirmDocument: um PATCH guardado, com a entrada document_co
     expect((outboxRow(h.fake).history as Record<string, unknown>[]).some((e) => e.action === 'document_confirmed')).toBe(false);
   });
 
-  it('#63/AC-4: o pedido que não existe lança, como as outras gravações', async () => {
+  it('#157: o pedido que não existe lança, como as outras gravações', async () => {
     const { store } = setup();
     await expect(store.confirmDocument(9, confirmation())).rejects.toThrow();
   });
 });
 
-describe('#63/AC-1 uma leitura nova não apaga a confirmação: ela vale para o documento citado', () => {
-  it('#63/AC-1: a leitura nova com o mesmo documento mantém a confirmação', async () => {
+describe('#157 uma leitura nova não apaga a confirmação: ela vale para o documento citado', () => {
+  it('#157: a leitura nova com o mesmo documento mantém a confirmação', async () => {
     const { fake, store } = setup();
     await store.confirmDocument(1, confirmation());
     fake.tables.set(READINGS, [...fake.rows(READINGS), readingRow(2, 1, 6, { ...TO_CONFIRM, summary: 'Segunda leitura.' })]);
     expect((await store.get(1))?.documentConfirmation).toEqual(confirmation());
   });
 
-  it('#63/AC-1: a leitura nova com outro documento deixa a confirmação velha no histórico, mas o pedido volta sem confirmação', async () => {
+  it('#157: a leitura nova com outro documento deixa a confirmação velha no histórico, mas o pedido volta sem confirmação', async () => {
     const { fake, store } = setup();
     await store.confirmDocument(1, confirmation());
     fake.tables.set(READINGS, [...fake.rows(READINGS), readingRow(2, 1, 6, { ...TO_CONFIRM, supplierDocument: '882' })]);
@@ -142,7 +142,7 @@ describe('#63/AC-1 uma leitura nova não apaga a confirmação: ela vale para o 
     expect((await store.get(1))?.documentConfirmation).toEqual(confirmation(BETO, '882'));
   });
 
-  it('#63/AC-3: uma entrada do histórico fora do formato não vira confirmação', async () => {
+  it('#157: uma entrada do histórico fora do formato não vira confirmação', async () => {
     const history = [...(sentRow(1).history as unknown[]), { version: 4, at: 'ontem', by: ANA, action: 'document_confirmed', document: '881', state: { status: 'sent' } }];
     const { store } = setup([sentRow(1, { history })]);
     expect((await store.get(1))?.documentConfirmation).toBeNull();

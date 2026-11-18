@@ -12,7 +12,7 @@ import { wmsDockActionOutbox } from '../../src/connectors/wms-dock-action.js';
 import { FakePostgrest } from '../support/fake-postgrest.js';
 import { proposedWorld, type Row } from './supabase-decided-source.support.js';
 
-// #9 Apoio da aceitação da #1: a rota de decisão montada sobre o kit e o PostgREST falso.
+// #156 Apoio da aceitação da #156: a rota de decisão montada sobre o kit e o PostgREST falso.
 
 export const TODAY = '2026-11-15';
 export const DIRETORIA = 'diretoria@jachegou.test';
@@ -22,7 +22,7 @@ const ENV: Env = {
   ACCESS_TEAM_DOMAIN: 'time.cloudflareaccess.com',
   APPROVER_LEVELS: JSON.stringify({ [DIRETORIA]: 'diretoria' }),
 };
-// #9 O mesmo contexto mínimo dos outros testes do Worker: a rota não usa nada dele.
+// #156 O mesmo contexto mínimo dos outros testes do Worker: a rota não usa nada dele.
 const ctx = { waitUntil: () => {}, passThroughOnException: () => {}, props: {} } as unknown as ExecutionContext;
 const verifier: AccessVerifier = { verify: async (token) => ({ ok: true, identity: { email: token } }) };
 
@@ -37,7 +37,7 @@ export type Assembled = {
   readonly queue: () => Promise<QueueNote[]>;
 };
 
-/** #9 O kit capturado e proposto, e o Worker com a rota de aprovação e a fila de devoluções ligadas. */
+/** #156 O kit capturado e proposto, e o Worker com a rota de aprovação e a fila de devoluções ligadas. */
 export async function assembled(over: { returnOutbox?: (rest: SupabaseRest) => ReturnNoteOutbox; dockOutbox?: (rest: SupabaseRest) => DockActionOutbox } = {}): Promise<Assembled> {
   const { fake, rest } = await proposedWorld();
   const { captureDeps } = supabaseConnectors(rest);
@@ -69,14 +69,14 @@ export async function assembled(over: { returnOutbox?: (rest: SupabaseRest) => R
 
 export const keyOf = (proposal: Row): string => String(proposal.invoice_access_key);
 
-/** #9 A nota da proposta, como o domínio a lê do banco. */
+/** #156 A nota da proposta, como o domínio a lê do banco. */
 export async function invoiceOf(rest: SupabaseRest, proposal: Row): Promise<Invoice> {
   const file = await new SupabaseApprovalStore(rest, () => NOW).find(keyOf(proposal));
   if (!file) throw new Error('proposta sem nota');
   return file.invoice;
 }
 
-/** #9 Um recebimento da nota na base do kit (kit_recebimentos e seus itens). */
+/** #156 Um recebimento da nota na base do kit (kit_recebimentos e seus itens). */
 export function addReceipt(fake: FakePostgrest, accessKey: string, day: string, items: readonly (readonly [string, number, 'UN' | 'CX'])[], id = 'RC-ACEITE-1'): void {
   fake.rows('kit_recebimentos').push({
     recebimento_id: id, nota_chave: accessKey, ordem_id: 'OC-ACEITE', fornecedor_id: 'F01', destino: 'LJ-001', canal: 'app_loja', data: day, observacao: '',
@@ -86,7 +86,7 @@ export function addReceipt(fake: FakePostgrest, accessKey: string, day: string, 
   }
 }
 
-/** #9 Tira do kit os recebimentos da nota (as notas E1, E2 e E3 do kit já têm o seu), para o cenário dar o que quer. */
+/** #156 Tira do kit os recebimentos da nota (as notas E1, E2 e E3 do kit já têm o seu), para o cenário dar o que quer. */
 export function clearReceipts(fake: FakePostgrest, accessKey: string): void {
   const ids = new Set(fake.rows('kit_recebimentos').filter((r) => r.nota_chave === accessKey).map((r) => r.recebimento_id));
   const keep = (table: string, field: string): void => {

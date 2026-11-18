@@ -21,12 +21,12 @@ import type { Quantity } from './quantity.js';
 //   historico.notas_lancadas.quantidade | historico.notas_lancadas.valor
 //   historico.pagamentos.quantidade | historico.pagamentos.valor
 //   historico.notas_capturadas.quantidade
-//   devolucao.item[<código>].quantidade | .valor | devolucao.total | prazo   (pedido ao fornecedor, #10)
+//   devolucao.item[<código>].quantidade | .valor | devolucao.total | prazo   (pedido ao fornecedor, #156)
 //
 // No texto, um fato aparece só como o marcador {{chave}}. Fora dos marcadores, só identificadores
 // (`FactCatalog.identifiers`) podem ter algarismos.
 
-export type FactSource = 'invoice' | 'purchase_order' | 'registry' | 'receipt' | 'history' | 'return_note'; // #68, #10
+export type FactSource = 'invoice' | 'purchase_order' | 'registry' | 'receipt' | 'history' | 'return_note'; // #157, #156
 
 export type Fact = {
   readonly label: string;
@@ -112,7 +112,7 @@ export const DOSSIER_OUTPUT_SCHEMA = {
 
 type ItemField = 'quantidade' | 'preco_unitario' | 'total';
 type OrderItemField = 'quantidade' | 'preco_unitario' | 'saldo';
-type ReturnItemField = 'quantidade' | 'valor'; // #10
+type ReturnItemField = 'quantidade' | 'valor'; // #156
 
 /** #68: como cada chave do catálogo se escreve. É o contrato descrito no topo deste arquivo. */
 export const factKey = {
@@ -134,11 +134,11 @@ export const factKey = {
   paymentCount: (): string => 'historico.pagamentos.quantidade',
   paymentValue: (): string => 'historico.pagamentos.valor',
   capturedCount: (): string => 'historico.notas_capturadas.quantidade',
-  // #10: o catálogo do pedido ao fornecedor (nota de devolução e prazo).
+  // #156: o catálogo do pedido ao fornecedor (nota de devolução e prazo).
   returnItem: (supplierCode: string, field: ReturnItemField): string => `devolucao.item[${supplierCode}].${field}`,
   returnTotal: (): string => 'devolucao.total',
   dueDate: (): string => 'prazo',
-  // #58: o novo prazo da cobrança (3 dias úteis depois da varredura), que o pedido original não tem.
+  // #157: o novo prazo da cobrança (3 dias úteis depois da varredura), que o pedido original não tem.
   followUpDueDate: (): string => 'cobranca.prazo',
 } as const;
 

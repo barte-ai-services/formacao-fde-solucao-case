@@ -1,4 +1,4 @@
-"""Testes offline das respostas de exemplo do fornecedor (#35, #4/AC-7). Nenhum teste toca a rede."""
+"""Testes offline das respostas de exemplo do fornecedor (#157, #157). Nenhum teste toca a rede."""
 import contextlib
 import io
 import os
@@ -8,14 +8,14 @@ from unittest import mock
 
 import sample_supplier_replies as sr
 
-# Any: o JSON do PostgREST só tem forma conhecida em tempo de execução (#35).
+# Any: o JSON do PostgREST só tem forma conhecida em tempo de execução (#157).
 Json = Any
 
 REQUESTS = [{"id": i, "recipient": f"f{i}@fornecedor.test"} for i in (11, 12, 13, 14, 15)]
 
 
 class FakeInbox:
-    """Um PostgREST em memória: a caixa tem a restrição única de source_message_id, como a migração (#35)."""
+    """Um PostgREST em memória: a caixa tem a restrição única de source_message_id, como a migração (#157)."""
 
     def __init__(self, requests: list[Json]) -> None:
         self.requests = requests

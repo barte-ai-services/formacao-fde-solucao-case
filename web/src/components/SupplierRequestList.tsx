@@ -12,12 +12,12 @@ import { shortDate, type SupplierFilter, type SupplierFilterValue, type Supplier
 
 const t = texts.supplierRequests;
 
-/** #19 A rota em português da Fila de aprovação, que o vazio geral oferece. */
+/** #157 A rota em português da Fila de aprovação, que o vazio geral oferece. */
 const APPROVAL_QUEUE_ROUTE = "/pagar/fila"; // ADR-004
 
 const FILTERS: SupplierFilter[] = ["waiting", "fulfilled", "needsYou", "late"];
 
-/** #19 O tom do selo de cada situação (mapa Q2 do wireframe). */
+/** #157 O tom do selo de cada situação (mapa Q2 do wireframe). */
 const STATUS_TONE: Record<SupplierRowStatus, "waiting" | "positive" | "negative" | "info"> = {
   waiting: "waiting",
   late: "negative",
@@ -32,35 +32,35 @@ const STATUS_TONE: Record<SupplierRowStatus, "waiting" | "positive" | "negative"
 
 export interface SupplierRequestListProps {
   state: LoadState;
-  /** #19 O chip ativo; `all` quando nenhum está. */
+  /** #157 O chip ativo; `all` quando nenhum está. */
   filter: SupplierFilterValue;
-  /** #19 A contagem de cada chip; só aparece com a lista pronta. */
+  /** #157 A contagem de cada chip; só aparece com a lista pronta. */
   counts: Record<SupplierFilter, number>;
-  /** #19 As linhas do filtro, já na ordem em que a grid as mostra. */
+  /** #157 As linhas do filtro, já na ordem em que a grid as mostra. */
   rows: SupplierRequestRow[];
   onFilterChange: (filter: SupplierFilterValue) => void;
   onOpenRow: (row: SupplierRequestRow) => void;
   onFollowUp: (row: SupplierRequestRow) => void;
   onRetry: () => void;
-  /** #19 O "Ver todos" do chip sem linhas. */
+  /** #157 O "Ver todos" do chip sem linhas. */
   onShowAll: () => void;
 }
 
 function statusText(row: SupplierRequestRow): string {
-  // #5/AC-4 O servidor já cobrou e ainda a conta atrasada: o chip é o dele, e o texto diz que foi cobrada.
+  // #157 O servidor já cobrou e ainda a conta atrasada: o chip é o dele, e o texto diz que foi cobrada.
   if (row.status === "late" && row.alreadyCharged) return t.status.lateCharged;
   if (row.status === "fulfilledToConfirm") return t.status.fulfilledToConfirm(row.document);
   return t.status[row.status];
 }
 
-/** #19 A célula Status: o selo e, nas atrasadas, o botão "Cobrar", que não passa pelo clique da linha. */
+/** #157 A célula Status: o selo e, nas atrasadas, o botão "Cobrar", que não passa pelo clique da linha. */
 function StatusCell({ row, onFollowUp }: { row: SupplierRequestRow; onFollowUp: (row: SupplierRequestRow) => void }): ReactElement {
   return (
     <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "var(--spacing-2xs)" }}>
       <GridBadge tone={STATUS_TONE[row.status]}>{statusText(row)}</GridBadge>
       {row.hiddenOrder ? (
         <GridBadge tone="negative">
-          {/* #65/AC-1 O texto visível é o selo; o nome acessível o contém e diz de que ordem se trata. */}
+          {/* #157 O texto visível é o selo; o nome acessível o contém e diz de que ordem se trata. */}
           <span role="img" aria-label={t.hiddenOrder.label}>
             {t.hiddenOrder.badge}
           </span>
@@ -80,7 +80,7 @@ function StatusCell({ row, onFollowUp }: { row: SupplierRequestRow; onFollowUp: 
   );
 }
 
-/** #19 O chip sem linhas: diz o que significa e oferece "Ver todos". */
+/** #157 O chip sem linhas: diz o que significa e oferece "Ver todos". */
 function FilteredEmpty({ filter, onShowAll }: { filter: SupplierFilterValue; onShowAll: () => void }): ReactElement {
   const message = t.filteredEmpty[filter === "all" ? "waiting" : filter];
   return (
@@ -96,7 +96,7 @@ function FilteredEmpty({ filter, onShowAll }: { filter: SupplierFilterValue; onS
   );
 }
 
-/** #5 A tela "Pedidos ao fornecedor": título, chips com contagem e a grid, em todos os estados do wireframe (#18). Só props: o estado é da #20. */
+/** #157 A tela "Pedidos ao fornecedor": título, chips com contagem e a grid, em todos os estados do wireframe (#157). Só props: o estado é da #157. */
 export function SupplierRequestList(props: SupplierRequestListProps): ReactElement {
   const { state, filter, counts, rows, onFilterChange, onOpenRow, onFollowUp, onRetry, onShowAll } = props;
   const withCounts = state === "ready";

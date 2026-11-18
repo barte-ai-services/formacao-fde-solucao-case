@@ -65,7 +65,7 @@ class TransformTest(unittest.TestCase):
         self.assertEqual(self.rows, ck.build_rows(DATA_DIR))
 
     def test_every_supplier_has_a_fictitious_test_email(self) -> None:
-        # #12/AC-1: um e-mail de teste por fornecedor, em domínio .test (nunca um endereço real).
+        # #156: um e-mail de teste por fornecedor, em domínio .test (nunca um endereço real).
         emails = [r["email"] for r in self.rows["kit_fornecedores"]]
         self.assertEqual(12, len(emails))
         for email in emails:
