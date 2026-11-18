@@ -493,7 +493,8 @@ class DryRunTest(unittest.TestCase):
         self.assertIn("outras políticas: 1, mantidas", out)
         self.assertIn("política 2: precedence=None tipo=da aplicação\n", out)
         self.assertNotRegex(out, r"\boutra\b")
-        for hidden in ("alheio", ACCOUNT, "nome-vigente", "vigente.example.com"):
+        # O hostname público da aplicação agora aparece, nos destinos (#321); o resto continua escondido.
+        for hidden in ("alheio", ACCOUNT, "nome-vigente"):
             self.assertNotIn(hidden, out)
 
     def test_dry_run_says_allowed_idps_changes_without_listing_the_foreign_ids(self) -> None:
@@ -653,8 +654,9 @@ class DocsAndWorkflowTest(unittest.TestCase):
     workflow = (ROOT / ".github" / "workflows" / "cloudflare-access.yml")
 
     def test_script_does_not_name_barte_academy_as_team(self) -> None:
-        """#232/AC-4: o script não cita mais barte-academy."""
-        self.assertNotIn("barte-academy", (ROOT / "scripts" / "cloudflare_access.py").read_text())
+        """#232/AC-4: o script não cita mais barte-academy; só o hostname público do MCP (#321) a tem."""
+        text = (ROOT / "scripts" / "cloudflare_access.py").read_text()
+        self.assertNotIn("barte-academy", text.replace(ca.MCP_HOST, ""))
 
     def test_readme_describes_the_real_team_and_the_workflow(self) -> None:
         """#232/AC-4: o README descreve o time real e o passo a passo pelo workflow."""
@@ -747,6 +749,174 @@ class OtpDryRunTest(unittest.TestCase):
         self.assertEqual([], empty.writes())
         self.assertEqual(OTP_ID, ca.create_otp(empty, ACCOUNT))
         self.assertEqual(["POST"], [m for m, _, _ in empty.writes()])
+
+
+class McpDestinationTest(unittest.TestCase):
+    """O destino público do MCP entra na aplicação vigente, sem tirar nada (#321)."""
+
+    MCP = ca.MCP_HOST
+
+    def sent(self, app: Json) -> Json:
+        client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[app])
+        run(client)
+        return client.writes()[0][2]
+
+    def test_the_mcp_host_is_the_public_worker_hostname(self) -> None:
+        """#321/AC-1: o hostname do MCP é o do Worker do MCP."""
+        self.assertEqual("formacao-fde-solucao-case-mcp.barte-academy.workers.dev", ca.MCP_HOST)
+
+    def test_mcp_destination_is_appended_to_the_existing_ones(self) -> None:
+        """#321/AC-1: o destino do MCP vai ao fim; a aplicação continua a mesma, sem POST."""
+        existing = [{"type": "public", "uri": "vigente.example.com"}]
+        client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}],
+                            apps=[existing_app(destinations=existing)])
+        run(client)
+        self.assertEqual(["PUT"], [m for m, _, _ in client.writes()])
+        self.assertEqual([*existing, {"type": "public", "uri": self.MCP}], client.writes()[0][2]["destinations"])
+
+    def test_existing_destinations_are_kept_in_order_with_overrides_and_other_types(self) -> None:
+        """#321/AC-1: nenhum destino existente sai nem muda, nem o com overrides, nem o de outro tipo."""
+        existing = [
+            {"type": "public", "uri": "vigente.example.com/api", "overrides": {"a": 1}},
+            {"type": "private", "cidr": "10.0.0.0/8", "port_range": "443"},
+            {"type": "public", "uri": "outro.example.com"},
+        ]
+        body = self.sent(existing_app(destinations=existing))
+        self.assertEqual(existing, body["destinations"][:3])
+        self.assertEqual({"type": "public", "uri": self.MCP}, body["destinations"][3])
+        self.assertEqual(4, len(body["destinations"]))
+
+    def test_app_with_only_a_domain_gets_the_domain_and_the_mcp_as_destinations(self) -> None:
+        """#321/AC-1: sem destinations, o corpo traz o domain atual e o MCP, nessa ordem."""
+        body = self.sent(existing_app())
+        self.assertEqual([{"type": "public", "uri": "vigente.example.com"}, {"type": "public", "uri": self.MCP}],
+                         body["destinations"])
+        self.assertEqual("vigente.example.com", body["domain"])
+
+    def test_empty_destinations_are_treated_as_absent(self) -> None:
+        """#321/AC-1: destinations vazio vira domain mais MCP."""
+        body = self.sent(existing_app(destinations=[]))
+        self.assertEqual(["vigente.example.com", self.MCP], [d["uri"] for d in body["destinations"]])
+
+    def test_domain_that_is_already_the_mcp_gives_a_single_destination(self) -> None:
+        """#321/AC-1: se o domain já é o do MCP, o destino não se repete."""
+        body = self.sent(existing_app(domain=self.MCP))
+        self.assertEqual([{"type": "public", "uri": self.MCP}], body["destinations"])
+
+    def test_second_run_does_not_duplicate_the_destination(self) -> None:
+        """#321/AC-1: rodar de novo manda o mesmo PUT e o mesmo estado, com um só destino do MCP."""
+        client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app()])
+        run(client)
+        first_state = json.dumps(client.apps, sort_keys=True)
+        first_body = client.writes()[0][2]
+        run(client)
+        self.assertEqual(first_state, json.dumps(client.apps, sort_keys=True))
+        self.assertEqual(first_body, client.writes()[1][2])
+        self.assertEqual(1, [d["uri"] for d in client.apps[0]["destinations"]].count(self.MCP))
+
+    def test_trailing_slash_of_an_existing_mcp_destination_counts_as_present(self) -> None:
+        """#321/AC-1: o uri do MCP com barra final já conta como presente, e fica como veio."""
+        existing = [{"type": "public", "uri": f"{self.MCP}/"}]
+        self.assertEqual(existing, self.sent(existing_app(destinations=existing))["destinations"])
+
+    def test_self_hosted_domains_stay_as_they_came(self) -> None:
+        """#321/AC-1: self_hosted_domains, se vier, não é tocado."""
+        body = self.sent(existing_app(self_hosted_domains=["vigente.example.com"]))
+        self.assertEqual(["vigente.example.com"], body["self_hosted_domains"])
+
+    def test_domain_aud_policy_and_provider_stay(self) -> None:
+        """#321/AC-3: domain, AUD, política e provedor ficam; o AUD que a API devolve é o mesmo."""
+        client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app()])
+        run(client)
+        body = client.writes()[0][2]
+        self.assertEqual("vigente.example.com", body["domain"])
+        self.assertEqual([OTP_ID], body["allowed_idps"])
+        self.assertEqual(ca.POLICY_NAME, body["policies"][0]["name"])
+        self.assertEqual("pol-1", body["policies"][0]["id"])
+        self.assertEqual(AUD, client.apps[0]["aud"])
+        self.assertNotIn("aud", body)
+
+    def test_new_app_payload_is_unchanged_by_the_mcp_destination(self) -> None:
+        """#321/AC-1: o --create fica como estava, sem destinations nem oauth_configuration."""
+        body = ca.new_app_payload(OTP_ID, APP_DOMAIN)
+        self.assertNotIn("destinations", body)
+        self.assertNotIn("oauth_configuration", body)
+
+
+class ManagedOauthTest(unittest.TestCase):
+    """O OAuth gerenciado liga para o cliente MCP entrar com o login do Access (#321)."""
+
+    def sent(self, app: Json) -> Json:
+        client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[app])
+        run(client)
+        return client.writes()[0][2]
+
+    def test_oauth_is_enabled_when_the_app_has_none(self) -> None:
+        """#321/AC-2: sem oauth_configuration, o corpo liga só o enabled."""
+        self.assertEqual({"enabled": True}, self.sent(existing_app())["oauth_configuration"])
+
+    def test_oauth_is_enabled_keeping_the_subfields_the_app_has(self) -> None:
+        """#321/AC-2: dynamic_client_registration, grant e o mais que vier ficam como estavam."""
+        current = {"enabled": False, "dynamic_client_registration": {"enabled": True, "allow_any_on_localhost": True},
+                   "grant": {"session_duration": "2h"}, "extra": "x"}
+        body = self.sent(existing_app(oauth_configuration=current))
+        self.assertEqual({**current, "enabled": True}, body["oauth_configuration"])
+
+    def test_script_invents_no_registration_or_grant(self) -> None:
+        """#321/AC-2: sem os subcampos na aplicação, o script não os cria."""
+        oauth = self.sent(existing_app(oauth_configuration={"enabled": False}))["oauth_configuration"]
+        self.assertEqual({"enabled": True}, oauth)
+
+    def test_second_run_keeps_oauth_enabled_and_equal(self) -> None:
+        """#321/AC-2: rodar de novo deixa o OAuth ligado e o corpo igual."""
+        client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app()])
+        run(client)
+        run(client)
+        self.assertEqual(client.writes()[0][2], client.writes()[1][2])
+        self.assertTrue(client.apps[0]["oauth_configuration"]["enabled"])
+
+
+class McpDryRunTest(unittest.TestCase):
+    """O dry-run mostra destinos e OAuth antes e depois, sem gravar e sem ids (#321)."""
+
+    def dry(self, app: Json) -> tuple[FakeClient, str]:
+        client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[app])
+        _, out = run(client, dry_run=True)
+        return client, out
+
+    def test_dry_run_shows_destinations_before_and_after_and_writes_nothing(self) -> None:
+        """#321/AC-1: antes e depois dos destinos, dizendo que o do MCP é acrescentado."""
+        client, out = self.dry(existing_app(destinations=[
+            {"type": "public", "uri": "vigente.example.com"}, {"type": "private", "cidr": "10.0.0.0/8"}]))
+        self.assertEqual([], client.writes())
+        self.assertIn("destinos antes: vigente.example.com, 1 de tipo private", out)
+        self.assertIn(f"destinos depois: vigente.example.com, {ca.MCP_HOST}, 1 de tipo private", out)
+        self.assertIn("destino do MCP: acrescentado", out)
+        self.assertNotIn("10.0.0.0", out)
+
+    def test_dry_run_says_the_mcp_destination_was_already_there(self) -> None:
+        """#321/AC-1: com o destino já presente, o dry-run diz que já estava."""
+        _, out = self.dry(existing_app(destinations=[{"type": "public", "uri": ca.MCP_HOST}]))
+        self.assertIn("destino do MCP: já estava", out)
+
+    def test_dry_run_lists_the_domain_as_before_when_the_app_has_no_destinations(self) -> None:
+        """#321/AC-1: sem destinations, o antes mostra o domain atual."""
+        _, out = self.dry(existing_app())
+        self.assertIn("destinos antes: vigente.example.com (só domain)", out)
+        self.assertIn(f"destinos depois: vigente.example.com, {ca.MCP_HOST}", out)
+
+    def test_dry_run_shows_oauth_before_and_after(self) -> None:
+        """#321/AC-2: o OAuth de cliente MCP passa de desligado para ligado, ou fica ligado inalterado."""
+        _, off = self.dry(existing_app())
+        self.assertIn("oauth_configuration.enabled: desligado -> ligado", off)
+        _, on = self.dry(existing_app(oauth_configuration={"enabled": True}))
+        self.assertIn("oauth_configuration.enabled: ligado, inalterado", on)
+
+    def test_dry_run_prints_no_id_nor_oauth_subfields(self) -> None:
+        """#321/AC-1: nada de id nem de subcampos do OAuth no log público."""
+        _, out = self.dry(existing_app(oauth_configuration={"enabled": False, "grant": {"session_duration": "segredo-x"}}))
+        for hidden in (APP_ID, "pol-1", "pol-x", ACCOUNT, "segredo-x"):
+            self.assertNotIn(hidden, out)
 
 
 class HttpClientTest(unittest.TestCase):

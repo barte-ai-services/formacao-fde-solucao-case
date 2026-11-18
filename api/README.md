@@ -281,6 +281,10 @@ campos ficam como estão. Em `allowed_idps` fica exatamente o código por e-mail
 é trocada no lugar ou acrescentada ao fim, e as outras políticas da aplicação ficam na forma em que vieram. Rodar de
 novo deixa o mesmo estado.
 
+O script também garante o destino público do Worker do MCP (`MCP_HOST` no script) entre os destinos
+da aplicação, só acrescentando, e liga o OAuth gerenciado (`oauth_configuration.enabled`), para o Claude entrar pelo
+login do Access (#321). Ele nunca remove um destino nem desliga o OAuth.
+
 **Pelo workflow** (o caminho normal):
 
 1. Em Settings, Environments, `producao`, confira os secrets `BARTE_ACADEMY_CLOUDFLARE_API_TOKEN` (com

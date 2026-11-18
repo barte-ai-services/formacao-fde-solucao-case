@@ -15,14 +15,20 @@ aplicação já liga com nome do script, ou, na falta, a da conta com o nome atu
 aplicação a usa, o script recusa e não grava nada, porque o `include: everyone` valeria lá também. Nome, domínio e
 AUD não mudam. Rodar duas vezes deixa o mesmo estado.
 
+O MCP (#321) entra pelo mesmo Access da API. O PUT agora troca também `destinations`, que só ganha o destino
+público de MCP_HOST (se ainda não está; sem `destinations`, o corpo passa a ter o domínio atual e o do MCP), e
+`oauth_configuration.enabled`, que vira ligado (OAuth gerenciado: o Claude abre o login do Access); os demais
+campos de `oauth_configuration` ficam como vieram. O script nunca remove um destino nem desliga o OAuth.
+
 Criar uma aplicação nova só por pedido explícito, com --create, e então o domínio vem de
 BARTE_ACADEMY_ACCESS_APP_DOMAIN. Sem --create, um AUD que não bate com nenhuma aplicação é erro.
 
 Variáveis de ambiente: BARTE_ACADEMY_CLOUDFLARE_API_TOKEN, BARTE_ACADEMY_CLOUDFLARE_ACCOUNT_ID e
 BARTE_ACADEMY_ACCESS_AUD.
 Nunca imprime o token nem o corpo das respostas de erro. O --dry-run da aplicação existente
-resume em campos nomeados (posição, precedência e tipo de cada política), sem a configuração dela, sem a conta e
-sem id de aplicação ou de política: o log do Actions de um repositório público é aberto.
+resume em campos nomeados (posição, precedência e tipo de cada política, destinos e OAuth antes e depois), sem a
+configuração dela, sem a conta e sem id de aplicação ou de política: o log do Actions de um repositório público
+é aberto.
 
 Uso: python3 scripts/cloudflare_access.py [--dry-run] [--create]
 """
@@ -51,6 +57,8 @@ POLICY_NAME = "formacao-fde-solucao-case: qualquer e-mail"
 # O nome de antes do plano "qualquer e-mail": a política que já o tem também é a do script e é trocada no lugar. (#232)
 LEGACY_POLICY_NAME = "formacao-fde-solucao-case: barte.com e alunos"
 SCRIPT_POLICY_NAMES = (POLICY_NAME, LEGACY_POLICY_NAME)
+# O destino público do MCP, que passa pelo mesmo Access da API para o login de cliente MCP. (#321)
+MCP_HOST = "formacao-fde-solucao-case-mcp.barte-academy.workers.dev"
 OTP_TYPE = "onetimepin"
 OTP_NAME = "Código por e-mail"
 # O que a API do Access devolve da aplicação e não aceita de volta no PUT: identificadores e carimbos. (#232)
@@ -219,8 +227,32 @@ def linked_policies(existing: list[Json], policy_id: str) -> list[Json]:
     return links if mine is not None else [*links, own]
 
 
+def _is_mcp_destination(item: Json) -> bool:
+    """O destino é público e é o do MCP (o uri sem barra final)."""
+    return (isinstance(item, dict) and item.get("type") == "public"
+            and str(item.get("uri", "")).rstrip("/") == MCP_HOST)
+
+
+def merged_destinations(existing: Json) -> list[Json]:
+    """Os destinos da aplicação como vieram, mais o do MCP ao fim se ainda não está. Nunca tira nenhum."""
+    current = list(existing.get("destinations") or [])
+    if not current:
+        domain = existing.get("domain")
+        current = [{"type": "public", "uri": domain}] if domain else []
+    if any(_is_mcp_destination(d) for d in current):
+        return current
+    return [*current, {"type": "public", "uri": MCP_HOST}]
+
+
+def oauth_enabled(existing: Json) -> Json:
+    """`oauth_configuration` da aplicação com `enabled` ligado; os outros campos ficam como vieram."""
+    current = existing.get("oauth_configuration")
+    return {**(current if isinstance(current, dict) else {}), "enabled": True}
+
+
 def updated_app_payload(existing: Json, otp_id: str, policy_id: str | None) -> Json:
-    """O PUT substitui o recurso: o corpo parte da aplicação toda e troca só `allowed_idps` e `policies`.
+    """O PUT substitui o recurso: o corpo parte da aplicação toda e troca `allowed_idps`, `policies`,
+    `destinations` (só acrescenta o do MCP) e `oauth_configuration.enabled` (liga).
 
     `allowed_idps` vira exatamente o código por e-mail, qualquer que seja o valor atual.
 
@@ -230,6 +262,8 @@ def updated_app_payload(existing: Json, otp_id: str, policy_id: str | None) -> J
     body["allowed_idps"] = [otp_id]
     current = list(existing.get("policies") or [])
     body["policies"] = merged_policies(current) if policy_id is None else linked_policies(current, policy_id)
+    body["destinations"] = merged_destinations(existing)
+    body["oauth_configuration"] = oauth_enabled(existing)
     return body
 
 
@@ -245,6 +279,37 @@ def _call(client: Client, method: str, path: str, body: Json = None) -> Json:
 def _show(out: TextIO, method: str, route: str, body: Json) -> None:
     """Dump do corpo que o script mesmo montou; a rota vai sem o `/accounts/<id>`."""
     out.write(f"[dry-run] {method} {route}\n{json.dumps(body, ensure_ascii=False, indent=2)}\n")
+
+
+def _destinations_text(destinations: list[Json]) -> str:
+    """Os uri públicos, que são hostnames; os de outro tipo só pela contagem e pelo tipo."""
+    public = [str(d.get("uri", "")) for d in destinations if isinstance(d, dict) and d.get("type") == "public"]
+    others: dict[str, int] = {}
+    for d in destinations:
+        if not (isinstance(d, dict) and d.get("type") == "public"):
+            kind = str(d.get("type", "desconhecido")) if isinstance(d, dict) else "desconhecido"
+            others[kind] = others.get(kind, 0) + 1
+    parts = [*public, *(f"{n} de tipo {kind}" for kind, n in others.items())]
+    return ", ".join(parts) if parts else "nenhum"
+
+
+def _destination_lines(existing: Json, body: Json) -> list[str]:
+    before = list(existing.get("destinations") or [])
+    only_domain = not before
+    if only_domain:
+        before = [{"type": "public", "uri": existing["domain"]}] if existing.get("domain") else []
+    added = not any(_is_mcp_destination(d) for d in before)
+    return [
+        f"destinos antes: {_destinations_text(before)}{' (só domain)' if only_domain else ''}",
+        f"destinos depois: {_destinations_text(body['destinations'])}",
+        f"destino do MCP: {'acrescentado' if added else 'já estava'}",
+    ]
+
+
+def _oauth_line(existing: Json) -> str:
+    current = existing.get("oauth_configuration")
+    was_on = isinstance(current, dict) and current.get("enabled") is True
+    return "oauth_configuration.enabled: " + ("ligado, inalterado" if was_on else "desligado -> ligado")
 
 
 def describe_put(existing: Json, body: Json, policy_id: str | None) -> str:
@@ -263,6 +328,8 @@ def describe_put(existing: Json, body: Json, policy_id: str | None) -> str:
         "libera qualquer e-mail",
         f"outras políticas: {len(policies) - 1}, mantidas",
         f"caminho: {path}",
+        *_destination_lines(existing, body),
+        _oauth_line(existing),
     ]
     lines += [f"  política {n}: precedence={p.get('precedence')} tipo={kind}{' (do script)' if p is mine else ''}"
               for n, p in enumerate(policies, start=1)]
