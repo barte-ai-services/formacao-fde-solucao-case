@@ -109,47 +109,24 @@ describe('#295/AC-2 a escrita com versão antiga é conflito', () => {
     expect(writes()).toBe(writesBefore);
   });
 
-  it('#295/AC-2: a compensação apaga só a aprovação desta chamada, pelo id da linha inserida', async () => {
+  // #304 A compensação por delete acabou: a decisão é uma função do banco numa só transação (save-decision-rpc.test.ts).
+  it('#295/AC-2: o conflito não grava a aprovação nem precisa apagá-la: nenhuma requisição DELETE', async () => {
     const { fake, rest, store, find, decide } = await proposed();
     const stale = await find(NF080);
     await rest.update('proposals', { invoice_access_key: `eq.${NF080}` }, { approval_level: 'bloqueio' });
     const approvalsBefore = fake.rows('approvals').length;
     await store.saveDecision({ ...stale, approval: decide(stale) }).catch(() => undefined);
-    const del = fake.requests.find((r) => r.method === 'DELETE');
-    expect(new URL(del?.url ?? '').searchParams.get('id')).toMatch(/^eq\.\d+$/);
-    expect(new URL(del?.url ?? '').searchParams.has('proposal_id')).toBe(false);
+    expect(fake.requests.some((r) => r.method === 'DELETE')).toBe(false);
     expect(fake.rows('approvals')).toHaveLength(approvalsBefore);
   });
 
-  it('#295/AC-2: o delete da compensação falhando não troca o erro devolvido, e o log traz a chave e só o nome do erro', async () => {
-    const { fake, rest, find, decide } = await proposed();
-    const stale = await find(NF080);
-    await rest.update('proposals', { invoice_access_key: `eq.${NF080}` }, { approval_level: 'bloqueio' });
-    fake.failNext('approvals', 'DELETE', 500, { message: 'segredo-do-banco-xyz' });
-    const failing = new SupabaseApprovalStore(rest, () => NOW);
-    const lines: string[] = [];
-    const spy = console.error;
-    console.error = (l: unknown) => void lines.push(String(l));
-    let error: unknown;
-    try {
-      error = await failing.saveDecision({ ...stale, approval: decide(stale) }).catch((e: unknown) => e);
-    } finally {
-      console.error = spy;
-    }
-    expect(error).toBeInstanceOf(ProposalVersionConflictError);
-    expect(lines.join('\n')).toContain(NF080);
-    expect(lines.join('\n')).toContain('#295');
-    expect(lines.join('\n')).toContain('SupabaseRestError');
-    expect(lines.join('\n')).not.toContain('segredo-do-banco-xyz');
-  });
-
-  it('#295/AC-2: o PATCH da proposta filtra pela versão lida e não leva a versão no corpo', async () => {
+  it('#295/AC-2: a chamada da decisão leva a versão lida e a proposta não recebe a versão no corpo', async () => {
     const { fake, store, find, decide } = await proposed();
     const file = await find(NF080);
     await store.saveDecision({ ...file, approval: decide(file) });
-    const patch = fake.requests.find((r) => r.method === 'PATCH' && r.url.includes('/proposals?'));
-    expect(new URL(patch?.url ?? '').searchParams.get('version')).toBe('eq.1');
-    expect(patch?.body).not.toHaveProperty('version');
+    const rpc = fake.requests.find((r) => r.url.includes('/rpc/save_approval_decision'));
+    expect(rpc?.body).toMatchObject({ p_version: 1 });
+    expect(fake.requests.some((r) => r.method === 'PATCH' && r.url.includes('/proposals?') && 'version' in (r.body as object))).toBe(false);
   });
 });
 
