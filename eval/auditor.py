@@ -9,7 +9,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -27,6 +29,7 @@ EXCEPTIONS = ["match", "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8"]
 FIELDS = {"classification": "classificacao", "dock_action": "acao_doca", "routing": "encaminhamento"}
 EXIT_E6_MISSED = 1
 EXIT_USAGE = 2
+UNEXPECTED_FAILURE = "não foi possível processar a entrada; nada foi gravado"
 
 
 class InvalidInput(ValueError):
@@ -377,13 +380,57 @@ def _execute(args: argparse.Namespace, now: datetime) -> Record:
             run["vs_previous"] = difference(run, previous)
         except (KeyError, TypeError) as error:
             raise InvalidInput("rodada anterior sem a forma de uma rodada na pasta de rodadas") from error
+    return run
+
+
+def _render(run: Record, fmt: str) -> str:
+    """O texto que o comando imprime, montado inteiro antes de qualquer gravação."""
+    if fmt == "md":
+        return markdown_report(run, run.get("vs_previous")) + "\n"
+    return json.dumps(run, ensure_ascii=False, indent=2) + "\n"
+
+
+def _save_run(folder: Path, run: Record, payload: bytes) -> None:
+    """Grava num temporário (sem `.json`, que `previous_run` lê) na mesma pasta e renomeia; na falha não sobra nada."""
     try:
-        args.runs_dir.mkdir(parents=True, exist_ok=True)
-        (args.runs_dir / f"{run['run_id']}.json").write_text(
-            json.dumps(run, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-        )
+        folder.mkdir(parents=True, exist_ok=True)
+        descriptor, temp_name = tempfile.mkstemp(dir=folder, prefix=".rodada-", suffix=".tmp")
     except OSError as error:
         raise InvalidInput("não foi possível gravar a rodada na pasta de rodadas") from error
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(payload)
+        os.replace(temp_name, folder / f"{run['run_id']}.json")
+    except BaseException:
+        Path(temp_name).unlink(missing_ok=True)
+        raise
+
+
+def _publish(run: Record, args: argparse.Namespace) -> None:
+    """Valida tudo o que vai sair antes de gravar e de imprimir: uma falha de codificação não deixa nada pela metade.
+
+    Texto com surrogate isolado passa pela checagem de tipo e só quebra ao codificar; por isso o JSON gravado e o
+    texto do stdout são codificados aqui, antes do `os.replace` e do `print`.
+    """
+    text = _render(run, args.format)
+    text.encode(getattr(sys.stdout, "encoding", None) or "utf-8")
+    payload = (json.dumps(run, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    _save_run(args.runs_dir, run, payload)
+    sys.stdout.write(text)
+
+
+def _run(args: argparse.Namespace, now: datetime) -> Record:
+    """Mede e publica; fecha a classe: toda exceção que não é `InvalidInput` vira `InvalidInput` de mensagem fixa (#245).
+
+    A mensagem não leva o valor nem o texto da exceção (que ecoaria a entrada); a causa fica só em `__cause__`.
+    """
+    try:
+        run = _execute(args, now)
+        _publish(run, args)
+    except InvalidInput:
+        raise
+    except Exception as error:
+        raise InvalidInput(UNEXPECTED_FAILURE) from error
     return run
 
 
@@ -394,14 +441,10 @@ def main(argv: list[str] | None = None, now: Callable[[], datetime] | None = Non
     except SystemExit as exit_status:  # argparse sai com 0 em --help e com 2 em uso inválido (#239)
         return exit_status.code if isinstance(exit_status.code, int) else EXIT_USAGE
     try:
-        run = _execute(args, (now or (lambda: datetime.now(timezone.utc)))())
+        run = _run(args, (now or (lambda: datetime.now(timezone.utc)))())
     except InvalidInput as error:
         print(f"erro: {error.why}", file=sys.stderr)
         return EXIT_USAGE
-    if args.format == "md":
-        print(markdown_report(run, run.get("vs_previous")))
-    else:
-        print(json.dumps(run, ensure_ascii=False, indent=2))
     if e6_missed(run):
         print("falha: alguma duplicidade (E6) do gabarito não foi classificada como E6", file=sys.stderr)
         return EXIT_E6_MISSED

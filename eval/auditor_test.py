@@ -5,6 +5,7 @@ import json
 import re
 import tempfile
 import unittest
+from unittest import mock
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -462,6 +463,134 @@ class MalformedInputTest(unittest.TestCase):
         """#239/AC-3: rodada anterior ilegível (aqui, uma pasta no lugar do arquivo) sai 2."""
         (self.runs_dir / "00000000T000000Z-aaaaaaaa.json").mkdir(parents=True)
         self.assert_invalid(self.exit_of(all_correct()))
+
+
+class ClosedClassTest(unittest.TestCase):
+    """#245: a classe fechada no ponto de entrada. Toda exceção que não é o desfecho da E6 sai 2, com mensagem fixa."""
+
+    SURROGATE = "K\ud800"
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.folder = Path(self._tmp.name)
+        self.key_file = self.folder / "gabarito.json"
+        self.key_file.write_text(json.dumps(ANSWER_KEY), encoding="utf-8")
+        self.runs_dir = self.folder / "rodadas"
+        self.audits = self.folder / "auditorias.jsonl"
+
+    def run_with(self, text: str, *extra: str, now: datetime = NOW) -> tuple[int, str, str]:
+        self.audits.write_text(text, encoding="utf-8")
+        argv = [str(self.audits), "--answer-key", str(self.key_file), "--runs-dir", str(self.runs_dir), *extra]
+        return run_cli(argv, now)
+
+    def run_lines(self, lines: list[Record], *extra: str, now: datetime = NOW) -> tuple[int, str, str]:
+        return self.run_with("\n".join(json.dumps(x) for x in lines) + "\n", *extra, now=now)
+
+    def run_files(self) -> list[str]:
+        return sorted(x.name for x in self.runs_dir.iterdir()) if self.runs_dir.exists() else []
+
+    def assert_fixed_two(self, result: tuple[int, str, str], forbidden: str = "", kept: list[str] | None = None) -> None:
+        code, out, err = result
+        self.assertEqual(code, 2)
+        self.assertEqual(out, "")
+        self.assertTrue(err.startswith("erro: "))
+        self.assertEqual(err.count("\n"), 1)
+        self.assertNotIn("Traceback", err)
+        if forbidden:
+            self.assertNotIn(forbidden, err)
+        self.assertEqual(self.run_files(), kept or [])
+
+    def test_ac1_integer_over_4300_digits_in_audits_exits_two(self) -> None:
+        """#245/AC-1: inteiro com mais de 4300 dígitos numa linha do JSONL sai 2, sem rastro."""
+        line = '{"invoice_access_key": "K1", "x": ' + "9" * 5000 + "}"
+        self.assert_fixed_two(self.run_with(line + "\n"), "9" * 50)
+
+    def test_ac1_integer_over_4300_digits_in_answer_key_exits_two(self) -> None:
+        """#245/AC-1: inteiro com mais de 4300 dígitos no gabarito sai 2, sem rastro."""
+        self.key_file.write_text('[{"chave": "K1", "x": ' + "9" * 5000 + "}]", encoding="utf-8")
+        self.assert_fixed_two(self.run_lines(all_correct()), "9" * 50)
+
+    def test_ac1_nesting_of_200_thousand_levels_in_audits_exits_two(self) -> None:
+        """#245/AC-1: JSON aninhado em 200 mil níveis numa linha sai 2 (RecursionError), sem rastro."""
+        self.assert_fixed_two(self.run_with("[" * 200_000 + "\n"))
+
+    def test_ac1_nesting_of_200_thousand_levels_in_answer_key_exits_two(self) -> None:
+        """#245/AC-1: JSON aninhado em 200 mil níveis no gabarito sai 2, sem rastro."""
+        self.key_file.write_text("[" * 200_000, encoding="utf-8")
+        self.assert_fixed_two(self.run_lines(all_correct()))
+
+    def test_ac1_lone_surrogate_in_access_key_exits_two_with_nothing_written(self) -> None:
+        """#245/AC-1: surrogate isolado em `invoice_access_key` sai 2 antes de gravar ou imprimir."""
+        lines = all_correct()
+        lines[0]["invoice_access_key"] = self.SURROGATE
+        self.assert_fixed_two(self.run_lines(lines))
+        self.assert_fixed_two(self.run_lines(lines, "--format", "md"))
+
+    def test_ac1_lone_surrogate_in_model_exits_two_with_nothing_written(self) -> None:
+        """#245/AC-1: surrogate isolado em `model` sai 2 antes de gravar ou imprimir, em json e em md."""
+        lines = all_correct()
+        lines[0]["model"] = "\ud800"
+        self.assert_fixed_two(self.run_lines(lines))
+        self.assert_fixed_two(self.run_lines(lines, "--format", "md"))
+
+    def seed_previous_run(self) -> Path:
+        first = datetime(2026, 11, 14, 12, 0, 0, tzinfo=timezone.utc)
+        self.assertEqual(self.run_lines(all_correct(), now=first)[0], 0)
+        (saved,) = self.runs_dir.glob("*.json")
+        return saved
+
+    def test_ac1_huge_integer_in_earlier_run_rate_exits_two(self) -> None:
+        """#245/AC-1: inteiro gigante numa taxa da rodada anterior sai 2 (OverflowError), sem gravar."""
+        saved = self.seed_previous_run()
+        data = json.loads(saved.read_text(encoding="utf-8"))
+        data["full_match_rate"] = 10**400
+        saved.write_text(json.dumps(data), encoding="utf-8")
+        self.assert_fixed_two(self.run_lines(all_correct()), "0" * 50, kept=[saved.name])
+
+    def test_ac1_huge_integer_in_earlier_run_counts_exits_two(self) -> None:
+        """#245/AC-1: inteiro gigante nas contagens da rodada anterior sai 2, sem gravar."""
+        saved = self.seed_previous_run()
+        data = json.loads(saved.read_text(encoding="utf-8"))
+        data["by_exception"]["E6"]["full"] = 10**400
+        saved.write_text(json.dumps(data), encoding="utf-8")
+        self.assert_fixed_two(self.run_lines(all_correct()), "0" * 50, kept=[saved.name])
+
+    def test_ac2_failed_write_leaves_no_file_and_next_run_succeeds(self) -> None:
+        """#245/AC-2: gravação que falha não deixa arquivo (nem temporário) e a rodada seguinte sai 0."""
+        with mock.patch("auditor.os.replace", side_effect=OSError("disco cheio")):
+            self.assert_fixed_two(self.run_lines(all_correct()), "disco cheio")
+        code, out, _ = self.run_lines(all_correct())
+        self.assertEqual(code, 0)
+        self.assertEqual(self.run_files(), [f"{json.loads(out)['run_id']}.json"])
+
+    def test_ac2_surrogate_failure_then_valid_run_succeeds(self) -> None:
+        """#245/AC-2: depois de uma rodada recusada por surrogate, a rodada válida roda e grava um só arquivo."""
+        bad = all_correct()
+        bad[0]["model"] = "\ud800"
+        self.assert_fixed_two(self.run_lines(bad))
+        code, _, _ = self.run_lines(all_correct())
+        self.assertEqual(code, 0)
+        self.assertEqual(len(self.run_files()), 1)
+        self.assertTrue(self.run_files()[0].endswith(".json"))
+
+    def test_ac3_missed_e6_still_exits_one(self) -> None:
+        """#245/AC-3: E6 perdida continua saindo 1, com a rodada impressa e gravada."""
+        lines = all_correct()
+        lines[1] = audit_line("K2", "E1", "recusar", "bloqueio")
+        code, out, err = self.run_lines(lines)
+        self.assertEqual(code, 1)
+        self.assertEqual(json.loads(out)["by_exception"]["E6"]["classification"], 0)
+        self.assertIn("E6", err)
+        self.assertEqual(len(self.run_files()), 1)
+
+    def test_ac3_malformed_input_never_exits_one(self) -> None:
+        """#245/AC-3: nenhuma forma malformada sai 1, nem com a E6 perdida no mesmo arquivo."""
+        lines = all_correct()
+        lines[1] = audit_line("K2", "E1", "recusar", "bloqueio")
+        lines[0]["model"] = "\ud800"
+        self.assertEqual(self.run_lines(lines)[0], 2)
+        self.assertEqual(self.run_with("[" * 200_000 + "\n")[0], 2)
 
 
 class AgentNeverReadsAnswerKeyTest(unittest.TestCase):
