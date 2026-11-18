@@ -148,7 +148,7 @@ const todayLane: Lane = {
     const items = whole.items as Item[];
     return {
       toPay: { cents: (whole.total as { cents: number }).cents },
-      approvedByRule: items.filter((i) => i.approver === 'regra').length,
+      approvedByRule: items.filter((i) => i.approvedBy === 'rule').length,
     };
   },
 };
@@ -398,6 +398,15 @@ describe('#159 contexto específico das listas', () => {
     expect(typeof old.total.cents).toBe('number');
     expect(page.total).toBe(TOTAL_ITEMS);
     expect((page.aggregates.toPay as { cents: number }).cents).toBe(old.total.cents);
+  });
+
+  it('#159/AC-4 os itens da lista do dia paginada trazem a exceção e quem aprovou, e approvedByRule conta a regra', async () => {
+    const get = await todayLane.arrange();
+    const page = await pageAt(get, 'limite=50');
+    const items = page.items as Item[];
+    expect(items.every((i) => typeof i.exceptionName === 'string' && typeof i.exceptionCode === 'string')).toBe(true);
+    expect(new Set(items.map((i) => i.approvedBy))).toEqual(new Set(['rule', 'person']));
+    expect(page.aggregates.approvedByRule).toBe(TOTAL_ITEMS / 2);
   });
 
   it('#159/AC-1 a doca paginada respeita destino e data da query', async () => {
