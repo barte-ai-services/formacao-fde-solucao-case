@@ -4,13 +4,13 @@ import type { NewRequest } from '../../src/supplier/ports.js';
 import { SOURCE_KEY, returnNote } from '../domain/supplier-request-fixtures.js';
 import { GOOD_TEXT, SUPPLIER_EMAIL } from './doubles.js';
 
-// #12: apoio dos testes dos adaptadores do Supabase: o banco falso com as restrições da migração e o REST em cima dele.
+// #156: apoio dos testes dos adaptadores do Supabase: o banco falso com as restrições da migração e o REST em cima dele.
 
 export const OPEN_STATUSES = ['draft', 'sent', 'send_failed'];
 
 export type Harness = { fake: FakePostgrest; rest: SupabaseRest };
 
-/** #12: o `fake` com as duas restrições únicas da migração (a parcial do pedido e a da nota por devolução). */
+/** #156: o `fake` com as duas restrições únicas da migração (a parcial do pedido e a da nota por devolução). */
 export const harness = (seed: Record<string, Record<string, unknown>[]> = {}): Harness => {
   const fake = new FakePostgrest(seed);
   fake.unique('outbox_supplier_emails', ['invoice_access_key', 'request_type'], (row) => OPEN_STATUSES.includes(String(row.status)));
@@ -31,7 +31,7 @@ export const newRequest = (over: Partial<NewRequest> = {}): NewRequest => ({
   ...over,
 });
 
-/** #12: a nota de origem como a tabela `invoices` a guarda (centavos, itens em jsonb). */
+/** #156: a nota de origem como a tabela `invoices` a guarda (centavos, itens em jsonb). */
 export const invoiceRow = (): Record<string, unknown> => ({
   access_key: SOURCE_KEY,
   number: '43894',
@@ -59,7 +59,7 @@ export const supplierRow = (email: string | null = SUPPLIER_EMAIL): Record<strin
   email,
 });
 
-/** #12: a devolução pendente da fila (#140), com a linha que o pedido devolve. */
+/** #156: a devolução pendente da fila (#140), com a linha que o pedido devolve. */
 export const queueRow = (id = 7): Record<string, unknown> => ({
   id,
   invoice_access_key: SOURCE_KEY,

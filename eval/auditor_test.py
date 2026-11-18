@@ -1,10 +1,15 @@
 """Testes do eval do auditor (#239), com um gabarito mínimo e sem ler o do kit."""
 import contextlib
+import errno
 import io
 import json
+import os
 import re
+import subprocess
+import sys
 import tempfile
 import unittest
+from unittest import mock
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -139,6 +144,37 @@ class MeasurementTest(unittest.TestCase):
         self.assertIsNone(vb["by_exception"]["E1"]["agent_full"])
         self.assertAlmostEqual(vb["total"]["agent_full"], 1.0)
         self.assertAlmostEqual(vb["total"]["rule_full"], 1 / 3)
+
+    def test_note_without_rule_is_left_out_of_the_rule_comparison(self) -> None:
+        """#262/AC-2: sem `rule`, a nota sai da comparação com a regra nos dois lados e é contada; o agente não muda."""
+        with_rule = self.measure(all_correct())
+        lines = all_correct()
+        del lines[1]["rule"]  # K2, a E6: a regra errava essa nota (#262)
+        r = self.measure(lines)
+        self.assertEqual(r["notes_without_rule"], 1)
+        self.assertEqual(with_rule["notes_without_rule"], 0)
+        self.assertEqual(r["full_match_rate"], with_rule["full_match_rate"])
+        self.assertEqual(r["by_exception"], with_rule["by_exception"])
+        vb = r["vs_baseline"]
+        self.assertIsNone(vb["by_exception"]["E6"]["agent_full"])
+        self.assertIsNone(vb["by_exception"]["E6"]["rule_full"])
+        self.assertEqual(vb["total"]["agent_full"], 1.0)
+        self.assertAlmostEqual(vb["total"]["rule_full"], 1 / 2)
+
+    def test_note_without_rule_is_not_an_error_and_counts_in_the_report(self) -> None:
+        """#262/AC-2: a nota sem `rule` não entra em errors[]; o Markdown diz quantas ficaram fora da comparação."""
+        lines = all_correct()
+        del lines[0]["rule"]
+        r = self.measure(lines)
+        self.assertEqual(r["errors"], [])
+        r["run_id"] = "x"
+        self.assertIn("1 nota(s) sem `rule`", auditor.markdown_report(r, None))
+
+    def test_rule_null_counts_as_missing(self) -> None:
+        """#262/AC-2: `rule: null` vale como ausente."""
+        lines = all_correct()
+        lines[0]["rule"] = None
+        self.assertEqual(self.measure(lines)["notes_without_rule"], 1)
 
     def test_ac6_without_refusals_in_file_metrics_are_not_measured(self) -> None:
         """#239/AC-6: sem `refusals` no arquivo, as duas métricas são null, nunca 0."""
@@ -356,11 +392,11 @@ class MalformedInputTest(unittest.TestCase):
         self.assert_invalid(self.exit_of(self.with_field(not_audited={})))
         self.assert_invalid(self.exit_of(self.with_field(not_audited={"reason": 5, "x": self.SENTINEL})))
 
-    def test_ac1_rule_missing_exits_two(self) -> None:
-        """#239/AC-1: linha sem `rule` sai 2."""
+    def test_rule_missing_is_accepted(self) -> None:
+        """#262/AC-2: linha sem `rule` é entrada válida: a nota fica fora da comparação com a regra."""
         lines = all_correct()
         del lines[0]["rule"]
-        self.assert_invalid(self.exit_of(lines))
+        self.assertEqual(self.exit_of(lines)[0], 0)
 
     def test_ac1_rule_not_an_object_exits_two(self) -> None:
         """#239/AC-1: `rule` que não é objeto sai 2."""
@@ -462,6 +498,331 @@ class MalformedInputTest(unittest.TestCase):
         """#239/AC-3: rodada anterior ilegível (aqui, uma pasta no lugar do arquivo) sai 2."""
         (self.runs_dir / "00000000T000000Z-aaaaaaaa.json").mkdir(parents=True)
         self.assert_invalid(self.exit_of(all_correct()))
+
+
+UNEXPECTED_FAILURE = "não foi possível processar a entrada; nada foi gravado"
+SAVE_FAILURE = "não foi possível gravar a rodada na pasta de rodadas"
+STDOUT_FAILURE = "a rodada foi gravada, mas a saída padrão falhou"
+E6_FAILURE = "falha: alguma duplicidade (E6) do gabarito não foi classificada como E6"
+STDOUT_CANNOT_REPRESENT = "a saída padrão não representa o relatório; nada foi gravado"
+
+
+class BrokenStdout(io.StringIO):
+    """Saída padrão que falha ao escrever, como um pipe fechado."""
+
+    def write(self, text: str) -> int:
+        raise BrokenPipeError(errno.EPIPE, "Broken pipe")
+
+
+def markdown_text_is_ascii() -> bool:
+    """O relatório em Markdown da rodada de `all_correct()` cabe em ascii? Os testes de codificação precisam que não (#245)."""
+    run = {"run_id": "20261115T120000Z-00000000", **auditor.measure(all_correct(), ANSWER_KEY)}
+    return auditor.markdown_report(run, None).isascii()
+
+
+class ClosedStdout(io.StringIO):
+    """Saída padrão de um arquivo já fechado: escrever e descarregar levantam `ValueError`; `isatty` não (#245).
+
+    O `argparse` do Python 3.14 chama `isatty()` ao montar o parser, e um `StringIO` fechado levantaria ali.
+    """
+
+    def write(self, text: str) -> int:
+        self._refuse()
+        return 0
+
+    def flush(self) -> None:
+        self._refuse()
+
+    @staticmethod
+    def _refuse() -> None:
+        raise ValueError("I/O operation on closed file.")
+
+    @staticmethod
+    def isatty() -> bool:
+        return False
+
+
+class ClosedClassTest(unittest.TestCase):
+    """#245: a classe fechada no ponto de entrada. Toda exceção que não é o desfecho da E6 sai 2, com mensagem fixa."""
+
+    SURROGATE = "K\ud800"
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.folder = Path(self._tmp.name)
+        self.key_file = self.folder / "gabarito.json"
+        self.key_file.write_text(json.dumps(ANSWER_KEY), encoding="utf-8")
+        self.runs_dir = self.folder / "rodadas"
+        self.audits = self.folder / "auditorias.jsonl"
+
+    def run_with(self, text: str, *extra: str, now: datetime = NOW) -> tuple[int, str, str]:
+        self.audits.write_text(text, encoding="utf-8")
+        argv = [str(self.audits), "--answer-key", str(self.key_file), "--runs-dir", str(self.runs_dir), *extra]
+        return run_cli(argv, now)
+
+    def run_lines(self, lines: list[Record], *extra: str, now: datetime = NOW) -> tuple[int, str, str]:
+        return self.run_with("\n".join(json.dumps(x) for x in lines) + "\n", *extra, now=now)
+
+    def run_files(self) -> list[str]:
+        return sorted(x.name for x in self.runs_dir.iterdir()) if self.runs_dir.exists() else []
+
+    def assert_fixed_two(
+        self,
+        result: tuple[int, str, str],
+        forbidden: str = "",
+        kept: list[str] | None = None,
+        message: str = UNEXPECTED_FAILURE,
+    ) -> None:
+        code, out, err = result
+        self.assertEqual(code, 2)
+        self.assertEqual(out, "")
+        self.assertEqual(err, f"erro: {message}\n")
+        self.assertNotIn("Traceback", err)
+        if forbidden:
+            self.assertNotIn(forbidden, err)
+        self.assertEqual(self.run_files(), kept or [])
+
+    def test_ac2_closed_stdout_pipe_exits_two_without_python_noise(self) -> None:
+        """#245/AC-2: com o stdout num pipe de leitura fechada o processo sai 2 (não 120), só com a mensagem fixa no stderr."""
+        self.audits.write_text("\n".join(json.dumps(x) for x in all_correct()) + "\n", encoding="utf-8")
+        read_end, write_end = os.pipe()
+        os.close(read_end)
+        argv = [sys.executable, str(ROOT / "eval" / "auditor.py"), str(self.audits),
+                "--answer-key", str(self.key_file), "--runs-dir", str(self.runs_dir)]
+        with subprocess.Popen(argv, stdout=write_end, stderr=subprocess.PIPE, text=True) as process:
+            os.close(write_end)
+            _, err = process.communicate(timeout=60)
+        self.assertEqual(process.returncode, 2)
+        self.assertEqual(err, "erro: a rodada foi gravada, mas a saída padrão falhou\n")
+        self.assertEqual(len(list(self.runs_dir.glob("*.json"))), 1)
+
+    def run_program_with_closed_descriptor(self, descriptor: int, audits_text: str) -> subprocess.CompletedProcess[str]:
+        """Roda o programa de verdade com o descritor dado fechado no filho (#245)."""
+        self.audits.write_text(audits_text, encoding="utf-8")
+        argv = [sys.executable, str(ROOT / "eval" / "auditor.py"), str(self.audits),
+                "--answer-key", str(self.key_file), "--runs-dir", str(self.runs_dir)]
+        return subprocess.run(
+            argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=60,
+            preexec_fn=lambda: os.close(descriptor),
+        )
+
+    def test_ac3_closed_stdout_descriptor_exits_two_and_keeps_the_run(self) -> None:
+        """#245/AC-3: com o descritor 1 fechado (`sys.stdout` é `None`) o processo sai 2, não 1 com traceback; a rodada fica gravada."""
+        text = "\n".join(json.dumps(x) for x in all_correct()) + "\n"
+        argv = [sys.executable, "-c", "import sys; sys.exit(0 if sys.stdout is None else 9)"]
+        probe = subprocess.run(argv, stdout=subprocess.PIPE, preexec_fn=lambda: os.close(1), timeout=60)
+        self.assertEqual(probe.returncode, 0)  # no filho, o descritor 1 fechado deixa mesmo `sys.stdout` em `None` (#245)
+        done = self.run_program_with_closed_descriptor(1, text)
+        self.assertEqual(done.returncode, 2)
+        self.assertEqual(done.stderr, "erro: a rodada foi gravada, mas a saída padrão falhou\n")
+        self.assertEqual(len(list(self.runs_dir.glob("*.json"))), 1)
+
+    def test_ac3_closed_stdout_file_exits_two_and_keeps_the_run(self) -> None:
+        """#245/AC-3: com `sys.stdout` já fechado (`ValueError` ao escrever) o programa sai 2 com a mensagem fixa; a rodada fica gravada."""
+        err = io.StringIO()
+        self.audits.write_text("\n".join(json.dumps(x) for x in all_correct()) + "\n", encoding="utf-8")
+        argv = [str(self.audits), "--answer-key", str(self.key_file), "--runs-dir", str(self.runs_dir)]
+        with contextlib.redirect_stdout(ClosedStdout()), contextlib.redirect_stderr(err):
+            code = auditor.main(argv, now=lambda: NOW)
+        self.assertEqual(code, 2)
+        self.assertEqual(err.getvalue(), f"erro: {STDOUT_FAILURE}\n")
+        self.assertEqual(len(self.run_files()), 1)
+
+    def test_ac1_closed_stderr_descriptor_keeps_the_message_out_of_stdout(self) -> None:
+        """#245/AC-1: com o descritor 2 fechado (`sys.stderr` é `None`) e entrada inválida, sai 2 e o aviso não vai parar no stdout."""
+        done = self.run_program_with_closed_descriptor(2, "isto não é json\n")
+        self.assertEqual(done.returncode, 2)
+        self.assertEqual(done.stdout, "")
+
+    def test_ac1_integer_over_4300_digits_in_audits_exits_two(self) -> None:
+        """#245/AC-1: inteiro com mais de 4300 dígitos numa linha do JSONL sai 2, sem rastro."""
+        line = '{"invoice_access_key": "K1", "x": ' + "9" * 5000 + "}"
+        self.assert_fixed_two(self.run_with(line + "\n"), "9" * 50)
+
+    def test_ac1_integer_over_4300_digits_in_answer_key_exits_two(self) -> None:
+        """#245/AC-1: inteiro com mais de 4300 dígitos no gabarito sai 2, sem rastro."""
+        self.key_file.write_text('[{"chave": "K1", "x": ' + "9" * 5000 + "}]", encoding="utf-8")
+        self.assert_fixed_two(self.run_lines(all_correct()), "9" * 50)
+
+    def test_ac1_nesting_of_200_thousand_levels_in_audits_exits_two(self) -> None:
+        """#245/AC-1: JSON aninhado em 200 mil níveis numa linha sai 2 (RecursionError), sem rastro."""
+        self.assert_fixed_two(self.run_with("[" * 200_000 + "\n"))
+
+    def test_ac1_nesting_of_200_thousand_levels_in_answer_key_exits_two(self) -> None:
+        """#245/AC-1: JSON aninhado em 200 mil níveis no gabarito sai 2, sem rastro."""
+        self.key_file.write_text("[" * 200_000, encoding="utf-8")
+        self.assert_fixed_two(self.run_lines(all_correct()))
+
+    def test_ac1_lone_surrogate_in_access_key_exits_two_with_nothing_written(self) -> None:
+        """#245/AC-1: surrogate isolado em `invoice_access_key` sai 2 antes de gravar ou imprimir."""
+        lines = all_correct()
+        lines[0]["invoice_access_key"] = self.SURROGATE
+        self.assert_fixed_two(self.run_lines(lines))
+        self.assert_fixed_two(self.run_lines(lines, "--format", "md"))
+
+    def test_ac1_lone_surrogate_in_model_exits_two_with_nothing_written(self) -> None:
+        """#245/AC-1: surrogate isolado em `model` sai 2 antes de gravar ou imprimir, em json e em md."""
+        lines = all_correct()
+        lines[0]["model"] = "\ud800"
+        self.assert_fixed_two(self.run_lines(lines))
+        self.assert_fixed_two(self.run_lines(lines, "--format", "md"))
+
+    def seed_previous_run(self) -> Path:
+        first = datetime(2026, 11, 14, 12, 0, 0, tzinfo=timezone.utc)
+        self.assertEqual(self.run_lines(all_correct(), now=first)[0], 0)
+        (saved,) = self.runs_dir.glob("*.json")
+        return saved
+
+    def test_ac1_huge_integer_in_earlier_run_rate_exits_two(self) -> None:
+        """#245/AC-1: inteiro gigante numa taxa da rodada anterior sai 2 (OverflowError), sem gravar."""
+        saved = self.seed_previous_run()
+        data = json.loads(saved.read_text(encoding="utf-8"))
+        data["full_match_rate"] = 10**400
+        saved.write_text(json.dumps(data), encoding="utf-8")
+        self.assert_fixed_two(self.run_lines(all_correct()), "0" * 50, kept=[saved.name])
+
+    def test_ac1_huge_integer_in_earlier_run_counts_exits_two(self) -> None:
+        """#245/AC-1: inteiro gigante nas contagens da rodada anterior sai 2, sem gravar."""
+        saved = self.seed_previous_run()
+        data = json.loads(saved.read_text(encoding="utf-8"))
+        data["by_exception"]["E6"]["full"] = 10**400
+        saved.write_text(json.dumps(data), encoding="utf-8")
+        self.assert_fixed_two(self.run_lines(all_correct()), "0" * 50, kept=[saved.name])
+
+    def test_ac2_failed_write_leaves_no_file_and_next_run_succeeds(self) -> None:
+        """#245/AC-2: gravação que falha não deixa arquivo (nem temporário) e a rodada seguinte sai 0."""
+        with mock.patch("auditor.os.replace", side_effect=OSError("disco cheio")):
+            self.assert_fixed_two(self.run_lines(all_correct()), "disco cheio", message=SAVE_FAILURE)
+        code, out, _ = self.run_lines(all_correct())
+        self.assertEqual(code, 0)
+        self.assertEqual(self.run_files(), [f"{json.loads(out)['run_id']}.json"])
+
+    def test_ac2_no_space_on_write_exits_two_with_save_message_and_leaves_nothing(self) -> None:
+        """#245/AC-2: falha ao abrir o temporário para escrita (ENOSPC, como disco cheio) sai 2 com a mensagem de gravação; nada sobra."""
+        with mock.patch("auditor.os.fdopen", side_effect=OSError(errno.ENOSPC, "No space left on device")):
+            self.assert_fixed_two(self.run_lines(all_correct()), "No space", message=SAVE_FAILURE)
+        self.assertEqual(self.run_files(), [])
+
+    def test_ac2_no_space_on_replace_exits_two_with_save_message_and_leaves_nothing(self) -> None:
+        """#245/AC-2: disco cheio no `os.replace` sai 2 com a mensagem de gravação; nem o temporário sobra."""
+        with mock.patch("auditor.os.replace", side_effect=OSError(errno.ENOSPC, "No space left on device")):
+            self.assert_fixed_two(self.run_lines(all_correct()), "No space", message=SAVE_FAILURE)
+        self.assertEqual(self.run_files(), [])
+
+    def test_ac2_broken_stdout_after_save_exits_two_and_keeps_the_run(self) -> None:
+        """#245/AC-2: stdout que falha depois de gravar sai 2 com a mensagem nova; a rodada continua gravada."""
+        err = io.StringIO()
+        self.audits.write_text("\n".join(json.dumps(x) for x in all_correct()) + "\n", encoding="utf-8")
+        argv = [str(self.audits), "--answer-key", str(self.key_file), "--runs-dir", str(self.runs_dir)]
+        with contextlib.redirect_stdout(BrokenStdout()), contextlib.redirect_stderr(err):
+            code = auditor.main(argv, now=lambda: NOW)
+        self.assertEqual(code, 2)
+        self.assertEqual(err.getvalue(), f"erro: {STDOUT_FAILURE}\n")
+        self.assertNotIn("nada foi gravado", err.getvalue())
+        self.assertEqual(len(self.run_files()), 1)
+        self.assertTrue(self.run_files()[0].endswith(".json"))
+
+    def test_ac2_surrogate_failure_then_valid_run_succeeds(self) -> None:
+        """#245/AC-2: depois de uma rodada recusada por surrogate, a rodada válida roda e grava um só arquivo."""
+        bad = all_correct()
+        bad[0]["model"] = "\ud800"
+        self.assert_fixed_two(self.run_lines(bad))
+        code, _, _ = self.run_lines(all_correct())
+        self.assertEqual(code, 0)
+        self.assertEqual(len(self.run_files()), 1)
+        self.assertTrue(self.run_files()[0].endswith(".json"))
+
+    def test_ac3_missed_e6_still_exits_one(self) -> None:
+        """#245/AC-3: E6 perdida continua saindo 1, com a rodada impressa e gravada."""
+        lines = all_correct()
+        lines[1] = audit_line("K2", "E1", "recusar", "bloqueio")
+        code, out, err = self.run_lines(lines)
+        self.assertEqual(code, 1)
+        self.assertEqual(json.loads(out)["by_exception"]["E6"]["classification"], 0)
+        self.assertIn("E6", err)
+        self.assertEqual(len(self.run_files()), 1)
+
+    def run_program_with_encoding(self, encoding: str, *extra: str, lines: list[Record] | None = None) -> subprocess.CompletedProcess[bytes]:
+        """Roda o programa de verdade com `PYTHONIOENCODING` dado; a saída vem em bytes, porque ela não é UTF-8 (#245)."""
+        self.audits.write_text("\n".join(json.dumps(x) for x in (lines or all_correct())) + "\n", encoding="utf-8")
+        argv = [sys.executable, str(ROOT / "eval" / "auditor.py"), str(self.audits),
+                "--answer-key", str(self.key_file), "--runs-dir", str(self.runs_dir), *extra]
+        env = {**os.environ, "PYTHONIOENCODING": encoding}
+        return subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True, env=env, timeout=60)
+
+    def test_ac1_stdout_that_cannot_represent_the_report_exits_two_with_its_own_message(self) -> None:
+        """#245/AC-1: com `PYTHONIOENCODING=ascii` e relatório com acento, sai 2 culpando a saída, não a entrada; nada é gravado."""
+        self.assertFalse(markdown_text_is_ascii())
+        done = self.run_program_with_encoding("ascii", "--format", "md")
+        self.assertEqual(done.returncode, 2)
+        self.assertEqual(done.stdout, b"")
+        # o stderr também é ascii (com `backslashreplace`), então a mensagem sai com os acentos escapados (#245)
+        self.assertEqual(done.stderr, f"erro: {STDOUT_CANNOT_REPRESENT}\n".encode("ascii", "backslashreplace"))
+        self.assertEqual(self.run_files(), [])
+
+    def test_ac3_stdout_that_cannot_represent_the_report_exits_two_even_with_a_missed_e6(self) -> None:
+        """#245/AC-3: com E6 perdida e stdout que não representa o relatório, sai 2 antes de gravar; sem linha da E6 e sem rodada."""
+        lines = all_correct()
+        lines[1] = audit_line("K2", "E1", "recusar", "bloqueio")
+        done = self.run_program_with_encoding("ascii", "--format", "md", lines=lines)
+        self.assertEqual(done.returncode, 2)
+        self.assertEqual(done.stdout, b"")
+        self.assertEqual(done.stderr, f"erro: {STDOUT_CANNOT_REPRESENT}\n".encode("ascii", "backslashreplace"))
+        self.assertEqual(self.run_files(), [])
+
+    def test_ac1_stdout_with_backslashreplace_accepts_the_report_and_keeps_the_run(self) -> None:
+        """#245/AC-1: com `PYTHONIOENCODING=ascii:backslashreplace` a rodada válida sai 0, grava e imprime com escapes."""
+        done = self.run_program_with_encoding("ascii:backslashreplace", "--format", "md")
+        self.assertEqual(done.returncode, 0)
+        self.assertEqual(done.stderr, b"")
+        self.assertIn(b"Vers\\xe3o do prompt", done.stdout)  # o `ã` de "Versão" escapado, e nenhum byte fora do ascii (#245)
+        self.assertTrue(all(byte < 128 for byte in done.stdout))
+        self.assertEqual(len(self.run_files()), 1)
+        self.assertTrue(self.run_files()[0].endswith(".json"))
+
+    def test_ac3_missed_e6_wins_over_a_failed_stdout(self) -> None:
+        """#245/AC-3: com E6 perdida e a saída padrão falhando depois de gravar, sai 1; o stderr traz as duas mensagens e a rodada fica."""
+        lines = all_correct()
+        lines[1] = audit_line("K2", "E1", "recusar", "bloqueio")
+        err = io.StringIO()
+        self.audits.write_text("\n".join(json.dumps(x) for x in lines) + "\n", encoding="utf-8")
+        argv = [str(self.audits), "--answer-key", str(self.key_file), "--runs-dir", str(self.runs_dir)]
+        with contextlib.redirect_stdout(ClosedStdout()), contextlib.redirect_stderr(err):
+            code = auditor.main(argv, now=lambda: NOW)
+        self.assertEqual(code, 1)
+        self.assertEqual(err.getvalue(), f"erro: {STDOUT_FAILURE}\n{E6_FAILURE}\n")
+        self.assertEqual(len(self.run_files()), 1)
+
+    def test_ac3_missed_e6_wins_with_the_stdout_pipe_or_descriptor_closed(self) -> None:
+        """#245/AC-3: com E6 perdida, pipe de leitura fechada ou descritor 1 fechado saem 1 com a mensagem de stdout; a rodada fica."""
+        lines = all_correct()
+        lines[1] = audit_line("K2", "E1", "recusar", "bloqueio")
+        text = "\n".join(json.dumps(x) for x in lines) + "\n"
+        read_end, write_end = os.pipe()
+        os.close(read_end)
+        self.audits.write_text(text, encoding="utf-8")
+        argv = [sys.executable, str(ROOT / "eval" / "auditor.py"), str(self.audits),
+                "--answer-key", str(self.key_file), "--runs-dir", str(self.runs_dir)]
+        with subprocess.Popen(argv, stdout=write_end, stderr=subprocess.PIPE, text=True) as process:
+            os.close(write_end)
+            _, err = process.communicate(timeout=60)
+        self.assertEqual(process.returncode, 1)
+        self.assertEqual(err, f"erro: {STDOUT_FAILURE}\n{E6_FAILURE}\n")
+        self.assertEqual(len(self.run_files()), 1)
+        (self.runs_dir / self.run_files()[0]).unlink()
+        done = self.run_program_with_closed_descriptor(1, text)
+        self.assertEqual(done.returncode, 1)
+        self.assertEqual(done.stderr, f"erro: {STDOUT_FAILURE}\n{E6_FAILURE}\n")
+        self.assertEqual(len(self.run_files()), 1)
+
+    def test_ac3_malformed_input_never_exits_one(self) -> None:
+        """#245/AC-3: nenhuma forma malformada sai 1, nem com a E6 perdida no mesmo arquivo."""
+        lines = all_correct()
+        lines[1] = audit_line("K2", "E1", "recusar", "bloqueio")
+        lines[0]["model"] = "\ud800"
+        self.assertEqual(self.run_lines(lines)[0], 2)
+        self.assertEqual(self.run_with("[" * 200_000 + "\n")[0], 2)
 
 
 class AgentNeverReadsAnswerKeyTest(unittest.TestCase):

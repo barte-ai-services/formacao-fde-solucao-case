@@ -6,10 +6,11 @@
  * o valor. Sem as credenciais do Supabase, 503; falha do Supabase, 502 sem detalhe.
  */
 import { SupabaseRest, SupabaseRestError } from "../connectors/supabase-rest";
-import { dockBoard } from "../dock/dock-board";
+import { compareNumbers, dockBoard, type DockRow } from "../dock/dock-board";
 import { supabaseDockSource } from "../dock/dock-source";
 import { receivingPlace, type ReceivingPlace } from "../dock/receiving-place";
 import type { Env } from "../env";
+import { invalidCursor, pageOf, readPageQuery, sortedBy, type Key, type Ordering } from "./page";
 
 export interface DockDeps {
   /** Monta o cliente do Supabase a partir do Env; nulo sem credenciais. Os testes injetam um fake (#72). */
@@ -54,6 +55,17 @@ function logFailure(error: unknown): null {
   return null;
 }
 
+/**
+ * #159 A ordem das páginas da doca: o número da nota, como número, e a chave de acesso para desempatar.
+ * A lista é a do lugar, do destino mostrado e do dia, e o cursor de uma não serve em outra.
+ */
+const dockOrder = (list: string): Ordering<DockRow> => ({
+  list,
+  shape: ["string", "string"],
+  key: (row) => [row.number, row.invoiceAccessKey],
+  compare: (a: Key, b: Key) => compareNumbers(String(a[0]), String(b[0])) || (a[1] === b[1] ? 0 : (a[1] as string) < (b[1] as string) ? -1 : 1),
+});
+
 const invalid = () => Response.json({ error: "invalid_query" }, { status: 400 });
 
 /**
@@ -63,9 +75,12 @@ const invalid = () => Response.json({ error: "invalid_query" }, { status: 400 })
 export function dockHandler(deps: DockDeps = {}, place: ReceivingPlace = "doca_cd"): (request: Request, env: Env) => Promise<Response> {
   const supabase = deps.supabase ?? supabaseFromEnv;
   const today = deps.today ?? (() => todayInSaoPaulo());
+  const listName = place === "app_loja" ? "recebimento-loja" : "doca";
 
   return async (request: Request, env: Env): Promise<Response> => {
     const params = new URL(request.url).searchParams;
+    const query = readPageQuery(params);
+    if (query.kind === "invalid") return query.response;
     const date = params.get("data") ?? today();
     const requested = params.get(place === "app_loja" ? "loja" : "destino");
     if (!isCalendarDate(date)) return invalid();
@@ -83,6 +98,13 @@ export function dockHandler(deps: DockDeps = {}, place: ReceivingPlace = "doca_c
     const inPlace = invoices.filter((i) => i.issuedOn === date && receivingPlace(i.store) === place);
     const shown = requested ?? [...new Set(inPlace.map((i) => i.store))].sort()[0];
     const decisions = await source.decisions(inPlace.filter((i) => i.store === shown).map((i) => i.accessKey)).catch(logFailure);
-    return Response.json(dockBoard({ invoices, published, destination: requested, date, place, decisions: decisions ?? undefined }));
+    const board = dockBoard({ invoices, published, destination: requested, date, place, decisions: decisions ?? undefined });
+    if (query.kind === "whole") return Response.json(board);
+    // #159/AC-3 O destino é o que a tela mostra, não o pedido: sem `destino`, o servidor escolhe o primeiro.
+    const order = dockOrder(`${listName}:${board.destination ?? ""}:${board.date}`);
+    const page = pageOf(order, sortedBy(board.rows, order), query);
+    if (!page) return invalidCursor();
+    const { destination, date: boardDate, destinations, awaiting } = board;
+    return Response.json({ destination, date: boardDate, destinations, ...page, aggregates: { awaiting } });
   };
 }

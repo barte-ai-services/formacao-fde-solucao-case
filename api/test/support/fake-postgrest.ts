@@ -1,16 +1,16 @@
 // Fake do PostgREST em memória, servido por um fetch injetado (#59). Cobre o que o cliente usa:
 // #59 select paginado por Range, filtros eq, insert com on_conflict e resolution, PATCH e DELETE.
-// #8 select com recurso embutido (proposals -> approvals, invoices -> divergences), pelas chaves estrangeiras.
+// #156 select com recurso embutido (proposals -> approvals, invoices -> divergences), pelas chaves estrangeiras.
 import type { FetchFn } from '../../src/connectors/supabase-rest.js';
 
 type Row = Record<string, unknown>;
 
 type SelectItem = { name: string; embed?: SelectItem[] };
 
-/** #35 O PostgREST escolhe a chave estrangeira pelo nome depois de `!` (`rel!fk_name(cols)`); o fake só tem uma por relação. */
+/** #157 O PostgREST escolhe a chave estrangeira pelo nome depois de `!` (`rel!fk_name(cols)`); o fake só tem uma por relação. */
 const relationName = (name: string): string => name.split('!')[0] ?? name;
 
-/** #35 Compara duas células da ordenação: números como números (10 depois de 9), texto como texto, nulo por último. */
+/** #157 Compara duas células da ordenação: números como números (10 depois de 9), texto como texto, nulo por último. */
 function compare(a: unknown, b: unknown): number {
   if (a === null || a === undefined) return b === null || b === undefined ? 0 : 1;
   if (b === null || b === undefined) return -1;
@@ -20,9 +20,9 @@ function compare(a: unknown, b: unknown): number {
   return x === y ? 0 : x < y ? -1 : 1;
 }
 
-/** #35 `order=a.desc.nullslast,b`: ordena as linhas como o PostgREST; o nulo vai por último (o fake não distingue nullsfirst).
- * #35 Difere do PostgreSQL, que no DESC põe o nulo primeiro sem a cláusula: nenhum adaptador da #35 ordena DESC numa coluna anulável
- * #35 sem `nullslast` explícito (READINGS_ORDER), então o fake e o banco concordam. Um adaptador novo que o faça deve dizer o nulo. */
+/** #157 `order=a.desc.nullslast,b`: ordena as linhas como o PostgREST; o nulo vai por último (o fake não distingue nullsfirst).
+ * #157 Difere do PostgreSQL, que no DESC põe o nulo primeiro sem a cláusula: nenhum adaptador da #157 ordena DESC numa coluna anulável
+ * #157 sem `nullslast` explícito (READINGS_ORDER), então o fake e o banco concordam. Um adaptador novo que o faça deve dizer o nulo. */
 function sortRows(rows: Row[], order: string): Row[] {
   const specs = order.split(',').map((spec) => {
     const [column = '', ...modifiers] = spec.split('.');
@@ -38,21 +38,21 @@ function sortRows(rows: Row[], order: string): Row[] {
   });
 }
 
-/** #8 As chaves estrangeiras que o fake sabe embutir: muitos-para-um e um-para-um dão objeto ou null; um-para-muitos, lista. */
+/** #156 As chaves estrangeiras que o fake sabe embutir: muitos-para-um e um-para-um dão objeto ou null; um-para-muitos, lista. */
 const RELATIONS: Record<string, Record<string, { table: string; local: string; foreign: string; many: boolean }>> = {
   proposals: {
     approvals: { table: 'approvals', local: 'id', foreign: 'proposal_id', many: false },
     invoices: { table: 'invoices', local: 'invoice_access_key', foreign: 'access_key', many: false },
   },
   invoices: { divergences: { table: 'divergences', local: 'access_key', foreign: 'invoice_access_key', many: true } },
-  // #35 O pedido ao fornecedor: o fornecedor (muitos-para-um) e as leituras da resposta (um-para-muitos, pela chave estrangeira do pedido).
+  // #157 O pedido ao fornecedor: o fornecedor (muitos-para-um) e as leituras da resposta (um-para-muitos, pela chave estrangeira do pedido).
   outbox_supplier_emails: {
     kit_fornecedores: { table: 'kit_fornecedores', local: 'supplier_id', foreign: 'fornecedor_id', many: false },
     supplier_reply_readings: { table: 'supplier_reply_readings', local: 'id', foreign: 'request_id', many: true },
   },
 };
 
-/** #8 Lê `a,b,rel(c,rel2(d))` do select do PostgREST, separando só nas vírgulas de fora dos parênteses. */
+/** #156 Lê `a,b,rel(c,rel2(d))` do select do PostgREST, separando só nas vírgulas de fora dos parênteses. */
 function parseSelect(select: string): SelectItem[] {
   const items: SelectItem[] = [];
   let depth = 0;
@@ -91,12 +91,12 @@ export class FakePostgrest {
     return this.tables.get(table) ?? [];
   }
 
-  /** #12 Uma restrição única (parcial, se `when` filtra): o POST que a viola volta 409 com o código 23505, como o PostgREST. */
+  /** #156 Uma restrição única (parcial, se `when` filtra): o POST que a viola volta 409 com o código 23505, como o PostgREST. */
   unique(table: string, columns: string[], when: (row: Row) => boolean = () => true): void {
     this.uniques.push({ table, columns, when });
   }
 
-  /** #12 A próxima requisição da tabela e do método falha com este status e corpo (uma vez). */
+  /** #156 A próxima requisição da tabela e do método falha com este status e corpo (uma vez). */
   failNext(table: string, method: string, status: number, body: unknown): void {
     this.failures.push({ table, method, status, body });
   }
@@ -161,7 +161,12 @@ export class FakePostgrest {
     }
     if (method === 'PATCH') {
       const hit = rows.filter((r) => this.matches(r, params));
-      for (const r of hit) Object.assign(r, body as Row);
+      for (const r of hit) {
+        const before = r.version;
+        Object.assign(r, body as Row);
+        // #295 O gatilho de proposals sobe a versão em todo update, ignorando a que o cliente mandou.
+        if (table === 'proposals') r.version = Number(before) + 1;
+      }
       return json(200, hit);
     }
     if (method === 'DELETE') {
@@ -171,7 +176,7 @@ export class FakePostgrest {
     return json(405, {});
   };
 
-  /** #8 Projeta as colunas do select e monta os recursos embutidos pelas chaves estrangeiras. */
+  /** #156 Projeta as colunas do select e monta os recursos embutidos pelas chaves estrangeiras. */
   private project(table: string, row: Row, items: SelectItem[], params: URLSearchParams): Row {
     const out: Row = {};
     for (const item of items) {
@@ -187,7 +192,7 @@ export class FakePostgrest {
       const name = relationName(item.name);
       const relation = RELATIONS[table]?.[name];
       if (!relation) throw new Error(`fake: relação não suportada ${table}.${name}`);
-      // #35 `<relação>.order=` ordena o recurso embutido, como na sintaxe de filtros embutidos do PostgREST.
+      // #157 `<relação>.order=` ordena o recurso embutido, como na sintaxe de filtros embutidos do PostgREST.
       const embedOrder = params.get(`${name}.order`);
       const found = this.rows(relation.table).filter((r) => r[relation.foreign] === row[relation.local]);
       const related = (embedOrder ? sortRows(found, embedOrder) : found).map((r) => this.project(relation.table, r, item.embed ?? [], params));
@@ -212,7 +217,7 @@ export class FakePostgrest {
         cancelled_at: null,
       };
     }
-    // #12 O pedido ao fornecedor e a nota emitida: identidade por tabela e as colunas que a migração deixa nulas.
+    // #156 O pedido ao fornecedor e a nota emitida: identidade por tabela e as colunas que a migração deixa nulas.
     if (table === 'outbox_supplier_emails') {
       return {
         id: this.sequence(table),
@@ -228,7 +233,7 @@ export class FakePostgrest {
         discarded_at: null,
         send_claim: null,
         send_claimed_at: null,
-        // #35 As colunas da cobrança que a migração deixa nulas.
+        // #157 As colunas da cobrança que a migração deixa nulas.
         follow_up_draft: null,
         follow_up_rejection: null,
         follow_up_claimed_at: null,
@@ -245,7 +250,7 @@ export class FakePostgrest {
         updated_at: now,
       };
     }
-    // #35 A caixa de entrada mock e as leituras: identidade por tabela e os defaults da migração.
+    // #157 A caixa de entrada mock e as leituras: identidade por tabela e os defaults da migração.
     if (table === 'inbox_supplier_messages') {
       return { id: this.sequence(table), attachments_meta: [], received_at: now, read_status: 'pending', read_error: null, read_status_at: null, created_at: now };
     }
@@ -254,7 +259,8 @@ export class FakePostgrest {
     if (table.startsWith('outbox_')) return { id: this.nextId++, published_at: now };
     if (table === 'invoices') return { captured_at: now, classification: null, checked_at: null };
     // #63 As colunas com default da migração do domínio e da aprovação.
-    if (table === 'proposals') return { id: this.nextId++, state: 'registrada', regua_line: null, created_at: now };
+    // #295 version nasce com 1 (default da migração).
+    if (table === 'proposals') return { id: this.nextId++, state: 'registrada', regua_line: null, version: 1, created_at: now };
     if (table === 'approvals') return { id: this.nextId++, dock_action: null, decided_on: null, approved_at: now };
     if (table === 'titles') return { state: 'lancado', updated_at: now };
     // #230 invoice_audits.id é identidade: o save() lê o id da linha devolvida.
@@ -277,7 +283,7 @@ export class FakePostgrest {
   private matches(row: Row, params: URLSearchParams): boolean {
     for (const [col, expr] of params) {
       if (['select', 'order', 'on_conflict', 'limit'].includes(col) || col.endsWith('.order')) continue;
-      // #12 or=(a.is.null,b.lt.X): cada termo é `coluna.operador.valor`; o valor pode ter pontos.
+      // #156 or=(a.is.null,b.lt.X): cada termo é `coluna.operador.valor`; o valor pode ter pontos.
       if (col === 'or') {
         const terms = /^\((.*)\)$/.exec(expr)?.[1]?.split(',') ?? [];
         if (!terms.some((term) => this.term(row, term))) return false;
@@ -304,7 +310,7 @@ export class FakePostgrest {
   }
 
   private test(row: Row, col: string, expr: string): boolean {
-    // #71 e #63: in.(a,"b") do PostgREST, valores separados por vírgula, aspas opcionais.
+    // #71 e #157: in.(a,"b") do PostgREST, valores separados por vírgula, aspas opcionais.
     const inList = /^in\.\((.*)\)$/.exec(expr);
     if (inList) {
       const values = (inList[1] ?? '').split(',').map((v) => v.replace(/^"(.*)"$/, '$1'));
@@ -312,12 +318,12 @@ export class FakePostgrest {
     }
     // #56 not.is.null: o filtro que pega todas as linhas de uma coluna not null.
     if (expr === 'not.is.null') return row[col] !== null && row[col] !== undefined;
-    // #12 is.null: a coluna sem valor.
+    // #156 is.null: a coluna sem valor.
     if (expr === 'is.null') return row[col] === null || row[col] === undefined;
-    // #35 gt.: maior que, para ids numéricos (a mensagem mais nova); a coluna sem valor nunca é maior.
+    // #157 gt.: maior que, para ids numéricos (a mensagem mais nova); a coluna sem valor nunca é maior.
     if (expr.startsWith('gt.')) return typeof row[col] === 'number' && row[col] > Number(expr.slice(3));
     if (expr.startsWith('gte.')) return !(Date.parse(String(row[col])) < Date.parse(expr.slice(4)));
-    // #12 lt.: menor que, em instantes (a coluna sem valor nunca é menor).
+    // #156 lt.: menor que, em instantes (a coluna sem valor nunca é menor).
     if (expr.startsWith('lt.')) return row[col] !== null && row[col] !== undefined && Date.parse(String(row[col])) < Date.parse(expr.slice(3));
     if (!expr.startsWith('eq.')) throw new Error(`fake: filtro não suportado ${col}=${expr}`);
     return String(row[col]) === expr.slice(3);

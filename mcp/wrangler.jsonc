@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "formacao-fde-solucao-case-mcp",
+  "main": "src/worker.py",
+  // Sem pacotes de terceiros, o SDK externo (workers-py) não é necessário; sem a flag o Worker não sobe.
+  // 2026-10-30 é o limite do workerd travado no lockfile.
+  "compatibility_date": "2026-10-30",
+  "compatibility_flags": ["python_workers", "disable_python_external_sdk"],
+  // Invocation logs e traces ficam desligados: poderiam registrar o cabeçalho Cf-Access-Jwt-Assertion, que é o JWT de quem chamou.
+  "observability": { "enabled": true, "logs": { "enabled": true, "invocation_logs": false } },
+  // A API do Worker da fila de aprovação (api/). O MCP a chama por aqui, com o JWT do Access de quem chamou.
+  "services": [{ "binding": "API", "service": "formacao-fde-solucao-case-api" }],
+  // As origens de navegador que podem chamar o MCP (#272), separadas por vírgula. Vazia, qualquer cabeçalho Origin é
+  // recusado com 403; um cliente de servidor, como o Claude, não manda Origin e segue. O plano 3 (#275) ajusta a lista.
+  "vars": { "MCP_ALLOWED_ORIGINS": "" }
+  // Sem segredos: o MCP não guarda credencial nenhuma. A identidade vem no cabeçalho Cf-Access-Jwt-Assertion
+  // de cada chamada e vai adiante como veio.
+}

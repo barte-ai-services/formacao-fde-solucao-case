@@ -64,7 +64,7 @@ export function ProposalPanel({
   onDecided?: (result: DecisionResultDto) => void;
   /** #134 Depois da contagem (2ª entrega) o verbo é "Confirmar recebimento"; antes da doca, "Receber". */
   afterCount?: boolean;
-  /** #3/AC-1 De onde vem o pedido ao fornecedor (#16, #17); sem isto, ou sem pedido, o bloco não existe. */
+  /** #156 De onde vem o pedido ao fornecedor (#156, #156); sem isto, ou sem pedido, o bloco não existe. */
   supplierRequest?: SupplierRequestSource;
 }): JSX.Element {
   const [decided, setDecided] = useState<DecisionResultDto | null>(null);

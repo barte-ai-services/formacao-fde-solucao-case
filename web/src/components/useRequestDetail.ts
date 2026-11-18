@@ -4,10 +4,10 @@ import type { SentRequestDetailDto } from "../api/contract";
 import { supplierReplyReason, type SupplierReplyReason } from "../api/supplier-reply";
 
 export interface RequestDetail {
-  /** #21 `ready` só quando o pedido carregado é o da chave pedida; trocando de linha, volta a `loading`. */
+  /** #157 `ready` só quando o pedido carregado é o da chave pedida; trocando de linha, volta a `loading`. */
   state: LoadState;
   detail: SentRequestDetailDto | undefined;
-  /** #21 O motivo fechado da falha (nunca o erro em si), em `error`. */
+  /** #157 O motivo fechado da falha (nunca o erro em si), em `error`. */
   reason: SupplierReplyReason | null;
   retry: () => void;
 }
@@ -19,7 +19,7 @@ interface Settled {
 }
 
 /**
- * #21 Lê o pedido enviado da gaveta (`GET /api/supplier-requests/{accessKey}`) sempre que a chave muda; sem chave, nada.
+ * #157 Lê o pedido enviado da gaveta (`GET /api/supplier-requests/{accessKey}`) sempre que a chave muda; sem chave, nada.
  * Uma resposta que chega depois de a gaveta trocar de linha ou fechar é descartada (o sinal cancela a leitura que ficou para trás).
  */
 export function useRequestDetail(accessKey: string | null, load: (accessKey: string, signal: AbortSignal) => Promise<SentRequestDetailDto>): RequestDetail {
@@ -36,12 +36,12 @@ export function useRequestDetail(accessKey: string | null, load: (accessKey: str
       .then((detail) => {
         if (!controller.signal.aborted) setSettled({ key: accessKey, detail, reason: null });
       })
-      // #21 Só o motivo fechado fica: o erro em si, com o corpo da resposta, não é guardado nem mostrado (layer-exposure).
+      // #157 Só o motivo fechado fica: o erro em si, com o corpo da resposta, não é guardado nem mostrado (layer-exposure).
       .catch((error: unknown) => {
         if (!controller.signal.aborted) setSettled({ key: accessKey, detail: undefined, reason: supplierReplyReason(error) });
       });
     return () => controller.abort();
-    // #21 `load` é estável (o fio da API): a leitura se refaz só com a chave ou com o "Tentar de novo".
+    // #157 `load` é estável (o fio da API): a leitura se refaz só com a chave ou com o "Tentar de novo".
   }, [accessKey, attempt]);
 
   const retry = useCallback(() => {

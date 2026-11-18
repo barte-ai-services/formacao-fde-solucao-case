@@ -4,11 +4,11 @@ import type { Clock, InboxMessage, SupplierInbox } from './reply-ports.js';
 import { SUPPLIER_READING_TASK } from './reply-task.js';
 import { guarded, refused } from './supabase-reply-call.js';
 
-// #35: a caixa de entrada mock (inbox_supplier_messages), modo upsert-with-history/in-row-transition: a mensagem não muda e
-// #35: read_status sai de `pending` uma vez, para `ok` ou `error`. Cada transição é UM `PATCH` filtrado por `read_status=eq.pending`.
+// #157: a caixa de entrada mock (inbox_supplier_messages), modo upsert-with-history/in-row-transition: a mensagem não muda e
+// #157: read_status sai de `pending` uma vez, para `ok` ou `error`. Cada transição é UM `PATCH` filtrado por `read_status=eq.pending`.
 
 const TABLE = 'inbox_supplier_messages';
-/** #35/AC-1: o motivo fechado `<motivo>: <campo>`; o banco recusa o resto pelo mesmo formato. */
+/** #157: o motivo fechado `<motivo>: <campo>`; o banco recusa o resto pelo mesmo formato. */
 const CLOSED_REASON = /^[a-z_]+: [a-z_]+$/;
 
 type MessageRow = { id: number; request_id: number; body: string };
@@ -37,10 +37,10 @@ export function supabaseSupplierInbox(rest: SupabaseRest, clock: Clock): Supplie
       ),
     );
 
-  /** #35: a transição guardada; com 0 linhas relê, e só a mensagem já no mesmo estado final é idempotente. */
+  /** #157: a transição guardada; com 0 linhas relê, e só a mensagem já no mesmo estado final é idempotente. */
   async function transition(id: number, operation: string, to: 'ok' | 'error', reason: string | null): Promise<void> {
     const at = clock.now().toISOString();
-    // #35 PER-3: quem fez a transição é a tarefa da leitura (não há ato humano aqui), gravada na própria linha com o quando.
+    // #157 PER-3: quem fez a transição é a tarefa da leitura (não há ato humano aqui), gravada na própria linha com o quando.
     const by = SUPPLIER_READING_TASK;
     const body = to === 'ok' ? { read_status: 'ok', read_status_at: at, read_status_by: by } : { read_status: 'error', read_error: reason, read_status_at: at, read_status_by: by };
     const updated = await guarded(() => rest.update(TABLE, { id: `eq.${id}`, read_status: 'eq.pending' }, body));
@@ -60,7 +60,7 @@ export function supabaseSupplierInbox(rest: SupabaseRest, clock: Clock): Supplie
     },
     markRead: (id) => transition(id, 'mark_read', 'ok', null),
     markError(id, reason) {
-      // #35/AC-1: só o motivo fechado vai ao banco; o texto do modelo ou do fornecedor nunca é gravado.
+      // #157: só o motivo fechado vai ao banco; o texto do modelo ou do fornecedor nunca é gravado.
       if (!CLOSED_REASON.test(reason)) return Promise.reject(refused('mark_error', TABLE));
       return transition(id, 'mark_error', 'error', reason);
     },

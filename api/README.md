@@ -18,7 +18,7 @@ Os segredos ficam no `api/.dev.vars`, que o git ignora, um por linha:
 BARTE_ACADEMY_SUPABASE_SECRET_KEY=...
 BARTE_ACADEMY_ANTHROPIC_API_KEY=...
 ACCESS_AUD=...
-ACCESS_TEAM_DOMAIN=barte-academy.cloudflareaccess.com
+ACCESS_TEAM_DOMAIN=long-frost-f16b.cloudflareaccess.com
 ```
 
 ## O Claude no Worker (#171)
@@ -183,6 +183,58 @@ Não se publica à mão. Cada merge na `main` que mexe em `api/` roda o workflow
 Ele também pode ser disparado pela aba Actions, mas só publica a partir da `main`. Os segredos do Worker em
 produção entram com `npx wrangler secret put <NOME>`, nunca no git.
 
+## Listas paginadas por cursor (#159)
+
+As quatro listas das telas (`GET /api/fila`, `GET /api/hoje`, `GET /api/duplicates` e `GET /api/doca`,
+mais `GET /api/recebimento-loja`, que é o mesmo handler da doca, mas é outra lista) paginam por cursor. O código está em
+`src/http/page.ts`.
+
+**Dois modos.** Sem `cursor` e sem `limite` na query, cada rota responde como antes da #159: a lista
+inteira, na forma antiga (a tela de duplicadas e as demais ainda leem assim). Com `cursor` ou `limite`,
+entra o modo paginado, que é o contrato novo.
+
+**Query.**
+
+| Parâmetro | Vale | Quando falha |
+|---|---|---|
+| `limite` | inteiro de 25 a 50; ausente (com `cursor`) é 30 | 400 `{ "error": "limite_invalido" }` |
+| `cursor` | o `nextCursor` da página anterior, como veio; ausente é a primeira página | 400 `{ "error": "cursor_invalido" }` |
+
+Por que 30: é o meio da faixa. Enche uma tela de tabela com folga, para o scroll infinito pedir a
+próxima página antes de a pessoa chegar ao fim, e a resposta cabe no Worker sem custo. O 400 traz só o
+código: nunca o valor recebido nem a causa. Os demais parâmetros de cada rota (`dia`, `destino`, `data`,
+`loja`) continuam valendo, e o cursor fica preso a eles (veja **Cursor**): mudar um filtro é recomeçar.
+
+**Resposta paginada.** `items` é a página, `nextCursor` é o cursor da próxima (`null` na última),
+`total` é a quantidade da lista inteira (a mesma em todas as páginas) e `aggregates` traz o que a tela
+mostra no topo, calculado sobre a lista inteira: não muda com a página pedida. Dinheiro é `{ cents, text }`.
+Mais os campos de contexto da lista.
+
+| Lista | Contexto | `aggregates` | Os itens |
+|---|---|---|---|
+| `/api/fila` | `approver` | `approvable` (quantas a pessoa pode aprovar), `amountAtRisk` (soma do valor em risco), `blocked` (quantas no nível `bloqueio`) | os de antes, em `items` |
+| `/api/hoje` | `day` | `toPay` (a soma "A pagar"), `approvedByRule` (quantas aprovadas pela regra) | os de antes, em `items` |
+| `/api/duplicates` | nenhum | `blockedAmount` (soma do valor barrado), `byReason` (`titulo_lancado` e `ordem_sem_saldo`) | as entradas de `duplicates`, em `items` |
+| `/api/doca` | `destination`, `date`, `destinations` | `awaiting` (aguardando aprovação no destino inteiro) | as `rows`, em `items` |
+
+Atenção a `total` na lista do dia: sem cursor continua `{ "cents": ... }` (a soma); com cursor é a
+contagem, e a soma passou para `aggregates.toPay`. Na doca, `rows` vira `items`, e `awaiting` sai do topo
+e vai para `aggregates`.
+
+**Ordem.** Cada lista tem uma ordem total, que vale só nas páginas: fila, o nível mais severo primeiro
+(`APPROVAL_LEVELS`), depois o maior valor em risco, depois a chave de acesso; hoje e duplicadas, a chave
+de acesso da nota; doca, o número da nota (como número) e a chave de acesso. Sem `cursor` nem `limite`,
+cada lista sai exatamente na ordem em que saía antes da #159 (a ordem da loja ou da leitura; na doca, o
+número da nota): a ordem antiga faz parte do contrato do modo inteiro.
+
+**Cursor.** É opaco: base64url de um JSON versionado com a tupla de ordenação do último item entregue e o
+identidade da lista, que inclui os filtros. A próxima página são os itens estritamente depois dessa tupla, e não uma posição: um item
+decidido entre duas páginas não faz outro pular nem repetir. O cursor de uma lista não serve noutra, nem com outro filtro: usado assim, devolve 400 `cursor_invalido`.
+A identidade de cada lista é `fila`; `hoje:<dia>`; `duplicadas`; `doca:<destino>:<data>` e
+`recebimento-loja:<loja>:<data>`, em que destino ou loja é o que a resposta mostra (sem `destino` na query o
+servidor escolhe o primeiro, e o cursor vale para esse, com ou sem o `destino` explícito na página seguinte).
+Quem consome trata o cursor como texto e não o monta.
+
 ## Cloudflare Access
 
 Toda rota, menos `GET /health`, exige o JWT do Cloudflare Access (#54). O Worker lê o token do
@@ -197,22 +249,60 @@ contra as chaves do time, o `aud`, o `iss` e a validade. `GET /me` devolve o e-m
 | Chaves do time fora do ar | 503 `access_unavailable` |
 
 As duas variáveis não são segredo. Em produção, a esteira passa com `wrangler deploy --var`, a
-partir das variáveis do repositório `BARTE_ACADEMY_ACCESS_AUD` e `BARTE_ACADEMY_ACCESS_TEAM_DOMAIN`.
+partir das variáveis do environment `producao` `BARTE_ACADEMY_ACCESS_AUD` e `BARTE_ACADEMY_ACCESS_TEAM_DOMAIN`.
 Localmente, ficam no `.dev.vars`; sem elas, só o `/health` responde 200.
 
 ### Provisionar
 
-Uma vez por conta, no painel da Cloudflare: abra o Zero Trust, crie o time `barte-academy` e
-escolha o plano Free. Depois, na raiz do repositório:
+O time do Zero Trust é `long-frost-f16b.cloudflareaccess.com` (variável do environment `producao`,
+`BARTE_ACADEMY_ACCESS_TEAM_DOMAIN`). A aplicação do Access que o Worker usa já existe, e o AUD dela está em
+`BARTE_ACADEMY_ACCESS_AUD`. O script `scripts/cloudflare_access.py` a atualiza e nunca cria outra: acha a
+aplicação pelo AUD, não pelo nome, e um AUD que não bate com nenhuma aplicação é erro, sem gravar nada.
+
+A tela vale para **qualquer e-mail autenticado** (decisão do CFO): a política do Access é `allow` com
+`include: everyone` (`"include": [{"everyone": {}}]` na API da Cloudflare) e o código por e-mail (one-time PIN) é o
+único provedor da aplicação. Os dados são os da solução de referência. O Worker não filtra por e-mail: quem é
+administrador e quem é aprovador continua vindo de `BARTE_ACADEMY_ADMIN_EMAILS` e `BARTE_ACADEMY_APPROVER_LEVELS`.
+
+O PUT substitui o recurso, então o corpo parte da aplicação inteira (menos os campos só de leitura: `id`, `uid`,
+`aud`, `created_at`, `updated_at`) e troca só duas coisas. Nome, domínio, AUD, sessão, redirecionamento e os demais
+campos ficam como estão. Em `allowed_idps` fica exatamente o código por e-mail, qualquer que seja o valor atual
+(lista vazia ou ausente, que na API quer dizer "todos os provedores", também). Em `policies`, a política do script
+(`formacao-fde-solucao-case: qualquer e-mail`; a de nome antigo, `barte.com e alunos`, também conta como a do script)
+é trocada no lugar ou acrescentada ao fim, e as outras políticas da aplicação ficam na forma em que vieram. Rodar de
+novo deixa o mesmo estado.
+
+**Pelo workflow** (o caminho normal):
+
+1. Em Settings, Environments, `producao`, confira os secrets `BARTE_ACADEMY_CLOUDFLARE_API_TOKEN` (com
+   permissão de Access: Apps and Policies) e `BARTE_ACADEMY_CLOUDFLARE_ACCOUNT_ID` e a variável
+   `BARTE_ACADEMY_ACCESS_AUD`. Eles ficam no environment, não no repositório: o job `provisionar` declara
+   `environment: producao`, que só a `main` alcança.
+2. Na aba Actions, rode `Provisiona o Cloudflare Access` (`.github/workflows/cloudflare-access.yml`) na `main`,
+   com `dry_run` marcado. O log traz um resumo em campos nomeados: `allowed_idps` (inalterado ou passa a ser só o código por e-mail, sem listar os
+   outros ids), o total de políticas, a precedência da do script, e a posição, a `precedence` e o tipo de cada
+   política (reutilizável ou da aplicação). Não traz a configuração da aplicação, as políticas alheias, a conta nem
+   id de aplicação ou de política, porque o log de um repositório público é aberto. Se a aplicação usa políticas
+   reutilizáveis, a do script também vira reutilizável (a Cloudflare não aceita as duas juntas) e o resumo diz o
+   caminho; o dry-run não grava em `/access/policies`.
+
+   A política reutilizável é de quem a liga. O script grava na que a própria aplicação já liga com nome do script
+   (o atual ou o antigo) ou, na falta, na da conta com o nome atual; a de nome antigo que a aplicação não liga não
+   é tocada. Se o `app_count` dela mostra que outra aplicação também a usa, o script recusa com "a política
+   reutilizável do script está ligada a outra aplicação; nada foi gravado", no dry-run também, porque o `include:
+   everyone` passaria a valer lá. Resolva desligando a política da outra aplicação e rode de novo.
+3. Rode de novo com `dry_run` desmarcado para gravar.
+
+O workflow não imprime o token. Para criar uma aplicação nova, o que só se faz de propósito, rode à
+mão com `--create` e `BARTE_ACADEMY_ACCESS_APP_DOMAIN` com o domínio dela; o script imprime o `ACCESS_AUD=...`
+novo, que vai para a variável do environment `producao`.
+
+**À mão**, na raiz do repositório:
 
 ```bash
 export BARTE_ACADEMY_CLOUDFLARE_API_TOKEN=...   # com permissão de Access: Apps and Policies
 export BARTE_ACADEMY_CLOUDFLARE_ACCOUNT_ID=...
-export BARTE_ACADEMY_ACCESS_ALLOWED_EMAILS="aluno1@gmail.com, aluno2@gmail.com"
+export BARTE_ACADEMY_ACCESS_AUD=...
 python3 scripts/cloudflare_access.py --dry-run   # mostra o que enviaria
 python3 scripts/cloudflare_access.py
 ```
-
-O script garante o login por código no e-mail e a aplicação `formacao-fde-solucao-case`, com a
-política que libera a `barte.com` e os alunos listados. Rodar de novo atualiza, não duplica. No fim,
-imprime `ACCESS_AUD=...` e `ACCESS_TEAM_DOMAIN=...`: são os valores das variáveis do repositório.

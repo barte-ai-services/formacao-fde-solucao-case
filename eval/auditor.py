@@ -7,9 +7,13 @@ A medição (`measure`, `difference`, `markdown_report`) é pura; a leitura e a 
 from __future__ import annotations
 
 import argparse
+import contextlib
+import errno
 import hashlib
 import json
+import os
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -27,6 +31,11 @@ EXCEPTIONS = ["match", "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8"]
 FIELDS = {"classification": "classificacao", "dock_action": "acao_doca", "routing": "encaminhamento"}
 EXIT_E6_MISSED = 1
 EXIT_USAGE = 2
+UNEXPECTED_FAILURE = "não foi possível processar a entrada; nada foi gravado"
+SAVE_FAILURE = "não foi possível gravar a rodada na pasta de rodadas"
+E6_FAILURE = "falha: alguma duplicidade (E6) do gabarito não foi classificada como E6"
+STDOUT_CANNOT_REPRESENT = "a saída padrão não representa o relatório; nada foi gravado"
+STDOUT_FAILURE = "a rodada foi gravada, mas a saída padrão falhou"
 
 
 class InvalidInput(ValueError):
@@ -68,14 +77,19 @@ def _check_line_shape(obj: Record, number: int) -> None:
     for field in ("model", "prompt_version"):  # entram em conjunto, ordenação e junção (#239)
         if obj.get(field) is not None and not isinstance(obj[field], str):
             raise InvalidInput(f"linha {number}: `{field}` deve ser texto")
-    if not isinstance(obj.get("rule"), dict):
-        raise InvalidInput(f"linha {number}: `rule` ausente ou não é objeto")
+    if obj.get("rule") is not None and not isinstance(obj["rule"], dict):  # sem `rule` é válido (#262)
+        raise InvalidInput(f"linha {number}: `rule` não é objeto")
     skipped = obj.get("not_audited")
     if skipped is not None and not (isinstance(skipped, dict) and isinstance(skipped.get("reason"), str)):
         raise InvalidInput(f"linha {number}: `not_audited` deve ser objeto com `reason` em texto")
     refusals = obj.get("refusals")
     if refusals is not None and not (isinstance(refusals, list) and all(isinstance(r, dict) for r in refusals)):
         raise InvalidInput(f"linha {number}: `refusals` deve ser lista de objetos")
+
+
+def _lacks_rule(line: Record | None) -> bool:
+    """Há a linha da nota e ela veio sem a proposta da regra (#262). Nota sem linha não entra aqui."""
+    return line is not None and line.get("rule") is None
 
 
 def _is_not_audited(line: Record) -> bool:
@@ -182,7 +196,10 @@ def measure(lines: list[Record], answer_key: list[Record]) -> Record:
     lines = deduplicate(lines)
     by_key = {x["invoice_access_key"]: x for x in lines}
     agent = _count(answer_key, lambda n: _valid_audit(by_key.get(n["chave"])))
-    rule = _count(answer_key, lambda n: (by_key.get(n["chave"]) or {}).get("rule"))
+    # Contra a regra, os dois lados valem sobre as mesmas notas: as que vieram sem `rule` ficam fora (#262).
+    compared = [n for n in answer_key if not _lacks_rule(by_key.get(n["chave"]))]
+    agent_compared = _count(compared, lambda n: _valid_audit(by_key.get(n["chave"])))
+    rule = _count(compared, lambda n: (by_key.get(n["chave"]) or {}).get("rule"))
     total = len(answer_key)
     by_field = {field: _rate(sum(agent[c][field] for c in EXCEPTIONS), total) for field in FIELDS}
     below, first_try = _refusal_metrics(lines, by_key, answer_key)
@@ -196,7 +213,8 @@ def measure(lines: list[Record], answer_key: list[Record]) -> Record:
         "routing_below_regua": below,
         "first_try_routing_rate": first_try,
         "errors": _errors(answer_key, by_key),
-        "vs_baseline": _vs_baseline(agent, rule),
+        "notes_without_rule": len(answer_key) - len(compared),
+        "vs_baseline": _vs_baseline(agent_compared, rule),
     }
 
 
@@ -286,6 +304,8 @@ def _section_rule(r: Record) -> list[str]:
             f"| {name} | {_pct(v['agent_full'])} | {_pct(v['rule_full'])} | "
             f"{_pct(v['agent_classification'])} | {_pct(v['rule_classification'])} |"
         )
+    if r["notes_without_rule"]:
+        lines += ["", f"{r['notes_without_rule']} nota(s) sem `rule` (proposta alterada pela pessoa) ficam fora desta comparação."]
     return [*lines, ""]
 
 
@@ -377,33 +397,127 @@ def _execute(args: argparse.Namespace, now: datetime) -> Record:
             run["vs_previous"] = difference(run, previous)
         except (KeyError, TypeError) as error:
             raise InvalidInput("rodada anterior sem a forma de uma rodada na pasta de rodadas") from error
-    try:
-        args.runs_dir.mkdir(parents=True, exist_ok=True)
-        (args.runs_dir / f"{run['run_id']}.json").write_text(
-            json.dumps(run, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-        )
-    except OSError as error:
-        raise InvalidInput("não foi possível gravar a rodada na pasta de rodadas") from error
     return run
 
 
+def _render(run: Record, fmt: str) -> str:
+    """O texto que o comando imprime, montado inteiro antes de qualquer gravação."""
+    if fmt == "md":
+        return markdown_report(run, run.get("vs_previous")) + "\n"
+    return json.dumps(run, ensure_ascii=False, indent=2) + "\n"
+
+
+def _save_run(folder: Path, run: Record, payload: bytes) -> None:
+    """Grava num temporário (sem `.json`, que `previous_run` lê) na mesma pasta e renomeia; na falha não sobra nada."""
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        descriptor, temp_name = tempfile.mkstemp(dir=folder, prefix=".rodada-", suffix=".tmp")
+    except OSError as error:
+        raise InvalidInput(SAVE_FAILURE) from error
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(payload)
+        os.replace(temp_name, folder / f"{run['run_id']}.json")
+    except OSError as error:
+        Path(temp_name).unlink(missing_ok=True)
+        raise InvalidInput(SAVE_FAILURE) from error
+    except BaseException:
+        Path(temp_name).unlink(missing_ok=True)
+        raise
+
+
+def _publish(run: Record, args: argparse.Namespace) -> str:
+    """Valida tudo o que vai sair antes de gravar e de imprimir: uma falha de codificação não deixa nada pela metade.
+
+    Texto com surrogate isolado passa pela checagem de tipo e só quebra ao codificar; por isso o JSON gravado e o
+    texto do stdout são codificados aqui, antes do `os.replace`. Devolve o texto; quem escreve no stdout é `main`,
+    depois da gravação, para que uma falha de saída não passe por falha de entrada.
+    """
+    text = _render(run, args.format)
+    payload = (json.dumps(run, ensure_ascii=False, indent=2) + "\n").encode("utf-8")  # surrogate: defeito da entrada (#245)
+    _check_stdout_represents(text)
+    _save_run(args.runs_dir, run, payload)
+    return text
+
+
+def _check_stdout_represents(text: str) -> None:
+    """Falha antes de gravar se o stdout, com a codificação e o tratador de erro dele, não escreve o texto (#245).
+
+    É falha da saída, não da entrada: `PYTHONIOENCODING=ascii` recusa o acento, `ascii:backslashreplace` o aceita com
+    escapes. Sem stdout (`None`) não há o que checar; `main` trata esse caso ao escrever (#245).
+    """
+    if sys.stdout is None:
+        return
+    try:
+        text.encode(sys.stdout.encoding or "utf-8", getattr(sys.stdout, "errors", None) or "strict")
+    except UnicodeEncodeError as error:
+        raise InvalidInput(STDOUT_CANNOT_REPRESENT) from error
+
+
+def _run(args: argparse.Namespace, now: datetime) -> tuple[Record, str]:
+    """Mede e publica; fecha a classe: toda exceção que não é `InvalidInput` vira `InvalidInput` de mensagem fixa (#245).
+
+    A mensagem não leva o valor nem o texto da exceção (que ecoaria a entrada); a causa fica só em `__cause__`.
+    """
+    try:
+        run = _execute(args, now)
+        text = _publish(run, args)
+    except InvalidInput:
+        raise
+    except Exception as error:
+        raise InvalidInput(UNEXPECTED_FAILURE) from error
+    return run, text
+
+
+def _complain(message: str) -> None:
+    """Escreve no stderr; se o próprio stderr falhar ou não existir, o aviso se perde (#245)."""
+    if sys.stderr is None:  # descritor 2 fechado: `print(file=None)` cairia no stdout (#245)
+        return
+    with contextlib.suppress(OSError, ValueError):  # pipe fechado, ou arquivo já fechado (#245)
+        print(message, file=sys.stderr)
+
+
+def _detach_stdout() -> None:
+    """Aponta o descritor do stdout para o devnull, para o flush do encerramento não falhar e trocar o código 2 por 120 (#245).
+
+    Receita da documentação do Python para o SIGPIPE. Sem stdout (`None`) não há o que apontar; sem descritor (StringIO),
+    `fileno()` levanta `OSError`, e com o arquivo já fechado levanta `ValueError` (#245).
+    """
+    if sys.stdout is None:  # descritor 1 fechado (#245)
+        return
+    with contextlib.suppress(OSError, ValueError):  # StringIO não tem fileno, arquivo fechado, ou devnull inacessível (#245)
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        try:
+            os.dup2(devnull, sys.stdout.fileno())
+        finally:
+            os.close(devnull)
+
+
 def main(argv: list[str] | None = None, now: Callable[[], datetime] | None = None) -> int:
-    """0 sem E6 perdida; 1 só com E6 perdida; 2 para toda entrada ou uso inválidos."""
+    """0 sem E6 perdida; 1 só com E6 perdida, inclusive se a saída padrão falhar depois de gravar; 2 para o resto (#245)."""
     try:
         args = _parse_args(sys.argv[1:] if argv is None else argv)
     except SystemExit as exit_status:  # argparse sai com 0 em --help e com 2 em uso inválido (#239)
         return exit_status.code if isinstance(exit_status.code, int) else EXIT_USAGE
     try:
-        run = _execute(args, (now or (lambda: datetime.now(timezone.utc)))())
+        run, text = _run(args, (now or (lambda: datetime.now(timezone.utc)))())
     except InvalidInput as error:
-        print(f"erro: {error.why}", file=sys.stderr)
+        _complain(f"erro: {error.why}")
         return EXIT_USAGE
-    if args.format == "md":
-        print(markdown_report(run, run.get("vs_previous")))
-    else:
-        print(json.dumps(run, ensure_ascii=False, indent=2))
+    try:
+        if sys.stdout is None:  # descritor 1 fechado: a saída não existe (#245)
+            raise OSError(errno.EBADF, "sem saída padrão")
+        sys.stdout.write(text)
+        sys.stdout.flush()
+    except (OSError, ValueError):  # a rodada já está gravada; só a saída padrão falhou, ou já está fechada (#245)
+        _detach_stdout()
+        _complain(f"erro: {STDOUT_FAILURE}")
+        if e6_missed(run):  # a E6 perdida vence a falha de saída: o código 1 é o que o `make eval | head` precisa ver (#245)
+            _complain(E6_FAILURE)
+            return EXIT_E6_MISSED
+        return EXIT_USAGE
     if e6_missed(run):
-        print("falha: alguma duplicidade (E6) do gabarito não foi classificada como E6", file=sys.stderr)
+        _complain(E6_FAILURE)
         return EXIT_E6_MISSED
     return 0
 

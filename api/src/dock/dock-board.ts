@@ -121,7 +121,10 @@ function statusOf(published: Published<DockActionMessage> | undefined): DockStat
   return { kind: 'acao', action: view(published.action), publishedAt: published.publishedAt };
 }
 
-const byNumber = (a: DockInvoice, b: DockInvoice) => a.number.localeCompare(b.number, 'pt-BR', { numeric: true });
+/** A ordem do número da nota, como número: 9 vem antes de 10. */
+export const compareNumbers = (a: string, b: string): number => a.localeCompare(b, 'pt-BR', { numeric: true });
+
+const byNumber = (a: DockInvoice, b: DockInvoice) => compareNumbers(a.number, b.number);
 
 /** #43 AC-4: as notas do dia do destino (ou do primeiro destino do dia), ordenadas pelo número, com a ação de cada uma. */
 export function dockBoard({ invoices, published, destination: requested, date, place = 'doca_cd', decisions }: DockBoardInput): DockBoard {

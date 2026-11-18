@@ -2,11 +2,12 @@ import {
   AmountAtRisk,
   DomainError,
   type Divergence,
-  type Money,
+  Money,
   type PostedInvoice,
   type TitleState,
 } from "../domain/index";
 import { duplicateReason, type DuplicateReason } from "../domain/checks/e6-duplicidade";
+import { invalidCursor, pageOf, readPageQuery, sortedBy, type Ordering } from "./page";
 
 /** Uma nota barrada por duplicidade (#31/AC-6), com o título original quando ele existe. */
 export type DuplicateEntry = {
@@ -96,11 +97,42 @@ export function toDuplicateEntry(
  * Os campos `*Cents` são centavos inteiros; os sem sufixo, o valor formatado em reais. Os valores de
  * `reason` e de `titleState` são literais do modelo (ADR-002). `titleState` é o estado gravado do
  * título da nota duplicada, null quando ainda não há título: a tela só afirma "bloqueado" quando ele é.
+ *
+ * #159 Com `cursor` ou `limite` na query, a forma é paginada, e a antiga fica para quem não os manda:
+ * `{ items, nextCursor, total, aggregates }`. Os `items` têm a forma de cada entrada acima. `aggregates`
+ * vale para a lista inteira: `blockedAmount` (`{ cents, text }`, a soma do valor barrado) e `byReason`
+ * (quantas por `titulo_lancado` e por `ordem_sem_saldo`). A quantidade é o `total`.
  */
-export async function listDuplicates(reader: DuplicatesReader): Promise<Response> {
-  const entries = await reader.list();
-  return Response.json({ duplicates: entries.map(toJson), count: entries.length });
+export async function listDuplicates(reader: DuplicatesReader, params: URLSearchParams = new URLSearchParams()): Promise<Response> {
+  const query = readPageQuery(params);
+  if (query.kind === "invalid") return query.response;
+  const stored = await reader.list();
+  if (query.kind === "whole") return Response.json({ duplicates: stored.map(toJson), count: stored.length });
+  const entries = sortedBy(stored, DUPLICATES_ORDER);
+  const page = pageOf(DUPLICATES_ORDER, entries, query);
+  if (!page) return invalidCursor();
+  const blocked = entries.reduce((sum, e) => sum + e.blockedAmount.cents, 0);
+  const byReason = (reason: DuplicateReason) => entries.filter((e) => e.reason === reason).length;
+  return Response.json({
+    items: page.items.map(toJson),
+    nextCursor: page.nextCursor,
+    total: page.total,
+    aggregates: {
+      blockedAmount: { cents: blocked, text: Money.ofCents(blocked).toString() },
+      byReason: { titulo_lancado: byReason("titulo_lancado"), ordem_sem_saldo: byReason("ordem_sem_saldo") },
+    },
+  });
 }
+
+/**
+ * #159 A ordem das páginas é a chave de acesso da nota duplicada, a tupla que o cursor guarda. Sem
+ * `cursor` nem `limite`, a ordem é a da leitura.
+ */
+const DUPLICATES_ORDER: Ordering<DuplicateEntry> = {
+  list: "duplicadas",
+  shape: ["string"],
+  key: (e) => [e.duplicate.accessKey],
+};
 
 function toJson(entry: DuplicateEntry) {
   return {

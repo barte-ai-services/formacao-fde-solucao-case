@@ -12,6 +12,9 @@ check:
 	@python3 scripts/validar_migracoes.py
 	@python3 -m unittest discover -s scripts -p '*_test.py'
 	@python3 -m unittest discover -s eval -p '*_test.py'
+	@python3 -m unittest discover -s mcp/src -p '*_test.py'
+	@npm --prefix mcp ci --no-audit --no-fund --loglevel=error --ignore-scripts
+	@npm --prefix mcp test
 	@npm --prefix api ci --no-audit --no-fund --loglevel=error
 	@npm --prefix api run typecheck
 	@npm --prefix api test

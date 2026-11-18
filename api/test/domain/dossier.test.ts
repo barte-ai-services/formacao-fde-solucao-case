@@ -1,14 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import {
   DOSSIER_OUTPUT_SCHEMA,
+  Divergence,
   buildFactCatalog,
   catalogKeys,
+  collectInvoiceNumbers,
   factKey,
   dossierNotice,
+  textChecks,
   verifyAndRender,
   type DossierResult,
+  type FactCatalog,
 } from '../../src/domain/index.js';
 import { ACCESS_KEY, checkedInvoice, dossierContext, goodRaw } from '../dossier/fixtures.js';
+import { anInvoice } from './fixtures.js';
+import { RECORDED_13137, RECORDED_13793, type RecordedDossier } from './fixtures/recorded-dossiers.js';
 
 const META = { generatedAt: '2026-11-15T12:00:00.000Z', model: 'claude-opus-5-5' };
 
@@ -57,7 +63,7 @@ describe('catálogo de fatos', () => {
 describe('contrato das chaves', () => {
   it('#38/AC-2 toda chave do catálogo segue o esquema documentado em domain/dossier.ts', () => {
     const contract =
-      /^(nota\.(numero|serie|total)|nota\.item\[[^\]]+\]\.(quantidade|preco_unitario|total)|ordem\[[^\]]+\]\.(total|status)|ordem\[[^\]]+\]\.item\[[^\]]+\]\.(quantidade|preco_unitario|saldo)|cadastro\.produto\[[^\]]+\]\.(fator_caixa|preco_referencia)|cadastro\.fornecedor\.bloqueado|recebimento\[[^\]]+\]\.item\[[^\]]+\]\.quantidade|historico\.(notas_lancadas|pagamentos)\.(quantidade|valor)|historico\.notas_capturadas\.quantidade)$/;
+      /^(nota\.(numero|serie|total|itens\.quantidade)|nota\.item\[[^\]]+\]\.(quantidade|preco_unitario|total)|ordem\[[^\]]+\]\.(total|status)|ordem\[[^\]]+\]\.item\[[^\]]+\]\.(quantidade|preco_unitario|saldo)|cadastro\.produto\[[^\]]+\]\.(fator_caixa|preco_referencia)|cadastro\.fornecedor\.bloqueado|recebimento\[[^\]]+\]\.item\[[^\]]+\]\.quantidade|historico\.(notas_lancadas|pagamentos)\.(quantidade|valor)|historico\.notas_capturadas\.quantidade)$/;
     const keys = catalogKeys(catalog());
     expect(keys.length).toBeGreaterThan(0);
     for (const key of keys) expect(key).toMatch(contract);
@@ -165,6 +171,72 @@ describe('verifyAndRender', () => {
     expect(render(raw)).toMatchObject({ status: 'unavailable', reason: 'number_mismatch' });
   });
 
+  it('#296/AC-1 número solto no texto: loose_number, com o campo e o token', () => {
+    expect(render(withText('summary', 'Faltaram 15 caixas.'))).toEqual({
+      status: 'unavailable',
+      reason: 'number_mismatch',
+      generatedAt: META.generatedAt,
+      mismatch: { check: 'loose_number', field: 'summary', cited: '15', bank: null },
+    });
+  });
+
+  it('#296/AC-1 número por extenso: spelled_number, com o token sem a pontuação de borda', () => {
+    expect(render(withText('supplier_history', 'Faltaram quinze, caixas.'))).toMatchObject({
+      reason: 'number_mismatch',
+      mismatch: { check: 'spelled_number', field: 'supplier_history', cited: 'quinze', bank: null },
+    });
+  });
+
+  it('#296/AC-1 marcador desconhecido no texto: unknown_key, com a chave', () => {
+    const raw = goodRaw();
+    raw.divergences[0]!.what_diverges = 'A nota cobra {{nota.item[A1].desconto}}.';
+    expect(render(raw)).toMatchObject({
+      reason: 'number_mismatch',
+      mismatch: {
+        check: 'unknown_key',
+        field: 'divergences[0].what_diverges',
+        cited: 'nota.item[A1].desconto',
+        bank: null,
+      },
+    });
+  });
+
+  it('#296/AC-1 chave desconhecida em evidence: unknown_key, no campo da evidência', () => {
+    const raw = goodRaw();
+    raw.divergences[0]!.evidence = ['nota.item[A1].quantidade', 'nota.item[Z9].quantidade'];
+    expect(render(raw)).toMatchObject({
+      reason: 'number_mismatch',
+      mismatch: { check: 'unknown_key', field: 'divergences[0].evidence', cited: 'nota.item[Z9].quantidade', bank: null },
+    });
+  });
+
+  it('#296/AC-1 classificação que a nota não tem: unknown_classification, com as classificações do banco', () => {
+    const raw = goodRaw();
+    raw.divergences[0]!.classification = 'E6';
+    expect(render(raw)).toMatchObject({
+      reason: 'number_mismatch',
+      mismatch: { check: 'unknown_classification', field: 'divergences[0].classification', cited: 'E6', bank: 'E1' },
+    });
+  });
+
+  it('#296/AC-1 a primeira falha vence: o texto antes da classificação, o summary antes do histórico', () => {
+    const raw = { ...goodRaw(), summary: 'Faltaram 15 caixas.', supplier_history: 'Faltaram quinze caixas.' };
+    raw.divergences[0]!.classification = 'E6';
+    expect(render(raw)).toMatchObject({ mismatch: { check: 'loose_number', field: 'summary' } });
+  });
+
+  it('#296/AC-1 o cited é cortado em 64 caracteres e nunca leva o texto inteiro', () => {
+    const longToken = '9'.repeat(100);
+    const loose = render(withText('summary', `Faltaram ${longToken} caixas de arroz.`));
+    const unknownKey = render(withText('summary', `A nota cobra {{${'k'.repeat(100)}}}.`));
+    expect(loose).toMatchObject({ mismatch: { cited: '9'.repeat(64) } });
+    expect(unknownKey).toMatchObject({ mismatch: { check: 'unknown_key', cited: 'k'.repeat(64) } });
+  });
+
+  it('#296/AC-3 o dossiê pronto não traz mismatch', () => {
+    expect(render(goodRaw())).not.toHaveProperty('mismatch');
+  });
+
   it('#38/AC-2 identificadores e classificações podem aparecer sem marcador', () => {
     const result = render(withText('summary', `Nota ${ACCESS_KEY} da OC-100, loja L01, emitida em 2026-11-10 (E1).`));
     expect(result.status).toBe('ready');
@@ -200,5 +272,220 @@ describe('dossierNotice', () => {
 
   it('não tem notice quando o dossiê está pronto', () => {
     expect(dossierNotice(render(goodRaw()))).toBeNull();
+  });
+});
+
+// #313: a conferência aceita o CNPJ e a data com barra e o número de nota depois de "nota".
+
+/** #313: uma chave de acesso de outra nota, cujo nNF (posições 26 a 34) é 000013773. */
+const OTHER_KEY = '35261113769729000182550010000137731145340609';
+
+/** #313: o catálogo de uma nota E6 cuja evidência aponta para a chave de outra nota. */
+const duplicateCatalog = (): FactCatalog => {
+  const invoice = anInvoice(ACCESS_KEY);
+  const e6 = Divergence.of({
+    classification: 'E6',
+    skus: ['SKU-1'],
+    evidence: [{ source: 'erp_contas_a_pagar', reference: OTHER_KEY, description: 'título já lançado' }],
+  });
+  invoice.check(dossierContext(), [{ id: 'E6', run: () => [e6] }]);
+  return buildFactCatalog(invoice, dossierContext());
+};
+
+const passes = (text: string, cat: FactCatalog = catalog()): boolean =>
+  textChecks(text, cat, new Set(cat.identifiers));
+
+const mismatchOf = (text: string, cat: FactCatalog = catalog()) => {
+  const result = verifyAndRender(withText('summary', text), cat, checkedInvoice().divergences, META);
+  return result.status === 'unavailable' ? result.mismatch : undefined;
+};
+
+describe('CNPJ com barra (#313)', () => {
+  it('#313/AC-1 o CNPJ da lista de identificadores, escrito com a barra, passa', () => {
+    expect(passes('Fornecedor CNPJ 12.345.678/0001-90, sem bloqueio.')).toBe(true);
+    expect(passes('Fornecedor (CNPJ 12.345.678/0001-90).')).toBe(true);
+  });
+
+  it('#313/AC-1 um CNPJ que não está na lista continua caindo', () => {
+    expect(passes('Fornecedor CNPJ 98.765.432/0001-10.')).toBe(false);
+    expect(mismatchOf('Fornecedor CNPJ 98.765.432/0001-10.')).toMatchObject({ check: 'loose_number', cited: '98.765.432' });
+  });
+
+  it('#313/AC-1 passar o CNPJ inteiro não deixa passar o que cai pelas partes', () => {
+    expect(passes('Pagos 12/15 e 12.345.678/0001-90.')).toBe(false);
+  });
+});
+
+describe('data com barra (#313)', () => {
+  it('#313/AC-2 a data da lista, escrita dd/mm/aaaa, passa', () => {
+    expect(passes('Emitida em 10/11/2026.')).toBe(true);
+    expect(passes('Emitida (10/11/2026), recebida depois.')).toBe(true);
+  });
+
+  it('#313/AC-2 uma data que não está na lista cai', () => {
+    expect(passes('Emitida em 12/11/2026.')).toBe(false);
+    expect(mismatchOf('Emitida em 12/11/2026.')).toMatchObject({ check: 'loose_number', cited: '12' });
+  });
+
+  it('#313/AC-2 dia e mês soltos continuam caindo', () => {
+    expect(passes('Vence em 15/11.')).toBe(false);
+    expect(mismatchOf('Vence em 15/11.')).toMatchObject({ check: 'loose_number', cited: '15' });
+  });
+});
+
+describe('número de nota (#313)', () => {
+  it('#313/AC-3 buildFactCatalog extrai o número da nota e o da nota apontada pela chave da evidência', () => {
+    expect(duplicateCatalog().invoiceNumbers).toEqual(expect.arrayContaining(['1234', '13773']));
+    expect(collectInvoiceNumbers('13793', [OTHER_KEY])).toEqual(['13793', '13773']);
+  });
+
+  it('#313/AC-3 o nNF é tirado das posições 26 a 34 da chave, sem zeros à esquerda', () => {
+    expect(collectInvoiceNumbers('1', [OTHER_KEY, '35261100000000000000550010000012341000012345'])).toEqual(['1', '13773', '1234']);
+    expect(collectInvoiceNumbers('1', ['K-ANTIGA-1', '123'])).toEqual(['1']);
+  });
+
+  it('#313/AC-3 "nota 13793" e "nota 13773" passam: a própria nota e a original da duplicidade', () => {
+    const cat = duplicateCatalog();
+    expect(passes('A nota 1234 repete a nota 13773, já lançada.', cat)).toBe(true);
+    expect(passes('Veja a NF-e 13773, a NF: 1234 e (nota 13773).', cat)).toBe(true);
+  });
+
+  it('#313/AC-3 o número da nota não entra nos identificadores, que vão ao prompt', () => {
+    expect(duplicateCatalog().identifiers).not.toContain('13773');
+    expect(duplicateCatalog().identifiers).not.toContain('1234');
+  });
+
+  it('#313/AC-4 número de nota fora do contexto "nota" cai com loose_number', () => {
+    const cat = duplicateCatalog();
+    expect(mismatchOf('Chegaram 13773 caixas.', cat)).toMatchObject({ check: 'loose_number', cited: '13773' });
+    expect(mismatchOf('Foram 13773 ao todo.', cat)).toMatchObject({ check: 'loose_number', cited: '13773' });
+    expect(mismatchOf('13773 caixas chegaram.', cat)).toMatchObject({ check: 'loose_number', cited: '13773' });
+    expect(passes('Notas 13773.', cat)).toBe(false);
+  });
+
+  it('#313/AC-4 o fim da frase ou da oração depois de "nota" desfaz o contexto', () => {
+    const cat = duplicateCatalog();
+    expect(mismatchOf('Conferimos a nota. 13773 caixas.', cat)).toMatchObject({ check: 'loose_number', cited: '13773' });
+    expect(mismatchOf('Veio na nota; 13773 unidades a mais.', cat)).toMatchObject({ check: 'loose_number', cited: '13773' });
+    expect(mismatchOf('Faltou na nota! 13773 caixas.', cat)).toMatchObject({ check: 'loose_number', cited: '13773' });
+    expect(mismatchOf('na nota, 13773 caixas', cat)).toMatchObject({ check: 'loose_number', cited: '13773' });
+  });
+
+  it('#313/AC-4 a quebra de linha depois de "nota" desfaz o contexto', () => {
+    const cat = duplicateCatalog();
+    expect(mismatchOf('na nota\n13773 caixas', cat)).toMatchObject({ check: 'loose_number', cited: '13773' });
+  });
+
+  it('#313/AC-4 um número solto qualquer cai, mesmo depois de "nota"', () => {
+    const cat = duplicateCatalog();
+    expect(mismatchOf('A nota 99999 cobra de novo.', cat)).toMatchObject({ check: 'loose_number', cited: '99999' });
+    expect(mismatchOf('Faltaram 15 caixas.', cat)).toMatchObject({ check: 'loose_number', cited: '15' });
+  });
+
+  it('#313/AC-4 um marcador entre "nota" e o número não dá contexto', () => {
+    const cat = duplicateCatalog();
+    expect(passes('A nota {{nota.numero}} 13773 repete.', cat)).toBe(false);
+    expect(passes('A nota {{nota.numero}}13773 repete.', cat)).toBe(false);
+    expect(passes('A nota {{nota.numero}} repete a nota 13773.', cat)).toBe(true);
+  });
+
+  it('#313/AC-4 o número da nota só passa no catálogo que o traz', () => {
+    expect(passes('A nota 13773 repete.', catalog())).toBe(false);
+    expect(passes('A nota 13773 repete.', { facts: {}, identifiers: [] })).toBe(false);
+  });
+});
+
+describe('os dossiês gravados em produção (#313)', () => {
+  const realDivergence = (classification: Divergence['classification']): Divergence =>
+    Divergence.of({ classification, skus: [], evidence: [{ source: 'sefaz', reference: ACCESS_KEY, description: 'gravada' }] });
+
+  /** #313: o catálogo como o Worker o mandou no prompt, com os números de nota da função de produção. */
+  const recordedCatalog = (r: RecordedDossier): FactCatalog => ({
+    facts: Object.fromEntries(r.facts.map((f) => [f.key, { label: f.label, value: f.value, source: 'invoice' as const }])),
+    identifiers: r.identifiers,
+    invoiceNumbers: collectInvoiceNumbers(r.number, [r.accessKey, ...r.references]),
+  });
+  const verifyRecorded = (r: RecordedDossier, raw: unknown = r.output): DossierResult =>
+    verifyAndRender(
+      raw,
+      recordedCatalog(r),
+      r.classifications.map(realDivergence),
+      META,
+    );
+
+  it('#313/AC-5 o texto gravado da nota 13793 dá ready, como foi gravado', () => {
+    expect(verifyRecorded(RECORDED_13793).status).toBe('ready');
+  });
+
+  it('#313/AC-5 o texto gravado da nota 13137 dá ready, como foi gravado', () => {
+    expect(verifyRecorded(RECORDED_13137).status).toBe('ready');
+  });
+});
+
+describe('quantidade de itens da nota (#313)', () => {
+  it('#313 o catálogo traz a quantidade de itens, para a contagem ir por marcador', () => {
+    expect(factKey.invoiceItemCount()).toBe('nota.itens.quantidade');
+    expect(catalog().facts['nota.itens.quantidade']).toEqual({
+      label: 'Quantidade de itens da nota',
+      value: '1',
+      source: 'invoice',
+    });
+  });
+});
+
+describe('contagem de itens por extenso (#313)', () => {
+  /** #313: um catálogo com a quantidade de itens da nota igual a `count`, ou sem o fato quando `null`. */
+  const countCatalog = (count: string | null): FactCatalog => ({
+    facts: count === null ? {} : { 'nota.itens.quantidade': { label: 'Quantidade de itens da nota', value: count, source: 'invoice' } },
+    identifiers: [],
+  });
+  const failureOf = (text: string, count: string | null) =>
+    verifyAndRender(withText('summary', text), countCatalog(count), [], META);
+
+  it('#313/AC-6 "três itens" e "três SKUs" passam quando a nota tem 3 itens', () => {
+    expect(passes('A nota tem três itens.', countCatalog('3'))).toBe(true);
+    expect(passes('São três SKUs na nota.', countCatalog('3'))).toBe(true);
+    expect(passes('A nota tem dois itens.', countCatalog('2'))).toBe(true);
+    expect(passes('Foram três itens, (três SKUs).', countCatalog('3'))).toBe(true);
+  });
+
+  it('#313/AC-6 "três itens" com 2 itens cai com item_count_mismatch, o numeral e a quantidade do banco', () => {
+    expect(failureOf('A nota tem três itens.', '2')).toEqual({
+      status: 'unavailable',
+      reason: 'number_mismatch',
+      generatedAt: META.generatedAt,
+      mismatch: { check: 'item_count_mismatch', field: 'summary', cited: 'três', bank: '2' },
+    });
+  });
+
+  it('#313/AC-6 sem o fato no catálogo, "três itens" cai com bank null', () => {
+    expect(failureOf('A nota tem três itens.', null)).toMatchObject({
+      mismatch: { check: 'item_count_mismatch', cited: 'três', bank: null },
+    });
+  });
+
+  it('#313/AC-6 outro numeral por extenso continua spelled_number', () => {
+    for (const text of ['Chegaram três caixas.', 'Foram dois pagamentos.', 'Metade dos itens.', 'Um dobro de itens.', 'Uma dezena de itens.']) {
+      expect(failureOf(text, '3')).toMatchObject({ mismatch: { check: 'spelled_number' } });
+    }
+    expect(failureOf('Metade dos itens.', '3')).toMatchObject({ mismatch: { cited: 'Metade' } });
+  });
+
+  it('#313/AC-6 o fim da frase depois do numeral desfaz o contexto de "itens"', () => {
+    expect(failureOf('Foram três. Itens conferidos.', '3')).toMatchObject({ mismatch: { check: 'spelled_number' } });
+  });
+
+  it('#313/AC-6 a quebra de linha depois do numeral desfaz o contexto de "itens"', () => {
+    expect(failureOf('Foram três\nitens conferidos.', '3')).toMatchObject({ mismatch: { check: 'spelled_number' } });
+  });
+
+  it('#313/AC-6 um marcador entre o numeral e "itens" não dá contexto', () => {
+    expect(failureOf('São três {{nota.itens.quantidade}} itens.', '3')).toMatchObject({
+      mismatch: { check: 'spelled_number', cited: 'três' },
+    });
+  });
+
+  it('#313/AC-6 algarismo solto continua loose_number', () => {
+    expect(failureOf('A nota tem 3 itens.', '3')).toMatchObject({ mismatch: { check: 'loose_number', cited: '3' } });
   });
 });

@@ -8,18 +8,18 @@ import { Quantity, type Unit } from './quantity.js';
 
 export type { ReturnNote };
 
-/** #1: o que a devolução lê da proposta decidida, mais o dia da decisão (YYYY-MM-DD). */
+/** #156: o que a devolução lê da proposta decidida, mais o dia da decisão (YYYY-MM-DD). */
 export type ReturnDecision = Pick<Proposal, 'classification' | 'state' | 'dockAction'> & {
   readonly decidedOn: string;
 };
 
-/** #1: a chave da linha da doca é o SKU do item, ou o código do fornecedor sem SKU (draft-checked `keyOf`). */
+/** #156: a chave da linha da doca é o SKU do item, ou o código do fornecedor sem SKU (draft-checked `keyOf`). */
 const keyOf = (item: InvoiceItem): string => item.sku ?? item.supplierCode;
 
-/** #1/AC-8: classificações cuja decisão nunca devolve (E6 é cancelamento, fora do escopo). */
+/** #156: classificações cuja decisão nunca devolve (E6 é cancelamento, fora do escopo). */
 const WITHOUT_RETURN: readonly Classification[] = ['MATCH', 'E4', 'E5', 'E6', 'E7', 'E8'];
 
-/** #1: a nota de devolução da proposta de E3 que já saía pelo `e3ReturnNote`; o texto não muda. */
+/** #156: a nota de devolução da proposta de E3 que já saía pelo `e3ReturnNote`; o texto não muda. */
 const reasonOf = (classification: Classification, invoice: InvoiceView, kind: 'partial' | 'refusal'): string => {
   if (kind === 'refusal') {
     return `${classification} recusada na nota ${invoice.number}: devolução dos itens já recebidos`;
@@ -31,7 +31,7 @@ const reasonOf = (classification: Classification, invoice: InvoiceView, kind: 'p
   return `E3 quantidade menor na nota ${invoice.number}: devolução da diferença`;
 };
 
-/** #1/AC-1 a AC-3: as linhas da ação que voltam: E3 só as `devolver`; E1 e E2 todas as da ação. */
+/** #156 a AC-3: as linhas da ação que voltam: E3 só as `devolver`; E1 e E2 todas as da ação. */
 function partialLines(decision: ReturnDecision): readonly PartialLine[] {
   const action = decision.dockAction;
   if (action.kind !== 'receber_parcial') return [];
@@ -44,8 +44,8 @@ function fromPartial(invoice: InvoiceView, decision: ReturnDecision, products: r
   const lines = partialLines(decision).flatMap((line) => {
     const item = invoice.items.find((i) => keyOf(i) === line.sku);
     if (item === undefined) return [];
-    // #1/AC-1: a linha sai sempre na unidade do item da nota, pelo mesmo caminho da recusa.
-    // #1/AC-1: linha em outra unidade sem fator de caixa é pulada de propósito, como lá (não há como convertê-la).
+    // #156: a linha sai sempre na unidade do item da nota, pelo mesmo caminho da recusa.
+    // #156: linha em outra unidade sem fator de caixa é pulada de propósito, como lá (não há como convertê-la).
     const amount = inItemUnit(line.quantity, item.quantity.unit, boxFactorOf(invoice, item, products));
     return amount === null ? [] : [{ supplierCode: item.supplierCode, quantity: Quantity.of(amount, item.quantity.unit) }];
   });
@@ -61,7 +61,7 @@ function boxFactorOf(invoice: InvoiceView, item: InvoiceItem, products: readonly
 }
 
 /**
- * #1/AC-1 e AC-4: a quantidade (recebida ou da linha da ação) na unidade do item da nota. A conversão é proporcional e exata, sem arredondar:
+ * #156 e AC-4: a quantidade (recebida ou da linha da ação) na unidade do item da nota. A conversão é proporcional e exata, sem arredondar:
  * 7 UN com fator 6 em item de CX dá 7/6 CX, porque a fila de #140 valora a linha por quantidade x
  * preço unitário da nota, e assim o valor devolvido fecha. Linha recebida sem fator de caixa (ausente
  * ou inválido) é pulada de propósito: não há como convertê-la para a unidade da nota.
@@ -73,7 +73,7 @@ function inItemUnit(quantity: Quantity, unit: Unit, factor: number): number | nu
 }
 
 /**
- * #1/AC-4: o que entrou do código do fornecedor, na unidade do primeiro item da nota com o código.
+ * #156: o que entrou do código do fornecedor, na unidade do primeiro item da nota com o código.
  * Soma o recebido por unidade e converte cada total uma vez, para não acumular erro de ponto
  * flutuante (seis linhas de 1 UN, fator 6, dão 1 CX exato).
  */
@@ -112,7 +112,7 @@ function fromRefusal(
 }
 
 /**
- * #1/AC-1 a AC-8: a nota de devolução de uma proposta decidida (`aprovada` ou `alterada`, pela ação
+ * #156 a AC-8: a nota de devolução de uma proposta decidida (`aprovada` ou `alterada`, pela ação
  * atual), ou `null` quando a decisão não devolve. Generaliza o `e3ReturnNote` para E1, E2, E3 em
  * receber parcial e para a recusa com mercadoria já entrada (recebimento da nota, do dia da decisão
  * ou anterior). Linhas e quantidades saem da nota de origem, na ordem da ação ou da nota; a mesma

@@ -1,6 +1,7 @@
 import { tick } from "./cron/tick";
 import type { Env } from "./env";
 import { createAccessVerifier, fetchJwksOverNetwork } from "./http/access";
+import { withCorrelationId } from "./http/correlation";
 import { route, type RouterDeps } from "./http/router";
 import { MemoryApprovalStore } from "./approval/store";
 import { SupabaseApprovalStore } from "./approval/supabase-store";
@@ -27,7 +28,8 @@ export interface Worker {
 export function createWorker(deps: RouterDeps): Worker {
   return {
     async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-      return route(request, env, deps, ctx);
+      // #293 O id de correlação envolve toda rota, e o Cron (scheduled) fica de fora.
+      return withCorrelationId(request, () => route(request, env, deps, ctx));
     },
     async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
       // #38 O dossiê do evento roda fora da resposta do Cron, pelo waitUntil do Worker (AC-1, AC-5).
@@ -50,7 +52,7 @@ function approvalDeps(env: Env) {
     dockOutbox: wmsDockActionOutbox(rest),
     // #135 A nota de loja vai para o app da loja.
     storeOutbox: appStoreActionOutbox(rest),
-    // #9/AC-1 A devolução da decisão vai para a fila das notas de devolução (#1); os recebimentos vêm do WMS.
+    // #156 A devolução da decisão vai para a fila das notas de devolução (#156); os recebimentos vêm do WMS.
     returnOutbox: erpReturnNoteOutbox(rest),
     receipts: () => captureDeps.wms.listReceipts(),
     // #68: o dossiê que o job do Claude gravou, conferido contra o contexto da nota.

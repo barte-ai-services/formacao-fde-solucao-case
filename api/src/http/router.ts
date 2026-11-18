@@ -39,7 +39,7 @@ function protectedRoutes(deps: RouterDeps): Record<string, Record<string, Protec
     "/api/motor/acerto": { GET: engineAgreement },
     "/api/doca": { GET: (_identity, request, env) => dock(request, env) },
     "/api/recebimento-loja": { GET: (_identity, request, env) => storeReceiving(request, env) },
-    "/api/duplicates": { GET: (_identity, _request, env) => listDuplicates(duplicates(env)) },
+    "/api/duplicates": { GET: (_identity, request, env) => listDuplicates(duplicates(env), new URL(request.url).searchParams) },
   };
 }
 
@@ -54,7 +54,7 @@ export interface RouterDeps {
   dock?: DockDeps;
   /** #140 A fila de notas de devolução. Padrão: o Supabase do Env. */
   returnNotes?: ReturnNotesDeps;
-  /** #13 O pedido ao fornecedor: Supabase, relógio, envio e Claude injetáveis. Padrão: o Env. */
+  /** #156 O pedido ao fornecedor: Supabase, relógio, envio e Claude injetáveis. Padrão: o Env. */
   supplierRequests?: SupplierRequestsDeps;
   /** Leitura das duplicidades (#31/AC-6). Padrão: o Supabase, se o env tem as credenciais. */
   duplicates?: (env: Env) => DuplicatesReader;

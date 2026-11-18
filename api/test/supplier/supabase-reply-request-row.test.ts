@@ -3,7 +3,7 @@ import { SupabaseRestError } from '../../src/connectors/supabase-rest.js';
 import { followUpOf, followUpSummary, lastState, type FollowUpColumns } from '../../src/supplier/supabase-reply-request-row.js';
 import { GOOD_FOLLOW_UP } from './reply-doubles.js';
 
-// #35 (ADR-003): o teste de supabase-reply-request-row.ts ao lado do espelho: a cobrança nas colunas, o estado do histórico e o resumo.
+// #157 (ADR-003): o teste de supabase-reply-request-row.ts ao lado do espelho: a cobrança nas colunas, o estado do histórico e o resumo.
 
 const empty: FollowUpColumns = {
   follow_up_draft: null,
@@ -25,7 +25,7 @@ const attempt = (run: () => unknown): unknown => {
   }
 };
 
-describe('#35 followUpOf: o estado da cobrança nas colunas', () => {
+describe('#157 followUpOf: o estado da cobrança nas colunas', () => {
   it('sem carimbo, sent é null', () => {
     expect(followUpOf(empty)).toEqual({ draft: null, dueOn: null, rejection: null, sent: null, failure: null });
   });
@@ -53,7 +53,7 @@ describe('#35 followUpOf: o estado da cobrança nas colunas', () => {
   });
 });
 
-describe('#35 lastState: o estado da última entrada do histórico, copiado', () => {
+describe('#157 lastState: o estado da última entrada do histórico, copiado', () => {
   it('copia o state da última entrada', () => {
     expect(lastState([{ state: { status: 'draft' } }, { state: { status: 'sent' } }])).toEqual({ status: 'sent' });
   });
@@ -66,7 +66,7 @@ describe('#35 lastState: o estado da última entrada do histórico, copiado', ()
   });
 });
 
-describe('#35 followUpSummary: nomes e marcas, nunca o texto do rascunho', () => {
+describe('#157 followUpSummary: nomes e marcas, nunca o texto do rascunho', () => {
   it('resume o estado sem o texto', () => {
     const summary = followUpSummary({ ...empty, follow_up_draft: GOOD_FOLLOW_UP, follow_up_claimed_at: '2026-11-20T16:00:00Z' });
     expect(summary).toEqual({ drafted: true, rejection: null, claimed: true, sent: false, failure: null });

@@ -1,0 +1,13 @@
+{
+  "name": "formacao-fde-solucao-case-mcp",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "test": "node --test \"ui/*.test.mjs\""
+  },
+  "devDependencies": {
+    "jsdom": "31.0.1",
+    "wrangler": "4.156.0"
+  }
+}
