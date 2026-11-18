@@ -743,9 +743,9 @@ class ClosedClassTest(unittest.TestCase):
         self.assertIn("E6", err)
         self.assertEqual(len(self.run_files()), 1)
 
-    def run_program_with_encoding(self, encoding: str, *extra: str) -> subprocess.CompletedProcess[bytes]:
+    def run_program_with_encoding(self, encoding: str, *extra: str, lines: list[dict[str, Any]] | None = None) -> subprocess.CompletedProcess[bytes]:
         """Roda o programa de verdade com `PYTHONIOENCODING` dado; a saída vem em bytes, porque ela não é UTF-8 (#245)."""
-        self.audits.write_text("\n".join(json.dumps(x) for x in all_correct()) + "\n", encoding="utf-8")
+        self.audits.write_text("\n".join(json.dumps(x) for x in (lines or all_correct())) + "\n", encoding="utf-8")
         argv = [sys.executable, str(ROOT / "eval" / "auditor.py"), str(self.audits),
                 "--answer-key", str(self.key_file), "--runs-dir", str(self.runs_dir), *extra]
         env = {**os.environ, "PYTHONIOENCODING": encoding}
@@ -758,6 +758,16 @@ class ClosedClassTest(unittest.TestCase):
         self.assertEqual(done.returncode, 2)
         self.assertEqual(done.stdout, b"")
         # o stderr também é ascii (com `backslashreplace`), então a mensagem sai com os acentos escapados (#245)
+        self.assertEqual(done.stderr, f"erro: {STDOUT_CANNOT_REPRESENT}\n".encode("ascii", "backslashreplace"))
+        self.assertEqual(self.run_files(), [])
+
+    def test_ac3_stdout_that_cannot_represent_the_report_exits_two_even_with_a_missed_e6(self) -> None:
+        """#245/AC-3: com E6 perdida e stdout que não representa o relatório, sai 2 antes de gravar; sem linha da E6 e sem rodada."""
+        lines = all_correct()
+        lines[1] = audit_line("K2", "E1", "recusar", "bloqueio")
+        done = self.run_program_with_encoding("ascii", "--format", "md", lines=lines)
+        self.assertEqual(done.returncode, 2)
+        self.assertEqual(done.stdout, b"")
         self.assertEqual(done.stderr, f"erro: {STDOUT_CANNOT_REPRESENT}\n".encode("ascii", "backslashreplace"))
         self.assertEqual(self.run_files(), [])
 
