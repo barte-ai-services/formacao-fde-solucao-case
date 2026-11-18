@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "formacao-fde-solucao-case-mcp",
+  "main": "src/worker.py",
+  "compatibility_date": "2026-10-31",
+  "compatibility_flags": ["python_workers"],
+  "observability": { "enabled": true },
+  // A API do Worker da fila de aprovação (api/). O MCP a chama por aqui, com o JWT do Access de quem chamou.
+  "services": [{ "binding": "API", "service": "formacao-fde-solucao-case-api" }]
+  // Sem segredos: o MCP não guarda credencial nenhuma. A identidade vem no cabeçalho Cf-Access-Jwt-Assertion
+  // de cada chamada e vai adiante como veio.
+}
