@@ -9,12 +9,11 @@ import {
 } from "../../src/http/correlation";
 
 const env: Env = {};
-// #293 fake de teste: o ExecutionContext do Worker não tem construtor público.
 const ctx = {
   waitUntil: () => {},
   passThroughOnException: () => {},
   props: {},
-} as unknown as ExecutionContext;
+} as unknown as ExecutionContext; // #293 fake de teste: o ExecutionContext do Worker não tem construtor público
 
 const HEADER = "X-Correlation-Id";
 const FORMAT = /^[A-Za-z0-9_-]{8,64}$/;
