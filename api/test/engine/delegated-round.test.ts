@@ -310,12 +310,12 @@ describe('#42 a pessoa decide antes do motor', () => {
 describe('#42 a aprovação do motor no Supabase', () => {
   const ENV = { url: 'https://fake.supabase.co', secretKey: 'sb_secret_fake' };
 
-  /** #42 O PostgREST que recusa o POST em approvals com o erro dado. */
+  /** #42 O PostgREST que recusa a chamada da função da decisão (#304: rpc, que insere em approvals) com o erro dado. */
   function refusing(code: string, message: string) {
     const file = caseFile();
     const fake = new FakePostgrest({ proposals: [{ id: 7, invoice_access_key: file.invoice.accessKey, version: 1 }] });
     const fetch = (input: string, init?: RequestInit) =>
-      input.includes('/rest/v1/approvals') && init?.method === 'POST'
+      input.includes('/rest/v1/rpc/save_approval_decision') && init?.method === 'POST'
         ? Promise.resolve(new Response(JSON.stringify({ code, details: null, hint: null, message }), { status: code === '23505' ? 409 : 400 }))
         : fake.fetch(input, init);
     const store = new SupabaseApprovalStore(new SupabaseRest({ ...ENV, fetch }));
@@ -347,7 +347,12 @@ describe('#42 a aprovação do motor no Supabase', () => {
 
   it('grava a decisão do motor na aprovação e nunca manda approved_by', async () => {
     const file = caseFile();
-    const fake = new FakePostgrest({ proposals: [{ id: 7, invoice_access_key: file.invoice.accessKey, version: 1 }] });
+    // #304 A função da decisão grava as quatro tabelas: o título e a nota existem.
+    const fake = new FakePostgrest({
+      proposals: [{ id: 7, invoice_access_key: file.invoice.accessKey, version: 1 }],
+      titles: [{ invoice_access_key: file.invoice.accessKey, state: 'lancado', amount_cents: 0 }],
+      invoices: [{ access_key: file.invoice.accessKey, state: 'com_proposta' }],
+    });
     const store = new SupabaseApprovalStore(new SupabaseRest({ ...ENV, fetch: fake.fetch }));
     await store.saveDecision({
       ...file,

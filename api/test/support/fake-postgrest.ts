@@ -1,6 +1,7 @@
 // Fake do PostgREST em memória, servido por um fetch injetado (#59). Cobre o que o cliente usa:
 // #59 select paginado por Range, filtros eq, insert com on_conflict e resolution, PATCH e DELETE.
 // #156 select com recurso embutido (proposals -> approvals, invoices -> divergences), pelas chaves estrangeiras.
+// #304 POST /rest/v1/rpc/save_approval_decision: a função da decisão, tudo ou nada sobre as quatro tabelas.
 import type { FetchFn } from '../../src/connectors/supabase-rest.js';
 
 type Row = Record<string, unknown>;
@@ -75,6 +76,11 @@ function parseSelect(select: string): SelectItem[] {
   return items;
 }
 
+const SAVE_APPROVAL_DECISION = 'save_approval_decision';
+
+/** #304 O erro que o PostgREST devolve quando a função levanta `raise exception` (SQLSTATE P0001). */
+class RpcRaise extends Error {}
+
 export class FakePostgrest {
   readonly tables = new Map<string, Row[]>();
   readonly requests: { method: string; url: string; headers: Record<string, string>; body: unknown }[] = [];
@@ -89,6 +95,13 @@ export class FakePostgrest {
 
   rows(table: string): Row[] {
     return this.tables.get(table) ?? [];
+  }
+
+  /** #304 A tabela que a função escreve: criada vazia se ainda não há linha nenhuma (rows() devolve uma cópia solta). */
+  private table(name: string): Row[] {
+    const rows = this.tables.get(name) ?? [];
+    this.tables.set(name, rows);
+    return rows;
   }
 
   /** #156 Uma restrição única (parcial, se `when` filtra): o POST que a viola volta 409 com o código 23505, como o PostgREST. */
@@ -118,6 +131,8 @@ export class FakePostgrest {
       const [failure] = this.failures.splice(failureAt, 1);
       return json(failure!.status, failure!.body);
     }
+
+    if (table === `rpc/${SAVE_APPROVAL_DECISION}` && method === 'POST') return this.saveApprovalDecision(body as Row, json);
 
     if (method === 'GET') {
       let result = rows.filter((r) => this.matches(r, params));
@@ -164,7 +179,7 @@ export class FakePostgrest {
       for (const r of hit) {
         const before = r.version;
         Object.assign(r, body as Row);
-        // #295 O gatilho de proposals sobe a versão em todo update, ignorando a que o cliente mandou.
+        // #304 #295 O gatilho de proposals sobe a versão em todo update. ignorando a que o cliente mandou.
         if (table === 'proposals') r.version = Number(before) + 1;
       }
       return json(200, hit);
@@ -175,6 +190,65 @@ export class FakePostgrest {
     }
     return json(405, {});
   };
+
+  /**
+   * #304 A função public.save_approval_decision da migração 20261118110000, com a mesma semântica: trava a proposta,
+   * #304 devolve `already_decided` antes de conferir a versão, `version_conflict` se a versão lida não é a atual e
+   * #304 senão grava as quatro tabelas; título ou nota sem linha levantam erro e desfazem tudo (tudo ou nada).
+   */
+  private saveApprovalDecision(args: Row, json: (status: number, payload: unknown) => Response): Response {
+    const key = String(args.p_invoice_access_key);
+    const proposal = this.table('proposals').find((r) => r.invoice_access_key === key);
+    if (!proposal) return json(400, { code: 'P0001', message: `proposta da nota ${key} não encontrada` });
+    if (this.table('approvals').some((r) => r.proposal_id === proposal.id)) return json(200, 'already_decided');
+    if (proposal.version !== args.p_version) return json(200, 'version_conflict');
+
+    const names = ['proposals', 'approvals', 'titles', 'invoices'];
+    const saved = names.map((name) => [name, this.table(name).map((r) => ({ ...r }))] as const);
+    try {
+      const engine = args.p_engine_decision_id != null;
+      const row: Row = {
+        ...this.defaults('approvals'),
+        proposal_id: proposal.id,
+        approver: args.p_approver,
+        approver_level: args.p_approver_level,
+        justification: args.p_approval_justification,
+        dock_action: args.p_approval_dock_action,
+        decided_on: args.p_decided_on,
+        approved_at: args.p_approved_at,
+        ...(engine
+          ? {
+              engine_decision_id: args.p_engine_decision_id,
+              engine_confidence: args.p_engine_confidence ?? null,
+              engine_model_version: args.p_engine_model_version,
+            }
+          : {}),
+      };
+      const violated = this.uniques.some(
+        (u) => u.table === 'approvals' && u.when(row) && this.table('approvals').some((r) => u.when(r) && u.columns.every((c) => r[c] === row[c])),
+      );
+      if (violated) return json(409, { code: '23505', message: 'duplicate key value violates unique constraint' });
+      this.table('approvals').push(row);
+      Object.assign(proposal, {
+        state: args.p_proposal_state,
+        dock_action: args.p_proposal_dock_action,
+        justification: args.p_proposal_justification,
+        // #304 #295 O gatilho de proposals sobe a versão em todo update.
+        version: Number(proposal.version) + 1,
+      });
+      const title = this.table('titles').find((r) => r.invoice_access_key === key);
+      if (!title) throw new RpcRaise(`título da nota ${key} não encontrado`);
+      Object.assign(title, { state: args.p_title_state, amount_cents: args.p_title_amount_cents, updated_at: args.p_title_updated_at });
+      const invoice = this.table('invoices').find((r) => r.access_key === key);
+      if (!invoice) throw new RpcRaise(`nota ${key} não encontrada`);
+      Object.assign(invoice, { state: args.p_invoice_state });
+      return json(200, 'saved');
+    } catch (error) {
+      if (!(error instanceof RpcRaise)) throw error;
+      for (const [name, rows] of saved) this.tables.set(name, rows);
+      return json(400, { code: 'P0001', message: error.message });
+    }
+  }
 
   /** #156 Projeta as colunas do select e monta os recursos embutidos pelas chaves estrangeiras. */
   private project(table: string, row: Row, items: SelectItem[], params: URLSearchParams): Row {
