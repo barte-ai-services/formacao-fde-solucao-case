@@ -82,7 +82,7 @@ describe('readDossier, com a NF-004 da base do kit', () => {
     const log = vi.fn();
     const { result } = await read([row({ output: { ...kitGoodRaw(), summary } })], undefined, log);
     expect(log).toHaveBeenCalledTimes(1);
-    expect(log).toHaveBeenCalledWith('dossie-number-mismatch', {
+    expect(log).toHaveBeenCalledWith('dossier-number-mismatch', {
       invoiceAccessKey: KIT_ACCESS_KEY,
       check: 'loose_number',
       field: 'summary',
@@ -106,7 +106,7 @@ describe('readDossier, com a NF-004 da base do kit', () => {
       );
       await readDossier({ invoiceAccessKey: KIT_ACCESS_KEY, invoice, loadContext: async () => ctx, source });
       expect(warn).toHaveBeenCalledTimes(1);
-      expect(warn.mock.calls[0]?.[0]).toBe('dossie-number-mismatch');
+      expect(warn.mock.calls[0]?.[0]).toBe('dossier-number-mismatch');
     } finally {
       warn.mockRestore();
     }
