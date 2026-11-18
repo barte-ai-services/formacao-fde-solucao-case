@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # #295 Aplica TODAS as migrações de supabase/migrations/ num Postgres de verdade (docker, descartável) e prova a
 # trava otimista de proposals.version. Fora do `make check`: o CI não tem docker garantido. Reexecutável.
+# #304 Prova também a função save_approval_decision (a decisão do aprovador numa só transação).
 #
 #   scripts/testar_migracoes_postgres.sh
 #
@@ -132,7 +133,146 @@ end
 $$;
 SQL
 
+echo "== provas da função save_approval_decision (#304)"
+psql <<'SQL'
+\set QUIET off
+-- #304 Ajudantes da sessão (somem com ela): uma nota completa (nota, proposta, título), o snapshot das quatro tabelas
+-- #304 de uma nota, e a chamada da função com os campos que o Worker manda.
+create function pg_temp.new_invoice(p_key text, p_level text default 'analista') returns bigint language plpgsql as $f$
+declare v_id bigint;
+begin
+  insert into public.invoices (access_key, number, series, supplier_id, store, issued_on, entry_channel, total_cents, items, state)
+  values (p_key, '9', '1', 'F1', 'L1', '2026-11-18', 'sefaz', 1000, '[]', 'com_proposta');
+  insert into public.proposals (invoice_access_key, classification, dock_action, approval_level, amount_at_risk_cents, justification, state)
+  values (p_key, 'E4', '{"kind":"receber"}', p_level, 0, 'antes', 'aguardando_aprovacao') returning id into v_id;
+  insert into public.titles (invoice_access_key, amount_cents, due_on) values (p_key, 1000, '2026-12-18');
+  return v_id;
+end $f$;
+
+create function pg_temp.snapshot(p_key text) returns jsonb language sql as $f$
+  select jsonb_build_object(
+    'invoice', (select to_jsonb(i) from public.invoices i where i.access_key = p_key),
+    'proposal', (select to_jsonb(p) from public.proposals p where p.invoice_access_key = p_key),
+    'title', (select to_jsonb(t) from public.titles t where t.invoice_access_key = p_key),
+    'approvals', (select coalesce(jsonb_agg(to_jsonb(a)), '[]') from public.approvals a
+                   join public.proposals p on p.id = a.proposal_id where p.invoice_access_key = p_key))
+$f$;
+
+create function pg_temp.decide(p_key text, p_version integer, p_approver text default 'diretoria@x.test', p_level text default 'diretoria',
+                                p_engine bigint default null, p_confidence numeric default null, p_model text default null)
+returns text language sql as $f$
+  select public.save_approval_decision(
+    p_key, p_version, p_approver, p_level, 'ok', '{"kind":"receber"}', '2026-11-18', now(),
+    'aprovada', '{"kind":"receber"}', 'ok', 'liberado', 900, now(), 'decidida',
+    p_engine, p_confidence, p_model)
+$f$;
+
+do $$
+declare
+  v_id bigint;
+  v_before jsonb;
+  v_after jsonb;
+  v_ret text;
+  v_eng bigint;
+begin
+  -- (1) decisão válida: devolve saved, grava as quatro tabelas e sobe a versão
+  v_id := pg_temp.new_invoice(repeat('3', 44));
+  v_ret := pg_temp.decide(repeat('3', 44), 1);
+  assert v_ret = 'saved', format('(1) devolveu %s', v_ret);
+  v_after := pg_temp.snapshot(repeat('3', 44));
+  assert (v_after #>> '{proposal,state}') = 'aprovada' and (v_after #>> '{proposal,version}')::int = 2, '(1) proposta';
+  assert (v_after #>> '{title,state}') = 'liberado' and (v_after #>> '{title,amount_cents}')::int = 900, '(1) título';
+  assert (v_after #>> '{invoice,state}') = 'decidida', '(1) nota';
+  assert jsonb_array_length(v_after -> 'approvals') = 1 and (v_after #>> '{approvals,0,approved_by}') = 'person', '(1) aprovação';
+  raise notice '(1) ok: decisão válida gravou aprovação, proposta, título e nota, e subiu a versão para 2';
+
+  -- (2) a segunda chamada, mesmo com a versão antiga (1): already_decided e nada muda
+  v_before := pg_temp.snapshot(repeat('3', 44));
+  v_ret := pg_temp.decide(repeat('3', 44), 1, 'outra@x.test');
+  assert v_ret = 'already_decided', format('(2) devolveu %s', v_ret);
+  assert pg_temp.snapshot(repeat('3', 44)) = v_before, '(2) a segunda chamada mudou alguma tabela';
+  raise notice '(2) ok: segunda decisão (versão antiga) devolveu already_decided e nada mudou';
+
+  -- (3) versão antiga numa proposta ainda sem decisão: version_conflict e nada muda (nem a aprovação)
+  v_id := pg_temp.new_invoice(repeat('4', 44));
+  update public.proposals set justification = 'mudou' where id = v_id;
+  v_before := pg_temp.snapshot(repeat('4', 44));
+  v_ret := pg_temp.decide(repeat('4', 44), 1);
+  assert v_ret = 'version_conflict', format('(3) devolveu %s', v_ret);
+  assert pg_temp.snapshot(repeat('4', 44)) = v_before, '(3) o conflito mudou alguma tabela';
+  assert jsonb_array_length(v_before -> 'approvals') = 0, '(3) havia aprovação';
+  raise notice '(3) ok: versão antiga devolveu version_conflict e nada foi gravado';
+
+  -- (4) título ausente: levanta erro, e aprovação, proposta e nota ficam como estavam
+  v_id := pg_temp.new_invoice(repeat('5', 44));
+  delete from public.titles where invoice_access_key = repeat('5', 44);
+  v_before := pg_temp.snapshot(repeat('5', 44));
+  begin
+    perform pg_temp.decide(repeat('5', 44), 1);
+    raise exception '(4) a decisão sem título entrou';
+  exception when raise_exception then
+    if sqlerrm not like '%título da nota%' then raise; end if;
+  end;
+  assert pg_temp.snapshot(repeat('5', 44)) = v_before, '(4) a falha no título deixou rastro';
+  raise notice '(4) ok: título ausente levantou erro e aprovação, proposta e nota ficaram como estavam';
+
+  -- (4b) proposta (e com ela a nota) ausente: levanta erro e nada é gravado
+  begin
+    perform pg_temp.decide(repeat('9', 44), 1);
+    raise exception '(4b) a decisão sem proposta entrou';
+  exception when raise_exception then
+    if sqlerrm not like '%proposta da nota%' then raise; end if;
+  end;
+  assert not exists (select 1 from public.approvals a join public.proposals p on p.id = a.proposal_id where p.invoice_access_key = repeat('9', 44)),
+    '(4b) aprovação gravada';
+  raise notice '(4b) ok: nota sem proposta levantou erro e nada foi gravado (título sem nota não existe: a chave estrangeira garante, então o erro da nota ausente cai aqui)';
+
+  -- (5) aprovação do motor que o gatilho recusa (delegação desligada: 23514) levanta erro e nada fica gravado
+  v_id := pg_temp.new_invoice(repeat('6', 44));
+  insert into public.engine_decisions (proposal_id, invoice_access_key, outcome, decided_by, model_version, mode, reason)
+  values (v_id, repeat('6', 44), 'approve', 'rule', 'regra-e4-v1', 'delegated', 'prova') returning id into v_eng;
+  update public.engine_settings set delegation_enabled = false where level = 'analista';
+  v_before := pg_temp.snapshot(repeat('6', 44));
+  begin
+    perform pg_temp.decide(repeat('6', 44), 1, 'motor', 'analista', v_eng, null, 'regra-e4-v1');
+    raise exception '(5) o gatilho do motor não recusou';
+  exception when check_violation then
+    raise notice '(5) recusa do gatilho: %', sqlerrm;
+  end;
+  assert pg_temp.snapshot(repeat('6', 44)) = v_before, '(5) a recusa do gatilho deixou rastro';
+  raise notice '(5) ok: aprovação do motor recusada pelo gatilho (23514) levantou erro e nada ficou gravado';
+
+  -- (5b) com a delegação ligada, a mesma aprovação do motor entra, pela mesma função (e approved_by sai gerada: engine)
+  update public.engine_settings set delegation_enabled = true where level = 'analista';
+  v_ret := pg_temp.decide(repeat('6', 44), 1, 'motor', 'analista', v_eng, null, 'regra-e4-v1');
+  update public.engine_settings set delegation_enabled = false where level = 'analista';
+  assert v_ret = 'saved', format('(5b) devolveu %s', v_ret);
+  assert (pg_temp.snapshot(repeat('6', 44)) #>> '{approvals,0,approved_by}') = 'engine', '(5b) approved_by não é engine';
+  raise notice '(5b) ok: com a delegação ligada a aprovação do motor grava as quatro tabelas, approved_by = engine';
+
+  -- (7) versão nula: a função se guarda sozinha, levanta erro e nada é gravado (um `<>` com nulo pularia a conferência)
+  v_id := pg_temp.new_invoice(repeat('7', 44));
+  update public.proposals set justification = 'mudou' where id = v_id;
+  v_before := pg_temp.snapshot(repeat('7', 44));
+  begin
+    perform pg_temp.decide(repeat('7', 44), null);
+    raise exception '(7) a decisão com versão nula entrou';
+  exception when raise_exception then
+    if sqlerrm like '(7)%' or sqlerrm not like '%versão lida%' then raise; end if;
+  end;
+  assert pg_temp.snapshot(repeat('7', 44)) = v_before, '(7) a versão nula deixou rastro';
+  raise notice '(7) ok: p_version nulo levantou erro e nada foi gravado';
+
+  -- (6) permissões: só o service_role executa
+  assert not has_function_privilege('anon', 'public.save_approval_decision(text,integer,text,text,text,jsonb,date,timestamptz,text,jsonb,text,text,bigint,timestamptz,text,bigint,numeric,text)', 'execute'), 'anon executa';
+  assert not has_function_privilege('authenticated', 'public.save_approval_decision(text,integer,text,text,text,jsonb,date,timestamptz,text,jsonb,text,text,bigint,timestamptz,text,bigint,numeric,text)', 'execute'), 'authenticated executa';
+  assert has_function_privilege('service_role', 'public.save_approval_decision(text,integer,text,text,text,jsonb,date,timestamptz,text,jsonb,text,text,bigint,timestamptz,text,bigint,numeric,text)', 'execute'), 'service_role não executa';
+  raise notice '(6) ok: anon e authenticated sem execute; service_role com';
+end
+$$;
+SQL
+
 echo "== sem versão repetida"
 repetidas="$(ls "$MIGRACOES" | sed 's/_.*//' | sort | uniq -d)"
 if [ -n "$repetidas" ]; then echo "versão repetida: $repetidas" >&2; exit 1; fi
-echo "OK: todas as migrações aplicadas sem erro, sem versão repetida, e as provas de proposals.version passaram"
+echo "OK: todas as migrações aplicadas sem erro, sem versão repetida, e as provas de proposals.version e de save_approval_decision passaram"
