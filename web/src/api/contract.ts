@@ -231,7 +231,82 @@ export type SupplierRequestDto =
   | { status: Extract<RequestStatus, "discarded">; discardedAt: string | null; discardedBy: string | null }
   | { status: "failed"; failure: SupplierRequestRefusal };
 
+/** #65/AC-5 O limite do molde da cobrança que a API aceita: `MAX_TEMPLATE` em api/src/http/supplier-requests.ts, conferido com `template.length` (unidades UTF-16); acima dele o PATCH volta 422. */
+export const MAX_FOLLOW_UP_TEMPLATE = 20_000;
+
 /** Toda rota por chave de acesso responde `{ request }`; sem pedido, nulo. */
 export interface SupplierRequestResponseDto {
   request: SupplierRequestDto | null;
+}
+
+/**
+ * #21 A leitura da resposta do fornecedor (#4) e a lista dos pedidos (#5), como `api/src/http/supplier-requests.ts` (#36) as
+ * entrega. Os valores fechados são os do cabeçalho daquele arquivo; o texto de um erro da API nunca entra aqui.
+ */
+export type ReplyFilterDto = "awaiting" | "answered" | "needs_you" | "overdue"; // ADR-002
+export type ReplyOutcomeDto = "fulfilled" | "partially_fulfilled" | "refused" | "needs_information" | "no_reply"; // ADR-002
+export type NextStepDto = "close" | "confirm_document" | "answer_supplier" | "follow_up"; // ADR-002
+
+export interface ReadingDto {
+  replyOutcome: ReplyOutcomeDto;
+  fulfilledAsks: string[];
+  supplierDocument: string | null;
+  summary: string;
+  nextStep: NextStepDto;
+  /** #21 O trecho da resposta com ordem escondida, citado: dado, nunca instrução. */
+  injectionFlag: string | null;
+}
+
+export interface ReadingRowDto {
+  id: number;
+  invoiceAccessKey: string;
+  invoiceNumber: string;
+  supplierId: string;
+  supplierName: string | null;
+  requestType: Extract<RequestType, "return_note">;
+  /** #21 O total da nota de devolução em centavos inteiros; a tela formata. */
+  totalCents: Cents;
+  /** #21 AAAA-MM-DD. */
+  dueOn: string;
+  status: Extract<RequestStatus, "sent">;
+  reading: ReadingDto | null;
+  followUp: { drafted: boolean; sent: boolean };
+}
+
+export interface ReadingListDto {
+  filter: ReplyFilterDto;
+  requests: ReadingRowDto[];
+  /** #21 Os quatro filtros, contados pelo servidor sobre todos os pedidos enviados. */
+  counts: Record<ReplyFilterDto, number>;
+}
+
+export interface FollowUpDetailDto {
+  drafted: boolean;
+  sent: boolean;
+  draft: { subject: string; body: string; template: string; asks: string[] } | null;
+  sentBy: string | null;
+  sentAt: string | null;
+  /** #21 O código curto da última falha do envio; nunca o texto do provedor. */
+  failure: string | null;
+  /** #59 O novo prazo da cobrança (AAAA-MM-DD) que a regra gravou com o rascunho (#58); nulo sem rascunho ou no rascunho de antes da #58. */
+  dueOn: string | null;
+}
+
+/** #64 A confirmação do documento citado na leitura atual (api #63/AC-3): o documento, quem confirmou (o e-mail do Access) e quando (ISO 8601, UTC). */
+export interface DocumentConfirmationDto {
+  document: string;
+  by: string;
+  at: string;
+}
+
+/** #21 O pedido `sent` do `GET /api/supplier-requests/{accessKey}`: a visão da #13 mais a leitura e a cobrança (#36), e a confirmação do documento (#64: nula até a pessoa confirmar). */
+export type SentRequestDetailDto = Extract<SupplierRequestDto, { status: "sent" }> & {
+  reading: ReadingDto | null;
+  documentConfirmation: DocumentConfirmationDto | null;
+  followUp: FollowUpDetailDto;
+};
+
+/** #21 O que o `GET` e o `POST .../send` respondem: o pedido enviado, ou outro estado da #13 que esta tela não lê. */
+export interface SupplierRequestDetailResponseDto {
+  request: SentRequestDetailDto | Exclude<SupplierRequestDto, { status: "sent" }> | null;
 }

@@ -14,6 +14,8 @@ export class ApiError extends Error {
     /** O `error` do corpo JSON, quando o Worker mandou um (`unauthenticated`, `forbidden`, `not_found`…). */
     readonly code: string | null,
     message: string,
+    /** #64 O `reason` do corpo de um 409, cru: quem o lê o reduz a um conjunto fechado (supplier-reply.ts) e o texto nunca vai à tela nem à mensagem (layer-exposure). */
+    readonly reason: string | null = null,
   ) {
     super(message);
     this.name = "ApiError";
@@ -27,13 +29,15 @@ export class ApiError extends Error {
 
 async function errorFrom(response: Response): Promise<ApiError> {
   let code: string | null = null;
+  let reason: string | null = null;
   try {
     const body: unknown = await response.json();
     if (body && typeof body === "object" && "error" in body && typeof body.error === "string") code = body.error;
+    if (body && typeof body === "object" && "reason" in body && typeof body.reason === "string") reason = body.reason;
   } catch {
     // Corpo que não é JSON: fica só o status.
   }
-  return new ApiError(response.status, code, `a API respondeu ${response.status}${code ? ` (${code})` : ""}`);
+  return new ApiError(response.status, code, `a API respondeu ${response.status}${code ? ` (${code})` : ""}`, reason);
 }
 
 /** #17 Quanto a tela espera uma chamada antes de dar por falha (REL-1, #37): a ação parada termina, não fica pendurada. */

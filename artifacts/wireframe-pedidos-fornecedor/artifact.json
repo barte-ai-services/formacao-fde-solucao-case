@@ -1,0 +1,12 @@
+{
+  "pages": {
+    "wireframe-pedidos-fornecedor": {
+      "file": "index.html",
+      "title": "Wireframe da lista Pedidos ao fornecedor",
+      "home": "team",
+      "links": {},
+      "capabilities": {}
+    }
+  },
+  "publishOrder": ["wireframe-pedidos-fornecedor"]
+}
