@@ -42,7 +42,7 @@ de dados, e o botão Entrar repete a chamada que falhou.
   `proposed_partial_lines` (a proposta da regra para a tabela do receber parcial, porte de
   `web/src/approval/partial-prefill.ts`), `engine.similar_cases_count` e `approval.decided_hour` (nulo quando a API só
   tem o dia).
-- **`decide_proposal` só sai no clique em Registrar.** Texto de tool entra por `textContent`.
+- **`decide_proposal` só sai no clique em Registrar.** Com a tela aberta o Claude não o chama. Texto de tool entra por `textContent`.
 
 Para ver a tela à mão, sem o Claude: o teste abre a tela num host falso (`ui/host.mjs`, `ui/fixtures.mjs`); para
 olhar no navegador, sirva a pasta `mcp/ui` e abra `approval.html` num iframe de uma página que responda ao
@@ -56,7 +56,8 @@ olhar no navegador, sirva a pasta `mcp/ui` e abra `approval.html` num iframe de 
   e confira com `/mcp`.
 - **Instalar a Skill** (`skill/decidir-fila-de-aprovacao/`): no Claude.ai e no Desktop, Configurações >
   Capacidades > Skills, subindo a pasta zipada; no Claude Code, copie a pasta para `~/.claude/skills/` ou
-  `.claude/skills/`. A Skill diz quando abrir a tela, que o Claude nunca decide sem o clique da pessoa e que
+  `.claude/skills/`. A Skill diz quando abrir a tela, que, com a tela aberta, o Claude não chama decide_proposal e
+  pede que a pessoa registre na tela (sem tela, só após pedido explícito e confirmação de uma linha), e que
   todo número vem das tools. As `instructions` do servidor trazem o mesmo resumo.
 - **`decide_proposal` em "perguntar sempre".** Nas permissões das tools do conector, deixe `decide_proposal`
   em "perguntar sempre" e nunca em "permitir sempre": a tool declara `destructiveHint`.

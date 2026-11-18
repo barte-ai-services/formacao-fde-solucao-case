@@ -13,7 +13,8 @@ Esta Skill usa só as tools do MCP `formacao-fde-solucao-case-mcp`: `open_approv
 
 Se o host desenha MCP Apps (o Claude Desktop, por exemplo), chame `open_approval_app`: com `view` igual a
 `queue` para a fila, ou `proposal` com `invoice_access_key` para abrir uma proposta. A decisão sai pelo
-clique da pessoa em Registrar na tela, e o Claude nunca decide no lugar dela.
+clique da pessoa em Registrar na tela, e o Claude nunca decide no lugar dela. Com a tela aberta, a decisão é da
+tela: se a pessoa pedir "aprova" ou "recusa" pelo chat, peça que registre na tela e não chame `decide_proposal`.
 
 Se o host não desenha a tela (o Claude Code no terminal, por exemplo), siga em texto com
 `list_approval_queue` e `get_proposal`, como abaixo.
@@ -24,8 +25,8 @@ Se o host não desenha a tela (o Claude Code no terminal, por exemplo), siga em 
    que a tool devolveu. Abaixo, o total em risco que a tool devolveu.
 2. A pessoa pede "abre a nota 43894". Chame `get_proposal` e resuma em poucas linhas a divergência, a
    evidência, o que o motor propôs e o que o auditor disse.
-3. A pessoa diz "aprova" ou "altera para recusar". Antes de chamar `decide_proposal`, faça a confirmação em
-   uma linha do que vai gravar (nota, decisão, ação na doca e a justificativa nas palavras dela) e espere o sim.
+3. A pessoa diz "aprova" ou "altera para recusar". Sem a tela, chame `decide_proposal` só depois de pedido
+   explícito da pessoa e de confirmação de uma linha. Antes de chamar, faça a confirmação em uma linha do que vai gravar (nota, decisão, ação na doca e a justificativa nas palavras dela) e espere o sim.
 4. Chame `decide_proposal`. Se gravou, diga que a nota saiu da fila. Se recusou, mostre a recusa como veio.
 
 ## Recusas
@@ -41,8 +42,9 @@ sem contornar. Os códigos são:
 
 ## O que a sessão nunca faz
 
-- **Decidir sem o clique da pessoa.** `decide_proposal` só sai pelo clique em Registrar na tela, ou, em texto,
-  depois de pedido explícito da pessoa e da confirmação de uma linha.
+- **Decidir sem o clique da pessoa.** Com a tela aberta, `decide_proposal` só sai pelo clique da
+  pessoa em Registrar, e o Claude não o chama, nem a pedido pelo chat. Sem a tela, só depois de pedido explícito
+  da pessoa e da confirmação de uma linha.
 - **Inventar número.** Todo número (valor, nível, contagem, confiança) vem das tools, nunca do texto. Se a
   tool não devolveu, diga que não sabe.
 - **Contornar uma recusa.** Não tente outra decisão nem outro nível, e não mude nada ao redor para passar.
