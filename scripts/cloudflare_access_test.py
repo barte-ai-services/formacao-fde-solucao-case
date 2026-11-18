@@ -22,7 +22,8 @@ APP_ID = "app-1"
 AUD = "aud-gerado"
 AUTH_DOMAIN = "long-frost-f16b.cloudflareaccess.com"
 APP_DOMAIN = "api.example.com"
-STUDENT_EMAIL = "aluno@example.com"
+LEGACY_POLICY_NAME = "formacao-fde-solucao-case: barte.com e alunos"
+EVERYONE = [{"everyone": {}}]
 ROOT = Path(__file__).resolve().parent.parent
 BASE = f"/accounts/{ACCOUNT}/access"
 
@@ -122,8 +123,8 @@ def existing_app(**changes: Json) -> Json:
     return {**app, **changes}
 
 
-def options(emails: list[str] | None = None, **changes: Json) -> ca.Options:
-    return ca.Options(**{"aud": AUD, **changes, "emails": tuple(emails or ())})
+def options(**changes: Json) -> ca.Options:
+    return ca.Options(**{"aud": AUD, **changes})
 
 
 def run(client: FakeClient, **kwargs: Json) -> tuple[int, str]:
@@ -132,28 +133,11 @@ def run(client: FakeClient, **kwargs: Json) -> tuple[int, str]:
     return code, out.getvalue()
 
 
-class EmailParsingTest(unittest.TestCase):
-    def test_splits_on_comma_and_whitespace_trims_and_dedupes(self) -> None:
-        raw = " a@x.com, b@y.com\nA@x.com  c@z.com,,b@y.com "
-        self.assertEqual(["a@x.com", "b@y.com", "c@z.com"], ca.parse_emails(raw))
-
-    def test_empty_or_missing_gives_empty_list(self) -> None:
-        self.assertEqual([], ca.parse_emails(""))
-        self.assertEqual([], ca.parse_emails(None))
-        self.assertEqual([], ca.parse_emails(" , \n "))
-
-    def test_rejects_value_that_is_not_an_email_without_echoing_it(self) -> None:
-        with self.assertRaises(ca.ConfigError) as raised:
-            ca.parse_emails("a@x.com, nao-e-email")
-        self.assertIn(ca.EMAILS_VAR, str(raised.exception))
-        self.assertNotIn("nao-e-email", str(raised.exception))
-
-
 class UpdateExistingAppTest(unittest.TestCase):
     def test_put_on_the_app_of_the_aud_and_no_post_to_apps(self) -> None:
         """#232/AC-1: com o AUD de uma aplicação existente, só há PUT nela."""
         client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app()])
-        code, _ = run(client, emails=[STUDENT_EMAIL])
+        code, _ = run(client)
         self.assertEqual(0, code)
         self.assertEqual([("PUT", f"{BASE}/apps/{APP_ID}")], [(m, p) for m, p, _ in client.writes()])
         self.assertEqual(1, len(client.apps))
@@ -161,7 +145,7 @@ class UpdateExistingAppTest(unittest.TestCase):
     def test_name_domain_and_aud_stay_as_they_were(self) -> None:
         """#232/AC-1: nome, domínio e AUD ficam como estavam."""
         client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app()])
-        run(client, emails=[STUDENT_EMAIL])
+        run(client)
         sent = client.writes()[0][2]
         self.assertEqual("nome-vigente", sent["name"])
         self.assertEqual("vigente.example.com", sent["domain"])
@@ -170,45 +154,52 @@ class UpdateExistingAppTest(unittest.TestCase):
     def test_session_and_login_settings_the_app_already_has_are_kept(self) -> None:
         """#232/AC-1: o PUT não sobrescreve ajustes que a aplicação já tem."""
         client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app()])
-        run(client, emails=[STUDENT_EMAIL])
+        run(client)
         sent = client.writes()[0][2]
         self.assertEqual("12h", sent["session_duration"])
         self.assertFalse(sent["auto_redirect_to_identity"])
         self.assertEqual([OTP_ID], sent["allowed_idps"])
 
-    def test_other_identity_providers_are_kept_and_the_otp_is_added(self) -> None:
-        """#232/AC-1: os provedores que a aplicação já tem ficam, e o código por e-mail entra."""
+    def test_the_otp_becomes_the_only_identity_provider(self) -> None:
+        """#232/AC-3: o código por e-mail é o único provedor; os outros saem."""
         client = FakeClient(apps=[existing_app(allowed_idps=["github"])])
-        run(client, emails=[STUDENT_EMAIL])
+        run(client)
         self.assertEqual([("POST", f"{BASE}/identity_providers"), ("PUT", f"{BASE}/apps/{APP_ID}")],
                          [(m, p) for m, p, _ in client.writes()])
-        self.assertEqual(["github", OTP_ID], client.writes()[1][2]["allowed_idps"])
+        self.assertEqual([OTP_ID], client.writes()[1][2]["allowed_idps"])
 
-    def test_policy_has_barte_domain_and_every_email_and_keeps_its_id(self) -> None:
-        """#232/AC-3: a política enviada inclui barte.com e cada e-mail."""
+    def test_policy_allows_everyone_and_keeps_its_id(self) -> None:
+        """#232/AC-3: a política enviada é allow com include everyone."""
         client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app()])
-        run(client, emails=[STUDENT_EMAIL, "outra@example.com"])
+        run(client)
         policy = next(p for p in client.writes()[0][2]["policies"] if p["name"] == ca.POLICY_NAME)
         self.assertEqual("pol-1", policy["id"])
         self.assertEqual("allow", policy["decision"])
-        self.assertEqual(
-            [{"email_domain": {"domain": "barte.com"}}, {"email": {"email": STUDENT_EMAIL}},
-             {"email": {"email": "outra@example.com"}}],
-            policy["include"],
-        )
+        self.assertEqual(EVERYONE, policy["include"])
+        self.assertEqual("formacao-fde-solucao-case: qualquer e-mail", policy["name"])
+
+    def test_policy_with_the_old_name_is_replaced_in_place_with_the_new_name(self) -> None:
+        """#232/AC-3: a política de nome antigo é a do script: trocada no lugar, sem duplicar."""
+        old = {"id": "pol-old", "name": LEGACY_POLICY_NAME, "precedence": 3,
+               "include": [{"email_domain": {"domain": "barte.com"}}]}
+        client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app(policies=[OTHER_POLICY, old])])
+        run(client)
+        policies = client.writes()[0][2]["policies"]
+        self.assertEqual(["pol-x", "pol-old"], [p["id"] for p in policies])
+        self.assertEqual((ca.POLICY_NAME, 3, EVERYONE), (policies[1]["name"], policies[1]["precedence"], policies[1]["include"]))
 
     def test_second_run_changes_nothing(self) -> None:
         """#232/AC-1: rodar de novo deixa o mesmo estado."""
         client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app()])
-        run(client, emails=[STUDENT_EMAIL])
+        run(client)
         first = json.dumps(client.apps, sort_keys=True)
-        run(client, emails=[STUDENT_EMAIL])
+        run(client)
         self.assertEqual(first, json.dumps(client.apps, sort_keys=True))
         self.assertEqual(1, len(client.apps))
 
     def test_prints_team_domain_and_not_the_aud(self) -> None:
         client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app()])
-        _, out = run(client, emails=[STUDENT_EMAIL])
+        _, out = run(client)
         self.assertIn(f"ACCESS_TEAM_DOMAIN={AUTH_DOMAIN}\n", out)
         self.assertNotIn(AUD, out)
 
@@ -216,7 +207,7 @@ class UpdateExistingAppTest(unittest.TestCase):
 class PreserveExistingAppTest(unittest.TestCase):
     def put_body(self, app: Json, idps: list[Json] | None = None) -> Json:
         client = FakeClient(idps=idps or [{"id": OTP_ID, "type": "onetimepin"}], apps=[app])
-        run(client, emails=[STUDENT_EMAIL])
+        run(client)
         return client.writes()[0][2]
 
     def test_extra_fields_of_the_app_survive_the_put(self) -> None:
@@ -252,32 +243,30 @@ class PreserveExistingAppTest(unittest.TestCase):
         self.assertNotIn("id", body["policies"][1])
         self.assertEqual(2, body["policies"][1]["precedence"])
 
-    def test_empty_allowed_idps_is_kept_empty_because_it_means_every_idp(self) -> None:
-        """#232/AC-1: allowed_idps vazio é "todos os provedores"; não vira só o código por e-mail."""
-        self.assertEqual([], self.put_body(existing_app(allowed_idps=[]))["allowed_idps"])
+    def test_empty_allowed_idps_becomes_the_otp_only(self) -> None:
+        """#232/AC-3: allowed_idps vazio é "todos os provedores"; passa a ser só o código por e-mail."""
+        self.assertEqual([OTP_ID], self.put_body(existing_app(allowed_idps=[]))["allowed_idps"])
 
-    def test_absent_allowed_idps_stays_absent(self) -> None:
-        """#232/AC-1: sem allowed_idps na aplicação, o corpo também não os traz."""
+    def test_absent_allowed_idps_becomes_the_otp_only(self) -> None:
+        """#232/AC-3: sem allowed_idps na aplicação, o corpo traz só o código por e-mail."""
         app = existing_app()
         del app["allowed_idps"]
-        self.assertNotIn("allowed_idps", self.put_body(app))
-
-    def test_options_emails_are_immutable(self) -> None:
-        self.assertIsInstance(options(emails=[STUDENT_EMAIL]).emails, tuple)
+        self.assertEqual([OTP_ID], self.put_body(app)["allowed_idps"])
 
     def test_app_request_decides_method_path_and_body_without_calling_the_api(self) -> None:
-        method, route, body = ca.app_request(existing_app(), OTP_ID, options(emails=[STUDENT_EMAIL]), None)
+        method, route, body = ca.app_request(existing_app(), OTP_ID, options(), None)
         self.assertEqual(("PUT", f"/access/apps/{APP_ID}"), (method, route))
         self.assertEqual("nome-vigente", body["name"])
         method, route, body = ca.app_request(None, OTP_ID, options(
-            emails=[STUDENT_EMAIL], aud="", create=True, app_domain=APP_DOMAIN), None)
+            aud="", create=True, app_domain=APP_DOMAIN), None)
         self.assertEqual(("POST", "/access/apps"), (method, route))
         self.assertEqual(APP_DOMAIN, body["domain"])
 
 
-def reusable_client(script_policy_in_account: bool) -> FakeClient:
+def reusable_client(script_policy_in_account: bool, legacy: bool = False) -> FakeClient:
     """Uma aplicação cujas políticas são reutilizáveis, como o GET as devolve, e a conta que as guarda."""
     mine = {"id": "pol-r1", "name": ca.POLICY_NAME, "decision": "allow", "include": [{"email": {"email": "x@example.com"}}]}
+    mine = {**mine, "name": LEGACY_POLICY_NAME} if legacy else mine
     other = {**OTHER_POLICY, "id": "pol-r2", "created_at": "2026-01-01"}
     app_policies = [{**mine, "reusable": True, "precedence": 1}, {**other, "reusable": True, "precedence": 2}]
     if not script_policy_in_account:
@@ -291,19 +280,29 @@ class ReusablePoliciesTest(unittest.TestCase):
     def test_script_policy_found_by_name_is_updated_and_the_app_gets_only_links(self) -> None:
         """#232/AC-1: com política reutilizável, a do script é atualizada na conta e o PUT manda só links."""
         client = reusable_client(script_policy_in_account=True)
-        run(client, emails=[STUDENT_EMAIL])
+        run(client)
         self.assertEqual([("PUT", f"{BASE}/policies/pol-r1"), ("PUT", f"{BASE}/apps/{APP_ID}")],
                          [(m, p) for m, p, _ in client.writes()])
         sent = client.writes()[0][2]
-        self.assertIn({"email": {"email": STUDENT_EMAIL}}, sent["include"])
-        self.assertIn({"email_domain": {"domain": "barte.com"}}, sent["include"])
+        self.assertEqual(EVERYONE, sent["include"])
+        self.assertEqual(ca.POLICY_NAME, sent["name"])
+        self.assertEqual([{"id": "pol-r1", "precedence": 1}, {"id": "pol-r2", "precedence": 2}],
+                         client.writes()[1][2]["policies"])
+
+    def test_reusable_policy_with_the_old_name_is_updated_in_place_with_the_new_name(self) -> None:
+        """#232/AC-3: a reutilizável de nome antigo é a do script: atualizada, não duplicada."""
+        client = reusable_client(script_policy_in_account=True, legacy=True)
+        run(client)
+        self.assertEqual([("PUT", f"{BASE}/policies/pol-r1"), ("PUT", f"{BASE}/apps/{APP_ID}")],
+                         [(m, p) for m, p, _ in client.writes()])
+        self.assertEqual((ca.POLICY_NAME, EVERYONE), (client.policies[0]["name"], client.policies[0]["include"]))
         self.assertEqual([{"id": "pol-r1", "precedence": 1}, {"id": "pol-r2", "precedence": 2}],
                          client.writes()[1][2]["policies"])
 
     def test_missing_script_policy_is_created_in_the_account_after_the_others(self) -> None:
         """#232/AC-1: sem a política do script na conta, POST em /access/policies; precedência maior+1."""
         client = reusable_client(script_policy_in_account=False)
-        run(client, emails=[STUDENT_EMAIL])
+        run(client)
         self.assertEqual([("POST", f"{BASE}/policies"), ("PUT", f"{BASE}/apps/{APP_ID}")],
                          [(m, p) for m, p, _ in client.writes()])
         self.assertEqual([{"id": "pol-r2", "precedence": 2}, {"id": POLICY_ID, "precedence": 3}],
@@ -312,7 +311,7 @@ class ReusablePoliciesTest(unittest.TestCase):
     def test_no_post_to_apps_and_name_domain_and_aud_stay(self) -> None:
         """#232/AC-1: nesse caminho também só há PUT na aplicação."""
         client = reusable_client(script_policy_in_account=False)
-        run(client, emails=[STUDENT_EMAIL])
+        run(client)
         self.assertNotIn(("POST", f"{BASE}/apps"), [(m, p) for m, p, _ in client.writes()])
         self.assertEqual(("nome-vigente", "vigente.example.com", AUD),
                          (client.apps[0]["name"], client.apps[0]["domain"], client.apps[0]["aud"]))
@@ -320,9 +319,9 @@ class ReusablePoliciesTest(unittest.TestCase):
     def test_second_run_changes_nothing(self) -> None:
         """#232/AC-1: rodar de novo, com política reutilizável, deixa o mesmo estado."""
         client = reusable_client(script_policy_in_account=False)
-        run(client, emails=[STUDENT_EMAIL])
+        run(client)
         first = json.dumps([client.apps, client.policies], sort_keys=True)
-        run(client, emails=[STUDENT_EMAIL])
+        run(client)
         self.assertEqual(first, json.dumps([client.apps, client.policies], sort_keys=True))
 
     def test_fake_refuses_a_put_that_mixes_link_and_inline(self) -> None:
@@ -337,7 +336,7 @@ class UnknownAudTest(unittest.TestCase):
         """#232/AC-2: AUD sem aplicação correspondente sai com erro que nomeia a variável."""
         client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app()])
         with self.assertRaises(ca.ConfigError) as raised:
-            run(client, emails=[STUDENT_EMAIL], aud="aud-que-nao-existe")
+            run(client, aud="aud-que-nao-existe")
         self.assertIn(ca.AUD_VAR, str(raised.exception))
         self.assertNotIn("aud-que-nao-existe", str(raised.exception))
         self.assertEqual([], client.writes())
@@ -346,101 +345,82 @@ class UnknownAudTest(unittest.TestCase):
         """#232/AC-2: o nome não basta para achar a aplicação; só o AUD."""
         client = FakeClient(apps=[existing_app(name=ca.APP_NAME)])
         with self.assertRaises(ca.ConfigError):
-            run(client, emails=[STUDENT_EMAIL], aud="outro-aud")
+            run(client, aud="outro-aud")
         self.assertEqual([], client.writes())
 
     def test_missing_aud_without_create_fails_naming_the_variable_before_any_call(self) -> None:
         """#232/AC-2: sem AUD e sem --create não se grava nem se consulta nada."""
         client = FakeClient(apps=[existing_app()])
         with self.assertRaises(ca.ConfigError) as raised:
-            run(client, emails=[STUDENT_EMAIL], aud="")
+            run(client, aud="")
         self.assertIn(ca.AUD_VAR, str(raised.exception))
         self.assertEqual([], client.calls)
 
     def test_main_exits_non_zero_naming_the_variable(self) -> None:
         """#232/AC-2: pela linha de comando, código != 0 e a mensagem nomeia a variável."""
         client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app()])
-        env = {ca.TOKEN_VAR: TOKEN, ca.ACCOUNT_VAR: ACCOUNT, ca.EMAILS_VAR: STUDENT_EMAIL, ca.AUD_VAR: "nenhum"}
+        env = {ca.TOKEN_VAR: TOKEN, ca.ACCOUNT_VAR: ACCOUNT, ca.AUD_VAR: "nenhum"}
         code, _, err = run_main(env, client=client)
         self.assertNotEqual(0, code)
         self.assertIn(ca.AUD_VAR, err)
         self.assertEqual([], client.writes())
 
 
-class EmailsRequiredTest(unittest.TestCase):
-    def test_real_run_without_emails_refuses_and_writes_nothing(self) -> None:
-        """#232/AC-3: execução real sem e-mails recusa com erro e não grava nada."""
-        client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app()])
-        with self.assertRaises(ca.ConfigError) as raised:
-            run(client, emails=[])
-        self.assertIn(ca.EMAILS_VAR, str(raised.exception))
-        self.assertEqual([], client.calls)
-
-    def test_main_real_run_without_emails_exits_non_zero(self) -> None:
-        """#232/AC-3: pela linha de comando, sem e-mails, código != 0 e nada gravado."""
-        client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app()])
-        code, _, err = run_main({ca.TOKEN_VAR: TOKEN, ca.ACCOUNT_VAR: ACCOUNT, ca.AUD_VAR: AUD}, client=client)
-        self.assertNotEqual(0, code)
-        self.assertIn(ca.EMAILS_VAR, err)
-        self.assertEqual([], client.writes())
-
-    def test_dry_run_without_emails_is_allowed(self) -> None:
-        client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app()])
-        code, _ = run(client, emails=[], dry_run=True)
-        self.assertEqual(0, code)
-        self.assertEqual([], client.writes())
-
-
 class DryRunTest(unittest.TestCase):
-    def test_dry_run_writes_nothing_and_shows_the_put_without_the_emails(self) -> None:
-        """#232/AC-3, #232/AC-5: o dry-run mostra o PUT, mascara os e-mails e conta quantos são."""
+    def test_dry_run_writes_nothing_and_says_the_policy_is_for_everyone(self) -> None:
+        """#232/AC-3: o dry-run não grava e resume a política de qualquer e-mail."""
         client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app()])
-        code, out = run(client, emails=[STUDENT_EMAIL, "outra@example.com"], dry_run=True)
+        code, out = run(client, dry_run=True)
         self.assertEqual(0, code)
         self.assertEqual([], client.writes())
         self.assertIn("PUT", out)
-        self.assertIn("barte.com", out)
-        self.assertNotIn(STUDENT_EMAIL, out)
-        self.assertNotIn("outra@example.com", out)
-        self.assertIn("2 e-mail(s)", out)
+        self.assertIn("qualquer e-mail", out)
+        self.assertNotIn("barte.com", out)
 
     def test_dry_run_with_missing_otp_shows_the_post_and_writes_nothing(self) -> None:
         client = FakeClient(apps=[existing_app()])
-        code, out = run(client, emails=[STUDENT_EMAIL], dry_run=True)
+        code, out = run(client, dry_run=True)
         self.assertEqual(0, code)
         self.assertEqual([], client.writes())
         self.assertIn('"onetimepin"', out)
-        self.assertIn("+ código por e-mail", out)
+        self.assertIn("allowed_idps: passa a ser só o código por e-mail", out)
         self.assertNotIn(ACCOUNT, out)
 
     def test_dry_run_summarizes_the_put_in_named_fields_without_the_other_policies_content(self) -> None:
         """#232/AC-5: o dry-run não imprime a configuração da aplicação, a política alheia nem a conta."""
         client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app()])
-        _, out = run(client, emails=[STUDENT_EMAIL], dry_run=True)
+        _, out = run(client, dry_run=True)
         self.assertIn(f"[dry-run] PUT /access/apps/{APP_ID}\n", out)
         self.assertIn("allowed_idps: inalterado", out)
-        self.assertIn("policies: 2 no total; a do script na precedência 1, com barte.com e 1 e-mail(s)", out)
+        self.assertIn("policies: 2 no total; a do script na precedência 1, libera qualquer e-mail", out)
         self.assertIn("outras políticas: 1, mantidas", out)
         self.assertIn("pol-x", out)
         self.assertNotRegex(out, r"\boutra\b")
-        for hidden in ("alheio", ACCOUNT, "nome-vigente", "vigente.example.com", STUDENT_EMAIL):
+        for hidden in ("alheio", ACCOUNT, "nome-vigente", "vigente.example.com"):
             self.assertNotIn(hidden, out)
+
+    def test_dry_run_says_allowed_idps_changes_without_listing_the_foreign_ids(self) -> None:
+        """#232/AC-3: com outro provedor na aplicação, o resumo diz que muda, sem os ids alheios."""
+        client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app(allowed_idps=["github-secreto"])])
+        _, out = run(client, dry_run=True)
+        self.assertIn("allowed_idps: passa a ser só o código por e-mail", out)
+        self.assertNotIn("github-secreto", out)
 
     def test_dry_run_of_reusable_policies_says_the_path_and_touches_no_policy(self) -> None:
         """#232/AC-5: no dry-run, nenhum POST/PUT em /access/policies, e o resumo diz o caminho."""
         client = reusable_client(script_policy_in_account=False)
-        _, out = run(client, emails=[STUDENT_EMAIL], dry_run=True)
+        _, out = run(client, dry_run=True)
         self.assertEqual([], client.writes())
         self.assertIn("reutilizáveis", out)
         self.assertNotRegex(out, r"\boutra\b")
-        _, inline_out = run(FakeClient(idps=client.idps, apps=[existing_app()]), emails=[STUDENT_EMAIL], dry_run=True)
+        _, inline_out = run(FakeClient(idps=client.idps, apps=[existing_app()]), dry_run=True)
         self.assertIn("da aplicação", inline_out)
 
 
 class CreateTest(unittest.TestCase):
     def test_create_flag_creates_otp_and_app_and_prints_the_new_aud(self) -> None:
         client = FakeClient()
-        code, out = run(client, emails=[STUDENT_EMAIL], aud="", create=True, app_domain=APP_DOMAIN)
+        code, out = run(client, aud="", create=True, app_domain=APP_DOMAIN)
         self.assertEqual(0, code)
         self.assertEqual([("POST", f"{BASE}/identity_providers"), ("POST", f"{BASE}/apps")],
                          [(m, p) for m, p, _ in client.writes()])
@@ -453,18 +433,18 @@ class CreateTest(unittest.TestCase):
     def test_create_needs_the_domain_and_writes_nothing_without_it(self) -> None:
         client = FakeClient()
         with self.assertRaises(ca.ConfigError) as raised:
-            run(client, emails=[STUDENT_EMAIL], aud="", create=True)
+            run(client, aud="", create=True)
         self.assertIn(ca.APP_DOMAIN_VAR, str(raised.exception))
         self.assertEqual([], client.writes())
 
     def test_create_with_a_known_aud_still_only_updates(self) -> None:
         client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app()])
-        run(client, emails=[STUDENT_EMAIL], create=True, app_domain=APP_DOMAIN)
+        run(client, create=True, app_domain=APP_DOMAIN)
         self.assertEqual(["PUT"], [m for m, _, _ in client.writes()])
 
     def test_create_with_an_unknown_aud_creates_instead_of_failing(self) -> None:
         client = FakeClient(apps=[existing_app()])
-        code, _ = run(client, emails=[STUDENT_EMAIL], aud="novo", create=True, app_domain=APP_DOMAIN)
+        code, _ = run(client, aud="novo", create=True, app_domain=APP_DOMAIN)
         self.assertEqual(0, code)
         self.assertIn("POST", [m for m, p, _ in client.writes() if p.endswith("/apps")])
 
@@ -473,7 +453,7 @@ class NotEnabledTest(unittest.TestCase):
     def test_not_enabled_explains_the_dashboard_step_without_naming_a_team(self) -> None:
         client = FakeClient(not_enabled=True)
         with self.assertRaises(ca.AccessNotEnabled) as raised:
-            run(client, emails=[STUDENT_EMAIL])
+            run(client)
         message = str(raised.exception)
         self.assertIn("Zero Trust", message)
         self.assertIn("Free", message)
@@ -501,40 +481,34 @@ class MainTest(unittest.TestCase):
         self.assertNotEqual(0, code)
         self.assertNotIn(TOKEN, err)
 
-    def test_reads_students_and_aud_from_env_and_never_prints_the_token(self) -> None:
+    def test_real_run_needs_no_email_variable_and_never_prints_the_token(self) -> None:
+        """#232/AC-3: sem BARTE_ACADEMY_ACCESS_ALLOWED_EMAILS a execução real funciona."""
         client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app()])
-        env = {ca.TOKEN_VAR: TOKEN, ca.ACCOUNT_VAR: ACCOUNT, ca.EMAILS_VAR: STUDENT_EMAIL, ca.AUD_VAR: AUD}
+        env = {ca.TOKEN_VAR: TOKEN, ca.ACCOUNT_VAR: ACCOUNT, ca.AUD_VAR: AUD}
         code, out, err = run_main(env, client=client)
         self.assertEqual(0, code)
         self.assertNotIn(TOKEN, out + err)
-        self.assertNotIn(STUDENT_EMAIL, out + err)
-        self.assertIn({"email": {"email": STUDENT_EMAIL}}, client.writes()[0][2]["policies"][0]["include"])
+        self.assertEqual(EVERYONE, client.writes()[0][2]["policies"][0]["include"])
 
     def test_create_flag_reads_the_domain_from_env(self) -> None:
         client = FakeClient()
-        env = {ca.TOKEN_VAR: TOKEN, ca.ACCOUNT_VAR: ACCOUNT, ca.EMAILS_VAR: STUDENT_EMAIL, ca.APP_DOMAIN_VAR: APP_DOMAIN}
+        env = {ca.TOKEN_VAR: TOKEN, ca.ACCOUNT_VAR: ACCOUNT, ca.APP_DOMAIN_VAR: APP_DOMAIN}
         code, _, _ = run_main(env, ["--create"], client=client)
         self.assertEqual(0, code)
         self.assertEqual(APP_DOMAIN, client.writes()[1][2]["domain"])
 
     def test_not_enabled_exits_non_zero_with_portuguese_message(self) -> None:
-        env = {ca.TOKEN_VAR: TOKEN, ca.ACCOUNT_VAR: ACCOUNT, ca.EMAILS_VAR: STUDENT_EMAIL, ca.AUD_VAR: AUD}
+        env = {ca.TOKEN_VAR: TOKEN, ca.ACCOUNT_VAR: ACCOUNT, ca.AUD_VAR: AUD}
         code, _, err = run_main(env, client=FakeClient(not_enabled=True))
         self.assertNotEqual(0, code)
         self.assertIn("Zero Trust", err)
-
-    def test_invalid_email_does_not_echo_the_value(self) -> None:
-        env = {ca.TOKEN_VAR: TOKEN, ca.ACCOUNT_VAR: ACCOUNT, ca.EMAILS_VAR: "aluno-sem-arroba", ca.AUD_VAR: AUD}
-        code, _, err = run_main(env, client=FakeClient())
-        self.assertNotEqual(0, code)
-        self.assertNotIn("aluno-sem-arroba", err)
 
     def test_api_error_prints_status_and_codes_only(self) -> None:
         class Failing(FakeClient):
             def request(self, method: str, path: str, body: Json = None) -> Json:
                 raise ca.CloudflareError(method, path, 400, [{"code": 1234, "message": "detalhe-do-servidor"}])
 
-        env = {ca.TOKEN_VAR: TOKEN, ca.ACCOUNT_VAR: ACCOUNT, ca.EMAILS_VAR: STUDENT_EMAIL, ca.AUD_VAR: AUD}
+        env = {ca.TOKEN_VAR: TOKEN, ca.ACCOUNT_VAR: ACCOUNT, ca.AUD_VAR: AUD}
         code, _, err = run_main(env, client=Failing())
         self.assertNotEqual(0, code)
         self.assertIn("HTTP 400", err)
@@ -577,10 +551,22 @@ class DocsAndWorkflowTest(unittest.TestCase):
     def test_readme_describes_the_real_team_and_the_workflow(self) -> None:
         """#232/AC-4: o README descreve o time real e o passo a passo pelo workflow."""
         text = (ROOT / "api" / "README.md").read_text()
+        self.assertNotIn("ALLOWED_EMAILS", text)
         self.assertIn("long-frost-f16b.cloudflareaccess.com", text)
         self.assertIn("cloudflare-access.yml", text)
         self.assertNotIn("barte-academy.cloudflareaccess.com", text)
         self.assertNotIn("time `barte-academy`", text)
+        self.assertNotRegex(text, r"(?i)\bbarte-academy\b")
+
+    def test_readme_records_that_any_authenticated_email_may_enter(self) -> None:
+        """#232/AC-6: a tela vale para qualquer e-mail autenticado, e o Worker não filtra por e-mail."""
+        text = " ".join((ROOT / "api" / "README.md").read_text().split())
+        self.assertIn("qualquer e-mail autenticado", text)
+        self.assertIn("decisão do CFO", text)
+        self.assertIn("solução de referência", text)
+        self.assertIn("não filtra por e-mail", text)
+        self.assertIn("BARTE_ACADEMY_ADMIN_EMAILS", text)
+        self.assertIn("BARTE_ACADEMY_APPROVER_LEVELS", text)
 
     def test_workflow_is_manual_main_only_and_least_privilege(self) -> None:
         """#232/AC-5: disparo manual, só na main, com permissões mínimas e checkout sem credencial."""
@@ -600,20 +586,17 @@ class DocsAndWorkflowTest(unittest.TestCase):
         commands = _run_commands(text)
         self.assertTrue(commands)
         self.assertEqual([], [c for c in commands if "${{" in c])
-        for name in (ca.TOKEN_VAR, ca.ACCOUNT_VAR, ca.AUD_VAR, ca.EMAILS_VAR):
+        for name in (ca.TOKEN_VAR, ca.ACCOUNT_VAR, ca.AUD_VAR):
             self.assertRegex(text, rf"{name}: \$\{{\{{ (secrets|vars)\.{name} \}}\}}")
-        # O Actions imprime o bloco env no cabeçalho do step e só mascara secrets: e-mails só como secret. (#232)
-        self.assertIn(f"{ca.EMAILS_VAR}: ${{{{ secrets.{ca.EMAILS_VAR} }}}}", text)
-        self.assertNotIn(f"vars.{ca.EMAILS_VAR}", text)
+        self.assertNotIn("ALLOWED_EMAILS", text)
         self.assertIn("DRY_RUN: ${{ inputs.dry_run }}", text)
 
-    def test_workflow_prints_no_secret_and_no_email(self) -> None:
-        """#232/AC-5: o workflow não ecoa segredo nem e-mail."""
+    def test_workflow_prints_no_secret(self) -> None:
+        """#232/AC-5: o workflow não ecoa segredo."""
         commands = "\n".join(_run_commands(self.workflow.read_text()))
         self.assertNotIn("echo", commands)
         self.assertNotIn("set -x", commands)
         self.assertNotIn(ca.TOKEN_VAR, commands)
-        self.assertNotIn(ca.EMAILS_VAR, commands)
 
 
 class HttpClientTest(unittest.TestCase):

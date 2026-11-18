@@ -1,13 +1,14 @@
 name: Provisiona o Cloudflare Access
 
 # Disparo manual (#232). Atualiza a aplicação do Access que o Worker já usa, a do AUD em
-# BARTE_ACADEMY_ACCESS_AUD, com a política da barte.com e dos alunos em BARTE_ACADEMY_ACCESS_ALLOWED_EMAILS.
+# BARTE_ACADEMY_ACCESS_AUD, com a política que libera qualquer e-mail (decisão do CFO) e o código por e-mail
+# como único provedor.
 # Não cria aplicação: criar é pedido explícito do script (--create), à mão.
 on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Só mostra o que enviaria, sem gravar nada (e-mails mascarados)"
+        description: "Só mostra o que enviaria, sem gravar nada"
         type: boolean
         default: true
 
@@ -28,9 +29,8 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      # Token, conta, AUD e e-mails entram pelo env e o script os lê de lá: nenhuma expressão do Actions na
-      # linha de comando, e o script não imprime token nem e-mail. Os e-mails são secret, não variável: o Actions
-      # imprime o env do step no cabeçalho do log e só mascara secrets. O input de dry-run também entra pelo env.
+      # Token, conta e AUD entram pelo env e o script os lê de lá: nenhuma expressão do Actions na linha de
+      # comando, e o script não imprime o token. O input de dry-run também entra pelo env.
       - name: Provisiona o Access
         run: |
           if [ "$DRY_RUN" = "true" ]; then
@@ -42,5 +42,4 @@ jobs:
           BARTE_ACADEMY_CLOUDFLARE_API_TOKEN: ${{ secrets.BARTE_ACADEMY_CLOUDFLARE_API_TOKEN }}
           BARTE_ACADEMY_CLOUDFLARE_ACCOUNT_ID: ${{ secrets.BARTE_ACADEMY_CLOUDFLARE_ACCOUNT_ID }}
           BARTE_ACADEMY_ACCESS_AUD: ${{ vars.BARTE_ACADEMY_ACCESS_AUD }}
-          BARTE_ACADEMY_ACCESS_ALLOWED_EMAILS: ${{ secrets.BARTE_ACADEMY_ACCESS_ALLOWED_EMAILS }}
           DRY_RUN: ${{ inputs.dry_run }}

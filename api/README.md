@@ -204,30 +204,33 @@ O time do Zero Trust é `long-frost-f16b.cloudflareaccess.com` (variável do rep
 `BARTE_ACADEMY_ACCESS_AUD`. O script `scripts/cloudflare_access.py` a atualiza e nunca cria outra: acha a
 aplicação pelo AUD, não pelo nome, e um AUD que não bate com nenhuma aplicação é erro, sem gravar nada.
 
+A tela vale para **qualquer e-mail autenticado** (decisão do CFO): a política do Access é `allow` com
+`include: everyone` (`"include": [{"everyone": {}}]` na API da Cloudflare) e o código por e-mail (one-time PIN) é o
+único provedor da aplicação. Os dados são os da solução de referência. O Worker não filtra por e-mail: quem é
+administrador e quem é aprovador continua vindo de `BARTE_ACADEMY_ADMIN_EMAILS` e `BARTE_ACADEMY_APPROVER_LEVELS`.
+
 O PUT substitui o recurso, então o corpo parte da aplicação inteira (menos os campos só de leitura: `id`, `uid`,
 `aud`, `created_at`, `updated_at`) e troca só duas coisas. Nome, domínio, AUD, sessão, redirecionamento e os demais
-campos ficam como estão. Em `allowed_idps` o código por e-mail entra se faltar, mas lista vazia ou ausente, que na
-API quer dizer "todos os provedores", fica como está. Em `policies`, a política do script (libera a `barte.com` e
-cada e-mail de `BARTE_ACADEMY_ACCESS_ALLOWED_EMAILS`) é trocada no lugar ou acrescentada ao fim, e as outras
-políticas da aplicação ficam na forma em que vieram. Execução real sem e-mails é recusada. Rodar de novo deixa o
-mesmo estado.
+campos ficam como estão. Em `allowed_idps` fica exatamente o código por e-mail, qualquer que seja o valor atual
+(lista vazia ou ausente, que na API quer dizer "todos os provedores", também). Em `policies`, a política do script
+(`formacao-fde-solucao-case: qualquer e-mail`; a de nome antigo, `barte.com e alunos`, também conta como a do script)
+é trocada no lugar ou acrescentada ao fim, e as outras políticas da aplicação ficam na forma em que vieram. Rodar de
+novo deixa o mesmo estado.
 
 **Pelo workflow** (o caminho normal):
 
 1. Em Settings, Secrets and variables, Actions, confira os secrets `BARTE_ACADEMY_CLOUDFLARE_API_TOKEN` (com
-   permissão de Access: Apps and Policies) e `BARTE_ACADEMY_CLOUDFLARE_ACCOUNT_ID`, o secret
-   `BARTE_ACADEMY_ACCESS_ALLOWED_EMAILS` (e-mails separados por vírgula ou espaço) e a variável
-   `BARTE_ACADEMY_ACCESS_AUD`. Os e-mails são secret porque o Actions imprime o `env` do step no log e só mascara
-   secrets.
+   permissão de Access: Apps and Policies) e `BARTE_ACADEMY_CLOUDFLARE_ACCOUNT_ID` e a variável
+   `BARTE_ACADEMY_ACCESS_AUD`.
 2. Na aba Actions, rode `Provisiona o Cloudflare Access` (`.github/workflows/cloudflare-access.yml`) na `main`,
-   com `dry_run` marcado. O log traz um resumo em campos nomeados: `allowed_idps` (inalterado ou com o código por e-mail), o total de
-   políticas, a precedência da do script com a contagem de e-mails, e `id`, `precedence` e tipo de cada política
+   com `dry_run` marcado. O log traz um resumo em campos nomeados: `allowed_idps` (inalterado ou passa a ser só o código por e-mail, sem listar os
+   outros ids), o total de políticas, a precedência da do script, e `id`, `precedence` e tipo de cada política
    (reutilizável ou da aplicação). Não traz a configuração da aplicação, as políticas alheias nem a conta. Se a
    aplicação usa políticas reutilizáveis, a do script também vira reutilizável (a Cloudflare não aceita as duas
    juntas) e o resumo diz o caminho; o dry-run não grava em `/access/policies`.
 3. Rode de novo com `dry_run` desmarcado para gravar.
 
-O workflow não imprime o token nem os e-mails. Para criar uma aplicação nova, o que só se faz de propósito, rode à
+O workflow não imprime o token. Para criar uma aplicação nova, o que só se faz de propósito, rode à
 mão com `--create` e `BARTE_ACADEMY_ACCESS_APP_DOMAIN` com o domínio dela; o script imprime o `ACCESS_AUD=...`
 novo, que vai para a variável do repositório.
 
@@ -237,7 +240,6 @@ novo, que vai para a variável do repositório.
 export BARTE_ACADEMY_CLOUDFLARE_API_TOKEN=...   # com permissão de Access: Apps and Policies
 export BARTE_ACADEMY_CLOUDFLARE_ACCOUNT_ID=...
 export BARTE_ACADEMY_ACCESS_AUD=...
-export BARTE_ACADEMY_ACCESS_ALLOWED_EMAILS="aluno1@example.com, aluno2@example.com"
 python3 scripts/cloudflare_access.py --dry-run   # mostra o que enviaria
 python3 scripts/cloudflare_access.py
 ```
