@@ -108,12 +108,12 @@ export function SupplierRequestBlock(props: SupplierRequestBlockProps): JSX.Elem
   if (props.loadFailed) return <LoadFailed reloading={props.reloading === true} onReload={props.onReload} />;
   if (!request) return null;
   return (
-    <section aria-label={t.title} aria-busy={pending ? true : undefined}>
+    <div aria-busy={pending ? true : undefined}>
       <Panel title={t.title} aside={<AiSourceBadge source="ai" label={t.badge} size="sm" />} size="sm">
         {error ? <Alert variant="error" title={error} showCloseButton={false} /> : null}
         <State {...props} request={request} />
       </Panel>
-    </section>
+    </div>
   );
 }
 

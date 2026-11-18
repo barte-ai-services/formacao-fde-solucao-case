@@ -32,7 +32,7 @@ export function Frame({ context }: { context: ShellContext }) {
   }, [context.theme]);
   return (
     <ShellFrame context={context} zone={ZONE}>
-      <ViewerProvider email={context.user.email}>
+      <ViewerProvider email={context.user?.email ?? null}>
         <AutomationProvider>
           <AutomationBand />
           <CurrentRoute />
