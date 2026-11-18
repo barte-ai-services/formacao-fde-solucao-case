@@ -371,6 +371,11 @@ describe('número de nota (#313)', () => {
     expect(mismatchOf('na nota, 13773 caixas', cat)).toMatchObject({ check: 'loose_number', cited: '13773' });
   });
 
+  it('#313/AC-4 a quebra de linha depois de "nota" desfaz o contexto', () => {
+    const cat = duplicateCatalog();
+    expect(mismatchOf('na nota\n13773 caixas', cat)).toMatchObject({ check: 'loose_number', cited: '13773' });
+  });
+
   it('#313/AC-4 um número solto qualquer cai, mesmo depois de "nota"', () => {
     const cat = duplicateCatalog();
     expect(mismatchOf('A nota 99999 cobra de novo.', cat)).toMatchObject({ check: 'loose_number', cited: '99999' });
@@ -468,6 +473,10 @@ describe('contagem de itens por extenso (#313)', () => {
 
   it('#313/AC-6 o fim da frase depois do numeral desfaz o contexto de "itens"', () => {
     expect(failureOf('Foram três. Itens conferidos.', '3')).toMatchObject({ mismatch: { check: 'spelled_number' } });
+  });
+
+  it('#313/AC-6 a quebra de linha depois do numeral desfaz o contexto de "itens"', () => {
+    expect(failureOf('Foram três\nitens conferidos.', '3')).toMatchObject({ mismatch: { check: 'spelled_number' } });
   });
 
   it('#313/AC-6 um marcador entre o numeral e "itens" não dá contexto', () => {

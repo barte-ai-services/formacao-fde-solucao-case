@@ -418,7 +418,11 @@ function firstTextFailure(text: string, catalog: FactCatalog, allowed: ReadonlyS
     const key = m[1] ?? '';
     if (!Object.hasOwn(catalog.facts, key)) return { check: 'unknown_key', cited: key };
   }
-  const tokens = text.replace(MARKER, ` ${MARKER_SLOT} `).split(/\s+/);
+  // #313: a quebra de linha desfaz o contexto, como o marcador; o `\s+` a trataria como um espaço.
+  const tokens = text
+    .replace(MARKER, ` ${MARKER_SLOT} `)
+    .replace(/[\r\n\u2028\u2029]+/g, ` ${MARKER_SLOT} `)
+    .split(/\s+/);
   for (const [i, token] of tokens.entries()) {
     const failure = tokenFailure(token, { previous: tokens[i - 1] ?? '', next: tokens[i + 1] ?? '' }, catalog, allowed);
     if (failure) return failure;
