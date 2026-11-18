@@ -1,12 +1,17 @@
 import { useState, type ReactNode } from "react";
-import { Drawer, Table } from "barte-design-system";
-import { InlineEmpty, SegmentedFilter, Stat, StatGrid, StatusBadge } from "@barte-ai-services/barte-ui-kit";
-import { approvalApi, type ProposalDetailDto, type QueueDto, type QueueItemDto } from "../api/approval";
-import { ProposalPanel } from "../approval/ProposalPanel";
-import { ACTION_LABEL, ACTION_TONE, LEVEL_LABEL, LEVEL_TONE, byQueueOrder } from "../approval/labels";
+
+import { Stat, StatGrid } from "@barte-ai-services/barte-ui-kit";
+import { approvalApi, type QueueDto, type QueueItemDto } from "../api/approval";
+import { InvoiceDrawer } from "../approval/InvoiceDrawer";
+import { ACTION_LABEL, ACTION_TONE, LEVEL_LABEL, LEVEL_TONE, byQueueOrder, codeLabel } from "../approval/labels";
+import { DecidedBy } from "../components/DecidedBy";
+import { GridBadge } from "../components/GridBadge";
+import { RowTable } from "../components/RowTable";
+import { GridFilter } from "../components/GridFilter";
+import { InvoiceCell } from "../components/InvoiceCell";
+import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
-import { divergenceLabel } from "../evidence/labels";
 import type { RouteProps } from "./types";
 import { texts } from "../texts";
 
@@ -42,6 +47,7 @@ export default function FilaDeAprovacao(_props: RouteProps) {
       loadingLabel={texts.fila.loading}
       errorTitle={texts.fila.error}
       emptyLabel={texts.fila.empty}
+      empty={<EmptyState title={texts.emptyState.queue.title} description={texts.emptyState.queue.description} />}
     >
       {() => (
         <>
@@ -50,7 +56,7 @@ export default function FilaDeAprovacao(_props: RouteProps) {
             <Stat caption={texts.fila.statRisk.caption} value={BRL.format(risk / 100)} context={texts.fila.statRisk.context} tone="waiting" />
             <Stat caption={texts.fila.statBlocked.caption} value={blocked} context={texts.fila.statBlocked.context} tone="negative" />
           </StatGrid>
-          <SegmentedFilter
+          <GridFilter
             ariaLabel={texts.fila.filterLabel}
             value={view}
             onChange={setView}
@@ -59,38 +65,44 @@ export default function FilaDeAprovacao(_props: RouteProps) {
               { value: "mine", label: texts.fila.filterMine, count: mine.length },
             ]}
           />
-          <Table<QueueItemDto>
+          <RowTable<QueueItemDto>
             data={items}
             rowKey={(i) => i.invoiceAccessKey}
             size="md"
-            onRowClick={(i) => setOpen(i.invoiceAccessKey)}
+            onOpenRow={(i) => setOpen(i.invoiceAccessKey)}
+            rowLabel={(i) => texts.grid.openInvoice(i.number)}
             emptyText={texts.fila.tableEmpty}
             columns={[
               { key: "nota", title: texts.fila.columns.invoice, dataIndex: "number", render: (_, i) =>
                   dim(
                     i,
-                    <>
-                      {i.canApprove ? null : (
-                        <span role="img" aria-label={texts.fila.noPermission}>
-                          🔒{" "}
-                        </span>
-                      )}
-                      {`NF ${i.number} · ${i.supplierId}`}
-                    </>,
+                    <InvoiceCell
+                      number={i.number}
+                      issuedOn={i.issuedOn}
+                      bottom={i.supplierId}
+                      prefix={
+                        i.canApprove ? null : (
+                          <span role="img" aria-label={texts.fila.noPermission}>
+                            🔒{" "}
+                          </span>
+                        )
+                      }
+                    />,
                   ),
               },
               {
                 key: "classificacao",
                 title: texts.fila.columns.classification,
-                dataIndex: "classification",
+                dataIndex: "exceptionName",
                 render: (_, i) =>
                   dim(
                     i,
-                    <StatusBadge size="sm" tone="neutral">
-                      {i.classification === "MATCH" ? texts.fila.match : divergenceLabel(i.classification)}
-                    </StatusBadge>,
+                    <GridBadge tone="neutral">
+                      {i.exceptionName}
+                    </GridBadge>,
                   ),
               },
+              { key: "codigo", title: texts.fila.columns.code, dataIndex: "exceptionCode", render: (_, i) => codeLabel(i.exceptionCode) },
               {
                 key: "acao",
                 title: texts.fila.columns.action,
@@ -98,9 +110,9 @@ export default function FilaDeAprovacao(_props: RouteProps) {
                 render: (_, i) =>
                   dim(
                     i,
-                    <StatusBadge size="sm" tone={ACTION_TONE[i.dockAction.kind]}>
+                    <GridBadge tone={ACTION_TONE[i.dockAction.kind]}>
                       {ACTION_LABEL[i.dockAction.kind]}
-                    </StatusBadge>,
+                    </GridBadge>,
                   ),
               },
               {
@@ -110,9 +122,9 @@ export default function FilaDeAprovacao(_props: RouteProps) {
                 render: (_, i) =>
                   dim(
                     i,
-                    <StatusBadge size="sm" variant="soft" tone={LEVEL_TONE[i.level]}>
+                    <GridBadge tone={LEVEL_TONE[i.level]}>
                       {LEVEL_LABEL[i.level]}
-                    </StatusBadge>,
+                    </GridBadge>,
                   ),
               },
               {
@@ -128,11 +140,14 @@ export default function FilaDeAprovacao(_props: RouteProps) {
                 dataIndex: "requiredApproverLevel",
                 render: (_, i) => dim(i, LEVEL_LABEL[i.requiredApproverLevel]),
               },
+              // #211 Tudo o que está na fila espera uma pessoa; o nível a quem foi encaminhado está na coluna ao lado.
+              { key: "decidedBy", title: texts.decidedBy.column, dataIndex: "state", render: (_, i) => dim(i, <GridBadge tone="waiting">{texts.decidedBy.awaiting}</GridBadge>) },
             ]}
           />
           {open !== null ? (
-            <ProposalDrawer
+            <InvoiceDrawer
               invoiceAccessKey={open}
+              title={texts.fila.drawerTitle}
               onClose={() => setOpen(null)}
               onDecided={retry}
             />
@@ -140,26 +155,5 @@ export default function FilaDeAprovacao(_props: RouteProps) {
         </>
       )}
     </Screen>
-  );
-}
-
-function ProposalDrawer({
-  invoiceAccessKey,
-  onClose,
-  onDecided,
-}: {
-  invoiceAccessKey: string;
-  onClose: () => void;
-  onDecided: () => void;
-}) {
-  const { state, data } = useLoad((signal): Promise<ProposalDetailDto> => approvalApi.proposal(invoiceAccessKey, signal));
-  return (
-    <Drawer isOpen title={texts.fila.drawerTitle(data ? data.number : null)} onClose={onClose} className="shell-connection-panel">
-      {state === "ready" && data ? (
-        <ProposalPanel proposal={data} onDecided={onDecided} />
-      ) : (
-        <InlineEmpty>{state === "error" ? texts.fila.drawerError : texts.fila.drawerLoading}</InlineEmpty>
-      )}
-    </Drawer>
   );
 }

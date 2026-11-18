@@ -8,6 +8,8 @@ import { EvidenceView } from "../src/evidence/EvidenceView";
 // (NF-009, fornecedor F02, nota N27, item sem SKU).
 const NF009: DivergenceDto = {
   classification: "E8",
+  exceptionCode: "E8",
+  exceptionName: "Item sem cadastro",
   skus: [],
   evidence: [
     {
@@ -22,6 +24,8 @@ const NF009: DivergenceDto = {
 
 const COM_SKU: DivergenceDto = {
   classification: "E8",
+  exceptionCode: "E8",
+  exceptionName: "Item sem cadastro",
   skus: ["SKU-77"],
   evidence: [
     {
@@ -45,7 +49,7 @@ describe("#66 evidência do item sem cadastro (E8)", () => {
     expect(within(table).getByText("Isotônico limão 500 ml (lançamento)")).toBeTruthy();
     expect(within(table).getByText("F02-N27")).toBeTruthy();
     expect(within(table).getByText("SKU vazio")).toBeTruthy();
-    expect(screen.getByText("E8 · Item sem cadastro")).toBeTruthy();
+    expect(screen.getByText("Item sem cadastro")).toBeTruthy();
   });
 
   it("o valor do item é o valor em risco", () => {
@@ -116,17 +120,19 @@ describe("#66 evidência do item sem cadastro (E8)", () => {
       </>,
     );
     expect(screen.getAllByRole("table", { name: "Item sem cadastro" })).toHaveLength(2);
-    expect(screen.getAllByText("E8 · Item sem cadastro")).toHaveLength(2);
+    expect(screen.getAllByText("Item sem cadastro")).toHaveLength(2);
   });
 
   it("sem evidência, não quebra e diz que nada veio", () => {
-    render(<EvidenceView divergence={{ classification: "E8", skus: [], evidence: [] }} />);
+    render(<EvidenceView divergence={{ classification: "E8", exceptionCode: "E8", exceptionName: "Item sem cadastro", skus: [], evidence: [] }} />);
     expect(screen.getByText("Nenhuma evidência veio com esta divergência.")).toBeTruthy();
   });
 
   it("frase fora do formato mostra a frase da evidência, sem inventar campos", () => {
     const odd: DivergenceDto = {
       classification: "E8",
+      exceptionCode: "E8",
+      exceptionName: "Item sem cadastro",
       skus: [],
       evidence: [{ source: "erp_cadastro", reference: "F02/X", description: "texto livre" }],
     };

@@ -37,6 +37,8 @@ function e4Evidence(opts: {
 
 const NF_008: DivergenceDto = {
   classification: "E4",
+  exceptionCode: "E4",
+  exceptionName: "Unidade de medida",
   skus: ["SKU-1025"],
   evidence: e4Evidence({
     sku: "SKU-1025",
@@ -51,6 +53,8 @@ const NF_008: DivergenceDto = {
 
 const MISMATCH: DivergenceDto = {
   classification: "E4",
+  exceptionCode: "E4",
+  exceptionName: "Unidade de medida",
   skus: ["SKU-77"],
   evidence: e4Evidence({
     sku: "SKU-77",
@@ -137,6 +141,8 @@ describe("#37 evidência da E4: a conversão e o fator a corrigir", () => {
   it("#37/AC-2 a ordem em CX e a nota em UN também convertem, do lado da ordem", () => {
     const inverted: DivergenceDto = {
       classification: "E4",
+      exceptionCode: "E4",
+      exceptionName: "Unidade de medida",
       skus: ["SKU-9"],
       evidence: e4Evidence({
         sku: "SKU-9",
@@ -158,6 +164,8 @@ describe("#37 evidência da E4: a conversão e o fator a corrigir", () => {
   it("#37/AC-2 descrições que não parseiam, ou lista vazia, caem no genérico sem quebrar", () => {
     const unparseable: DivergenceDto = {
       classification: "E4",
+      exceptionCode: "E4",
+      exceptionName: "Unidade de medida",
       skus: ["SKU-1"],
       evidence: [{ source: "sefaz", reference: "CHAVE-1", description: "Caixa contra unidade, sem número" }],
     };
@@ -166,7 +174,7 @@ describe("#37 evidência da E4: a conversão e o fator a corrigir", () => {
     expect(screen.getByText("CHAVE-1")).toBeTruthy();
     expect(screen.getByText(/Caixa contra unidade, sem número/)).toBeTruthy();
 
-    renderE4({ classification: "E4", skus: [], evidence: [] });
+    renderE4({ classification: "E4", exceptionCode: "E4", exceptionName: "Unidade de medida", skus: [], evidence: [] });
     expect(screen.getByText("Nenhuma evidência veio com esta divergência.")).toBeTruthy();
 
     const withoutRegistry: DivergenceDto = { ...NF_008, evidence: NF_008.evidence.slice(0, 2) };
@@ -185,6 +193,8 @@ describe("#37 evidência da E4: a conversão e o fator a corrigir", () => {
   it("#37/AC-2 nota e ordem na mesma unidade caem no genérico", () => {
     const sameUnit: DivergenceDto = {
       classification: "E4",
+      exceptionCode: "E4",
+      exceptionName: "Unidade de medida",
       skus: ["SKU-5"],
       evidence: e4Evidence({
         sku: "SKU-5",
@@ -204,6 +214,8 @@ describe("#37 evidência da E4: a conversão e o fator a corrigir", () => {
   it("#37/AC-2 conta qtd × fator que não fecha com as quantidades em UN do cadastro cai no genérico", () => {
     const registryMismatch: DivergenceDto = {
       classification: "E4",
+      exceptionCode: "E4",
+      exceptionName: "Unidade de medida",
       skus: ["SKU-6"],
       evidence: e4Evidence({
         sku: "SKU-6",

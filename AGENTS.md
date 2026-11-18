@@ -1,11 +1,15 @@
 # Regras do repositório da solução
 
-- **Interno.** A solução de referência não vai para o `formacao-fde-case`, que é público, nem
-  para nenhum fork da turma.
+- **Público, com a turma escrevendo.** Os alunos são colaboradores com escrita: empurram a
+  própria branch e abrem PR contra a `main`, que só aceita PR com o CI verde e a aprovação de um
+  code owner (a equipe, pelo `.github/CODEOWNERS`).
+  As credenciais e as variáveis de produção ficam só no environment `producao`, que só a `main`
+  alcança; nenhum workflow de PR usa secret.
 - **Nenhum nome de cliente real.** A Já Chegou é fictícia.
 - **Nada de segredo** no git. Credenciais ficam no `.env`, que o git ignora.
 - **Prosa em português.**
 - **O gate** é `make check` e passa antes de cada commit.
+- **Testes da API** ficam em `api/test/`, não ao lado do código; a regra de testes colocados (`colocated-tests`) não se aplica a `api/`.
 
 <!-- ahrena:agency:start -->
 ## Build work enters through the agency

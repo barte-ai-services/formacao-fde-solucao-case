@@ -1,5 +1,6 @@
 // Valor barrado no mês contra a linha de base de R$ 543 mil (#71, história #39). Função pura, sem rede.
 import { Money } from '../domain/money.js';
+import { exceptionFields } from '../domain/exception-catalog.js';
 import { PRECEDENCE, type Classification } from '../domain/classification.js';
 import type { DockAction } from '../domain/dock-action.js';
 import type { ProposalState } from '../domain/proposal.js';
@@ -25,12 +26,22 @@ export type ProposalRecord = {
   readonly approvedAt: string | null;
 };
 
-export type ExceptionTotal = { readonly classification: Classification; readonly cents: number; readonly count: number };
+export type ExceptionTotal = {
+  readonly classification: Classification;
+  readonly exceptionCode: Classification;
+  readonly exceptionName: string;
+  readonly cents: number;
+  readonly count: number;
+};
 export type Breakdown = { readonly totalCents: number; readonly byException: readonly ExceptionTotal[] };
 export type DailyPoint = {
   readonly day: string;
+  /** #170/AC-1: decidido acumulado sem E6 e E7; o último ponto bate com o "Evitado". */
   readonly barredCumulativeCents: number;
+  /** #170: aguardando acumulado, também sem E6 e E7. */
   readonly proposedCumulativeCents: number;
+  /** #170/AC-3: E6 e E7 decididos acumulados, fora da comparação com a linha de base. */
+  readonly doublePaymentCumulativeCents: number;
 };
 
 export type BarredAmountPanel = {
@@ -119,19 +130,32 @@ function breakdown(events: readonly Event[]): Breakdown {
     if (mine.length === 0) continue;
     const cents = sum(mine);
     total = total.add(cents);
-    byException.push({ classification, cents: cents.cents, count: mine.length });
+    byException.push({ classification, ...exceptionFields(classification), cents: cents.cents, count: mine.length });
   }
   return { totalCents: total.cents, byException };
 }
+
+/** #125 pergunta 5: E6 e E7 são pagar duas vezes, e não pagar sem mercadoria (P1). */
+const DOUBLE_PAYMENT: ReadonlySet<Classification> = new Set(['E6', 'E7']);
 
 function daily(barred: readonly Event[], proposed: readonly Event[]): DailyPoint[] {
   const days = [...new Set([...barred, ...proposed].map((e) => e.day))].sort();
   let barredSoFar = Money.zero();
   let proposedSoFar = Money.zero();
+  let doubleSoFar = Money.zero();
   return days.map((day) => {
-    barredSoFar = barredSoFar.add(sum(barred.filter((e) => e.day === day)));
-    proposedSoFar = proposedSoFar.add(sum(proposed.filter((e) => e.day === day)));
-    return { day, barredCumulativeCents: barredSoFar.cents, proposedCumulativeCents: proposedSoFar.cents };
+    const barredToday = barred.filter((e) => e.day === day);
+    barredSoFar = barredSoFar.add(sum(barredToday.filter((e) => !DOUBLE_PAYMENT.has(e.classification))));
+    doubleSoFar = doubleSoFar.add(sum(barredToday.filter((e) => DOUBLE_PAYMENT.has(e.classification))));
+    proposedSoFar = proposedSoFar.add(
+      sum(proposed.filter((e) => e.day === day && !DOUBLE_PAYMENT.has(e.classification))),
+    );
+    return {
+      day,
+      barredCumulativeCents: barredSoFar.cents,
+      proposedCumulativeCents: proposedSoFar.cents,
+      doublePaymentCumulativeCents: doubleSoFar.cents,
+    };
   });
 }
 

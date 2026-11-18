@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildProbableOrderPrompt, parseProbableOrderAnswer } from '../../src/agent/probable-order.js';
 import { invoiceWith, order } from '../domain/e5-fixtures.js';
 
-// #65: o prompt e a validação da resposta, que a tarefa do executor (#66) reaproveita. Sem rede.
+// #65: o prompt e a validação da resposta, que a tarefa do Claude (#171) reaproveita. Sem rede.
 describe('prompt da ordem provável (#34)', () => {
   it('#34/AC-2: leva a nota e só as candidatas, e pede o id ou null', () => {
     const prompt = buildProbableOrderPrompt(invoiceWith(null), [order('OC-1')]);

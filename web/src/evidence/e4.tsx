@@ -1,7 +1,6 @@
 import { Block, DataList, Panel, ReconciliationDiff, type ComparisonField } from "@barte-ai-services/barte-ui-kit";
 import type { Unit } from "../api/contract";
 import { GenericEvidence } from "./GenericEvidence";
-import { divergenceLabel } from "./labels";
 import { registerEvidence, type EvidenceProps } from "./registry";
 
 interface Side {
@@ -184,7 +183,7 @@ export function UnidadeDeMedidaEvidence({ divergence }: EvidenceProps) {
   const orders = [...new Set(conversions.map((c) => c.order))].join(", ");
   return (
     <Panel
-      title={divergenceLabel(String(divergence.classification))}
+      title={divergence.exceptionName}
       description={`Evidência: Ordem ${orders} e cadastro do produto`}
       size="sm"
       padding="md"

@@ -7,6 +7,8 @@ import { EvidenceView } from "../src/evidence/EvidenceView";
 // #73: a divergência E3 como a API entrega, a partir do recebimento RC-9219 da base do kit.
 const E3: DivergenceDto = {
   classification: "E3",
+  exceptionCode: "E3",
+  exceptionName: "Quantidade menor",
   skus: ["SKU-8001"],
   evidence: [
     { source: "wms", reference: "RC-9219", description: "Contado 75 UN de 100 UN: Óleo de soja 900 ml" },
@@ -17,7 +19,7 @@ const E3: DivergenceDto = {
 describe("#73 evidência do E3, quantidade menor", () => {
   it("#73/AC-1, regra 6: mostra o contado contra o cobrado, item a item, com a diferença a devolver", () => {
     render(<EvidenceView divergence={E3} />);
-    expect(screen.getByText("E3 · Quantidade menor")).toBeTruthy();
+    expect(screen.getByText("Quantidade menor")).toBeTruthy();
     expect(screen.getByText("Evidência: recebimento RC-9219")).toBeTruthy();
     expect(screen.getAllByText("Óleo de soja 900 ml").length).toBeGreaterThan(0);
     expect(screen.getAllByText("75 UN recebidas").length).toBeGreaterThan(0);
@@ -50,6 +52,8 @@ describe("#73 evidência do E3, quantidade menor", () => {
   it("#73: uma linha do WMS fora do formato faz tudo cair no genérico, sem esconder item", () => {
     const mixed: DivergenceDto = {
       classification: "E3",
+      exceptionCode: "E3",
+      exceptionName: "Quantidade menor",
       skus: ["SKU-1", "SKU-2"],
       evidence: [
         { source: "wms", reference: "RC-2", description: "Contado 75 UN de 100 UN: Arroz 5 kg" },
@@ -64,6 +68,8 @@ describe("#73 evidência do E3, quantidade menor", () => {
   it("#73: quantidade com casas decimais não é o formato do E3 e cai no genérico", () => {
     const decimal: DivergenceDto = {
       classification: "E3",
+      exceptionCode: "E3",
+      exceptionName: "Quantidade menor",
       skus: ["SKU-1"],
       evidence: [{ source: "wms", reference: "RC-3", description: "Contado 10.1 UN de 10.3 UN: Arroz 5 kg" }],
     };

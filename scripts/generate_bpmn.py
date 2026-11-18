@@ -30,17 +30,17 @@ EVENTS = {"startEvent", "endEvent", "intermediateCatchEvent"}
 
 TONES = {
     "system": ("#e1f7ff", "#00749e"),
-    "agent": ("#fdf0f4", "#df285d"),
+    "agent": ("#F7E9EC", "#C81F50"),
     "person": ("#fff0db", "#e68619"),
     "ok": ("#d2fff1", "#12805c"),
     "block": ("#f7e0e0", "#c62828"),
-    "neutral": ("#f9f9f9", "#737373"),
-    "gateway": ("#fefefe", "#404040"),
+    "neutral": ("#FAF8F4", "#76726B"),
+    "gateway": ("#FFFEFB", "#4F4C47"),
 }
 LANE_TINTS = {
-    "system": "#f4fbfe", "agent": "#fef8fa", "person": "#fffaf3", "neutral": "#fbfbfb", "block": "#fdf6f6",
+    "system": "#f4fbfe", "agent": "#fef8fa", "person": "#FAF8F4", "neutral": "#F6F3EE", "block": "#fdf6f6",
 }
-FLOW_COLORS = {"default": "#404040", "block": "#c62828", "ok": "#12805c"}
+FLOW_COLORS = {"default": "#4F4C47", "block": "#c62828", "ok": "#12805c"}
 NAMESPACES = (
     'xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" '
     'xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" '
@@ -219,9 +219,9 @@ def external_label(n: Node, box: Box) -> Box | None:
 
 
 def node_shapes(p: Process, lay: Layout) -> list[str]:
-    out = shape(f"Part_{p.id}", lay.pool, ' isHorizontal="true"' + colors("#fefefe", "#171717"))
+    out = shape(f"Part_{p.id}", lay.pool, ' isHorizontal="true"' + colors("#FFFEFB", "#1A1918"))
     for lane in p.lanes:
-        out += shape(lane.id, lay.lane_box[lane.id], ' isHorizontal="true"' + colors(LANE_TINTS[lane.tone], "#a3a3a3"))
+        out += shape(lane.id, lay.lane_box[lane.id], ' isHorizontal="true"' + colors(LANE_TINTS[lane.tone], "#B8B2A8"))
     for n in p.nodes:
         tone = "gateway" if n.kind in GATEWAYS else n.tone
         out += shape(n.id, lay.box[n.id], colors(*TONES[tone]), external_label(n, lay.box[n.id]))
@@ -338,9 +338,11 @@ TARGET = Process(
         N("Gateway_DockDecision", "exclusiveGateway", "Decisão na doca", "Lane_Dock", 17),
         N("Task_ReturnNote", "task", "Emitir nota de devolução da diferença", "Lane_Payables", 18, 1, tone="neutral"),
         N("Task_Block", "task", "Bloquear o título", "Lane_Payables", 18, 2, tone="block"),
-        N("Task_Release", "task", "Liberar o título para a lista do dia", "Lane_Payables", 19, 0, tone="ok"),
-        N("End_Refused", "endEvent", "Recusado, título bloqueado", "Lane_Payables", 19, 2, tone="block"),
-        N("End_OnList", "endEvent", "Na lista do dia, conferido", "Lane_Payables", 20, 0, tone="ok"),
+        N("Task_AskReturnNote", "serviceTask", "Pedir ao fornecedor a nota de devolução", "Lane_Payables", 19, 1, tone="agent"),
+        N("Task_AskCancel", "serviceTask", "Pedir ao fornecedor o cancelamento", "Lane_Payables", 19, 2, tone="agent"),
+        N("Task_Release", "task", "Liberar o título para a lista do dia", "Lane_Payables", 20, 0, tone="ok"),
+        N("End_Refused", "endEvent", "Recusado, título bloqueado", "Lane_Payables", 20, 2, tone="block"),
+        N("End_OnList", "endEvent", "Na lista do dia, conferido", "Lane_Payables", 21, 0, tone="ok"),
     ],
     flows=[
         F("Start_InvoiceIssued", "Task_Capture"),
@@ -368,9 +370,11 @@ TARGET = Process(
         F("Gateway_DockDecision", "Task_Release", "receber", tone="ok"),
         F("Gateway_DockDecision", "Task_ReturnNote", "receber parcial"),
         F("Gateway_DockDecision", "Task_Block", "recusar", exit="bottom", tone="block"),
-        F("Task_ReturnNote", "Task_Release", tone="ok"),
+        F("Task_ReturnNote", "Task_AskReturnNote"),
+        F("Task_AskReturnNote", "Task_Release", tone="ok"),
         F("Task_Release", "End_OnList", tone="ok"),
-        F("Task_Block", "End_Refused", tone="block"),
+        F("Task_Block", "Task_AskCancel", tone="block"),
+        F("Task_AskCancel", "End_Refused", tone="block"),
     ],
 )
 

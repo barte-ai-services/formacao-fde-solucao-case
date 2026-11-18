@@ -1,9 +1,12 @@
 import { ApiError } from "../api/client";
 import { approvalApi, type ProposalDetailDto } from "../api/approval";
+import { supplierRequestApi } from "../api/supplier-request";
 import { ProposalPanel } from "../approval/ProposalPanel";
+import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
 import type { RouteProps } from "./types";
+import { useViewer } from "../shell/viewer";
 import { texts } from "../texts";
 
 /**
@@ -12,6 +15,7 @@ import { texts } from "../texts";
  */
 export default function Proposta({ params }: RouteProps) {
   const id = params.id ?? "";
+  const viewer = useViewer();
   const { state, data, retry } = useLoad(
     async (signal): Promise<ProposalDetailDto | null> => {
       try {
@@ -33,8 +37,15 @@ export default function Proposta({ params }: RouteProps) {
       loadingLabel={texts.proposta.loading}
       errorTitle={texts.proposta.error}
       emptyLabel={texts.proposta.empty}
+      empty={
+        <EmptyState
+          title={texts.emptyState.proposal.title}
+          description={texts.emptyState.proposal.description}
+          action={{ label: texts.emptyState.action, to: "/pagar/fila" }}
+        />
+      }
     >
-      {() => (data ? <ProposalPanel proposal={data} /> : null)}
+      {() => (data ? <ProposalPanel proposal={data} supplierRequest={{ port: supplierRequestApi, viewer }} /> : null)}
     </Screen>
   );
 }

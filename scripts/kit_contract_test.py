@@ -48,6 +48,17 @@ def load_sql() -> str:
     return re.sub(r"--[^\n]*", "", sql)
 
 
+def read_added_columns(tables: dict[str, "SqlTable"]) -> None:
+    """Colunas que migrações posteriores à base acrescentam a uma tabela kit_ (alter table ... add column, #12)."""
+    for path in sorted(glob.glob(os.path.join(MIGRATIONS, "*.sql"))):
+        if path.endswith("_base_do_kit.sql"):
+            continue
+        with open(path, encoding="utf-8") as f:
+            sql = re.sub(r"--[^\n]*", "", f.read())
+        for m in re.finditer(r"alter table public\.(kit_\w+)\s+add column (\w+) (\w+)( not null)?", sql, re.I):
+            tables[m.group(1)].columns[m.group(2)] = (m.group(3).lower(), m.group(4) is None)
+
+
 def split_on_commas(body: str) -> list[str]:
     """Divide o corpo de um create table nas vírgulas de nível zero."""
     parts: list[str] = []
@@ -115,6 +126,7 @@ class ContractTest(unittest.TestCase):
         try:
             cls.sql = load_sql()
             cls.tables = read_tables(cls.sql)
+            read_added_columns(cls.tables)
         except AssertionError as e:
             cls.error = str(e)
 
@@ -143,6 +155,13 @@ class ContractTest(unittest.TestCase):
                 expected = {c["name"]: (c["type"].replace(" ", ""), c["nullable"]) for c in t["columns"]}
                 self.assertEqual(expected, self.tables[t["name"]].columns)
                 self.assertEqual([c["name"] for c in t["columns"]], list(self.tables[t["name"]].columns))
+
+    def test_every_supplier_column_the_contract_declares_comes_from_a_migration(self) -> None:
+        # #12: o e-mail do fornecedor entra por migração posterior; o contrato o declara anulável.
+        supplier = next(t for t in self.contract["tables"] if t["name"] == "kit_fornecedores")
+        email = next(c for c in supplier["columns"] if c["name"] == "email")
+        self.assertEqual({"name": "email", "type": "text", "nullable": True}, email)
+        self.assertEqual(("text", True), self.tables["kit_fornecedores"].columns["email"])
 
     def test_primary_keys(self) -> None:
         for t in self.contract["tables"]:

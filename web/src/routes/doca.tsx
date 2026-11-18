@@ -1,10 +1,15 @@
 import { useEffect, useState, type ReactElement } from "react";
-import { Alert, Select, Table, Text } from "barte-design-system";
-import { StatusBadge } from "@barte-ai-services/barte-ui-kit";
+import { Alert, Select, Text } from "barte-design-system";
 import { dockApi, type DockBoardDto, type DockRowDto } from "../api/dock";
 import type { DockActionDto, QuantityDto } from "../api/contract";
 import { ACTION_LABEL, ACTION_TONE } from "../approval/labels";
+import { DataList } from "@barte-ai-services/barte-ui-kit";
+import { InvoiceDrawer } from "../approval/InvoiceDrawer";
+import { RowTable } from "../components/RowTable";
 import { EmptyState } from "../components/EmptyState";
+import { DecidedBy } from "../components/DecidedBy";
+import { GridBadge } from "../components/GridBadge";
+import { InvoiceCell } from "../components/InvoiceCell";
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
 import type { RouteProps } from "./types";
@@ -104,6 +109,7 @@ export function ReceivingBoard({ title, subtitle, load, words, noun, emptyIn, wa
   useEffect(() => {
     if (data) setDestinations(data.destinations);
   }, [data]);
+  const [open, setOpen] = useState<DockRowDto | null>(null);
   const shown = data?.destination ?? destination;
   const rows = data?.rows ?? [];
   const awaiting = data?.awaiting ?? 0;
@@ -143,13 +149,15 @@ export function ReceivingBoard({ title, subtitle, load, words, noun, emptyIn, wa
               description={warning}
             />
           ) : null}
-          <Table<DockRowDto>
+          <RowTable<DockRowDto>
             data={rows}
             rowKey={(n) => n.invoiceAccessKey}
             size="md"
+            onOpenRow={(n) => setOpen(n)}
+            rowLabel={(n) => texts.grid.openInvoice(n.number)}
             emptyText={texts.recebimento.tableEmpty}
             columns={[
-              { key: "nota", title: texts.recebimento.columns.invoice, dataIndex: "number", render: (_, n) => <Two top={`NF ${n.number}`} bottom={n.supplierId} /> },
+              { key: "nota", title: texts.recebimento.columns.invoice, dataIndex: "number", render: (_, n) => <InvoiceCell number={n.number} bottom={n.supplierId} /> },
               {
                 key: "itens",
                 title: texts.recebimento.columns.items,
@@ -169,25 +177,52 @@ export function ReceivingBoard({ title, subtitle, load, words, noun, emptyIn, wa
                   n.status.kind === "aguardando_aprovacao" ? (
                     <Two
                       top={
-                        <StatusBadge size="sm" tone="waiting">
+                        <GridBadge tone="waiting">
                           {texts.recebimento.awaitingBadge}
-                        </StatusBadge>
+                        </GridBadge>
                       }
                       bottom={words.awaiting}
                     />
                   ) : (
                     <Two
                       top={
-                        <StatusBadge size="sm" variant="solid" tone={ACTION_TONE[n.status.action.kind]}>
+                        <GridBadge variant="solid" tone={ACTION_TONE[n.status.action.kind]}>
                           {ACTION_LABEL[n.status.action.kind]}
-                        </StatusBadge>
+                        </GridBadge>
                       }
                       bottom={instruction(n.status.action, words)}
                     />
                   ),
               },
+              // #211 Quem decidiu a nota; sem aprovação, a nota espera uma pessoa.
+              {
+                key: "decidedBy",
+                title: texts.decidedBy.column,
+                dataIndex: "decidedBy",
+                render: (_, n) =>
+                  n.decidedBy ? (
+                    <DecidedBy actor={n.decidedBy.actor} name={n.decidedBy.actor === "rule" ? null : n.decidedBy.actor_name} />
+                  ) : n.status.kind === "aguardando_aprovacao" ? (
+                    <GridBadge tone="waiting">{texts.decidedBy.awaiting}</GridBadge>
+                  ) : (
+                    "—"
+                  ),
+              },
             ]}
           />
+          {open !== null ? (
+            <InvoiceDrawer invoiceAccessKey={open.invoiceAccessKey} title={texts.fila.drawerTitle} onClose={() => setOpen(null)} onDecided={retry}>
+              <DataList
+                items={[
+                  {
+                    key: "acao",
+                    label: texts.recebimento.columns.whatToDo,
+                    value: open.status.kind === "aguardando_aprovacao" ? words.awaiting : instruction(open.status.action, words),
+                  },
+                ]}
+              />
+            </InvoiceDrawer>
+          ) : null}
         </>
       )}
     </Screen>

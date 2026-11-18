@@ -1,68 +1,113 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Onde entra agente no processo</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap">
 <style>
-/* layout: faixa preta da Barte; legenda das quatro marcações; um cartão por nó do processo-alvo, agrupados por raia do BPMN */
+/* layout: faixa preta da Barte; legenda das quatro marcações; os cinco agentes do grupo 1 ao 5, cada um com os nós em que entra e o link do épico; depois o processo nó a nó, por raia do BPMN */
 :root {
   color-scheme: light;
-  --brand: #df285d; --brand-soft: #fdf0f4; --ink: #171717; --ink-2: #404040; --ink-3: #737373;
-  --black: #030202; --bg: #f9f9f9; --card: #fefefe; --line: #efefef; --line-2: #d4d4d4;
+  --brand: #C81F50; --brand-soft: #F7E9EC; --ink: #1A1918; --ink-2: #4F4C47; --ink-3: #76726B;
+  --black: #1A1918; --bg: #FAF8F4; --card: #FFFEFB; --line: #EDE8E0; --line-2: #E3DED5;
   --blue: #00749e; --blue-l: #e1f7ff; --orange: #e68619; --orange-l: #fff0db; --orange-d: #935019;
-  --green: #12805c; --green-l: #d2fff1; --red: #c62828; --red-l: #f7e0e0;
-  --sans: "Inter", system-ui, sans-serif;
+  --sans: "IBM Plex Sans", system-ui, sans-serif;
 }
-body { background: var(--bg); color: var(--ink); font: 18px/1.5 var(--sans); }
-.top { background: var(--black); color: #fefefe; border-bottom: 6px solid var(--brand); }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 18px/1.5 var(--sans); }
+.top { background: var(--black); color: #FFFEFB; border-bottom: 6px solid var(--brand); }
 .top .in { max-width: 1320px; margin: 0 auto; padding-block: 36px 32px;
-  padding-left: max(24px, env(safe-area-inset-left, 0px)); padding-right: max(24px, env(safe-area-inset-right, 0px)); }
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 .eyebrow { color: var(--brand); font-weight: 700; font-size: 15px; letter-spacing: .08em; text-transform: uppercase; }
 h1 { font-size: clamp(32px, 4vw, 44px); line-height: 1.15; margin: 8px 0 0; font-weight: 700; }
-.q { font-size: clamp(20px, 2.2vw, 26px); margin: 14px 0 0; color: #fbcad3; font-weight: 500; max-width: 62ch; }
+.q { font-size: clamp(20px, 2.2vw, 26px); margin: 14px 0 0; color: #F2C9D4; font-weight: 500; max-width: 62ch; }
 .wrap { max-width: 1320px; margin: 0 auto; padding-block: 40px 72px;
-  padding-left: max(24px, env(safe-area-inset-left, 0px)); padding-right: max(24px, env(safe-area-inset-right, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
   display: grid; gap: 48px; }
 h2 { font-size: clamp(26px, 2.6vw, 32px); margin: 0 0 18px; font-weight: 700; display: flex; align-items: center; gap: 12px; }
-h2::before { content: ""; width: 8px; height: 30px; background: var(--brand); }
+h2::before { content: ""; width: 8px; height: 30px; background: var(--brand); flex: none; }
 .legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
-.lg { border: 3px solid; border-radius: 14px; padding: 16px 18px; background: var(--card); }
+.lg { border: 3px solid; border-radius: 8px; padding: 16px 18px; background: var(--card); }
 .lg b { display: block; font-size: 22px; }
 .lg span { font-size: 16px; color: var(--ink-2); }
-.k-regra { border-color: #404040; } .k-clef { border-color: var(--blue); background: var(--blue-l); }
+.k-regra { border-color: #4F4C47; } .k-clef { border-color: var(--blue); background: var(--blue-l); }
 .k-llm { border-color: var(--brand); background: var(--brand-soft); } .k-pessoa { border-color: var(--orange); background: var(--orange-l); }
-.lane { display: grid; gap: 14px; }
-.lane > h3 { margin: 0; font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-3); }
-.node { display: grid; grid-template-columns: minmax(220px, 1.1fr) minmax(200px, auto) 2fr; gap: 18px; align-items: start;
-  background: var(--card); border: 1px solid var(--line-2); border-radius: 12px; padding: 16px 20px; }
-.node .n { font-size: 21px; font-weight: 700; }
-.node .what { font-size: 17px; color: var(--ink-2); }
-.node .prem { font-size: 16px; color: var(--ink-2); border-left: 4px solid var(--line-2); padding-left: 12px; }
-.node .prem b { display: block; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin-bottom: 2px; }
+
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip { border: 2.5px solid; border-radius: 999px; padding: 4px 14px; font-size: 16px; font-weight: 700; white-space: nowrap; }
-.c-regra { border-color: #404040; color: #171717; background: #fefefe; }
+.c-regra { border-color: #4F4C47; color: #1A1918; background: #FFFEFB; }
 .c-clef { border-color: var(--blue); color: #004c68; background: var(--blue-l); }
 .c-llm { border-color: var(--brand); color: #a3163f; background: var(--brand-soft); }
 .c-pessoa { border-color: var(--orange); color: var(--orange-d); background: var(--orange-l); }
-.c-no { border-color: var(--line-2); color: var(--ink-3); background: #fefefe; font-weight: 600; }
-.node.hot { border: 3px solid var(--brand); }
-.node.star { background: var(--black); border: 4px solid var(--brand); box-shadow: 0 0 0 6px #fbcad3; }
-.node.star .n { color: #fefefe; font-size: 24px; }
-.node.star .prem { color: #e5e5e5; border-left-color: var(--brand); }
-.node.star .prem b { color: #fbcad3; }
-.badge { display: block; width: max-content; background: var(--brand); color: #fefefe; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; border-radius: 6px; padding: 3px 10px; margin-bottom: 8px; }
-.no-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
-.no { background: var(--card); border: 2px solid var(--line-2); border-radius: 12px; padding: 14px 18px; }
+.c-no { border-color: var(--line-2); color: var(--ink-3); background: #FFFEFB; font-weight: 600; }
+
+/* um bloco por grupo, na ordem 1 → 5 */
+.agents { display: grid; gap: 20px; }
+.agent { display: grid; grid-template-columns: 320px 1fr; border-radius: 8px; overflow: hidden; border: 1px solid var(--line-2); background: var(--card); }
+.agent .head { background: var(--black); color: #FFFEFB; padding: 22px 24px; border-left: 8px solid var(--brand); display: grid; gap: 8px; align-content: start; }
+.agent .g { display: flex; align-items: center; gap: 12px; }
+.agent .num { width: 44px; height: 44px; border-radius: 22px; background: var(--brand); color: #FFFEFB; font-size: 22px; font-weight: 700; display: grid; place-items: center; flex: none; }
+.agent .gl { color: #F2C9D4; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+.agent .head b { font-size: 24px; line-height: 1.2; }
+.agent .head span { font-size: 15px; color: #D8D3CA; }
+.agent .head .rt { font-size: 14px; color: #B8B2A8; margin-top: 4px; }
+.agent .head .rt em { color: #FFFEFB; font-style: normal; font-weight: 600; }
+.agent .head a.ep { justify-self: start; margin-top: 8px; color: #FFFEFB; border: 2px solid var(--brand); border-radius: 6px; padding: 6px 12px; font-size: 14px; font-weight: 700; text-decoration: none; }
+.agent .head a.ep:hover, .agent .head a.ep:focus-visible { background: var(--brand); outline: none; }
+.agent .body { padding: 20px 24px; display: grid; gap: 14px; align-content: start; }
+.agent .body > .lbl { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-3); }
+.where { display: grid; gap: 12px; }
+.wn { border: 1px solid var(--line-2); border-radius: 8px; padding: 14px 16px; display: grid; gap: 8px; }
+.wn .top2 { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.wn .n { font-size: 19px; font-weight: 700; }
+.wn .lane-t { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); }
+.wn .prem { font-size: 16px; color: var(--ink-2); border-left: 4px solid var(--brand); padding-left: 12px; }
+.wn .prem b { display: block; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin-bottom: 2px; }
+.note { font-size: 16px; color: var(--ink-3); margin: 14px 0 0; }
+
+/* nó a nó */
+.lane { display: grid; gap: 10px; }
+.lane + .lane { margin-top: 22px; }
+.lane > h3 { margin: 0; font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-3); }
+.node { display: grid; grid-template-columns: minmax(220px, 1.1fr) minmax(200px, auto) 2fr; gap: 18px; align-items: start;
+  background: var(--card); border: 1px solid var(--line-2); border-radius: 8px; padding: 14px 20px; }
+.node .n { font-size: 19px; font-weight: 700; }
+.node .prem { font-size: 16px; color: var(--ink-2); border-left: 4px solid var(--line-2); padding-left: 12px; }
+.node .prem b { display: block; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin-bottom: 2px; }
+.node.ag { border: 2px solid var(--brand); }
+.node.hot { border: 2px dashed var(--orange); }
+.gtag { display: inline-flex; align-items: center; gap: 6px; background: var(--brand); color: #FFFEFB; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; border-radius: 6px; padding: 3px 10px; margin: 0 6px 6px 0; }
+
+.no-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+.no { background: var(--card); border: 2px solid var(--line-2); border-radius: 8px; padding: 14px 18px; }
 .no b { display: block; font-size: 20px; }
 .no span { font-size: 16px; color: var(--ink-2); }
-.rule { background: var(--black); color: #fefefe; border-radius: 14px; padding: 22px 26px; font-size: 22px; font-weight: 600; line-height: 1.45; }
-.rule em { color: #fbcad3; font-style: normal; }
-@media (max-width: 900px) { .node { grid-template-columns: 1fr; } body { font-size: 16px; } }
-</style>
+.rule { background: var(--black); color: #FFFEFB; border-radius: 8px; padding: 22px 26px; font-size: 22px; font-weight: 600; line-height: 1.45; }
+.rule em { color: #F2C9D4; font-style: normal; }
+@media (max-width: 900px) {
+  body { font-size: 16px; }
+  .agent { grid-template-columns: 1fr; }
+  .node { grid-template-columns: 1fr; gap: 10px; }
+}
+
+/* design do deck: creme, tinta, rosa; IBM Plex Sans e Instrument Serif */
+.top{background:#F7E9EC !important;color:#1A1918 !important;border-bottom:none !important}
+.top h1{font-weight:400 !important;letter-spacing:-1.5px}
+.top .q{color:#4F4C47 !important}
+.top .eyebrow{letter-spacing:.12em}
+h2{font-weight:500 !important;letter-spacing:-.5px}
+h2::before{display:none !important}
+.serif{font-family:"Instrument Serif",Georgia,serif;font-style:italic;font-weight:400;color:#C81F50;letter-spacing:0}
+.bar{background:#F1EDE6 !important;border-bottom:1px solid #E3DED5 !important}
+.bar button{color:#1A1918 !important;border-color:#D8D3CA !important}
+.bar button[aria-pressed="true"]{color:#FFFEFB !important}
+.legend{color:#1A1918 !important}
+</style></head><body>
 
 <div class="top"><div class="in">
   <div class="eyebrow">Já Chegou · processo-alvo</div>
-  <h1>Onde entra agente no processo</h1>
-  <p class="q">Cada nó do BPMN com quem deve executá-lo, e a premissa que precisa ser validada antes de pôr um agente ali.</p>
+  <h1>Onde entra agente <span class="serif">no processo</span></h1>
+  <p class="q">Os cinco agentes que a turma constrói no case, um por grupo, e cada nó do BPMN com quem deve executá-lo.</p>
 </div></div>
 
 <div class="wrap">
@@ -77,34 +122,88 @@ h2::before { content: ""; width: 8px; height: 30px; background: var(--brand); }
   </section>
 
   <section>
-    <h2>Nó a nó</h2>
+    <h2>Os cinco agentes, do grupo 1 ao 5</h2>
+    <div class="agents">
+
+      <div class="agent">
+        <div class="head"><div class="g"><div class="num">1</div><div class="gl">Grupo 1 · Clef</div></div><b>Motor de decisão</b><span>A cascata regra → Clef → pessoa: em modo sombra, depois aprovando sozinho a unidade de medida, a falta física e a quantidade menor até R$ 20 mil, com confiança de 0,98. Aprende com as decisões do analista, lidas do banco.</span><div class="rt">Roda no <em>Worker</em>. Sem Claude.</div><a class="ep" href="https://github.com/barte-ai-services/formacao-fde-solucao-case/issues/149" target="_blank" rel="noopener">Épico #149 ↗</a></div>
+        <div class="body"><div class="lbl">Entra em</div><div class="where">
+          <div class="wn"><div class="top2"><span class="n">Aprovar a proposta</span><span class="lane-t">Aprovador da alçada</span><div class="chips"><span class="chip c-regra">Regra</span><span class="chip c-clef">Clef</span><span class="chip c-pessoa">Pessoa</span></div></div>
+            <div class="prem"><b>Premissa validada</b>O Clef valida contra os dados no banco (nota, ordem de compra e cadastro) e confirma antes da doca o que já dá para confirmar, como unidade de medida, até R$ 20 mil, com confiança de 0,98, depois de 4 semanas em modo sombra. Abaixo do limite, a proposta vai para a fila da pessoa, com a recomendação do motor, a confiança e o porquê. Diretoria e bloqueio: sempre pessoa.</div></div>
+          <div class="wn"><div class="top2"><span class="n">Aprovar com a contagem</span><span class="lane-t">Aprovador da alçada</span><div class="chips"><span class="chip c-regra">Regra</span><span class="chip c-clef">Clef</span><span class="chip c-pessoa">Pessoa</span></div></div>
+            <div class="prem"><b>Premissa validada</b>O mesmo agente, só quando a contagem não bate: confirma falta física e quantidade menor com a contagem no banco, com as mesmas travas. Diretoria e bloqueio: sempre pessoa.</div></div>
+        </div></div>
+      </div>
+
+      <div class="agent">
+        <div class="head"><div class="g"><div class="num">2</div><div class="gl">Grupo 2 · MCP</div></div><b>Decisão dentro do Claude</b><span>O MCP da solução, o MCP App e uma Skill: o analista vê a fila do que o motor não aprovou, abre a proposta com a evidência e decide, ou delega ao motor, sem sair do Claude.</span><div class="rt">Roda no <em>Claude do analista</em>.</div><a class="ep" href="https://github.com/barte-ai-services/formacao-fde-solucao-case/issues/150" target="_blank" rel="noopener">Épico #150 ↗</a></div>
+        <div class="body"><div class="lbl">Entra em</div><div class="where">
+          <div class="wn"><div class="top2"><span class="n">Aprovar a proposta</span><span class="lane-t">Aprovador da alçada · como o canal da pessoa</span><div class="chips"><span class="chip c-pessoa">Pessoa</span></div></div>
+            <div class="prem"><b>Premissa validada</b>Lê a fila e grava a decisão, ou a delegação ao motor, pelo MCP, com a tool de escrita do papel de analista. Não chama o motor direto: a delegação fica gravada, e o motor a lê do banco.</div></div>
+        </div></div>
+      </div>
+
+      <div class="agent">
+        <div class="head"><div class="g"><div class="num">3</div><div class="gl">Grupo 3 · LLM</div></div><b>Dossiê pelo Claude</b><span>Escreve o dossiê assim que a proposta passa a esperar uma pessoa: o que diverge, a evidência e o histórico do fornecedor, com cada número tirado do banco. Se não rodou ou falhou, a pessoa pede na hora, na gaveta.</span><div class="rt">Roda no <em>Worker</em>, reativo, com a API do Claude autenticada pelo setup token.</div><a class="ep" href="https://github.com/barte-ai-services/formacao-fde-solucao-case/issues/151" target="_blank" rel="noopener">Épico #151 ↗</a></div>
+        <div class="body"><div class="lbl">Entra em</div><div class="where">
+          <div class="wn"><div class="top2"><span class="n">Propor a ação na doca</span><span class="lane-t">Agente</span><div class="chips"><span class="chip c-regra">Regra</span><span class="chip c-llm">LLM</span></div></div>
+            <div class="prem"><b>Premissa a validar</b>A ação sai da tabela por exceção (regra). A LLM escreve o dossiê para quem aprova, sem rodada agendada: dispara quando a proposta é encaminhada a uma pessoa, e também sob pedido na gaveta. O que diverge, a evidência e o histórico do fornecedor.</div></div>
+        </div></div>
+      </div>
+
+      <div class="agent">
+        <div class="head"><div class="g"><div class="num">4</div><div class="gl">Grupo 4 · LLM</div></div><b>Agente auditor de notas</b><span>O auditor de domingo dentro da solução: classifica, decide o recebimento e define o aprovador em paralelo à regra, e alerta quando discorda. Só sobe o nível, nunca desce.</span><div class="rt">Roda no <em>Worker</em>, com o laço de tool use e a API do Claude. Os arquivos do kit viram chamadas à API.</div><a class="ep" href="https://github.com/barte-ai-services/formacao-fde-solucao-case/issues/152" target="_blank" rel="noopener">Épico #152 ↗</a></div>
+        <div class="body"><div class="lbl">Entra em</div><div class="where">
+          <div class="wn"><div class="top2"><span class="n">Classificar a divergência</span><span class="lane-t">Agente</span><div class="chips"><span class="chip c-regra">Regra</span><span class="chip c-llm">LLM</span></div></div>
+            <div class="prem"><b>Premissa a validar</b>Regra para conversão, quantidade e valor. LLM para casar a descrição do item com o cadastro quando o SKU vem vazio (item trocado, item sem cadastro) e para achar a ordem provável quando a nota não cita o pedido; a regra confirma. O agente auditor audita a nota inteira em paralelo à regra e alerta quando discorda. Medir no eval o acerto contra o gabarito.</div></div>
+        </div></div>
+      </div>
+
+      <div class="agent">
+        <div class="head"><div class="g"><div class="num">5</div><div class="gl">Grupo 5 · LLM</div></div><b>Tratativa com o fornecedor</b><span>Prepara a nota de devolução e o e-mail ao fornecedor de cada nota decidida (devolução, cancelamento, pedido, cadastro). Uma pessoa revisa, emite a nota (emissão emulada) e envia por e-mail. Lê a resposta e prepara a cobrança.</span><div class="rt">Roda no <em>Worker</em>, com o laço de tool use e a API do Claude.</div><a class="ep" href="https://github.com/barte-ai-services/formacao-fde-solucao-case/issues/155" target="_blank" rel="noopener">Épico #155 ↗</a></div>
+        <div class="body"><div class="lbl">Entra em</div><div class="where">
+          <div class="wn"><div class="top2"><span class="n">Pedir ao fornecedor a nota de devolução</span><span class="lane-t">Contas a pagar</span><div class="chips"><span class="chip c-llm">LLM</span><span class="chip c-pessoa">Pessoa</span></div></div>
+            <div class="prem"><b>Premissa a validar</b>O agente prepara a nota de devolução, no formato das notas do kit, e o e-mail com a evidência e o valor tirados do banco. Uma pessoa revisa, emite a nota (mock, sem serviço fiscal) e envia o e-mail (caixa de saída mock, ou Resend se der tempo). Ele lê a resposta e prepara a cobrança de quem não respondeu no prazo. Nada sai sem a pessoa, e nenhuma resposta muda a decisão.</div></div>
+          <div class="wn"><div class="top2"><span class="n">Pedir ao fornecedor o cancelamento</span><span class="lane-t">Contas a pagar</span><div class="chips"><span class="chip c-llm">LLM</span><span class="chip c-pessoa">Pessoa</span></div></div>
+            <div class="prem"><b>Premissa a validar</b>O mesmo agente, quando a nota é recusada ou duplicada: prepara o e-mail pedindo o cancelamento (e a nota de devolução, se a mercadoria já entrou), a pessoa revisa e envia, e ele acompanha a resposta.</div></div>
+        </div></div>
+      </div>
+
+    </div>
+    <p class="note">Cada grupo trabalha sozinho. O grupo 1 e o grupo 2 entram no mesmo nó, mas não dependem um do outro: o motor deixa na fila o que não aprovou, e o analista decide essa fila, ou delega ao motor, pelo MCP. O que os dois precisam combinar é só o formato da proposta e da delegação. A distribuição dos agentes entre os grupos pode mudar no sorteio; o que não muda é um agente por grupo.</p>
+  </section>
+
+  <section>
+    <h2>Nó a nó, na ordem do processo</h2>
     <div class="lane"><h3>Captura de notas</h3>
       <div class="node"><div class="n">Capturar a nota</div><div class="chips"><span class="chip c-no">Sem agente · sistema</span></div><div class="prem"><b>Por quê</b>Integração com a SEFAZ. É transporte de dado, não decisão.</div></div>
     </div>
-    <div class="lane" style="margin-top:22px"><h3>Agente</h3>
-      <div class="node hot"><div class="n">Classificar a divergência</div><div class="chips"><span class="chip c-regra">Regra</span><span class="chip c-llm">LLM</span></div><div class="prem"><b>Premissa a validar</b>Regra para conversão, quantidade e valor. LLM para casar a descrição do item com o cadastro quando o SKU vem vazio (item trocado, item sem cadastro) e para achar a ordem provável quando a nota não cita o pedido; a regra confirma. Medir no eval o acerto do casamento.</div></div>
+    <div class="lane"><h3>Agente</h3>
+      <div class="node ag"><div class="n"><span class="gtag">Grupo 4</span><br>Classificar a divergência</div><div class="chips"><span class="chip c-regra">Regra</span><span class="chip c-llm">LLM</span></div><div class="prem"><b>Agente auditor de notas</b>Regra para conta; LLM para casar item sem SKU e achar a ordem. Detalhe no grupo 4.</div></div>
       <div class="node"><div class="n">Duplicada?</div><div class="chips"><span class="chip c-regra">Regra</span></div><div class="prem"><b>Por quê</b>Mesma chave, mesmo número e série, ou mesma ordem com o mesmo valor. É comparação exata.</div></div>
       <div class="node"><div class="n">Bloquear o título duplicado</div><div class="chips"><span class="chip c-no">Sem agente · sistema</span></div><div class="prem"><b>Por quê</b>Consequência automática da regra anterior.</div></div>
       <div class="node"><div class="n">Já paga fora do fluxo?</div><div class="chips"><span class="chip c-regra">Regra</span></div><div class="prem"><b>Por quê</b>Fornecedor, destino, data e valor batem com um pagamento sem nota.</div></div>
       <div class="node"><div class="n">Vincular ao pagamento já feito</div><div class="chips"><span class="chip c-no">Sem agente · sistema</span></div><div class="prem"><b>Por quê</b>Consequência da regra anterior: liga a nota ao pagamento, sem pagar de novo.</div></div>
-      <div class="node hot"><div class="n">Propor a ação na doca</div><div class="chips"><span class="chip c-regra">Regra</span><span class="chip c-llm">LLM</span></div><div class="prem"><b>Premissa a validar</b>A ação sai da tabela por exceção (regra). A LLM escreve o dossiê para quem aprova: o que diverge, a evidência e o histórico do fornecedor.</div></div>
+      <div class="node ag"><div class="n"><span class="gtag">Grupo 3</span><br>Propor a ação na doca</div><div class="chips"><span class="chip c-regra">Regra</span><span class="chip c-llm">LLM</span></div><div class="prem"><b>Dossiê pelo Claude</b>A regra define a ação; a LLM escreve o dossiê assim que a proposta vai para uma pessoa. Detalhe no grupo 3.</div></div>
       <div class="node"><div class="n">Definir o aprovador pelos limites</div><div class="chips"><span class="chip c-regra">Regra</span></div><div class="prem"><b>Por quê</b>Tabela de limites de aprovação. Nunca pode depender de interpretação.</div></div>
       <div class="node"><div class="n">Quem decide?</div><div class="chips"><span class="chip c-regra">Regra</span></div><div class="prem"><b>Por quê</b>Match vai pela regra, sem pessoa. O resto vai ao aprovador do nível.</div></div>
       <div class="node"><div class="n">Conciliar contagem, nota e pedido</div><div class="chips"><span class="chip c-regra">Regra</span></div><div class="prem"><b>Por quê</b>É conta na mesma unidade.</div></div>
       <div class="node"><div class="n">A contagem bate?</div><div class="chips"><span class="chip c-regra">Regra</span></div><div class="prem"><b>Por quê</b>Se bate, segue direto para a doca, sem pessoa. Só a contagem que não bate vai para aprovação.</div></div>
     </div>
-    <div class="lane" style="margin-top:22px"><h3>Aprovador da alçada</h3>
-      <div class="node star"><div class="n"><span class="badge">Agente que iremos construir</span>Aprovar a proposta</div><div class="chips"><span class="chip c-clef">Clef</span><span class="chip c-llm">LLM</span><span class="chip c-pessoa">Pessoa</span></div><div class="prem"><b>Premissa validada</b>O Clef valida contra os dados no banco (nota, ordem de compra e cadastro) e confirma antes da doca o que já dá para confirmar, como unidade de medida, até R$ 20 mil, com confiança de 0,98, depois de 4 semanas em modo sombra. LLM recomenda a alteração com o porquê, e a pessoa decide. Diretoria e bloqueio: sempre pessoa.</div></div>
-      <div class="node hot"><div class="n">Aprovar com a contagem</div><div class="chips"><span class="chip c-clef">Clef</span><span class="chip c-llm">LLM</span><span class="chip c-pessoa">Pessoa</span></div><div class="prem"><b>Premissa validada</b>O mesmo agente, só quando a contagem não bate: confirma falta física e quantidade menor com a contagem no banco, com as mesmas travas. Diretoria e bloqueio: sempre pessoa.</div></div>
+    <div class="lane"><h3>Aprovador da alçada</h3>
+      <div class="node ag"><div class="n"><span class="gtag">Grupo 1</span><span class="gtag">Grupo 2</span><br>Aprovar a proposta</div><div class="chips"><span class="chip c-regra">Regra</span><span class="chip c-clef">Clef</span><span class="chip c-pessoa">Pessoa</span></div><div class="prem"><b>Motor de decisão e decisão no Claude</b>O motor (grupo 1) aprova até R$ 20 mil com 0,98. O resto vai para a fila, e a pessoa decide de dentro do Claude (grupo 2). Detalhe nos grupos 1 e 2.</div></div>
+      <div class="node ag"><div class="n"><span class="gtag">Grupo 1</span><br>Aprovar com a contagem</div><div class="chips"><span class="chip c-regra">Regra</span><span class="chip c-clef">Clef</span><span class="chip c-pessoa">Pessoa</span></div><div class="prem"><b>Motor de decisão</b>O mesmo agente, só quando a contagem não bate. Detalhe no grupo 1.</div></div>
     </div>
-    <div class="lane" style="margin-top:22px"><h3>Doca</h3>
+    <div class="lane"><h3>Doca</h3>
       <div class="node"><div class="n">Planejar o recebimento</div><div class="chips"><span class="chip c-pessoa">Pessoa</span></div><div class="prem"><b>Por quê</b>Equipe e agenda da doca. A proposta só chega antes.</div></div>
-      <div class="node hot"><div class="n">Contar a mercadoria</div><div class="chips"><span class="chip c-llm">LLM com visão</span><span class="chip c-pessoa">Pessoa</span></div><div class="prem"><b>Premissa a validar</b>Foto padronizada do pallet no ato da entrega. O agente conta como contraponto ao operador. Medir a acurácia contra a contagem antes de confiar.</div></div>
+      <div class="node hot"><div class="n">Contar a mercadoria</div><div class="chips"><span class="chip c-llm">LLM com visão</span><span class="chip c-pessoa">Pessoa</span></div><div class="prem"><b>Premissa a validar · fora do case</b>Foto padronizada do pallet no ato da entrega. O agente conta como contraponto ao operador. Medir a acurácia contra a contagem antes de confiar. Fica para depois: o kit não tem as fotos.</div></div>
       <div class="node"><div class="n">Decisão na doca</div><div class="chips"><span class="chip c-pessoa">Pessoa</span></div><div class="prem"><b>Por quê</b>A doca executa a ação confirmada. O aceite é ato jurídico: aceitar a nota é aceitar o pedido.</div></div>
     </div>
-    <div class="lane" style="margin-top:22px"><h3>Contas a pagar</h3>
+    <div class="lane"><h3>Contas a pagar</h3>
       <div class="node"><div class="n">Emitir nota de devolução da diferença</div><div class="chips"><span class="chip c-no">Sem agente · sistema</span></div><div class="prem"><b>Por quê</b>Escrita no ERP, só depois da homologação.</div></div>
+      <div class="node ag"><div class="n"><span class="gtag">Grupo 5</span><br>Pedir ao fornecedor a nota de devolução</div><div class="chips"><span class="chip c-llm">LLM</span><span class="chip c-pessoa">Pessoa</span></div><div class="prem"><b>Tratativa com o fornecedor</b>O agente prepara; a pessoa revisa e envia. Detalhe no grupo 5.</div></div>
       <div class="node"><div class="n">Bloquear o título</div><div class="chips"><span class="chip c-no">Sem agente · sistema</span></div><div class="prem"><b>Por quê</b>Consequência da recusa na doca.</div></div>
+      <div class="node ag"><div class="n"><span class="gtag">Grupo 5</span><br>Pedir ao fornecedor o cancelamento</div><div class="chips"><span class="chip c-llm">LLM</span><span class="chip c-pessoa">Pessoa</span></div><div class="prem"><b>Tratativa com o fornecedor</b>O mesmo agente, quando a nota é recusada ou duplicada. Detalhe no grupo 5.</div></div>
       <div class="node"><div class="n">Liberar o título para a lista do dia</div><div class="chips"><span class="chip c-no">Sem agente · sistema</span></div><div class="prem"><b>Por quê</b>Consequência da decisão. Dinheiro não sai por interpretação.</div></div>
     </div>
   </section>
@@ -125,3 +224,5 @@ h2::before { content: ""; width: 8px; height: 30px; background: var(--brand); }
     <div class="rule">Regra onde dá para escrever a regra. <em>Clef</em> onde a decisão precisa de confiança calibrada. <em>LLM</em> onde o problema é entender texto ou imagem. E a decisão sobre dinheiro sem critério continua com uma pessoa.</div>
   </section>
 </div>
+</body></html>
+

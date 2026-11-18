@@ -80,6 +80,11 @@
      "name": "motivo_bloqueio",
      "type": "text",
      "nullable": false
+    },
+    {
+     "name": "email",
+     "type": "text",
+     "nullable": true
     }
    ],
    "primary_key": [

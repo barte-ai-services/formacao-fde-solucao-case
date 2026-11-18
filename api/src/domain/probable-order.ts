@@ -17,7 +17,7 @@ export type ProbableOrder =
     }
   | { readonly kind: 'nenhuma'; readonly reason: string }; // ADR-002
 
-/** #65: a sugestão crua do Claude, gravada pelo executor da #66; ainda não confirmada pela regra. */
+/** #65: a sugestão crua do Claude, gravada pela rodada do Claude no Cron (#171); ainda não confirmada pela regra. */
 export type ProbableOrderSuggestion = { readonly orderId: string | null; readonly reason: string };
 
 export type Confirmation = { readonly confirmed: true } | { readonly confirmed: false; readonly reason: string };

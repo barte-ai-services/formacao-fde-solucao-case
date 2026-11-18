@@ -33,17 +33,21 @@ describe("#140 pendingSince", () => {
 });
 
 describe("#140 /devolucoes", () => {
-  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+  const respond = async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input);
+    // #209 A gaveta é a da nota: ela também pede a proposta, que estas notas não têm.
+    if (path.startsWith("/api/propostas/")) return Response.json({ error: "not_found" }, { status: 404 });
     if (init?.method === "POST") {
       return Response.json({ ...note, status: path.endsWith("/issue") ? "emitida" : "cancelada" });
     }
     return Response.json({ notes: [note] });
-  });
+  };
+  const fetchMock = vi.fn(respond);
   beforeEach(() => vi.stubGlobal("fetch", fetchMock));
   afterEach(() => {
     vi.unstubAllGlobals();
     fetchMock.mockClear();
+    fetchMock.mockImplementation(respond);
   });
 
   function renderRoute() {
@@ -97,11 +101,44 @@ describe("#140 /devolucoes", () => {
 
   it("nota já decidida por outra pessoa mostra o aviso de conflito", async () => {
     fetchMock.mockImplementationOnce(async () => Response.json({ notes: [note] }));
-    fetchMock.mockImplementationOnce(async () => Response.json({ error: "already_decided" }, { status: 409 }));
+    // #211 A faixa de automação também chama a API, e a gaveta pede a proposta (#209): só o POST leva o 409.
+    fetchMock.mockImplementation(async (input, init) =>
+      String(input).startsWith("/api/propostas/")
+        ? Response.json({ error: "not_found" }, { status: 404 })
+        : init?.method === "POST"
+          ? Response.json({ error: "already_decided" }, { status: 409 })
+          : Response.json({ notes: [note] }),
+    );
     renderRoute();
     fireEvent.click((await screen.findByText("NF 70633")).closest("tr")!);
     fireEvent.change(await screen.findByLabelText("Número da NF-e de devolução"), { target: { value: "9" } });
     fireEvent.click(screen.getByRole("button", { name: "Marcar como emitida" }));
     expect(await screen.findByText("Esta nota já foi decidida por outra pessoa.")).toBeTruthy();
+  });
+
+  it("#123 sem devolução pendente, mostra o estado vazio com a ação para a fila", async () => {
+    fetchMock.mockImplementationOnce(async () => Response.json({ notes: [] }));
+    renderRoute();
+    expect(await screen.findByText("Nenhuma devolução pendente de emissão")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ver a fila de aprovação" })).toBeTruthy();
+  });
+
+  it("#207/AC-1 #207/AC-3 o filtro de situação é a pílula densa da fila, sem contador, e escolher uma situação recarrega a lista", async () => {
+    const { container } = renderRoute();
+    await screen.findByText("NF 70633");
+    const group = screen.getByRole("radiogroup", { name: "Filtrar por situação" });
+    expect(container.querySelector(".grid-filter")).toBeTruthy();
+    const radios = within(group).getAllByRole("radio");
+    expect(radios.map((r) => r.textContent)).toEqual(["Pendentes de emissão", "Emitidas", "Canceladas"]);
+    expect(radios.some((r) => /\d/.test(r.textContent ?? ""))).toBe(false);
+    expect(screen.getByRole("radio", { name: "Pendentes de emissão" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("radio", { name: "Emitidas" }).getAttribute("aria-checked")).toBe("false");
+    expect(container.querySelector("select")).toBeNull();
+
+    fetchMock.mockClear();
+    fireEvent.click(screen.getByRole("radio", { name: "Emitidas" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([u]) => String(u) === "/api/return-notes?status=emitida")).toBe(true));
+    expect(screen.getByRole("radio", { name: "Emitidas" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("radio", { name: "Pendentes de emissão" }).getAttribute("aria-checked")).toBe("false");
   });
 });

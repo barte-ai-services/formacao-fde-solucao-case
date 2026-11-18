@@ -1,0 +1,12 @@
+{
+  "pages": {
+    "wireframe-pedido-ao-fornecedor": {
+      "file": "index.html",
+      "title": "Wireframe do bloco Pedido ao fornecedor",
+      "home": "team",
+      "links": {},
+      "capabilities": {}
+    }
+  },
+  "publishOrder": ["wireframe-pedido-ao-fornecedor"]
+}

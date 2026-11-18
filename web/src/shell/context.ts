@@ -16,6 +16,7 @@ export const NAVIGATION: NavGroup[] = [
       { key: "hoje", label: "Lista do dia", href: "/pagar/hoje", zone: ZONE, icon: "calendar" },
       { key: "duplicadas", label: "Notas duplicadas", href: "/pagar/duplicadas", zone: ZONE, icon: "receipt" },
       { key: "barrado", label: "Pagamento errado evitado", href: "/pagar/valor-barrado", zone: ZONE, icon: "chart-bar" },
+      { key: "pedidos-fornecedor", label: "Pedidos ao fornecedor", href: "/pedidos-fornecedor", zone: ZONE, icon: "receipt" }, // ADR-004
     ],
   },
   {
@@ -23,7 +24,7 @@ export const NAVIGATION: NavGroup[] = [
     label: "Recebimento",
     items: [
       { key: "doca", label: "Doca (CD)", href: "/doca", zone: ZONE, icon: "truck" },
-      { key: "loja", label: "Loja", href: "/recebimento/loja", zone: ZONE, icon: "store" },
+      { key: "loja", label: "Loja", href: "/recebimento/loja", zone: ZONE, icon: "buildings" },
       { key: "devolucoes", label: "Notas de devolução", href: "/devolucoes", zone: ZONE, icon: "receipt" },
     ],
   },

@@ -19,8 +19,8 @@ const verifier: AccessVerifier = { verify: async () => ({ ok: true, identity: { 
 
 const cd03 = kitNotesOf('CD-03', '2026-11-11');
 
-function setup(options: { today?: string } = {}) {
-  const fake = new FakePostgrest({ invoices: kitInvoiceRows() });
+function setup(options: { today?: string; seed?: Record<string, Record<string, unknown>[]> } = {}) {
+  const fake = new FakePostgrest({ invoices: kitInvoiceRows(), ...options.seed });
   const rest = new SupabaseRest({ url: 'https://supabase.test', secretKey: 'sb_teste', fetch: fake.fetch });
   const worker = createWorker({
     verifier,
@@ -89,6 +89,24 @@ function isDockActionDto(value: unknown): value is DockActionDto {
 }
 
 describe('GET /api/doca (#72)', () => {
+  it('#211 cada linha traz decidedBy: quem aprovou a nota, e nulo sem aprovação', async () => {
+    const [a, b] = cd03.map((n) => n.chave) as [string, string];
+    const { get } = setup({
+      seed: {
+        proposals: [{ id: 1, invoice_access_key: a }, { id: 2, invoice_access_key: b }],
+        approvals: [
+          { proposal_id: 1, approver: 'regra', approver_level: 'regra' },
+          { proposal_id: 2, approver: 'ana@jachegou.test', approver_level: 'analista' },
+        ],
+      },
+    });
+    const body = (await (await get('/api/doca?destino=CD-03')).json()) as { rows: { invoiceAccessKey: string; decidedBy: unknown }[] };
+    const by = (k: string) => body.rows.find((r) => r.invoiceAccessKey === k)?.decidedBy;
+    expect(by(a)).toEqual({ actor: 'rule', actor_name: 'Regra' });
+    expect(by(b)).toEqual({ actor: 'person', actor_name: 'ana@jachegou.test' });
+    expect(body.rows.filter((r) => r.decidedBy === null).length).toBe(body.rows.length - 2);
+  });
+
   it('#43/AC-2 a ação de um receber parcial no JSON tem o formato do DockActionDto da tela', async () => {
     const { rest, get } = setup();
     const [, b] = cd03;
@@ -173,6 +191,24 @@ describe('GET /api/doca (#72)', () => {
       expect(fake.requests).toHaveLength(0);
     });
   }
+
+  it('#211 falha ao ler as decisões não derruba a doca: 200 com decidedBy nulo e o erro no log', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const fake = new FakePostgrest({ invoices: kitInvoiceRows() });
+    const flaky = (async (input: string, init?: RequestInit) =>
+      input.includes('/proposals') ? new Response('boom', { status: 500 }) : fake.fetch(input, init)) as typeof fake.fetch;
+    const rest = new SupabaseRest({ url: 'https://supabase.test', secretKey: 'sb_teste', fetch: flaky });
+    const worker = createWorker({ verifier, dock: { supabase: () => rest, today: () => '2026-11-11' } });
+    const get = (path: string) =>
+      worker.fetch(new Request(`https://worker.test${path}`, { headers: { 'Cf-Access-Jwt-Assertion': 'token' } }), { ...ACCESS, ...SUPABASE }, ctx);
+    const response = await get('/api/doca?destino=CD-03');
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { rows: { decidedBy: unknown }[] };
+    expect(body.rows.length).toBeGreaterThan(0);
+    expect(body.rows.every((r) => r.decidedBy === null)).toBe(true);
+    expect(log).toHaveBeenCalled();
+    log.mockRestore();
+  });
 
   it('#43/AC-4 sem credenciais do Supabase responde 503', async () => {
     const { get } = setup();

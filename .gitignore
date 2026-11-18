@@ -7,3 +7,5 @@ node_modules/
 .wrangler/
 web/dist/
 eval-out/
+saidas/
+eval/rodadas/

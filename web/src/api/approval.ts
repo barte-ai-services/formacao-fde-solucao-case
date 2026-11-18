@@ -8,7 +8,8 @@ import type {
   Classification,
   DivergenceDto,
   DockActionDto,
-  DossierField,
+  DossierGeneratingDto,
+  ProposalDossierDto,
   ProposalState,
   TitleState,
   Unit,
@@ -30,6 +31,8 @@ export interface QueueItemDto {
   issuedOn: string;
   total: MoneyDto;
   classification: Classification;
+  exceptionCode: Classification;
+  exceptionName: string;
   level: ApprovalLevel;
   line: number;
   reason: string;
@@ -53,6 +56,24 @@ export interface ApprovalDto {
   decidedOn: string;
 }
 
+/** #231 A auditoria da nota como a API a devolve (`auditView` em api/src/http/approval.ts); nula enquanto a nota não foi auditada. */
+export type AuditDto =
+  | { status: "nao_auditada"; reason: "claude_falhou" | "erro_de_tool" | "sem_auditoria"; refusals: readonly unknown[] } // ADR-002
+  | {
+      status: "auditada";
+      classification: Classification;
+      dockAction: { kind: DockActionDto["kind"] };
+      routing: ApprovalLevel;
+      justification: string;
+      amountAtRisk: MoneyDto | null;
+      model: string;
+      auditedAt: string;
+      agreement: { agrees: true } | { agrees: false; differs: readonly ("classification" | "dockAction" | "routing")[] };
+      raisedLevel: ApprovalLevel | null;
+      injectionFlag: string | null;
+      refusals: readonly unknown[];
+    };
+
 export interface ProposalDetailDto extends QueueItemDto {
   justification: string;
   items: {
@@ -60,6 +81,8 @@ export interface ProposalDetailDto extends QueueItemDto {
     sku: string | null;
     description: string;
     quantity: { amount: number; unit: Unit };
+    /** #176 A mesma quantidade na unidade de estoque (12 CX = 48 UN); nula se o cadastro não tem o fator. */
+    stockQuantity?: { amount: number; unit: Unit } | null;
     unitPrice: MoneyDto;
     total: MoneyDto;
   }[];
@@ -67,7 +90,20 @@ export interface ProposalDetailDto extends QueueItemDto {
   title: { state: TitleState; amount: MoneyDto; dueOn: string };
   approval: ApprovalDto | null;
   /** #68: o dossiê do Claude, já conferido pelo Worker; sem ele, o motivo e o aviso (#38/AC-4). */
-  dossier: DossierField;
+  dossier: ProposalDossierDto; // #130 também `generating`, quando a pessoa pediu na gaveta
+  /** #211 Os passos da nota, em ordem. */
+  timeline?: TimelineStepDto[];
+  /** #231 A auditoria: nula é "pendente"; ausente (resposta sem o campo) o bloco não mostra. */
+  audit?: AuditDto | null;
+}
+
+/** #211 Um passo de "Como esta nota andou", montado pela API do que o banco guarda. */
+export interface TimelineStepDto {
+  at: string;
+  kind: string;
+  step: string;
+  actor: "system" | "rule" | "claude" | "engine" | "person";
+  actor_name: string;
 }
 
 export interface TodayDto {
@@ -79,6 +115,8 @@ export interface TodayDto {
     amount: MoneyDto;
     invoiceTotal: MoneyDto;
     dueOn: string;
+    exceptionCode: Classification;
+    exceptionName: string;
     dockAction: DockActionDto["kind"];
     approver: string | null;
   }[];
@@ -98,4 +136,22 @@ export const approvalApi = {
   alter: (key: string, dockAction: DockActionDto, justification: string) =>
     apiPost<DecisionResultDto>(`/api/propostas/${encodeURIComponent(key)}/alterar`, { dockAction, justification }),
   today: (signal?: AbortSignal) => apiGet<TodayDto>("/api/hoje", { signal }),
+  requestDossier,
 };
+
+/** #130 O 202 do pedido: o Worker responde em snake_case; a tela usa a forma do GET da proposta. */
+interface DossierRequestedBody {
+  status: "generating";
+  trigger: "on_demand";
+  requested_by: string;
+  requested_at: string;
+}
+
+/**
+ * #130 `POST /api/propostas/:chave/dossie`: pede o dossiê ao Claude só para esta proposta. 202 vira o estado
+ * Gerando; 409 (já em geração) e 429 (limite) chegam como `ApiError`.
+ */
+export async function requestDossier(accessKey: string): Promise<DossierGeneratingDto> {
+  const body = await apiPost<DossierRequestedBody>(`/api/propostas/${encodeURIComponent(accessKey)}/dossie`, {});
+  return { status: "generating", trigger: "on_demand", requestedBy: body.requested_by, requestedAt: body.requested_at };
+}

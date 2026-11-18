@@ -1,6 +1,6 @@
 import { DataList, InlineEmpty, Panel } from "@barte-ai-services/barte-ui-kit";
 import type { EvidenceProps } from "./registry";
-import { divergenceLabel, sourceLabel } from "./labels";
+import { sourceLabel } from "./labels";
 
 /**
  * A evidência de qualquer divergência, sem componente próprio: cada registro com a fonte, a
@@ -12,7 +12,7 @@ export function GenericEvidence({ divergence }: EvidenceProps) {
   const skus = Array.isArray(divergence.skus) ? divergence.skus : [];
   return (
     <Panel
-      title={divergenceLabel(String(divergence.classification))}
+      title={divergence.exceptionName}
       description={skus.length > 0 ? `Itens: ${skus.join(", ")}` : undefined}
       size="sm"
       padding="md"

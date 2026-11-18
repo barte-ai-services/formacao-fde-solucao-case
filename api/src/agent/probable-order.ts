@@ -1,7 +1,7 @@
 import type { InvoiceView, ProbableOrderSuggestion, PurchaseOrder } from '../domain/index.js';
 
 // #65: o prompt da ordem provável e a validação da resposta. Quem chama o Claude é a tarefa do
-// #65 executor da #66 (jobs/claude), fora do Worker; quem decide é a regra (resolveProbableOrder).
+// #65 rodada do Claude no Cron (#171); quem decide é a regra (resolveProbableOrder).
 
 const SYSTEM = [
   'Você sugere a ordem de compra mais provável para uma nota fiscal que chegou sem pedido.',

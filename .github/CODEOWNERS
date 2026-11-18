@@ -1,0 +1,4 @@
+# Toda mudança na main passa pela aprovação da equipe (#234). A turma tem escrita e pode aprovar o PR
+# de um colega, mas essa aprovação não conta: o ruleset da main exige a de um code owner, porque o
+# merge publica o Worker e aplica migrações com as credenciais do environment producao.
+* @barte-ai-services/admin

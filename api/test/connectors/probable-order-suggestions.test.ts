@@ -3,7 +3,7 @@ import { SupabaseProbableOrderSuggestions } from '../../src/connectors/probable-
 import { SupabaseRest } from '../../src/connectors/supabase-rest.js';
 import { FakePostgrest } from '../support/fake-postgrest.js';
 
-// #65: o Worker lê as sugestões que o executor da #66 grava em claude_suggestions.
+// #65: o Worker lê as sugestões que a rodada do Claude grava em claude_suggestions.
 const row = (key: string, status: string, output: unknown, task = 'probable-order') => ({
   task,
   input_key: key,

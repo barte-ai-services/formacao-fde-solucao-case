@@ -20,7 +20,7 @@ const row = (overrides: Record<string, unknown> = {}) => ({
   status: 'ok',
   model: 'claude-opus-5-5',
   error: null,
-  generated_at: GERADO,
+  updated_at: GERADO,
   ...overrides,
 });
 
@@ -103,7 +103,7 @@ describe('readDossier, com a NF-004 da base do kit', () => {
   });
 
   it('#38/AC-4 sugestão com status erro dá indisponível claude_failed, e a tela diz que não há dossiê', async () => {
-    const { result } = await read([row({ status: 'erro', output: null, model: null, error: 'timeout' })]);
+    const { result } = await read([row({ status: 'error', output: null, model: null, error: 'timeout' })]);
     expect(result).toEqual({ status: 'unavailable', reason: 'claude_failed', generatedAt: GERADO });
     expect(dossierField(result)).toMatchObject({
       reason: 'claude_failed',
@@ -130,7 +130,7 @@ describe('readDossier, com a NF-004 da base do kit', () => {
   });
 
   it('#68 sugestão com erro também não carrega o contexto', async () => {
-    const { result, load } = await read([row({ status: 'erro', output: null, model: null, error: 'timeout' })]);
+    const { result, load } = await read([row({ status: 'error', output: null, model: null, error: 'timeout' })]);
     expect(result).toMatchObject({ reason: 'claude_failed' });
     expect(load).not.toHaveBeenCalled();
   });

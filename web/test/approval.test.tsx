@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Frame } from "../src/App";
 import { fallbackContext } from "../src/shell/context";
+import { texts } from "../src/texts";
 
 // #63 As telas da aprovação contra uma API falsa, com o formato de api/src/http/approval.ts.
 
@@ -16,6 +17,8 @@ const item = (overrides: Record<string, unknown> = {}) => ({
   issuedOn: "2026-11-10",
   total: money(771_120),
   classification: "E6",
+  exceptionCode: "E6",
+  exceptionName: "Duplicidade",
   level: "bloqueio",
   line: 1,
   reason: "Duplicidade (E6): ninguém paga até a coordenação resolver",
@@ -32,7 +35,7 @@ const detail = (overrides: Record<string, unknown> = {}) => ({
   justification: "Duplicidade: a mesma compra já foi cobrada",
   items: [],
   divergences: [
-    { classification: "E6", skus: ["SKU-1"], evidence: [{ source: "erp_contas_a_pagar", reference: "NF-77", description: "Mesma ordem já lançada" }] },
+    { classification: "E6", exceptionCode: "E6", exceptionName: "Duplicidade", skus: ["SKU-1"], evidence: [{ source: "erp_contas_a_pagar", reference: "NF-77", description: "Mesma ordem já lançada" }] },
   ],
   title: { state: "lancado", amount: money(771_120), dueOn: "2026-11-10" },
   approval: null,
@@ -67,12 +70,18 @@ describe("#63 fila de aprovação", () => {
         ? Response.json({ approver: { email: "c", level: "coordenacao" }, items: [item()] })
         : Response.json(detail());
     renderAt("/pagar/fila");
-    expect(await screen.findByText("NF 80 · F12")).toBeTruthy();
+    expect(await screen.findByText("NF 80")).toBeTruthy();
     expect(screen.getAllByText("Bloqueio").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByText("NF 80 · F12"));
+    fireEvent.click(screen.getByText("NF 80"));
     expect(await screen.findByText("Mesma ordem já lançada", { exact: false })).toBeTruthy();
     expect(screen.getByText(/Linha 1 da régua/)).toBeTruthy();
     expect(screen.getByText("Sua decisão")).toBeTruthy();
+  });
+
+  it("#190/AC-1: a fila mostra a data de emissão da nota em tinta, depois do número", async () => {
+    respond = () => Response.json({ approver: { email: "c", level: "coordenacao" }, items: [item()] });
+    renderAt("/pagar/fila");
+    expect(await screen.findByText(/· 10\/11\/2026/)).toBeTruthy();
   });
 
   it("AC-7: quem está abaixo do nível vê a proposta e o aviso, sem o formulário", async () => {
@@ -83,10 +92,32 @@ describe("#63 fila de aprovação", () => {
   });
 });
 
+describe("#128 exceção pelo nome na fila", () => {
+  it("AC-1 e AC-2: o selo mostra o nome e o código fica na coluna Código", async () => {
+    respond = () => Response.json({ approver: { email: "c", level: "coordenacao" }, items: [item()] });
+    renderAt("/pagar/fila");
+    const row = (await screen.findByText("NF 80")).closest("tr") as HTMLElement;
+    expect(within(row).getByText("Duplicidade")).toBeTruthy();
+    expect(within(row).getByText("E6")).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Código" })).toBeTruthy();
+  });
+
+  it("AC-4: a tela mostra o nome que a API mandou, sem traduzir o código", async () => {
+    respond = () =>
+      Response.json({ approver: { email: "c", level: "coordenacao" }, items: [item({ exceptionName: "Nome da API" })] });
+    renderAt("/pagar/fila");
+    expect(await screen.findByText("Nome da API")).toBeTruthy();
+    expect(screen.queryByText("Duplicidade")).toBeNull();
+  });
+});
+
 describe("#63 proposta e decisão", () => {
   it("AC-8 e AC-11: aprovar chama a API e mostra a decisão registrada", async () => {
-    respond = (method) =>
-      method === "POST"
+    respond = (method, path) =>
+      // #17 A proposta decidida abre o bloco do pedido ao fornecedor; sem pedido, o contrato responde 200 com request nulo.
+      path.startsWith("/api/supplier-requests/")
+        ? Response.json({ request: null })
+        : method === "POST"
         ? Response.json({
             approval: { approver: "c", approverLevel: "coordenacao", dockAction: { kind: "recusar" }, justification: "x", decidedOn: "2026-11-15" },
             title: { state: "bloqueado", amount: money(771_120) },
@@ -124,6 +155,8 @@ const READY_DOSSIER = {
   divergences: [
     {
       classification: "E6",
+      exceptionCode: "E6",
+      exceptionName: "Duplicidade",
       whatDiverges: "A ordem já tem nota lançada.",
       evidence: [{ key: "historico.notas_lancadas.quantidade", label: "Notas lançadas", value: "1", source: "history" }],
     },
@@ -134,7 +167,7 @@ const READY_DOSSIER = {
 };
 
 const PENDING_NOTICE =
-  "Não há dossiê para esta proposta: o dossiê ainda não foi gerado. Decida pelas divergências e evidências da conferência.";
+  "Não há dossiê para esta proposta: dossiê ainda não gerado. Decida pelas evidências da conferência.";
 
 describe("#68 dossiê do Claude na gaveta da proposta", () => {
   it("#38/AC-1 com o dossiê pronto, a gaveta mostra o Dossiê do Claude entre a evidência e a decisão", async () => {
@@ -152,9 +185,10 @@ describe("#68 dossiê do Claude na gaveta da proposta", () => {
     respond = () =>
       Response.json({ ...detail(), dossier: { status: "unavailable", reason: "pending", notice: PENDING_NOTICE, generatedAt: null } });
     renderAt(`/pagar/fila/${KEY}`);
-    expect(await screen.findByText("Não há dossiê do Claude para esta proposta.")).toBeTruthy();
-    expect(screen.getByText(PENDING_NOTICE)).toBeTruthy();
-    expect(screen.queryByText("Dossiê do Claude")).toBeNull();
+    // #130 A gaveta convida a pedir o dossiê ao Claude, em vez do aviso de "não há dossiê".
+    expect(await screen.findByText(texts.dossier.notYet)).toBeTruthy();
+    expect(screen.getByRole("button", { name: texts.dossier.ask })).toBeTruthy();
+    expect(screen.queryByText("Não há dossiê do Claude para esta proposta.")).toBeNull();
     expect(screen.getByText("Sua decisão")).toBeTruthy();
   });
 });
@@ -165,14 +199,30 @@ describe("#63 lista do dia", () => {
       Response.json({
         day: "2026-11-15",
         items: [
-          { invoiceAccessKey: KEY, number: "36", supplierId: "F03", amount: money(96_916), invoiceTotal: money(96_916), dueOn: "2026-11-10", dockAction: "receber", approver: "regra" },
+          { invoiceAccessKey: KEY, number: "36", supplierId: "F03", amount: money(96_916), invoiceTotal: money(96_916), dueOn: "2026-11-10", dockAction: "receber", approver: "regra", exceptionCode: "MATCH", exceptionName: "Confere" },
         ],
         total: { cents: 96_916 },
       });
     renderAt("/pagar/hoje");
-    const row = (await screen.findByText("NF 36 · F03")).closest("tr");
+    const row = (await screen.findByText("NF 36")).closest("tr");
     expect(row).toBeTruthy();
-    expect(within(row as HTMLElement).getByText("Regra")).toBeTruthy();
+    expect(within(row as HTMLElement).getByText("⚙ Regra")).toBeTruthy();
+  });
+
+  it("#128/AC-1 e AC-2: a exceção aparece pelo nome, e o código numa coluna Código", async () => {
+    respond = () =>
+      Response.json({
+        day: "2026-11-15",
+        items: [
+          { invoiceAccessKey: KEY, number: "36", supplierId: "F03", amount: money(1), invoiceTotal: money(1), dueOn: "2026-11-10", dockAction: "receber", approver: "regra", exceptionCode: "E4", exceptionName: "Unidade de medida" },
+        ],
+        total: { cents: 1 },
+      });
+    renderAt("/pagar/hoje");
+    const row = (await screen.findByText("NF 36")).closest("tr") as HTMLElement;
+    expect(within(row).getByText("Unidade de medida")).toBeTruthy();
+    expect(within(row).getByText("E4")).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Código" })).toBeTruthy();
   });
 });
 
@@ -189,7 +239,7 @@ describe("#133 fila: Encaminhada a e Minhas", () => {
   it("AC-1 e AC-2: sem a coluna Você aprova?, com Encaminhada a pelo nome do glossário", async () => {
     respond = queue;
     renderAt("/pagar/fila");
-    expect(await screen.findByText("NF 80 · F12")).toBeTruthy();
+    expect(await screen.findByText("NF 80")).toBeTruthy();
     expect(screen.queryByText("Você aprova?")).toBeNull();
     expect(screen.getByText("Encaminhada a")).toBeTruthy();
     expect(screen.getAllByText("Diretoria").length).toBeGreaterThan(0);
@@ -198,11 +248,11 @@ describe("#133 fila: Encaminhada a e Minhas", () => {
   it("AC-3: a linha que não decide fica esmaecida com a dica, e Minhas mostra só as decidíveis", async () => {
     respond = queue;
     renderAt("/pagar/fila");
-    await screen.findByText("NF 80 · F12");
+    await screen.findByText("NF 80");
     expect(document.querySelectorAll(".pagar-dimmed[title='Precisa de Diretoria']").length).toBeGreaterThan(0);
     expect(document.querySelectorAll(".pagar-dimmed[title='Precisa de Coordenação']").length).toBe(0);
     fireEvent.click(screen.getByRole("radio", { name: /Minhas/ }));
-    expect(screen.getByText("NF 80 · F12")).toBeTruthy();
+    expect(screen.getByText("NF 80")).toBeTruthy();
     expect(screen.queryByText(/NF 81/)).toBeNull();
   });
 });
@@ -225,6 +275,23 @@ describe("#129 AC-2 largura da gaveta por token", () => {
     const { readFileSync } = await import("node:fs");
     const css = readFileSync("src/app.css", "utf8");
     expect(css).toMatch(/--pagar-drawer-width:\s*5[0-3]0px/);
-    expect(css).toMatch(/\.shell-connection-panel\s*{\s*width:\s*var\(--pagar-drawer-width\)/);
+    expect(css).toMatch(/\.shell-connection-panel\.shell-connection-panel\s*{\s*width:\s*var\(--pagar-drawer-width\)/);
+  });
+
+  it("#129 a largura aplicada à gaveta é a do token, mesmo com a folha do DS carregada depois da nossa", async () => {
+    const { readFileSync } = await import("node:fs");
+    // Pior ordem: a nossa folha primeiro e a do DS depois, como pode chegar de dentro do Shell.
+    const ours = document.createElement("style");
+    ours.textContent = readFileSync("src/app.css", "utf8");
+    const ds = document.createElement("style");
+    ds.textContent = ".Drawer-module__drawer__WqK1d{width:480px;max-width:100vw}";
+    document.head.append(ours, ds);
+    const el = document.createElement("div");
+    el.className = "Drawer-module__drawer__WqK1d shell-connection-panel";
+    document.body.append(el);
+    expect(getComputedStyle(el).width).toBe("530px");
+    el.remove();
+    ours.remove();
+    ds.remove();
   });
 });

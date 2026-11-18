@@ -7,6 +7,8 @@ import { EvidenceView } from "../src/evidence/EvidenceView";
 // valor em risco. A divergência vem como o checkFaltaFisica do #69 a monta (NF-025, RC-9182, no kit).
 const E1: DivergenceDto = {
   classification: "E1",
+  exceptionCode: "E1",
+  exceptionName: "Falta física",
   skus: ["SKU-1032", "SKU-1034"],
   evidence: [
     {
@@ -51,12 +53,14 @@ describe("#44 evidência da falta física (E1)", () => {
   it("a fonte da contagem aparece com o recebimento", () => {
     render(<EvidenceView divergence={E1} />);
     expect(screen.getByText(/RC-9182/)).toBeTruthy();
-    expect(screen.getByText("E1 · Falta física")).toBeTruthy();
+    expect(screen.getByText("Falta física")).toBeTruthy();
   });
 
   it("evidência que não segue o formato do #69 cai no genérico, sem quebrar", () => {
     const odd: DivergenceDto = {
       classification: "E1",
+      exceptionCode: "E1",
+      exceptionName: "Falta física",
       skus: ["SKU-9"],
       evidence: [{ source: "wms", reference: "RC-1", description: "texto livre" }],
     };

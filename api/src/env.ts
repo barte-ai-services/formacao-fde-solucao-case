@@ -24,4 +24,30 @@ export interface Env {
    * `diretoria`). Não é segredo: a esteira passa com `wrangler deploy --var`. Vazio: ninguém aprova.
    */
   APPROVER_LEVELS?: string;
+  /**
+   * #174 E-mails dos administradores, um JSON de lista (`["ana@jachegou.com.br"]`). Não é segredo: a
+   * esteira passa com `wrangler deploy --var`. Vazio: ninguém administra (fail-closed).
+   */
+  BARTE_ACADEMY_ADMIN_EMAILS?: string;
+  /**
+   * #171 Setup token do Claude Code, secret do Worker. Chama a Messages API com `Authorization: Bearer` e
+   * `anthropic-beta: oauth-2025-04-20`. Em produção via `wrangler secret put`; local, no `.dev.vars`.
+   * Sem ele (e sem a chave abaixo), o Cron pula as tarefas do Claude e a regra decide sozinha.
+   */
+  BARTE_ACADEMY_CLAUDE_CODE_OAUTH_TOKEN?: string;
+  /**
+   * #171 Plano B: chave da API da Anthropic (`x-api-key`). Se existir, tem prioridade sobre o setup token;
+   * trocar de via muda só o secret, não o código.
+   */
+  BARTE_ACADEMY_ANTHROPIC_API_KEY?: string;
+  /**
+   * #41 O binding do Workers AI, por onde o motor de decisão chama o Clef, sem chave à parte. Vem do
+   * `wrangler.jsonc` (`"ai": { "binding": "ai" }`). Ausente nos testes e no `wrangler dev` sem a conta: o motor pula a rodada.
+   */
+  ai?: Ai;
+  /**
+   * #13 Chave do Resend, secret do Worker (#2/AC-6). Sem ela, o envio do pedido ao fornecedor vai pela caixa de saída mock;
+   * só se olha se está em branco, o valor nunca é lido nem registrado.
+   */
+  RESEND_API_KEY?: string;
 }

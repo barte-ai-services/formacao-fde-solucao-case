@@ -7,6 +7,8 @@ import { EvidenceView, GenericEvidence, evidenceComponentFor } from "../src/evid
 // A divergência como o domínio emite para a NF-001 da base do kit (#36, #97): F02-001 veio no lugar de F02-003.
 const NF001_E2: DivergenceDto = {
   classification: "E2",
+  exceptionCode: "E2",
+  exceptionName: "Item trocado",
   skus: ["SKU-1005"],
   evidence: [
     {
@@ -30,7 +32,7 @@ const NF001_E2: DivergenceDto = {
 describe("#97 evidência da E2 · item trocado (#94, #36)", () => {
   it("#97/AC-1 (#94/AC-1) mostra a ordem, o item pedido e o item que veio, com a evidência de cada sistema", () => {
     render(<EvidenceView divergence={NF001_E2} />);
-    expect(screen.getByText("E2 · Item trocado")).toBeTruthy();
+    expect(screen.getByText("Item trocado")).toBeTruthy();
     expect(screen.getAllByText("OC-2026-42328").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Suco de uva integral 1 L (F02-003)").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Água mineral 1,5 L (F02-001)").length).toBeGreaterThan(0);
@@ -78,7 +80,7 @@ describe("#97 evidência da E2 · item trocado (#94, #36)", () => {
       ],
     };
     render(<EvidenceView divergence={odd as unknown as DivergenceDto} />);
-    expect(screen.getByText("E2 · Item trocado")).toBeTruthy();
+    expect(screen.getByText("Item trocado")).toBeTruthy();
     expect(screen.getByText("Valor do item trocado")).toBeTruthy();
     expect(screen.getByText("42")).toBeTruthy();
     expect(screen.getByText("7")).toBeTruthy();
@@ -87,9 +89,9 @@ describe("#97 evidência da E2 · item trocado (#94, #36)", () => {
 
   it("#97 só a evidência com objetos no lugar do texto ainda mostra o painel da E2", () => {
     const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
-    const odd = { classification: "E2", skus: [], evidence: [{ source: "sefaz", reference: { x: 1 }, description: { x: 1 } }] };
+    const odd = { classification: "E2", exceptionCode: "E2", exceptionName: "Item trocado", skus: [], evidence: [{ source: "sefaz", reference: { x: 1 }, description: { x: 1 } }] };
     render(<EvidenceView divergence={odd as unknown as DivergenceDto} />);
-    expect(screen.getByText("E2 · Item trocado")).toBeTruthy();
+    expect(screen.getByText("Item trocado")).toBeTruthy();
     expect(screen.getByText("Nota da SEFAZ")).toBeTruthy();
     quiet.mockRestore();
   });
@@ -115,7 +117,7 @@ describe("#97 evidência da E2 · item trocado (#94, #36)", () => {
   it("#97 sem a evidência do ERP Compras, a ordem de compra aparece como ausente", () => {
     const withoutOrder = { ...NF001_E2, evidence: NF001_E2.evidence.slice(1) };
     render(<EvidenceView divergence={withoutOrder} />);
-    expect(screen.getByText("E2 · Item trocado")).toBeTruthy();
+    expect(screen.getByText("Item trocado")).toBeTruthy();
     expect(screen.getAllByText("ausente").length).toBeGreaterThan(0);
     expect(screen.queryByText("confere")).toBeNull();
   });
@@ -123,21 +125,23 @@ describe("#97 evidência da E2 · item trocado (#94, #36)", () => {
   it("#97 descrição fora do formato aparece como veio, sem quebrar", () => {
     const malformed: DivergenceDto = {
       classification: "E2",
+      exceptionCode: "E2",
+      exceptionName: "Item trocado",
       skus: ["SKU-1005"],
       evidence: [{ source: "erp_compras", reference: "OC-9", description: "texto que o domínio mudou" }],
     };
     render(<EvidenceView divergence={malformed} />);
-    expect(screen.getByText("E2 · Item trocado")).toBeTruthy();
+    expect(screen.getByText("Item trocado")).toBeTruthy();
     expect(screen.getAllByText("OC-9").length).toBeGreaterThan(0);
     expect(screen.getAllByText("texto que o domínio mudou").length).toBeGreaterThan(0);
   });
 
   it("#97 evidência vazia cai no painel genérico e evidência ilegível não quebra a E2", () => {
-    render(<EvidenceView divergence={{ classification: "E2", skus: [], evidence: [] }} />);
+    render(<EvidenceView divergence={{ classification: "E2", exceptionCode: "E2", exceptionName: "Item trocado", skus: [], evidence: [] }} />);
     expect(screen.getByText("Nenhuma evidência veio com esta divergência.")).toBeTruthy();
-    const garbage = { classification: "E2", skus: null, evidence: [null, { source: 7 }] };
+    const garbage = { classification: "E2", exceptionCode: "E2", exceptionName: "Item trocado", skus: null, evidence: [null, { source: 7 }] };
     render(<EvidenceView divergence={garbage as unknown as DivergenceDto} />);
-    expect(screen.getAllByText("E2 · Item trocado").length).toBe(2);
+    expect(screen.getAllByText("Item trocado").length).toBe(2);
   });
 
   it("#97 o índice registra o componente próprio da E2, e não o genérico", () => {

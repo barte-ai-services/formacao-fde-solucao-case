@@ -1,4 +1,4 @@
-// #66 O Worker lê as sugestões de casamento por descrição que o job claude-enrich grava.
+// #66 O Worker lê as sugestões de casamento por descrição que a rodada do Claude no Cron grava (#171).
 import { describe, expect, it } from 'vitest';
 import {
   descriptionMatchKey,

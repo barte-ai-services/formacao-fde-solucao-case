@@ -141,8 +141,12 @@ describe('#71 na base do kit (AC-4)', () => {
     expect(panel.ifApprovedAsProposed.totalCents).toBe(sumOf(waiting));
     expect(panel.barred.byException.reduce((s, e) => s + e.cents, 0)).toBe(panel.barred.totalCents);
     expect(panel.barred.byException.reduce((s, e) => s + e.count, 0)).toBe(decided.length);
-    expect(panel.daily.at(-1)?.barredCumulativeCents).toBe(sumOf(decided));
-    expect(panel.daily.at(-1)?.proposedCumulativeCents).toBe(sumOf(waiting));
+    // #170: a série "sem E6 e E7" mais a do pagamento em dobro fecham o total decidido.
+    const isDouble = (r: Row) => r.classification === 'E6' || r.classification === 'E7';
+    const last = panel.daily.at(-1);
+    expect(last?.barredCumulativeCents).toBe(sumOf(decided.filter((r) => !isDouble(r))));
+    expect(last?.doublePaymentCumulativeCents).toBe(sumOf(decided.filter(isDouble)));
+    expect(last?.proposedCumulativeCents).toBe(sumOf(waiting.filter((r) => !isDouble(r))));
     expect(ignoredMatchProposalIds).toEqual([]);
   });
 });

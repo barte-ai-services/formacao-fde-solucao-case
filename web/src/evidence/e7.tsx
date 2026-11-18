@@ -1,7 +1,6 @@
 import { DataList, Panel, ReconciliationDiff } from "@barte-ai-services/barte-ui-kit";
 import type { EvidenceDto } from "../api/contract";
 import { GenericEvidence } from "./GenericEvidence";
-import { divergenceLabel } from "./labels";
 import { registerEvidence, type EvidenceProps } from "./registry";
 
 /** #64: o pagamento vinculado, lido da evidência do banco que o `checkPagoForaDoFluxo` escreve. */
@@ -36,7 +35,7 @@ function PagoForaDoFluxoEvidence({ divergence }: EvidenceProps) {
   if (!payment) return <GenericEvidence divergence={divergence} />;
   return (
     <Panel
-      title={divergenceLabel("E7")}
+      title={divergence.exceptionName}
       description={`Evidência: pagamento fora do fluxo ${payment.id}. A loja já pagou esta compra no banco, sem título.`}
       size="sm"
       padding="md"

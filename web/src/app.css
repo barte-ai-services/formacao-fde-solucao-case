@@ -12,8 +12,8 @@
 .pagar-proposal { display: grid; gap: var(--spacing-xl); padding: var(--spacing-lg); }
 .pagar-badges { display: flex; gap: var(--spacing-sm); flex-wrap: wrap; }
 
-/* #123 O estado vazio das telas: ilustração, título, explicação e ação, centrados. */
-.pagar-empty { display: grid; justify-items: center; gap: var(--spacing-md); padding: var(--spacing-3xl) var(--spacing-lg); text-align: center; }
+/* #123 O estado vazio das telas: ilustração, título, explicação e ação, centrados. O `InlineEmpty` do kit alinha à esquerda e encolhe o filho; a largura cheia põe o centro na área da página. */
+.pagar-empty { width: 100%; box-sizing: border-box; display: grid; justify-items: center; gap: var(--spacing-md); padding: var(--spacing-3xl) var(--spacing-lg); text-align: center; }
 .pagar-empty-description { max-width: 48ch; color: var(--content-secondary); }
 
 /* #133 A linha da fila que a pessoa não pode decidir. */
@@ -30,9 +30,12 @@
 /* #129 A gaveta lateral 50 px mais larga que os 480 px do design system, para a chave de 44 dígitos
    caber numa linha. A medida mora no token; o resto do CSS só lê a variável. */
 :root { --pagar-drawer-width: 530px; }
-.shell-connection-panel { width: var(--pagar-drawer-width); }
-.pagar-access-key { display: inline-flex; align-items: center; gap: var(--spacing-sm); }
-.pagar-access-key__value { white-space: nowrap; overflow-wrap: normal; }
+/* O Drawer do DS fixa `width: 480px` numa classe só (.Drawer-module__drawer). Dentro do Shell a folha da zone pode
+   chegar depois da do DS, e aí a regra de uma classe perde pela ordem. Duas classes iguais vencem em qualquer ordem. */
+.shell-connection-panel.shell-connection-panel { width: var(--pagar-drawer-width); }
+.pagar-access-key { display: inline-flex; align-items: center; gap: var(--spacing-sm); max-width: 100%; min-width: 0; }
+/* A chave não passa da borda da gaveta: numa linha quando cabe, e rola dentro do próprio campo quando não cabe. */
+.pagar-access-key__value { white-space: nowrap; overflow-wrap: normal; min-width: 0; max-width: 100%; overflow-x: auto; }
 .pagar-access-key__copy { display: none; }
 @media (max-width: 600px) {
   .pagar-access-key { flex-wrap: wrap; }
@@ -42,8 +45,8 @@
 
 /* #134 O receber parcial: o item, a quantidade e o destino numa linha. */
 .pagar-partial-row { display: flex; gap: var(--spacing-sm); align-items: center; flex-wrap: wrap; }
-.pagar-partial-row > span { flex: 1 1 12rem; }
-.pagar-partial-row input { width: 6rem; }
+.pagar-partial-row > span:first-child { flex: 1 1 12rem; }
+.pagar-partial-row > div:has(input) { width: 6rem; }
 
 /* #127 As tabelas: corpo, cabeçalho, texto secundário (caption-sm) e selo no token de corpo do DS (12 px), nunca
    abaixo dele. A linha cresce com o conteúdo (a altura do DS é piso, por token) e não corta texto nem selo. */
@@ -91,4 +94,111 @@ table [class*="StatusBadge-module__label"] {
 .shell-connections-filter:focus-visible {
   outline: var(--border-width-md) solid var(--stroke-brand);
   outline-offset: var(--spacing-2xs);
+}
+
+/* #211 #242 A faixa de automação: discreta, com o mesmo respiro lateral das telas. Só tokens da barte-design-system, nenhuma cor fixa.
+   Grade ícone | texto | ação; o tom vem de data-tone. */
+.pagar-automation-band {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  column-gap: var(--spacing-sm);
+  min-height: var(--sizes-6xl);
+  margin: var(--spacing-md) var(--spacing-xl) 0;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: var(--border-width-sm) solid var(--stroke-primary);
+  border-radius: var(--border-radius-md);
+  font-size: var(--typography-body-sm-fontSize);
+  line-height: var(--typography-body-sm-lineHeight);
+}
+.pagar-automation-band__icon { display: flex; width: var(--sizes-md); height: var(--sizes-md); }
+.pagar-automation-band__icon svg { width: 100%; height: 100%; }
+.pagar-automation-band__text { display: flex; flex-direction: column; gap: var(--spacing-2xs); min-width: 0; }
+.pagar-automation-band__title { font-weight: var(--typography-body-sm-fontWeight); color: var(--content-primary); }
+.pagar-automation-band__figures {
+  font-size: var(--typography-body-xs-fontSize);
+  line-height: var(--typography-body-xs-lineHeight);
+  font-weight: var(--typography-caption-sm-fontWeight);
+  color: var(--content-tertiary);
+}
+/* O "Ver rodadas" é o Button link do kit; sem respiro lateral, para alinhar ao texto, e a seta a --spacing-xs do rótulo. */
+.pagar-automation-band .pagar-automation-band__action { padding: 0; gap: var(--spacing-xs); }
+.pagar-automation-band[data-tone="info"] { background: var(--accent-blue-light); }
+.pagar-automation-band[data-tone="info"] .pagar-automation-band__icon { color: var(--accent-blue); }
+.pagar-automation-band[data-tone="warning"] { background: var(--accent-orange-light); }
+.pagar-automation-band[data-tone="warning"] .pagar-automation-band__icon { color: var(--accent-orange); }
+.pagar-automation-band[data-tone="error"] { background: var(--accent-red-light); }
+.pagar-automation-band[data-tone="error"] .pagar-automation-band__icon { color: var(--accent-red); }
+.pagar-automation-band[data-tone="error"] .pagar-automation-band__title { font-weight: var(--typography-label-sm-fontWeight); }
+.pagar-automation-band[data-tone="neutral"] { background: var(--bg-primary); }
+.pagar-automation-band[data-tone="neutral"] .pagar-automation-band__icon { color: var(--content-tertiary); }
+.pagar-automation-band[data-tone="neutral"] .pagar-automation-band__title { color: var(--content-secondary); }
+
+/* #209 A linha da grid abre a nota: o foco do teclado aparece na linha toda, com o mesmo realce do passar o mouse. */
+.pagar-row-table tbody tr:focus-visible { outline: 2px solid var(--stroke-brand); outline-offset: -2px; background: var(--bg-secondary); }
+
+/* #222 A grid não alarga a página: a tabela tem a largura do seu conteúdo e rola dentro da própria caixa, com a NF, o valor e o selo ao alcance do dedo. */
+.pagar-row-table { max-width: 100%; min-width: 0; overflow-x: auto; }
+.pagar-body > *, .shell-home > * { min-width: 0; }
+/* #222 A NF fica à esquerda enquanto o resto da linha rola, para a pessoa nunca perder de qual nota está falando. */
+.pagar-row-table tbody td:first-child, .pagar-row-table thead th:first-child { position: sticky; inset-inline-start: 0; z-index: 1; background: var(--bg-primary); }
+.pagar-row-table tbody tr:hover td:first-child, .pagar-row-table tbody tr:focus-visible td:first-child { background: var(--bg-secondary); }
+
+/* #222 #242 A faixa de automação: abaixo de 600 px o "Ver rodadas" desce para baixo do texto, alinhado a ele. */
+@media (max-width: 600px) {
+  .pagar-automation-band {
+    grid-template-columns: auto 1fr;
+    grid-template-areas: "i t" ". a";
+    row-gap: var(--spacing-xs);
+    align-items: start;
+    margin: var(--spacing-md) var(--spacing-md) 0;
+  }
+  .pagar-automation-band__icon { grid-area: i; }
+  .pagar-automation-band__text { grid-area: t; }
+  .pagar-automation-band__action { grid-area: a; justify-self: start; }
+}
+
+/* #222 No celular as células perdem o respiro lateral para o selo de status caber mais perto da NF e do valor. */
+@media (max-width: 600px) {
+  .pagar-row-table table td, .pagar-row-table table th { padding-inline: var(--spacing-sm); }
+}
+
+/* #130 O bloco "Dossiê do Claude": a borda com o gradiente de IA e o brilho nas linhas enquanto ele escreve.
+   #130 TODO: trocar pelo gradiente de IA do kit (o barte-design-system 0.1.69 não expõe token de gradiente). */
+.pagar-dossier-ai {
+  --pagar-ai-gradient: linear-gradient(135deg, var(--accent-purple, #7c3aed), var(--accent-blue, #2563eb));
+  padding: 1px;
+  border-radius: 12px;
+  background: var(--pagar-ai-gradient);
+}
+.pagar-dossier-ai > * {
+  border-radius: 11px;
+}
+.pagar-dossier-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.pagar-dossier-shimmer {
+  display: grid;
+  gap: 6px;
+}
+.pagar-dossier-shimmer span {
+  display: block;
+  height: 10px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--accent-grey-light, #eee) 25%, var(--accent-purple-light, #ede9fe) 50%, var(--accent-grey-light, #eee) 75%);
+  background-size: 200% 100%;
+  animation: pagar-dossier-shimmer 1.6s linear infinite;
+}
+.pagar-dossier-shimmer span:nth-child(2) {
+  width: 70%;
+}
+@keyframes pagar-dossier-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pagar-dossier-shimmer span {
+    animation: none;
+  }
 }

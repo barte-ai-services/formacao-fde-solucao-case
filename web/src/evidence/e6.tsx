@@ -2,7 +2,7 @@ import { DataList, Panel, ReconciliationDiff, type ComparisonField } from "@bart
 import type { EvidenceDto } from "../api/contract";
 import { registerEvidence, type EvidenceProps } from "./registry";
 import { GenericEvidence } from "./GenericEvidence";
-import { divergenceLabel, sourceLabel } from "./labels";
+import { sourceLabel } from "./labels";
 
 /** O que o contas a pagar escreve na evidência do título já lançado (domínio, `postedDuplicate`). */
 const POSTED_TITLE = /nota (\S+), ordem (\S+), (.+), situação (.+)$/;
@@ -52,7 +52,7 @@ function DuplicidadeEvidence({ divergence }: EvidenceProps) {
       ? `Evidência: nota ${POSTED_TITLE.exec(titles[0]!.description ?? "")?.[1] ?? titles[0]!.reference} já lançada`
       : "Evidência: duplicidade suspeita, a ordem de compra não tem saldo";
   return (
-    <Panel title={divergenceLabel("E6")} description={description} size="sm" padding="md">
+    <Panel title={divergence.exceptionName} description={description} size="sm" padding="md">
       {titles.map((title, index) => (
         <PostedTitle key={`${title.reference}-${index}`} title={title} invoice={invoice} />
       ))}

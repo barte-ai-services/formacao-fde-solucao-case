@@ -1,9 +1,16 @@
 import { useState, type ReactNode } from "react";
-import { Alert, Button, Drawer, Input, Select, Table, Text } from "barte-design-system";
-import { DataList, StatusBadge, formatCurrency } from "@barte-ai-services/barte-ui-kit";
+import { Alert, Button, Input, Text } from "barte-design-system";
+import { DataList, formatCurrency } from "@barte-ai-services/barte-ui-kit";
 import { ApiError } from "../api/client";
 import { returnNotesApi, type ReturnNoteDto, type ReturnNoteStatusDto } from "../api/return-notes";
+import { GridBadge } from "../components/GridBadge";
+import { GridFilter } from "../components/GridFilter";
+import { InvoiceCell } from "../components/InvoiceCell";
+import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
+import { InvoiceDrawer } from "../approval/InvoiceDrawer";
+import { DecidedBy } from "../components/DecidedBy";
+import { RowTable } from "../components/RowTable";
 import { useLoad } from "../components/useLoad";
 import type { RouteProps } from "./types";
 import { texts } from "../texts";
@@ -61,8 +68,8 @@ export default function ReturnNotes(_props: RouteProps) {
     (signal) => returnNotesApi.list(status, signal),
     (list) => list.notes.length === 0,
   );
-  const choose = (value: string) => {
-    setStatus(value as ReturnNoteStatusDto);
+  const choose = (value: ReturnNoteStatusDto) => {
+    setStatus(value);
     retry();
   };
   const notes = data?.notes ?? [];
@@ -72,8 +79,8 @@ export default function ReturnNotes(_props: RouteProps) {
       title={texts.devolucoes.title}
       subtitle={texts.devolucoes.subtitle}
       actions={
-        <Select
-          size="sm"
+        <GridFilter
+          ariaLabel={texts.devolucoes.filterLabel}
           value={status}
           onChange={choose}
           options={(Object.keys(STATUS_LABEL) as ReturnNoteStatusDto[]).map((s) => ({ value: s, label: STATUS_LABEL[s] }))}
@@ -88,21 +95,29 @@ export default function ReturnNotes(_props: RouteProps) {
           ? texts.devolucoes.emptyPending
           : texts.devolucoes.emptyOther
       }
+      empty={
+        <EmptyState
+          title={texts.emptyState.returnNotes[status].title}
+          description={texts.emptyState.returnNotes[status].description}
+          action={status === "pendente" ? { label: texts.emptyState.action, to: "/pagar/fila" } : undefined}
+        />
+      }
     >
       {() => (
         <>
-          <Table<ReturnNoteDto>
+          <RowTable<ReturnNoteDto>
             data={notes}
             rowKey={(n) => String(n.id)}
             size="md"
-            onRowClick={(n) => setOpenId(n.id)}
+            onOpenRow={(n) => setOpenId(n.id)}
+            rowLabel={(n) => texts.grid.openInvoice(n.invoiceNumber ?? "—")}
             emptyText={texts.devolucoes.tableEmpty}
             columns={[
               {
                 key: "origem",
                 title: texts.devolucoes.columns.origin,
                 dataIndex: "invoiceNumber",
-                render: (_, n) => <Two top={`NF ${n.invoiceNumber ?? n.invoiceAccessKey.slice(-8)}`} bottom={n.supplierId ?? "—"} />,
+                render: (_, n) => <InvoiceCell number={n.invoiceNumber ?? n.invoiceAccessKey.slice(-8)} bottom={n.supplierId ?? "—"} />,
               },
               {
                 key: "itens",
@@ -122,12 +137,22 @@ export default function ReturnNotes(_props: RouteProps) {
                   <Two
                     top={pendingSince(n.pendingSeconds)}
                     bottom={
-                      <StatusBadge size="sm" tone={STATUS_TONE[n.status]}>
+                      <GridBadge tone={STATUS_TONE[n.status]}>
                         {n.emitted ? texts.devolucoes.badgeEmitted(n.emitted.number) : n.status === "cancelada" ? texts.devolucoes.badgeCancelled : texts.devolucoes.badgeAwaiting}
-                      </StatusBadge>
+                      </GridBadge>
                     }
                   />
                 ),
+              },
+              // #211 A devolução espera quem emite no ERP; depois, o nome de quem emitiu ou cancelou.
+              {
+                key: "decidedBy",
+                title: texts.decidedBy.column,
+                dataIndex: "status",
+                render: (_, n) => {
+                  const who = n.emitted?.by ?? n.cancelled?.by;
+                  return who ? <DecidedBy actor="person" name={who} /> : <GridBadge tone="waiting">{texts.decidedBy.awaiting}</GridBadge>;
+                },
               },
             ]}
           />
@@ -170,7 +195,7 @@ function NoteDrawer({ note, onClose, onDecided }: { note: ReturnNoteDto; onClose
   };
 
   return (
-    <Drawer isOpen title={texts.devolucoes.drawerTitle(note.invoiceNumber ?? "—")} onClose={onClose} className="shell-connection-panel">
+    <InvoiceDrawer invoiceAccessKey={note.invoiceAccessKey} title={() => texts.devolucoes.drawerTitle(note.invoiceNumber ?? "—")} onClose={onClose}>
       <div style={{ display: "grid", gap: "var(--spacing-xl)" }}>
         {failure ? <Alert variant="error" title={failure} /> : null}
         <DataList
@@ -212,6 +237,6 @@ function NoteDrawer({ note, onClose, onDecided }: { note: ReturnNoteDto; onClose
           </>
         ) : null}
       </div>
-    </Drawer>
+    </InvoiceDrawer>
   );
 }

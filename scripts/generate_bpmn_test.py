@@ -57,7 +57,7 @@ class TargetProcessTest(unittest.TestCase):
 
     def test_title_reaches_the_daily_list_only_after_reconciliation(self) -> None:
         before_release = {f.source for f in self.target.flows if f.target == "Task_Release"}
-        self.assertTrue(before_release <= {"Gateway_DockDecision", "Task_ReturnNote"})
+        self.assertTrue(before_release <= {"Gateway_DockDecision", "Task_AskReturnNote"})
 
     def test_dock_decision_has_the_three_outcomes(self) -> None:
         labels = {f.name for f in self.target.flows if f.source == "Gateway_DockDecision"}

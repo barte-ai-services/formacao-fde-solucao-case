@@ -1,8 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { MemoryApprovalStore, type CaseFile } from '../../src/approval/store.js';
 import { draftProposal, propose } from '../../src/domain/approval.js';
 import { ApprovalPolicy } from '../../src/domain/approval-policy.js';
-import { Title, type Invoice } from '../../src/domain/index.js';
+import { Title, type Invoice, type Product } from '../../src/domain/index.js';
 import type { Env } from '../../src/env.js';
 import type { AccessVerifier } from '../../src/http/access.js';
 import { todayInBrasilia } from '../../src/http/approval.js';
@@ -92,6 +93,45 @@ describe('GET /api/fila', () => {
     const { call } = seeded();
     const body = (await (await call('/api/fila', COORDENACAO)).json()) as QueueBody;
     expect(body.approver.level).toBe('coordenacao');
+  });
+});
+
+describe('exceptionCode e exceptionName (#128/AC-4)', () => {
+  it('a fila devolve o código e o nome da exceção de cada proposta', async () => {
+    const { call, key } = seeded();
+    const body = (await (await call('/api/fila', ANALISTA)).json()) as {
+      items: { invoiceAccessKey: string; exceptionCode: string; exceptionName: string }[];
+    };
+    const item = (k: Parameters<typeof key>[0]) => body.items.find((i) => i.invoiceAccessKey === key(k));
+    expect(item('analista')).toMatchObject({ exceptionCode: 'E4', exceptionName: 'Unidade de medida' });
+    expect(item('bloqueio')).toMatchObject({ exceptionCode: 'E6', exceptionName: 'Duplicidade' });
+  });
+
+  it('a proposta devolve o nome também em cada divergência', async () => {
+    const { call, key } = seeded();
+    const body = (await (await call(`/api/propostas/${key('bloqueio')}`, ANALISTA)).json()) as {
+      exceptionCode: string;
+      exceptionName: string;
+      divergences: { exceptionCode: string; exceptionName: string }[];
+    };
+    expect(body).toMatchObject({ exceptionCode: 'E6', exceptionName: 'Duplicidade' });
+    expect(body.divergences.length).toBeGreaterThan(0);
+    for (const d of body.divergences) expect(d).toMatchObject({ exceptionCode: 'E6', exceptionName: 'Duplicidade' });
+  });
+});
+
+describe('GET /api/hoje (#128)', () => {
+  it('cada título da lista do dia leva o código e o nome da exceção', async () => {
+    const { files, call } = seeded();
+    const f = files.analista;
+    await call(`/api/propostas/${f.invoice.accessKey}/aprovar`, DIRETORIA, { method: 'POST', body: {} });
+    const body = (await (await call(`/api/hoje?dia=${TODAY}`, ANALISTA)).json()) as {
+      items: { invoiceAccessKey: string; exceptionCode: string; exceptionName: string }[];
+    };
+    expect(body.items.find((i) => i.invoiceAccessKey === f.invoice.accessKey)).toMatchObject({
+      exceptionCode: 'E4',
+      exceptionName: 'Unidade de medida',
+    });
   });
 });
 
@@ -256,5 +296,35 @@ describe('GET /api/hoje', () => {
 
   it('o dia de hoje é o de Brasília', () => {
     expect(todayInBrasilia(new Date('2026-11-15T02:00:00Z'))).toBe('2026-11-14');
+  });
+});
+
+describe('quantidade na unidade de estoque (#176/AC-2)', () => {
+  it('E4: cada item em caixa traz a quantidade em UN pelo fator do cadastro; item em UN fica igual', async () => {
+    const { files, key } = seeded();
+    const factors = new Map(
+      (JSON.parse(readFileSync(new URL('../../../data/kit/produtos.json', import.meta.url), 'utf8')) as {
+        sku: string;
+        fator_caixa: number;
+      }[]).map((p) => [p.sku, p.fator_caixa]),
+    );
+    const products = async () =>
+      [...factors].map(([sku, boxFactor]) => ({ sku, boxFactor }) as unknown as Product);
+    const worker = createWorker({ verifier, approval: { store: new MemoryApprovalStore(Object.values(files)), today: () => TODAY, products } });
+    const res = await worker.fetch(
+      new Request(`https://worker.test/api/propostas/${key('analista')}`, { headers: { 'Cf-Access-Jwt-Assertion': ANALISTA } }),
+      env,
+      ctx,
+    );
+    const body = (await res.json()) as { items: { sku: string; quantity: { amount: number; unit: string }; stockQuantity: { amount: number; unit: string } | null }[] };
+    const cx = body.items.find((i) => i.sku === 'SKU-1025')!;
+    expect(cx.quantity).toEqual({ amount: 232, unit: 'CX' });
+    expect(cx.stockQuantity).toEqual({ amount: 232 * factors.get('SKU-1025')!, unit: 'UN' });
+  });
+
+  it('sem o cadastro à mão, a unidade de estoque vai nula e a proposta continua abrindo', async () => {
+    const { call, key } = seeded();
+    const body = (await (await call(`/api/propostas/${key('analista')}`, ANALISTA)).json()) as { items: { stockQuantity: unknown }[] };
+    for (const i of body.items) expect(i.stockQuantity).toBeNull();
   });
 });

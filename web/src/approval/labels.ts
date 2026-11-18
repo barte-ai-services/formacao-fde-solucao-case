@@ -1,6 +1,6 @@
 /** #63 Os nomes e os tons de nível e de ação na doca, como no wireframe aprovado (F3). */
 import type { Tone } from "@barte-ai-services/barte-ui-kit";
-import type { ApprovalLevel, DockActionDto } from "../api/contract";
+import type { ApprovalLevel, Classification, DockActionDto } from "../api/contract";
 import { texts } from "../texts";
 
 export const LEVEL_LABEL: Record<ApprovalLevel, string> = texts.level;
@@ -31,4 +31,9 @@ export function byQueueOrder(
   b: { level: ApprovalLevel; amountAtRisk: { cents: number } },
 ): number {
   return RANK[b.level] - RANK[a.level] || b.amountAtRisk.cents - a.amountAtRisk.cents;
+}
+
+/** #201 AC3: a coluna "Código" da fila e da lista do dia. MATCH não é código de exceção: aparece como traço. */
+export function codeLabel(code: Classification): string {
+  return code === "MATCH" ? "—" : code;
 }

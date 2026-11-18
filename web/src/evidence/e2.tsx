@@ -1,6 +1,6 @@
 import { DataList, Panel, ReconciliationDiff, type ComparisonField } from "@barte-ai-services/barte-ui-kit";
 import { GenericEvidence } from "./GenericEvidence";
-import { divergenceLabel, sourceLabel } from "./labels";
+import { sourceLabel } from "./labels";
 import { registerEvidence, type EvidenceProps } from "./registry";
 
 /** #97: uma evidência como veio no fio; nenhum campo é confiável até ser lido por `text`. */
@@ -75,7 +75,7 @@ function ItemTrocadoEvidence({ divergence }: EvidenceProps) {
 
   return (
     <Panel
-      title={divergenceLabel("E2")}
+      title={divergence.exceptionName}
       description={skus.length > 0 ? `Itens: ${skus.join(", ")}` : undefined}
       size="sm"
       padding="md"

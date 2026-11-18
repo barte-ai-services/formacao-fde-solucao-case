@@ -1,4 +1,4 @@
-// Leitura das sugestões de ordem provável que o executor da #66 grava em claude_suggestions (#65).
+// Leitura das sugestões de ordem provável que a rodada do Claude grava em claude_suggestions (#65).
 import { parseProbableOrderAnswer } from '../agent/probable-order.js';
 import type { ProbableOrderSuggestion } from '../domain/index.js';
 import { isRecord } from './guards.js';

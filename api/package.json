@@ -9,7 +9,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "eval:predict": "vitest run --config vitest.eval.config.ts -t predição",
-    "eval:score": "vitest run --config vitest.eval.config.ts -t pontuação"
+    "eval:score": "vitest run --config vitest.eval.config.ts -t pontuação",
+    "eval:description-match": "vitest run --config vitest.eval.config.ts -t 'casamento de descrição'",
+    "eval:supplier-request": "vitest run --config vitest.eval.config.ts -t 'e-mail ao fornecedor'"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261031.1",

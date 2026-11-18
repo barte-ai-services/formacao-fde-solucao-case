@@ -1,7 +1,6 @@
 import { Panel, ReconciliationDiff, type ComparisonField } from "@barte-ai-services/barte-ui-kit";
 import type { EvidenceDto } from "../api/contract";
 import { GenericEvidence } from "./GenericEvidence";
-import { divergenceLabel } from "./labels";
 import { registerEvidence, type EvidenceProps } from "./registry";
 
 /** #73: uma linha a menos, como a evidência do WMS do checkQuantidadeMenor a descreve. */
@@ -61,7 +60,7 @@ function QuantidadeMenorEvidence({ divergence }: EvidenceProps) {
 
   return (
     <Panel
-      title={divergenceLabel("E3")}
+      title={divergence.exceptionName}
       description={`Evidência: recebimento ${count.reference}`}
       size="sm"
       padding="md"

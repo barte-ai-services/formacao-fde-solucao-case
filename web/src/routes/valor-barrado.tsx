@@ -11,16 +11,18 @@ import {
 } from "@barte-ai-services/barte-ui-kit";
 import { apiGet } from "../api";
 import type { Cents, DivergenceCode } from "../api/contract";
+import { AutomationIndicators } from "../components/AutomationIndicators";
 import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
-import { divergenceLabel } from "../evidence/labels";
 import type { RouteProps } from "./types";
 import { texts } from "../texts";
 
 /** #71: a soma de uma exceção no mês, como `GET /api/valor-barrado` entrega. */
 export interface BarredExceptionDto {
   classification: DivergenceCode;
+  exceptionCode: DivergenceCode;
+  exceptionName: string;
   cents: Cents;
   count: number;
 }
@@ -35,6 +37,8 @@ export interface BarredDailyPointDto {
   day: string;
   barredCumulativeCents: Cents;
   proposedCumulativeCents: Cents;
+  /** #170: E6 e E7 decididos, acumulados; fora da comparação com a linha de base. */
+  doublePaymentCumulativeCents: Cents;
 }
 
 /** #71: `GET /api/valor-barrado`, o painel do valor barrado no mês contra a linha de base. */
@@ -97,16 +101,16 @@ function dayLabel(day: string): string {
 
 /** #71/AC-1: barrado e aguardando, somados por exceção em centavos inteiros. */
 export function rankingByException(panel: BarredAmountDto): RankingItem[] {
-  const totals = new Map<DivergenceCode, { cents: Cents; count: number }>();
+  const totals = new Map<DivergenceCode, { name: string; cents: Cents; count: number }>();
   for (const item of [...panel.barred.byException, ...panel.ifApprovedAsProposed.byException]) {
-    const sum = totals.get(item.classification) ?? { cents: 0, count: 0 };
-    totals.set(item.classification, { cents: sum.cents + item.cents, count: sum.count + item.count });
+    const sum = totals.get(item.exceptionCode) ?? { name: item.exceptionName, cents: 0, count: 0 };
+    totals.set(item.exceptionCode, { name: item.exceptionName, cents: sum.cents + item.cents, count: sum.count + item.count });
   }
   return [...totals]
     .filter(([, sum]) => sum.cents > 0)
     .map(([code, sum]) => ({
       key: code,
-      label: divergenceLabel(code),
+      label: sum.name,
       value: sum.cents,
       meta: texts.common.noteWord(sum.count),
     }));
@@ -134,12 +138,14 @@ function BarredAmountView({ panel }: { panel: BarredAmountDto }): ReactElement {
     day: dayLabel(point.day),
     barred: point.barredCumulativeCents,
     proposed: point.proposedCumulativeCents,
+    baseline,
   }));
   const baselineLabel = formatBrlShort(baseline);
 
   return (
     <>
-      <StatGrid columns={3}>
+      <AutomationIndicators />
+      <StatGrid columns={2}>
         <Stat
           caption={texts.valorBarrado.statAvoided.caption(monthName(panel.month))}
           value={formatBrlShort(barred)}
@@ -157,8 +163,6 @@ function BarredAmountView({ panel }: { panel: BarredAmountDto }): ReactElement {
           context={texts.valorBarrado.statDeciding.context(percentOf(waiting, baseline))}
           tone="waiting"
         />
-      </StatGrid>
-      <StatGrid columns={3}>
         <Stat
           caption={texts.valorBarrado.statDouble.caption}
           value={formatBrlShort(doubleBarred)}
@@ -187,11 +191,12 @@ function BarredAmountView({ panel }: { panel: BarredAmountDto }): ReactElement {
               series={[
                 { key: "barred", label: texts.valorBarrado.seriesAvoided },
                 { key: "proposed", label: texts.valorBarrado.seriesDeciding, color: toneColor.waiting },
+                { key: "baseline", label: texts.valorBarrado.seriesBaseline(baselineLabel), dashed: true, color: toneColor.negative },
               ]}
               height={220}
               formatValue={formatBrl}
               formatAxis={(cents) => texts.valorBarrado.axisThousands(Math.round(cents / 100_000))}
-              ariaLabel={texts.valorBarrado.chartLabel}
+              ariaLabel={texts.valorBarrado.chartLabel(baselineLabel)}
             />
           </div>
         </Panel>

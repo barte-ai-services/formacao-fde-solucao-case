@@ -10,20 +10,20 @@ const NOVEMBER: BarredAmountDto = {
   barred: {
     totalCents: 12_000_000,
     byException: [
-      { classification: "E6", cents: 9_000_000, count: 2 },
-      { classification: "E1", cents: 3_000_000, count: 1 },
+      { classification: "E6", exceptionCode: "E6", exceptionName: "Duplicidade", cents: 9_000_000, count: 2 },
+      { classification: "E1", exceptionCode: "E1", exceptionName: "Falta física", cents: 3_000_000, count: 1 },
     ],
   },
   ifApprovedAsProposed: {
     totalCents: 3_700_000,
     byException: [
-      { classification: "E6", cents: 2_500_000, count: 1 },
-      { classification: "E2", cents: 1_200_000, count: 1 },
+      { classification: "E6", exceptionCode: "E6", exceptionName: "Duplicidade", cents: 2_500_000, count: 1 },
+      { classification: "E2", exceptionCode: "E2", exceptionName: "Item trocado", cents: 1_200_000, count: 1 },
     ],
   },
   daily: [
-    { day: "2026-11-03", barredCumulativeCents: 3_000_000, proposedCumulativeCents: 1_200_000 },
-    { day: "2026-11-10", barredCumulativeCents: 12_000_000, proposedCumulativeCents: 3_700_000 },
+    { day: "2026-11-03", barredCumulativeCents: 3_000_000, proposedCumulativeCents: 1_200_000, doublePaymentCumulativeCents: 0 },
+    { day: "2026-11-10", barredCumulativeCents: 12_000_000, proposedCumulativeCents: 3_700_000, doublePaymentCumulativeCents: 9_000_000 },
   ],
 };
 
@@ -69,12 +69,12 @@ describe("#71 painel do valor barrado no mês", () => {
     renderPanel();
     const title = await screen.findByRole("heading", { name: "Valor em risco por exceção" });
     const ranking = title.closest("section") ?? title.parentElement!.parentElement!.parentElement!;
-    const e6 = await within(ranking).findByText("E6 · Duplicidade");
+    const e6 = await within(ranking).findByText("Duplicidade");
     expect(e6).toBeTruthy();
     const barredByException = NOVEMBER.barred.byException.reduce((sum, item) => sum + item.cents, 0);
     expect(barredByException).toBe(NOVEMBER.barred.totalCents);
-    expect(within(ranking).getByText("E1 · Falta física")).toBeTruthy();
-    expect(within(ranking).getByText("E2 · Item trocado")).toBeTruthy();
+    expect(within(ranking).getByText("Falta física")).toBeTruthy();
+    expect(within(ranking).getByText("Item trocado")).toBeTruthy();
     expect(within(ranking).getByText("R$ 115 mil")).toBeTruthy();
     expect(within(ranking).getByText("R$ 30 mil")).toBeTruthy();
     expect(within(ranking).getByText("R$ 12 mil")).toBeTruthy();
@@ -106,8 +106,32 @@ describe("#71 painel do valor barrado no mês", () => {
     renderPanel();
     const doubleCard = await statCard("Pagamento em dobro evitado");
     expect(within(doubleCard).getByText("R$ 90 mil")).toBeTruthy();
-    expect(within(doubleCard).getByText(/fora da comparação com a perda mensal; mais R\$ 25 mil em decisão/)).toBeTruthy();
+    expect(within(doubleCard).getByText(/fora da perda mensal; mais R\$ 25 mil em decisão/)).toBeTruthy();
     expect(screen.getByText("R$ 42 mil de R$ 543 mil")).toBeTruthy();
+  });
+
+  it("#192/AC-1 #192/AC-4 the four cards share one two-column grid", async () => {
+    respondWith(200, NOVEMBER);
+    const { container } = renderPanel();
+    const cards = await Promise.all(
+      ["Evitado em novembro", "Perda mensal hoje", "Em decisão", "Pagamento em dobro evitado"].map(statCard),
+    );
+    const grids = Array.from(container.querySelectorAll<HTMLElement>("div")).filter(
+      (el) => el.style.getPropertyValue("--stat-columns") !== "",
+    );
+    expect(grids).toHaveLength(1);
+    const grid = grids[0]!;
+    expect(grid.style.getPropertyValue("--stat-columns")).toBe("2");
+    for (const card of cards) expect(grid.contains(card)).toBe(true);
+  });
+
+  it("#170/AC-2 o acumulado volta a mostrar a linha tracejada dos R$ 543 mil, sem a série do pagamento em dobro", async () => {
+    respondWith(200, NOVEMBER);
+    renderPanel();
+    await statCard("Evitado em novembro");
+    expect(screen.getAllByText("R$ 543 mil por mês").length).toBeGreaterThan(0);
+    expect(screen.getByLabelText(/contra R\$ 543 mil/)).toBeTruthy();
+    expect(screen.queryByText(/dobro.*acumulado|Pagamento em dobro, acumulado/)).toBeNull();
   });
 
   it("#71/AC-4 o total exibido bate com a soma das exceções da resposta", async () => {

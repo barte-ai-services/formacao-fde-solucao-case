@@ -91,9 +91,9 @@ describe('#71 valor barrado: soma por exceção e mês (AC-1)', () => {
     expect(result.panel.barred).toEqual({
       totalCents: 1_305,
       byException: [
-        { classification: 'E6', cents: 1_000, count: 1 },
-        { classification: 'E1', cents: 300, count: 2 },
-        { classification: 'NAO_CATALOGADA', cents: 5, count: 1 },
+        { classification: 'E6', exceptionCode: 'E6', exceptionName: 'Duplicidade', cents: 1_000, count: 1 },
+        { classification: 'E1', exceptionCode: 'E1', exceptionName: 'Falta física', cents: 300, count: 2 },
+        { classification: 'NAO_CATALOGADA', exceptionCode: 'NAO_CATALOGADA', exceptionName: 'Divergência não catalogada', cents: 5, count: 1 },
       ],
     });
   });
@@ -167,7 +167,7 @@ describe('#71 barrado se aprovado como proposto (decisão do Tech Lead)', () => 
     );
     expect(result.panel.ifApprovedAsProposed).toEqual({
       totalCents: 100,
-      byException: [{ classification: 'E2', cents: 100, count: 2 }],
+      byException: [{ classification: 'E2', exceptionCode: 'E2', exceptionName: 'Item trocado', cents: 100, count: 2 }],
     });
     expect(result.panel.barred.totalCents).toBe(0);
   });
@@ -185,9 +185,31 @@ describe('#71 acumulado por dia, para o gráfico', () => {
       NOV,
     );
     expect(result.panel.daily).toEqual([
-      { day: '2026-11-03', barredCumulativeCents: 100, proposedCumulativeCents: 7 },
-      { day: '2026-11-05', barredCumulativeCents: 150, proposedCumulativeCents: 7 },
+      { day: '2026-11-03', barredCumulativeCents: 100, proposedCumulativeCents: 7, doublePaymentCumulativeCents: 0 },
+      { day: '2026-11-05', barredCumulativeCents: 150, proposedCumulativeCents: 7, doublePaymentCumulativeCents: 0 },
     ]);
+  });
+
+  it('#170/AC-1 AC-3 a série sem E6 e E7 soma o "Evitado"; E6 e E7 vão para a série do pagamento em dobro', () => {
+    const { panel } = summarizeBarredAmount(
+      [
+        proposal({ classification: 'E1', approvedAt: '2026-11-03T12:00:00Z', amountAtRiskCents: 100 }),
+        proposal({ classification: 'E6', approvedAt: '2026-11-03T13:00:00Z', amountAtRiskCents: 40 }),
+        proposal({ classification: 'E7', approvedAt: '2026-11-06T12:00:00Z', amountAtRiskCents: 25 }),
+        proposal({ classification: 'E2', state: 'aguardando_aprovacao', approvedAt: null, createdAt: '2026-11-04T12:00:00Z', amountAtRiskCents: 7 }),
+        proposal({ classification: 'E6', state: 'aguardando_aprovacao', approvedAt: null, createdAt: '2026-11-04T12:00:00Z', amountAtRiskCents: 900 }),
+      ],
+      NOV,
+    );
+    const evitado = panel.barred.byException
+      .filter((e) => e.classification !== 'E6' && e.classification !== 'E7')
+      .reduce((sum, e) => sum + e.cents, 0);
+    const last = panel.daily.at(-1);
+    expect(last?.barredCumulativeCents).toBe(evitado);
+    expect(last?.barredCumulativeCents).toBe(100);
+    expect(last?.proposedCumulativeCents).toBe(7);
+    expect(last?.doublePaymentCumulativeCents).toBe(65);
+    expect(panel.daily.map((d) => d.day)).toEqual(['2026-11-03', '2026-11-04', '2026-11-06']);
   });
 
   it('sem movimento no mês, a série fica vazia', () => {

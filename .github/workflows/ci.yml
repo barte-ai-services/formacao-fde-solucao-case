@@ -23,7 +23,6 @@ jobs:
           cache-dependency-path: |
             api/package-lock.json
             web/package-lock.json
-            jobs/claude/package-lock.json
       - run: make check
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

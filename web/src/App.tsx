@@ -1,12 +1,15 @@
 import { useEffect } from "react";
 import { ShellFrame, type ShellContext } from "@barte-ai-services/shell-kit";
 import { LoadFeedback } from "@barte-ai-services/barte-ui-kit";
+import { AutomationProvider } from "./components/automation-context";
+import { AutomationBand } from "./components/AutomationBand";
 import { NotFound } from "./components/NotFound";
 import { ERROR_DESCRIPTION, RETRY_LABEL } from "./components/Screen";
 import { useLoad } from "./components/useLoad";
 import { matchRoute, navigate, usePathname } from "./router";
 import { REDIRECTS, ROUTES } from "./routes";
 import { loadShellContext, ZONE } from "./shell/context";
+import { ViewerProvider } from "./shell/viewer";
 import { texts } from "./texts";
 
 /** A rota do caminho atual, na moldura. `/` leva à fila; caminho desconhecido, "Página não encontrada". */
@@ -29,7 +32,12 @@ export function Frame({ context }: { context: ShellContext }) {
   }, [context.theme]);
   return (
     <ShellFrame context={context} zone={ZONE}>
-      <CurrentRoute />
+      <ViewerProvider email={context.user?.email ?? null}>
+        <AutomationProvider>
+          <AutomationBand />
+          <CurrentRoute />
+        </AutomationProvider>
+      </ViewerProvider>
     </ShellFrame>
   );
 }

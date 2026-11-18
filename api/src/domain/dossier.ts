@@ -21,11 +21,12 @@ import type { Quantity } from './quantity.js';
 //   historico.notas_lancadas.quantidade | historico.notas_lancadas.valor
 //   historico.pagamentos.quantidade | historico.pagamentos.valor
 //   historico.notas_capturadas.quantidade
+//   devolucao.item[<código>].quantidade | .valor | devolucao.total | prazo   (pedido ao fornecedor, #10)
 //
 // No texto, um fato aparece só como o marcador {{chave}}. Fora dos marcadores, só identificadores
 // (`FactCatalog.identifiers`) podem ter algarismos.
 
-export type FactSource = 'invoice' | 'purchase_order' | 'registry' | 'receipt' | 'history'; // #68
+export type FactSource = 'invoice' | 'purchase_order' | 'registry' | 'receipt' | 'history' | 'return_note'; // #68, #10
 
 export type Fact = {
   readonly label: string;
@@ -50,6 +51,8 @@ export type DossierEvidence = {
 
 export type DossierDivergence = {
   readonly classification: string;
+  /** #128: o nome do glossário, posto pela API; ausente se o código não é catalogado. */
+  readonly exceptionName?: string;
   readonly whatDiverges: string;
   readonly evidence: readonly DossierEvidence[];
 };
@@ -67,7 +70,8 @@ export type Dossier = {
 export type DossierUnavailableReason =
   | 'claude_failed' // #68
   | 'number_mismatch' // #68
-  | 'invalid_shape'; // #68
+  | 'invalid_shape' // #68
+  | 'timeout'; // #130 o Claude passou do prazo
 
 export type DossierUnavailable = {
   readonly status: 'unavailable'; // #68
@@ -108,6 +112,7 @@ export const DOSSIER_OUTPUT_SCHEMA = {
 
 type ItemField = 'quantidade' | 'preco_unitario' | 'total';
 type OrderItemField = 'quantidade' | 'preco_unitario' | 'saldo';
+type ReturnItemField = 'quantidade' | 'valor'; // #10
 
 /** #68: como cada chave do catálogo se escreve. É o contrato descrito no topo deste arquivo. */
 export const factKey = {
@@ -129,6 +134,12 @@ export const factKey = {
   paymentCount: (): string => 'historico.pagamentos.quantidade',
   paymentValue: (): string => 'historico.pagamentos.valor',
   capturedCount: (): string => 'historico.notas_capturadas.quantidade',
+  // #10: o catálogo do pedido ao fornecedor (nota de devolução e prazo).
+  returnItem: (supplierCode: string, field: ReturnItemField): string => `devolucao.item[${supplierCode}].${field}`,
+  returnTotal: (): string => 'devolucao.total',
+  dueDate: (): string => 'prazo',
+  // #58: o novo prazo da cobrança (3 dias úteis depois da varredura), que o pedido original não tem.
+  followUpDueDate: (): string => 'cobranca.prazo',
 } as const;
 
 /** #68: as chaves do catálogo, em ordem estável. */
@@ -265,7 +276,7 @@ const SPELLED_NUMBERS: ReadonlySet<string> = new Set([
 const folded = (token: string): string => token.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 
 /** #68: o texto confere quando todo marcador está no catálogo e nenhum número sobra fora dos marcadores. */
-function textChecks(text: string, catalog: FactCatalog, allowed: ReadonlySet<string>): boolean {
+export function textChecks(text: string, catalog: FactCatalog, allowed: ReadonlySet<string>): boolean {
   for (const m of text.matchAll(MARKER)) {
     if (!Object.hasOwn(catalog.facts, m[1] ?? '')) return false;
   }
@@ -279,7 +290,7 @@ function textChecks(text: string, catalog: FactCatalog, allowed: ReadonlySet<str
   return true;
 }
 
-const renderText = (text: string, catalog: FactCatalog): string =>
+export const renderText = (text: string, catalog: FactCatalog): string =>
   text.replace(MARKER, (_, key: string) => catalog.facts[key]?.value ?? '');
 
 const unavailable = (reason: DossierUnavailableReason, generatedAt: string): DossierUnavailable =>
@@ -340,6 +351,7 @@ const REASON_TEXT: Readonly<Record<DossierNoticeReason, string>> = {
   claude_failed: 'o Claude não respondeu',
   number_mismatch: 'um número do texto do Claude não conferiu com o banco',
   invalid_shape: 'a resposta do Claude veio fora do formato',
+  timeout: 'o Claude demorou demais para responder',
   pending: 'o dossiê ainda não foi gerado',
   read_failed: 'não foi possível ler o dossiê agora',
 };

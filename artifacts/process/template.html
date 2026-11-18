@@ -1,30 +1,43 @@
 <title>Processo do contas a pagar</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap">
 <style>
-:root { color-scheme: light; --black: #030202; --brand: #df285d; --ink: #171717; --line: #d4d4d4; }
+:root { color-scheme: light; --black: #1A1918; --brand: #C81F50; --ink: #1A1918; --line: #E3DED5; }
 __DIAGRAM_CSS__
 html, body { height: 100%; }
-body { background: #f9f9f9; color: var(--ink); font: 16px "Inter", system-ui, sans-serif; display: flex; flex-direction: column; }
+body { background: #FAF8F4; color: var(--ink); font: 16px "IBM Plex Sans", system-ui, sans-serif; display: flex; flex-direction: column; }
 .bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: var(--black); border-bottom: 5px solid var(--brand);
   padding: 14px max(20px, env(safe-area-inset-right, 0px)) 14px max(20px, env(safe-area-inset-left, 0px)); }
-.bar button { font: 600 16px "Inter", system-ui, sans-serif; background: transparent; color: #fefefe; border: 2px solid #404040;
+.bar button { font: 600 16px "IBM Plex Sans", system-ui, sans-serif; background: transparent; color: #FFFEFB; border: 2px solid #4F4C47;
   border-radius: 8px; padding: 8px 16px; cursor: pointer; }
 .bar button:hover { border-color: var(--brand); }
 .bar button[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); }
-.bar button:focus-visible { outline: 3px solid #fbcad3; outline-offset: 2px; }
+.bar button:focus-visible { outline: 3px solid #F2C9D4; outline-offset: 2px; }
 .bar .gap { flex: 1; }
-.legend { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; font-size: 15px; font-weight: 500; color: #fefefe; }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; font-size: 15px; font-weight: 500; color: #FFFEFB; }
 .legend span { display: inline-flex; align-items: center; gap: 8px; }
 .legend i { width: 18px; height: 18px; border-radius: 4px; border: 2.5px solid; display: inline-block; }
-#canvas { flex: 1; min-height: 0; position: relative; background: #fefefe; }
-#canvas .djs-label, #canvas text { font-family: "Inter", system-ui, sans-serif !important; }
+#canvas { flex: 1; min-height: 0; position: relative; background: #FFFEFB; }
+#canvas .djs-label, #canvas text { font-family: "IBM Plex Sans", system-ui, sans-serif !important; }
 #canvas [data-element-id^="Lane_"] .djs-label, #canvas [data-element-id^="Part_"] .djs-label { display: none; }
-.opp { width: 270px; background: #fefefe; border: 2.5px solid #df285d; border-radius: 10px; padding: 10px 12px; font: 500 14px/1.4 "Inter", system-ui, sans-serif; color: #171717; box-shadow: 0 2px 0 #fbcad3; pointer-events: none; }
+.opp { width: 270px; background: #FFFEFB; border: 2.5px solid #C81F50; border-radius: 8px; padding: 10px 12px; font: 500 14px/1.4 "IBM Plex Sans", system-ui, sans-serif; color: #1A1918; box-shadow: 0 2px 0 #F2C9D4; pointer-events: none; }
 .opp.narrow { width: 220px; }
-.opp b { display: block; color: #df285d; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
-.djs-element.agent-candidate .djs-visual > rect { stroke: #df285d !important; stroke-width: 5px !important; }
-.lane-label { font: 700 15px "Inter", system-ui, sans-serif; text-transform: uppercase; letter-spacing: .06em; color: #404040; white-space: nowrap; pointer-events: none; }
+.opp b { display: block; color: #C81F50; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+.djs-element.agent-candidate .djs-visual > rect { stroke: #C81F50 !important; stroke-width: 5px !important; }
+.lane-label { font: 700 15px "IBM Plex Sans", system-ui, sans-serif; text-transform: uppercase; letter-spacing: .06em; color: #4F4C47; white-space: nowrap; pointer-events: none; }
+
+/* design do deck: creme, tinta, rosa; IBM Plex Sans e Instrument Serif */
+.top{background:#F7E9EC !important;color:#1A1918 !important;border-bottom:none !important}
+.top h1{font-weight:400 !important;letter-spacing:-1.5px}
+.top .q{color:#4F4C47 !important}
+.top .eyebrow{letter-spacing:.12em}
+h2{font-weight:500 !important;letter-spacing:-.5px}
+h2::before{display:none !important}
+.serif{font-family:"Instrument Serif",Georgia,serif;font-style:italic;font-weight:400;color:#C81F50;letter-spacing:0}
+.bar{background:#F1EDE6 !important;border-bottom:1px solid #E3DED5 !important}
+.bar button{color:#1A1918 !important;border-color:#D8D3CA !important}
+.bar button[aria-pressed="true"]{color:#FFFEFB !important}
+.legend{color:#1A1918 !important}
 </style>
 
 <div class="bar">
@@ -33,11 +46,11 @@ body { background: #f9f9f9; color: var(--ink); font: 16px "Inter", system-ui, sa
   <span class="gap"></span>
   <div class="legend" aria-label="Legenda das cores">
     <span><i style="background:#e1f7ff;border-color:#00749e"></i>Sistema</span>
-    <span><i style="background:#fdf0f4;border-color:#df285d"></i>Agente</span>
+    <span><i style="background:#F7E9EC;border-color:#C81F50"></i>Agente</span>
     <span><i style="background:#fff0db;border-color:#e68619"></i>Pessoa</span>
     <span><i style="background:#d2fff1;border-color:#12805c"></i>Segue para pagar</span>
     <span><i style="background:#f7e0e0;border-color:#c62828"></i>Bloqueio ou perda</span>
-    <span><i style="background:#fefefe;border-color:#df285d;border-width:4px"></i>Onde um agente pode entrar</span>
+    <span><i style="background:#FFFEFB;border-color:#C81F50;border-width:4px"></i>Agente do grupo no case</span>
   </div>
   <span class="gap"></span>
   <button type="button" data-zoom="1.2" aria-label="Aproximar">+</button>
@@ -83,11 +96,12 @@ async function show(id) {
   fitHeight();
 }
 const CANDIDATES = {
-  Task_Classify: { kind: "Agente LLM", text: "Casar item com o cadastro e achar a ordem provável", pos: { top: -100, left: 12 } },
-  Task_ProposeAction: { kind: "Agente LLM", text: "Escrever o dossiê da exceção para quem aprova", pos: { top: -100, left: 26 } },
-  Task_Confirm: { kind: "Agente Clef + LLM", text: "Confirmar antes da doca com confiança calibrada; recomendar a alteração" },
-  Task_ConfirmCount: { kind: "Agente Clef + LLM", text: "Confirmar com a contagem no banco: falta física e quantidade menor" },
-  Task_Count: { kind: "Agente LLM com visão", text: "Contar o pallet pela foto, como contraponto ao operador" }
+  Task_Classify: { kind: "Grupo 4 · Agente auditor", text: "Audita a nota em paralelo à regra: classifica, decide o recebimento, define o aprovador e alerta quando discorda", pos: { top: -112, left: 12 } },
+  Task_ProposeAction: { kind: "Grupo 3 · Dossiê pelo Claude", text: "Escreve o dossiê assim que a proposta vai para uma pessoa (ou sob pedido), com os números do banco", pos: { top: -100, left: 26 } },
+  Task_Confirm: { kind: "Grupo 1 · Motor de decisão  ·  Grupo 2 · MCP App", text: "Regra → Clef → pessoa, com confiança calibrada; a pessoa decide e delega de dentro do Claude" },
+  Task_ConfirmCount: { kind: "Grupo 1 · Motor de decisão", text: "Confirma com a contagem no banco: falta física e quantidade menor" },
+  Task_AskReturnNote: { kind: "Grupo 5 · Tratativa com o fornecedor", text: "Prepara a nota de devolução e o e-mail; a pessoa revisa, emite (mock) e envia; lê a resposta", pos: { top: 86, left: -70 } },
+  Task_AskCancel: { kind: "Grupo 5 · Tratativa com o fornecedor", text: "Prepara o e-mail pedindo o cancelamento da nota recusada e cobra quem não responde", pos: { top: 86, left: -70 } }
 };
 function addNotes(overlays) {
   const registry = viewer.get("elementRegistry");
@@ -116,3 +130,4 @@ document.addEventListener("click", (e) => {
 });
 show("target");
 </script>
+

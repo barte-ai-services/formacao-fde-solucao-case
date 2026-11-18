@@ -10,6 +10,8 @@ import { clearEvidenceRegistry, registerEvidence, evidenceComponentFor } from ".
 // #64: a descrição é a que o checkPagoForaDoFluxo grava para o PG-5301 da base do kit.
 const E7: DivergenceDto = {
   classification: "E7",
+  exceptionCode: "E7",
+  exceptionName: "Pago fora do fluxo",
   skus: [],
   evidence: [
     {
@@ -40,7 +42,7 @@ describe("#33/AC-5 evidência do E7: o pagamento vinculado", () => {
 
   it("AC-5: mostra o pagamento, o valor, a data, a forma e a origem, e que pagaria duas vezes", () => {
     render(<EvidenceView divergence={E7} />);
-    expect(screen.getByText("E7 · Pago fora do fluxo")).toBeTruthy();
+    expect(screen.getByText("Pago fora do fluxo")).toBeTruthy();
     expect(screen.getByText("PG-5301")).toBeTruthy();
     expect(screen.getAllByText("R$ 3.430,00").length).toBeGreaterThan(0);
     expect(screen.getByText("02/11/2026")).toBeTruthy();

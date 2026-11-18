@@ -1,7 +1,14 @@
-import { Table } from "barte-design-system";
-import { Stat, StatGrid, StatusBadge } from "@barte-ai-services/barte-ui-kit";
+import { useState } from "react";
+import { Stat, StatGrid } from "@barte-ai-services/barte-ui-kit";
 import { approvalApi, type TodayDto } from "../api/approval";
-import { ACTION_LABEL, ACTION_TONE } from "../approval/labels";
+import { InvoiceDrawer } from "../approval/InvoiceDrawer";
+import { RowTable } from "../components/RowTable";
+import { ACTION_LABEL, ACTION_TONE, codeLabel } from "../approval/labels";
+import { AutomationIndicators } from "../components/AutomationIndicators";
+import { DecidedBy } from "../components/DecidedBy";
+import { GridBadge } from "../components/GridBadge";
+import { InvoiceCell } from "../components/InvoiceCell";
+import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
 import { useLoad } from "../components/useLoad";
 import type { RouteProps } from "./types";
@@ -20,6 +27,7 @@ export default function ListaDoDia(_props: RouteProps) {
     (signal): Promise<TodayDto> => approvalApi.today(signal),
     (today) => today.items.length === 0,
   );
+  const [open, setOpen] = useState<string | null>(null);
   const items = data?.items ?? [];
   const byRule = items.filter((i) => i.approver === "regra").length;
   return (
@@ -31,6 +39,13 @@ export default function ListaDoDia(_props: RouteProps) {
       loadingLabel={texts.listaDoDia.loading}
       errorTitle={texts.listaDoDia.error}
       emptyLabel={texts.listaDoDia.empty}
+      empty={
+        <EmptyState
+          title={texts.emptyState.todayList.title}
+          description={texts.emptyState.todayList.description}
+          action={{ label: texts.emptyState.action, to: "/pagar/fila" }}
+        />
+      }
     >
       {() => (
         <>
@@ -39,27 +54,42 @@ export default function ListaDoDia(_props: RouteProps) {
             <Stat caption={texts.listaDoDia.statToPay.caption} value={BRL.format((data?.total.cents ?? 0) / 100)} context={texts.listaDoDia.statToPay.context} />
             <Stat caption={texts.listaDoDia.statByRule.caption} value={byRule} context={texts.listaDoDia.statByRule.context} tone="positive" />
           </StatGrid>
-          <Table<Row>
+          <AutomationIndicators />
+          <RowTable<Row>
             data={items}
             rowKey={(i) => i.invoiceAccessKey}
             size="md"
+            onOpenRow={(i) => setOpen(i.invoiceAccessKey)}
+            rowLabel={(i) => texts.grid.openInvoice(i.number)}
             emptyText={texts.listaDoDia.tableEmpty}
             columns={[
-              { key: "nota", title: texts.listaDoDia.columns.invoice, dataIndex: "number", render: (_, i) => `NF ${i.number} · ${i.supplierId}` },
+              { key: "nota", title: texts.listaDoDia.columns.invoice, dataIndex: "number", render: (_, i) => <InvoiceCell number={i.number} bottom={i.supplierId} /> },
+              {
+                key: "excecao",
+                title: texts.listaDoDia.columns.classification,
+                dataIndex: "exceptionName",
+                render: (_, i) => (
+                  <GridBadge tone="neutral">
+                    {i.exceptionName}
+                  </GridBadge>
+                ),
+              },
+              { key: "codigo", title: texts.listaDoDia.columns.code, dataIndex: "exceptionCode", render: (_, i) => codeLabel(i.exceptionCode) },
               {
                 key: "acao",
                 title: texts.listaDoDia.columns.action,
                 dataIndex: "dockAction",
                 render: (_, i) => (
-                  <StatusBadge size="sm" tone={ACTION_TONE[i.dockAction]}>
+                  <GridBadge tone={ACTION_TONE[i.dockAction]}>
                     {ACTION_LABEL[i.dockAction]}
-                  </StatusBadge>
+                  </GridBadge>
                 ),
               },
-              { key: "quem", title: texts.listaDoDia.columns.approver, dataIndex: "approver", render: (_, i) => (i.approver === "regra" ? texts.listaDoDia.rule : (i.approver ?? "—")) },
+              { key: "quem", title: texts.listaDoDia.columns.approver, dataIndex: "approver", render: (_, i) => (i.approver === null ? "—" : <DecidedBy actor={i.approver === "regra" ? "rule" : "person"} name={i.approver === "regra" ? null : i.approver} />) },
               { key: "valor", title: texts.listaDoDia.columns.amount, dataIndex: "amount", align: "right", render: (_, i) => `${i.amount.text} de ${i.invoiceTotal.text}` },
             ]}
           />
+          {open !== null ? <InvoiceDrawer invoiceAccessKey={open} title={texts.fila.drawerTitle} onClose={() => setOpen(null)} /> : null}
         </>
       )}
     </Screen>
