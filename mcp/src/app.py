@@ -1,0 +1,35 @@
+"""A aplicação: monta o servidor MCP e atende uma requisição HTTP. Python puro, sem o pacote `workers`."""
+
+from __future__ import annotations
+
+import json
+
+from api_client import ApiClient
+from errors import Log
+from json_types import JsonObject
+from protocol import HttpRequest, HttpResponse, Server, ServerInfo
+from tools import create_tools
+
+INFO = ServerInfo(
+    "formacao-fde-solucao-case-mcp",
+    "0.1.0",
+    "Fila de aprovação da Já Chegou, para o analista decidir. Todo número vem destas tools, nunca do texto. "
+    "Só chame decide_proposal quando a pessoa pedir, e não contorne uma recusa.",
+)
+
+
+def create_server() -> Server:
+    return Server(INFO, create_tools())
+
+
+def log_to_console(fields: JsonObject) -> None:
+    """O registro interno do Worker: só campos nomeados, em uma linha de JSON."""
+    print(json.dumps(fields, ensure_ascii=False))
+
+
+_SERVER = create_server()
+
+
+async def handle(request: HttpRequest, api: ApiClient, log: Log = log_to_console) -> HttpResponse:
+    """`request.jwt` é o cabeçalho Cf-Access-Jwt-Assertion de quem chamou, ou None. Vai à API como veio e não é guardado."""
+    return await _SERVER.handle(request, api, log)

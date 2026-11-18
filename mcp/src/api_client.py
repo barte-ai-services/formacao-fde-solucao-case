@@ -7,33 +7,43 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any, Callable, Optional, Protocol
+from typing import Mapping, Optional, Protocol
+
+from errors import Log
+from json_types import JsonValue
 
 
 @dataclass(frozen=True)
-class RespostaApi:
+class ApiRequest:
+    method: str
+    path: str
+    body: Optional[Mapping[str, JsonValue]] = None
+
+
+@dataclass(frozen=True)
+class ApiResponse:
     status: int
-    corpo: Any = None  # o JSON da resposta, ou None quando não era JSON
+    body: JsonValue = None  # o JSON da resposta, ou None quando não era JSON (#272)
 
 
-class ClienteApi(Protocol):
-    async def chamar(self, metodo: str, caminho: str, jwt: str, corpo: Optional[dict[str, Any]] = None) -> RespostaApi:
+class ApiClient(Protocol):
+    async def call(self, request: ApiRequest, jwt: str) -> ApiResponse:
         ...
 
 
 @dataclass(frozen=True)
-class Contexto:
+class Context:
     """O que uma chamada carrega: quem chamou (o JWT do Access, repassado e nunca guardado nem registrado),
     a porta da API e o registro interno."""
 
     jwt: Optional[str]
-    api: ClienteApi
-    registrar: Callable[[dict[str, Any]], None]
+    api: ApiClient
+    log: Log
 
 
-def parsear_resposta(status: int, texto: str) -> RespostaApi:
+def parse_response(status: int, text: str) -> ApiResponse:
     """Lê o corpo como JSON; o que não for JSON vira None, sem guardar o texto."""
     try:
-        return RespostaApi(status, json.loads(texto))
+        return ApiResponse(status, json.loads(text))
     except ValueError:
-        return RespostaApi(status, None)
+        return ApiResponse(status, None)
