@@ -1,7 +1,7 @@
 """O ponto de entrada do Python Worker: um adaptador fino. Toda a lógica está nos módulos puros (app.py).
 
-É o único arquivo que importa o pacote `workers` e o FFI do Pyodide, de modo que os módulos puros rodam e são
-testados no CPython local; este também é testado ali, com dublês dos módulos do runtime (worker_test.py)."""
+É o único arquivo que importa o pacote `workers` e o módulo `js` do runtime, de modo que os módulos
+puros rodam e são testados no CPython local; este também é testado ali, com dublês deles (worker_test.py)."""
 
 from __future__ import annotations
 
@@ -9,13 +9,11 @@ import json
 from typing import Any
 from urllib.parse import urlparse
 
-from js import AbortSignal, Object
-from pyodide.ffi import to_js
+from js import AbortSignal
 from workers import Response, WorkerEntrypoint
 
 import app
 from api_client import ApiRequest, ApiResponse, parse_response
-from json_types import JsonObject
 from protocol import HttpRequest, Settings
 
 JsProxy = Any  # #272 objeto do runtime JS (Request, Response, service binding), sem tipo estático
@@ -35,11 +33,12 @@ class BindingApiClient:
 
     async def call(self, request: ApiRequest, jwt: str) -> ApiResponse:
         headers = {ACCESS_HEADER: jwt, "Accept": "application/json"}
-        options: JsonObject = {"method": request.method, "headers": headers, "signal": AbortSignal.timeout(API_TIMEOUT_MS)}
+        options: dict[str, object] = {"method": request.method, "headers": headers, "signal": AbortSignal.timeout(API_TIMEOUT_MS)}
         if request.body is not None:
             headers["Content-Type"] = "application/json"
             options["body"] = json.dumps(request.body)
-        response = await self.binding.fetch(API_ORIGIN + request.path, to_js(options, dict_converter=Object.fromEntries))
+        # #272 o `env.API` vem embrulhado pelo pacote `workers`: o init entra por palavra-chave, não por posição.
+        response = await self.binding.fetch(API_ORIGIN + request.path, **options)
         return parse_response(response.status, await response.text())
 
 

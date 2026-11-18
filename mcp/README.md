@@ -11,7 +11,7 @@ frente do MCP são do plano 3 (#275).
 
 ## Estrutura
 
-- `src/worker.py`: o ponto de entrada, um adaptador fino (único arquivo que importa `workers`, `js` e `pyodide`).
+- `src/worker.py`: o ponto de entrada, um adaptador fino (único arquivo que importa `workers` e `js`).
   Chama a API pelo service binding com prazo de 10 s; o estouro vira o erro genérico `unavailable` para a pessoa.
 - `src/app.py`, `protocol.py`, `tools.py`, `inputs.py`, `translation.py`, `api_client.py`, `errors.py`,
   `json_types.py`: a lógica, em Python puro. O cliente da API é uma porta; os testes usam um dublê.

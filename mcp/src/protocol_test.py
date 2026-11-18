@@ -3,11 +3,12 @@
 import json
 import unittest
 from dataclasses import replace
-from typing import Optional
+from types import MappingProxyType
+from typing import Mapping, Optional
 
 import app
 from json_types import JsonValue
-from protocol import HttpRequest, HttpResponse, Settings
+from protocol import HttpRequest, HttpResponse, MethodCall, Settings
 from test_support import JWT, FakeApi
 
 
@@ -112,6 +113,22 @@ class CrossSiteGuardTest(unittest.IsolatedAsyncioTestCase):
     async def test_a_recusa_nao_carrega_corpo_nem_o_jwt(self) -> None:  # ADR-002
         response = await self.ask_with(origin="https://outro.site")
         self.assertIsNone(response.body)
+
+
+class MethodParamsTest(unittest.IsolatedAsyncioTestCase):
+    async def test_os_parametros_chegam_ao_metodo_somente_leitura(self) -> None:  # ADR-002
+        """#272: `MethodCall` é congelado; os parâmetros que ele guarda também não mudam."""
+        seen: list[Mapping[str, JsonValue]] = []
+
+        async def capture(call: MethodCall) -> JsonValue:
+            seen.append(call.params)
+            return {}
+
+        server = app.create_server()
+        server.register_method("captura", capture)
+        await server.handle(request(rpc("captura", {"a": 1})), FakeApi(), lambda fields: None)
+        self.assertEqual(dict(seen[0]), {"a": 1})
+        self.assertIsInstance(seen[0], MappingProxyType)
 
 
 class JsonRpcErrorsTest(unittest.IsolatedAsyncioTestCase):

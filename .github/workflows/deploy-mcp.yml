@@ -34,9 +34,9 @@ jobs:
           cache-dependency-path: mcp/package-lock.json
       # O Actions só publica: o MCP nunca roda aqui. Os testes rodam antes, sem rede e sem credencial.
       - run: python3 -m unittest discover -s mcp/src -p '*_test.py'
-      # As dependências saem do lockfile (#272, SUP-1), num passo sem nenhum secret: os scripts de instalação
-      # delas não enxergam as credenciais da Cloudflare.
-      - run: npm ci --no-audit --no-fund
+      # As dependências saem do lockfile (#272, SUP-1), num passo sem nenhum secret e sem scripts de instalação:
+      # nenhum código de dependência roda aqui, e o que rodasse não veria as credenciais da Cloudflare.
+      - run: npm ci --ignore-scripts --no-audit --no-fund
         working-directory: mcp
       # Só este passo tem as credenciais, e roda o wrangler que o `npm ci` instalou, na versão travada.
       - run: npx wrangler deploy

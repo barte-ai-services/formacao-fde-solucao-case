@@ -27,6 +27,17 @@ class WranglerConfigTest(unittest.TestCase):
         self.assertTrue(config["main"].endswith(".py"))
         self.assertIn({"binding": "API", "service": "formacao-fde-solucao-case-api"}, config["services"])
 
+    def test_ac1_o_worker_sobe_sem_o_sdk_externo_e_com_data_que_o_wrangler_travado_aceita(self) -> None:  # ADR-002
+        """#272/AC-1: sem pacotes de terceiros, só `disable_python_external_sdk` deixa o Worker subir; 2026-10-30 é o
+        limite do workerd do lockfile (2026-10-31 é recusada)."""
+        config = wrangler_config()
+        self.assertIn("disable_python_external_sdk", config["compatibility_flags"])
+        self.assertLessEqual(config["compatibility_date"], "2026-10-30")
+
+    def test_ac6_a_observabilidade_liga_logs_e_traces(self) -> None:  # ADR-002
+        """#272/AC-6: o que o Worker registra (só campos nomeados) chega ao painel, com os traces."""
+        self.assertEqual(wrangler_config()["observability"], {"enabled": True, "traces": {"enabled": True}})
+
     def test_ac7_a_lista_de_origens_permitidas_e_uma_variavel_vazia_por_padrao(self) -> None:  # ADR-002
         """#272/AC-7: vazia, qualquer Origin presente é recusado; o plano 3 (#275) ajusta se preciso."""
         self.assertEqual(wrangler_config()["vars"], {"MCP_ALLOWED_ORIGINS": ""})
@@ -52,10 +63,11 @@ class WorkflowTest(unittest.TestCase):
         return self.workflow().split("\n      - ")[1:]
 
     def test_ac7_as_dependencias_instalam_do_lockfile_num_passo_sem_secrets(self) -> None:  # ADR-002
-        """#272/AC-7 e SUP-1: `npm ci` roda scripts de instalação, então nenhum secret está no ambiente dele."""
+        """#272/AC-7 e SUP-1: o `npm ci` roda sem scripts de instalação e sem nenhum secret no ambiente."""
         installs = [step for step in self.steps() if "npm ci" in step]
         self.assertEqual(len(installs), 1)
         self.assertIn("working-directory: mcp", installs[0])
+        self.assertIn("npm ci --ignore-scripts", installs[0])
         for forbidden in ("secrets.", "CLOUDFLARE", "env:"):
             self.assertNotIn(forbidden, installs[0])
 

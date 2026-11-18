@@ -1,4 +1,4 @@
-"""O adaptador do Worker, com dublês dos módulos do runtime (`js`, `pyodide.ffi`, `workers`) que só existem no Pyodide."""
+"""O adaptador do Worker, com dublês dos módulos do runtime (`js`, `workers`) que só existem no Pyodide."""
 
 import asyncio
 import importlib
@@ -9,7 +9,6 @@ import unittest
 from unittest import mock
 
 from api_client import ApiRequest, ApiResponse
-from json_types import JsonObject
 from test_support import JWT, ROUTE_QUEUE
 
 
@@ -26,11 +25,12 @@ class FakeBinding:
     """O service binding `API`: grava o que recebeu e responde com o que lhe deram, ou falha."""
 
     def __init__(self, status: int = 200, text: str = "{}", error: Exception | None = None) -> None:
-        self.calls: list[tuple[str, JsonObject]] = []
+        self.calls: list[tuple[str, dict[str, object]]] = []
         self.status, self.text, self.error = status, text, error
 
-    async def fetch(self, url: str, options: JsonObject) -> FakeJsResponse:
-        self.calls.append((url, options))
+    async def fetch(self, resource: str, /, **options: object) -> FakeJsResponse:
+        """Como o `_FetcherWrapper` do pacote `workers` no runtime: o init entra só por palavra-chave."""
+        self.calls.append((resource, options))
         if self.error:
             raise self.error
         return FakeJsResponse(self.status, self.text)
@@ -43,15 +43,11 @@ class FakeResponse:
 
 def runtime_modules() -> dict[str, types.ModuleType]:
     js = types.ModuleType("js")
-    js.Object = types.SimpleNamespace(fromEntries=object())  # type: ignore[attr-defined]
     js.AbortSignal = types.SimpleNamespace(timeout=lambda ms: f"abort-after-{ms}ms")  # type: ignore[attr-defined]
-    ffi = types.ModuleType("pyodide.ffi")
-    ffi.to_js = lambda value, **kwargs: value  # type: ignore[attr-defined]
-    pyodide = types.ModuleType("pyodide")
     workers = types.ModuleType("workers")
     workers.Response = FakeResponse  # type: ignore[attr-defined]
     workers.WorkerEntrypoint = type("WorkerEntrypoint", (), {})  # type: ignore[attr-defined]
-    return {"js": js, "pyodide": pyodide, "pyodide.ffi": ffi, "workers": workers}
+    return {"js": js, "workers": workers}
 
 
 class WorkerTestCase(unittest.IsolatedAsyncioTestCase):
@@ -73,6 +69,7 @@ class BindingApiClientTest(WorkerTestCase):
         response = await self.call_api(binding, ApiRequest(*ROUTE_QUEUE))
         url, options = binding.calls[0]
         self.assertTrue(url.endswith(ROUTE_QUEUE[1]))
+        self.assertEqual(options["method"], "GET")
         self.assertEqual(options["headers"]["Cf-Access-Jwt-Assertion"], JWT)
         self.assertEqual((response.status, response.body), (200, {"ok": True}))
 

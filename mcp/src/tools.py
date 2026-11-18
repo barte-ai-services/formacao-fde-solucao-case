@@ -185,7 +185,8 @@ _DECISION_SCHEMA = {
             "required": ["kind"],
         },
         "justification": {"type": "string", "description": "Só com change: por que mudou."},
-        "weighed_evidence": {"type": "array", "items": {"type": "string"}, "description": "As evidências que pesaram (base de critérios, #139)."},
+        # #139 a base de critérios vai gravar as evidências; até lá a API não tem o campo.
+        "weighed_evidence": {"type": "array", "items": {"type": "string"}, "description": "As evidências que pesaram. Ainda não são gravadas: a API de hoje não tem o campo."},
     },
     "required": ["invoice_access_key", "decision"],
     "additionalProperties": False,

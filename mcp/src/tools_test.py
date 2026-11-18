@@ -59,6 +59,8 @@ class ToolsListTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(decide["required"], ["invoice_access_key", "decision"])
         for tool in tools.values():
             self.assertTrue(tool["description"].strip())
+        evidence = decide["properties"]["weighed_evidence"]["description"]
+        self.assertEqual(evidence, "As evidências que pesaram. Ainda não são gravadas: a API de hoje não tem o campo.")
 
 
 class QueueListingTest(unittest.IsolatedAsyncioTestCase):

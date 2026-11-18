@@ -2,9 +2,11 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "formacao-fde-solucao-case-mcp",
   "main": "src/worker.py",
-  "compatibility_date": "2026-10-31",
-  "compatibility_flags": ["python_workers"],
-  "observability": { "enabled": true },
+  // Sem pacotes de terceiros, o SDK externo (workers-py) não é necessário; sem a flag o Worker não sobe.
+  // 2026-10-30 é o limite do workerd travado no lockfile.
+  "compatibility_date": "2026-10-30",
+  "compatibility_flags": ["python_workers", "disable_python_external_sdk"],
+  "observability": { "enabled": true, "traces": { "enabled": true } },
   // A API do Worker da fila de aprovação (api/). O MCP a chama por aqui, com o JWT do Access de quem chamou.
   "services": [{ "binding": "API", "service": "formacao-fde-solucao-case-api" }],
   // As origens de navegador que podem chamar o MCP (#272), separadas por vírgula. Vazia, qualquer cabeçalho Origin é

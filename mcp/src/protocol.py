@@ -129,7 +129,7 @@ class Server:
         if method is None:
             return _rpc_error(id_, METHOD_NOT_FOUND, "Método desconhecido")
         try:
-            result = await method(MethodCall(self, params, ctx))
+            result = await method(MethodCall(self, MappingProxyType(params), ctx))
         except InvalidParams as e:
             return _rpc_error(id_, INVALID_PARAMS, str(e) or "Parâmetros inválidos")
         except Exception as e:
@@ -143,7 +143,7 @@ class MethodCall:
     """O que um método do JSON-RPC recebe: o servidor, os parâmetros da mensagem e o contexto da chamada."""
 
     server: Server
-    params: JsonObject
+    params: Mapping[str, JsonValue]
     ctx: Context
 
 
