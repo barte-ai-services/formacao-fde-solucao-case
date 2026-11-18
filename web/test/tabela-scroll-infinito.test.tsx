@@ -17,7 +17,6 @@ import { fallbackContext } from "../src/shell/context";
  * o filtro e o `cursor_invalido`: AC-1, porque recomeçam a busca por blocos).
  */
 
-// ---------- o IntersectionObserver simulado ----------
 
 class FakeObserver {
   static live: FakeObserver[] = [];
@@ -42,31 +41,32 @@ class FakeObserver {
     return [];
   }
   fire() {
+    // #160 o jsdom não tem IntersectionObserverEntry: a entrada parcial só carrega o que a tabela lê (`isIntersecting`, `target`)
     const entries = this.targets.map((target) => ({ isIntersecting: true, target }) as unknown as IntersectionObserverEntry);
+    // #160 o observador simulado não implementa o resto da interface real (`root`, `thresholds`); o teste só chama o callback
     this.callback(entries, this as unknown as IntersectionObserver);
   }
 }
 
-/** O teste "rola até perto do fim": dispara a interseção em todo observador vivo que ainda olha algo. */
+/** #160 O teste "rola até perto do fim": dispara a interseção em todo observador vivo que ainda olha algo. */
 async function reachEnd() {
   await act(async () => {
     FakeObserver.live.filter((o) => o.targets.length > 0).forEach((o) => o.fire());
   });
 }
 
-// ---------- a API simulada, no contrato paginado ----------
 
 interface Api {
   calls: string[];
-  /** Os pedidos de lista (GET sem ser a proposta), na ordem. */
+  /** #160 Os pedidos de lista (GET sem ser a proposta), na ordem. */
   lists: () => URL[];
-  /** Enquanto houver uma promessa aqui, a próxima busca COM cursor espera por ela. */
+  /** #160 Enquanto houver uma promessa aqui, a próxima busca COM cursor espera por ela. */
   hold: Promise<void> | null;
-  /** Cursores que falham uma vez com 500. */
+  /** #160 Cursores que falham uma vez com 500. */
   failOnce: Set<string>;
-  /** O próximo pedido com cursor responde 400 cursor_invalido, uma vez. */
+  /** #160 O próximo pedido com cursor responde 400 cursor_invalido, uma vez. */
   invalidOnce: boolean;
-  /** Linhas já decididas pela gaveta (D3): a API deixa de mandá-las e os agregados descem. */
+  /** #160 Linhas já decididas pela gaveta (D3): a API deixa de mandá-las e os agregados descem. */
   decided: Set<string>;
 }
 
@@ -75,9 +75,9 @@ interface ListSpec {
   total: number;
   pageSize?: number;
   item: (i: number) => { key: string } & Record<string, unknown>;
-  /** O corpo, dado o bloco, o `nextCursor`, o `total` e quantas já saíram da lista (D3). */
+  /** #160 O corpo, dado o bloco, o `nextCursor`, o `total` e quantas já saíram da lista (D3). */
   body: (page: { items: unknown[]; nextCursor: string | null; total: number }, api: Api, mode: string) => unknown;
-  /** O total de cada modo de filtro (a fila: `pode_aprovar=1`). */
+  /** #160 O total de cada modo de filtro (a fila: `pode_aprovar=1`). */
   totalFor?: (mode: string) => number;
   detail?: (key: string) => unknown;
 }
@@ -104,6 +104,8 @@ function serve(spec: ListSpec): Api {
       const url = new URL(path, "http://web.test");
       const mode = url.searchParams.get("pode_aprovar") === "1" ? "mine" : "all";
       const cursor = url.searchParams.get("cursor");
+      // #160 sem `cursor` e sem `limite` a API responde na forma antiga (api/README.md, "Dois modos"), que este fake não imita: erro claro, para o teste não passar por engano
+      if (cursor === null && url.searchParams.get("limite") === null) return Response.json({ error: "fake_sem_forma_antiga" }, { status: 501 });
       if (cursor !== null) {
         if (api.hold) await api.hold;
         if (api.invalidOnce || !cursor.startsWith(`${mode}:`)) {
@@ -123,6 +125,13 @@ function serve(spec: ListSpec): Api {
   return api;
 }
 
+/** #160 o pedido de um primeiro bloco traz `limite` entre 25 e 50 (api/README.md), senão a API responde na forma antiga. */
+function expectPaged(url: URL) {
+  const limit = Number(url.searchParams.get("limite"));
+  expect(Number.isInteger(limit) && limit >= 25 && limit <= 50).toBe(true);
+  expect(url.searchParams.get("cursor")).toBeNull();
+}
+
 function renderAt(path: string) {
   window.history.replaceState(null, "", path);
   return render(<Frame context={fallbackContext("coordenacao@jachegou.test")} />);
@@ -130,7 +139,7 @@ function renderAt(path: string) {
 
 const money = (cents: number) => ({ cents, text: `R$ ${(cents / 100).toFixed(2).replace(".", ",")}` });
 const rows = () => Array.from(document.querySelectorAll("tbody tr"));
-/** Linhas de nota de verdade: as de esqueleto não levam o rótulo "Abrir…". */
+/** #160 Linhas de nota de verdade: as de esqueleto não levam o rótulo "Abrir…". */
 const noteRows = () => rows().filter((tr) => (tr.getAttribute("aria-label") ?? "").length > 0 && !/Carregando/.test(tr.getAttribute("aria-label")!));
 
 beforeEach(() => {
@@ -139,10 +148,9 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-// ---------- a fila (/pagar/fila) ----------
 
 const KEY = (n: number) => `352611000000000000005500100000${String(n).padStart(8, "0")}1000`;
-const filaItem = (n: number) => ({
+const queueItem = (n: number) => ({
   key: KEY(n),
   invoiceAccessKey: KEY(n),
   number: String(n),
@@ -162,8 +170,8 @@ const filaItem = (n: number) => ({
   state: "aguardando_aprovacao",
   canApprove: true,
 });
-const filaDetail = (key: string) => ({
-  ...filaItem(Number(key.slice(30, 38))),
+const queueDetail = (key: string) => ({
+  ...queueItem(Number(key.slice(30, 38))),
   justification: "Duplicidade: a mesma compra já foi cobrada",
   items: [],
   divergences: [{ classification: "E6", exceptionCode: "E6", exceptionName: "Duplicidade", skus: ["SKU-1"], evidence: [{ source: "erp_contas_a_pagar", reference: "NF-77", description: "Mesma ordem já lançada" }] }],
@@ -171,20 +179,20 @@ const filaDetail = (key: string) => ({
   approval: null,
 });
 
-/** 70 notas em blocos de 30: 30, 30 e 10. Agregados da lista inteira: 70 aguardando, 12 bloqueadas, R$ 123.456 em risco. */
-function serveFila(): Api {
+/** #160 70 notas em blocos de 30: 30, 30 e 10. Agregados da lista inteira: 70 aguardando, 12 bloqueadas, R$ 123.456 em risco. */
+function serveQueue(): Api {
   return serve({
     path: "/api/fila",
     total: 70,
-    item: filaItem,
+    item: queueItem,
     totalFor: (mode) => (mode === "mine" ? 40 : 70),
-    detail: filaDetail,
+    detail: queueDetail,
     body: ({ items, nextCursor, total }, api) => ({
       approver: { email: "coordenacao@jachegou.test", level: "coordenacao" },
       items,
       nextCursor,
       total,
-      // O chip "Minhas" não muda os agregados (api/README.md); decidir uma nota os reduz (D3).
+      // #160 O chip "Minhas" não muda os agregados (api/README.md); decidir uma nota os reduz (D3).
       aggregates: { all: 70 - api.decided.size, approvable: 40 - api.decided.size, amountAtRisk: { cents: 12_345_600 - 50_000 * api.decided.size, text: "R$ 123.456,00" }, blocked: 12 },
     }),
   });
@@ -193,20 +201,21 @@ function serveFila(): Api {
 describe("#160 fila de aprovação com scroll infinito", () => {
   // #160 esqueleto vermelho: vira it(...) quando a camada de contrato (a tela lê `items`, `total` e `aggregates`) o satisfaz
   it.fails("#160/AC-3: mostra o primeiro bloco e o contador de notas no topo", async () => {
-    serveFila();
-    renderAt("/pagar/fila");
+    const api = serveQueue();
+    renderAt("/pagar/fila"); // ADR-004
     expect(await screen.findByText("NF 1")).toBeTruthy();
+    expectPaged(api.lists()[0]!);
     expect(noteRows()).toHaveLength(30);
-    // O contador é a `total` da API (70), não as 30 que carregaram.
+    // #160 O contador é a `total` da API (70), não as 30 que carregaram.
     expect(screen.getByText("70 notas").closest('[role="status"]')).toBeTruthy();
   });
 
   // #160 esqueleto vermelho: vira it(...) quando a camada de contrato o satisfaz
   it.fails("#160/AC-4: os números do topo vêm dos agregados da API, não do que carregou", async () => {
-    serveFila();
-    renderAt("/pagar/fila");
+    serveQueue();
+    renderAt("/pagar/fila"); // ADR-004
     await screen.findByText("NF 1");
-    // Aguardando = aggregates.all (70, e não as 30 linhas); bloqueadas = aggregates.blocked (12); risco = aggregates.amountAtRisk.
+    // #160 Aguardando = aggregates.all (70, e não as 30 linhas); bloqueadas = aggregates.blocked (12); risco = aggregates.amountAtRisk.
     expect(screen.getByText("Aguardando aprovação").closest("div")!.textContent).toContain("70");
     expect(screen.getByText("Bloqueadas por duplicidade").closest("div")!.textContent).toContain("12");
     expect(screen.getByText("Valor em risco na fila").closest("div")!.textContent).toMatch(/123\.456/);
@@ -214,17 +223,17 @@ describe("#160 fila de aprovação com scroll infinito", () => {
 
   // #160 esqueleto vermelho: vira it(...) quando a camada de contrato o satisfaz
   it.fails("#160/AC-1: perto do fim busca o próximo bloco pelo nextCursor e mostra esqueleto enquanto carrega", async () => {
-    const api = serveFila();
-    renderAt("/pagar/fila");
+    const api = serveQueue();
+    renderAt("/pagar/fila"); // ADR-004
     await screen.findByText("NF 1");
     let release!: () => void;
     api.hold = new Promise<void>((r) => (release = r));
     await reachEnd();
-    // Pendente: o cursor do primeiro bloco foi pedido, e três linhas de esqueleto ficam abaixo da última nota.
+    // #160 Pendente: o cursor do primeiro bloco foi pedido, e três linhas de esqueleto ficam abaixo da última nota.
     await waitFor(() => expect(api.lists().at(-1)!.searchParams.get("cursor")).toBe("all:30"));
     expect(rows()).toHaveLength(33);
     expect(noteRows()).toHaveLength(30);
-    // O esqueleto não é linha de nota: não entra no Tab e não abre a gaveta.
+    // #160 O esqueleto não é linha de nota: não entra no Tab e não abre a gaveta.
     const skeleton = rows().slice(30);
     skeleton.forEach((tr) => expect(tr.getAttribute("tabindex")).toBeNull());
     fireEvent.click(skeleton[0]!);
@@ -237,8 +246,8 @@ describe("#160 fila de aprovação com scroll infinito", () => {
 
   // #160 esqueleto vermelho: vira it(...) quando a camada de componente (a tabela compartilhada) o satisfaz
   it.fails("#160/AC-1: o gatilho olha a caixa da tabela (root), que contém o cabeçalho e as linhas", async () => {
-    serveFila();
-    renderAt("/pagar/fila");
+    serveQueue();
+    renderAt("/pagar/fila"); // ADR-004
     await screen.findByText("NF 1");
     const observer = FakeObserver.live.find((o) => o.targets.length > 0)!;
     expect(observer).toBeTruthy();
@@ -249,8 +258,8 @@ describe("#160 fila de aprovação com scroll infinito", () => {
 
   // #160 esqueleto vermelho: vira it(...) quando a camada de componente o satisfaz
   it.fails("#160/AC-3: no último bloco (nextCursor nulo) o rodapé diz \"Você viu todas as 70 notas\" e nada mais é buscado", async () => {
-    const api = serveFila();
-    renderAt("/pagar/fila");
+    const api = serveQueue();
+    renderAt("/pagar/fila"); // ADR-004
     await screen.findByText("NF 1");
     await reachEnd();
     await waitFor(() => expect(noteRows()).toHaveLength(60));
@@ -264,8 +273,8 @@ describe("#160 fila de aprovação com scroll infinito", () => {
 
   // #160 esqueleto vermelho: vira it(...) quando a camada de contrato o satisfaz
   it.fails("#160/AC-4: os números do topo ficam os mesmos depois do segundo bloco", async () => {
-    serveFila();
-    renderAt("/pagar/fila");
+    serveQueue();
+    renderAt("/pagar/fila"); // ADR-004
     await screen.findByText("NF 1");
     const top = () => [screen.getByText("Aguardando aprovação").closest("div")!.textContent, screen.getByText("Valor em risco na fila").closest("div")!.textContent, screen.getByText("Bloqueadas por duplicidade").closest("div")!.textContent, screen.getByText("70 notas").textContent];
     const before = top();
@@ -274,13 +283,13 @@ describe("#160 fila de aprovação com scroll infinito", () => {
     expect(top()).toEqual(before);
   });
 
-  // #160 esqueleto vermelho: vira it(...) quando a camada de componente o satisfaz. É o AC-2; no jsdom afirma-se a regra do
-  // app.css (por token, sem px solto), como web/test/tabelas-estilo.test.ts; a medida no navegador fica no relato da camada.
+  // #160 esqueleto vermelho: vira it(...) quando a camada de componente o satisfaz. É o AC-2; no jsdom afirma-se a regra do app.css
+  // #160 (por token, sem px solto), como web/test/tabelas-estilo.test.ts; a medida no navegador fica no relato da camada.
   it.fails("#160/AC-2: o cabeçalho da tabela fica fixo na caixa que rola, por token do design system", () => {
     const css = readFileSync(resolve(process.cwd(), "src/app.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
     const sticky = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter(([, sel, body]) => /thead\s+th/.test(sel!) && /position:\s*sticky/.test(body!) && /top:\s*0/.test(body!));
     expect(sticky.length).toBeGreaterThan(0);
-    // O z-index vem de uma variável com ponteiro, não de um número solto; a cor, de um token.
+    // #160 O z-index vem de uma variável com ponteiro, não de um número solto; a cor, de um token.
     const body = sticky.map(([, , b]) => b).join("\n");
     expect(body).toMatch(/z-index:\s*var\(/);
     expect(body).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
@@ -288,8 +297,8 @@ describe("#160 fila de aprovação com scroll infinito", () => {
 
   // #160 esqueleto vermelho: vira it(...) quando a camada de estado (a busca por blocos) o satisfaz
   it.fails("#160/AC-1: se um bloco falha, a faixa oferece \"Tentar de novo\", que repete o mesmo cursor sem perder o carregado", async () => {
-    const api = serveFila();
-    renderAt("/pagar/fila");
+    const api = serveQueue();
+    renderAt("/pagar/fila"); // ADR-004
     await screen.findByText("NF 1");
     api.failOnce.add("all:30");
     await reachEnd();
@@ -304,61 +313,61 @@ describe("#160 fila de aprovação com scroll infinito", () => {
 
   // #160 esqueleto vermelho: vira it(...) quando a camada de contrato (D1, `pode_aprovar` na API) o satisfaz. D1 não é AC: AC-1.
   it.fails("#160/AC-1: trocar o filtro para \"Minhas\" recarrega do primeiro bloco, com pode_aprovar=1, e os números do topo ficam", async () => {
-    const api = serveFila();
-    renderAt("/pagar/fila");
+    const api = serveQueue();
+    renderAt("/pagar/fila"); // ADR-004
     await screen.findByText("NF 1");
     await reachEnd();
     await waitFor(() => expect(noteRows()).toHaveLength(60));
     fireEvent.click(screen.getByRole("radio", { name: /Minhas/ }));
     const last = () => api.lists().at(-1)!;
     await waitFor(() => expect(last().searchParams.get("pode_aprovar")).toBe("1"));
-    expect(last().searchParams.get("cursor")).toBeNull();
-    // A lista recomeça: 30 linhas do primeiro bloco do filtro, e o contador passa a ser o da lista filtrada.
+    expectPaged(last());
+    // #160 A lista recomeça: 30 linhas do primeiro bloco do filtro, e o contador passa a ser o da lista filtrada.
     await waitFor(() => expect(noteRows()).toHaveLength(30));
     expect(screen.getByText("40 notas")).toBeTruthy();
-    // Os agregados não mudam com o chip (api/README.md): o Stat continua em 70.
+    // #160 Os agregados não mudam com o chip (api/README.md): o Stat continua em 70.
     expect(screen.getByText("Aguardando aprovação").closest("div")!.textContent).toContain("70");
   });
 
   // #160 esqueleto vermelho: vira it(...) quando a camada de estado o satisfaz. D4 não é AC: AC-1.
   it.fails("#160/AC-1: cursor_invalido recomeça a lista do início, uma vez, com o aviso de uma linha", async () => {
-    const api = serveFila();
-    renderAt("/pagar/fila");
+    const api = serveQueue();
+    renderAt("/pagar/fila"); // ADR-004
     await screen.findByText("NF 1");
     api.invalidOnce = true;
     await reachEnd();
     expect(await screen.findByText("A lista mudou e voltou ao início")).toBeTruthy();
-    // Recomeçou: o último pedido não tem cursor, e a lista é o primeiro bloco de novo.
+    // #160 Recomeçou: o último pedido não tem cursor, e a lista é o primeiro bloco de novo.
     await waitFor(() => expect(api.lists().at(-1)!.searchParams.get("cursor")).toBeNull());
+    expectPaged(api.lists().at(-1)!);
     await waitFor(() => expect(noteRows()).toHaveLength(30));
   });
 
   // #160 esqueleto vermelho: vira it(...) quando a camada de estado o satisfaz. D3 não é AC: AC-4 (os números) e AC-1 (a rolagem não volta ao início).
   it.fails("#160/AC-4: decidir na gaveta tira a linha e atualiza os números do topo, sem voltar ao início", async () => {
-    const api = serveFila();
-    renderAt("/pagar/fila");
+    const api = serveQueue();
+    renderAt("/pagar/fila"); // ADR-004
     await screen.findByText("NF 1");
     await reachEnd();
     await waitFor(() => expect(noteRows()).toHaveLength(60));
-    const listCallsBefore = api.lists().filter((u) => u.searchParams.get("cursor") === null).length;
     fireEvent.click(screen.getByText("NF 1"));
     fireEvent.click(await screen.findByRole("radio", { name: /^Recusar/ }));
     fireEvent.click(screen.getByRole("button", { name: "Registrar a decisão" }));
     expect(await screen.findByText("Decisão registrada")).toBeTruthy();
-    // A linha decidida sai, as outras 59 continuam (o segundo bloco não foi descartado), e os números descem em um.
+    // #160 A linha decidida sai, as outras 59 continuam (o segundo bloco não foi descartado), e os números descem em um.
     await waitFor(() => expect(noteRows()).toHaveLength(59));
     expect(screen.getByText("69 notas")).toBeTruthy();
     expect(screen.getByText("Aguardando aprovação").closest("div")!.textContent).toContain("69");
-    // Não voltou ao início: nenhum esqueleto de recarga, e nenhuma lista nova partiu do primeiro bloco como lista (só, no máximo, os agregados).
+    // #160 não voltou ao início: nenhum esqueleto de recarga, nenhuma linha a mais além das 59
     expect(rows()).toHaveLength(59);
-    expect(api.lists().filter((u) => u.searchParams.get("cursor") === null && u.searchParams.get("limite") !== "25").length).toBe(listCallsBefore);
+    // #160 o contrato não fixa como os números se atualizam (rebuscar o primeiro bloco só para ler `total` e `aggregates`, ou ajustar localmente): vale a lista carregada seguir inteira, com a NF 60 do segundo bloco
+    expect(screen.getByText("NF 60")).toBeTruthy();
   });
 });
 
-// ---------- a lista do dia (/pagar/hoje) ----------
 
 describe("#160 lista do dia com scroll infinito", () => {
-  const hojeItem = (n: number) => ({
+  const todayItem = (n: number) => ({
     key: `h${n}`,
     invoiceAccessKey: `h${n}`,
     number: String(n),
@@ -372,19 +381,20 @@ describe("#160 lista do dia com scroll infinito", () => {
     approver: n % 2 ? "regra" : "ana@jachegou.test",
     approvedBy: n % 2 ? "rule" : "person",
   });
-  const serveHoje = () =>
+  const serveToday = () =>
     serve({
       path: "/api/hoje",
       total: 87,
-      item: hojeItem,
+      item: todayItem,
       body: ({ items, nextCursor, total }) => ({ day: "2026-11-15", items, nextCursor, total, aggregates: { toPay: { cents: 8_700_000, text: "R$ 87.000,00" }, approvedByRule: 44 } }),
     });
 
   // #160 esqueleto vermelho: vira it(...) quando a camada de contrato o satisfaz
   it.fails("#160/AC-4: mostra o primeiro bloco, o contador e os números do topo dos agregados (títulos = total, a pagar, pela regra)", async () => {
-    serveHoje();
-    renderAt("/pagar/hoje");
+    const api = serveToday();
+    renderAt("/pagar/hoje"); // ADR-004
     expect(await screen.findByText("NF 1")).toBeTruthy();
+    expectPaged(api.lists()[0]!);
     expect(noteRows()).toHaveLength(30);
     expect(screen.getByText("87 notas")).toBeTruthy();
     expect(screen.getByText("Títulos na lista").closest("div")!.textContent).toContain("87");
@@ -394,8 +404,8 @@ describe("#160 lista do dia com scroll infinito", () => {
 
   // #160 esqueleto vermelho: vira it(...) quando a camada de estado o satisfaz
   it.fails("#160/AC-3: rola por três blocos (30, 30, 27) e termina em \"Você viu todas as 87 notas\"", async () => {
-    serveHoje();
-    renderAt("/pagar/hoje");
+    serveToday();
+    renderAt("/pagar/hoje"); // ADR-004
     await screen.findByText("NF 1");
     await reachEnd();
     await waitFor(() => expect(noteRows()).toHaveLength(60));
@@ -406,7 +416,6 @@ describe("#160 lista do dia com scroll infinito", () => {
   });
 });
 
-// ---------- as duplicadas (/pagar/duplicadas) ----------
 
 describe("#160 duplicadas com scroll infinito", () => {
   const dupItem = (n: number) => ({
@@ -423,15 +432,16 @@ describe("#160 duplicadas com scroll infinito", () => {
       path: "/api/duplicates",
       total: 65,
       item: dupItem,
-      // No modo paginado a lista se chama `items`, não `duplicates` (api/README.md).
+      // #160 No modo paginado a lista se chama `items`, não `duplicates` (api/README.md).
       body: ({ items, nextCursor, total }) => ({ items, nextCursor, total, aggregates: { blockedAmount: { cents: 7_862_400, text: "R$ 78.624,00" }, byReason: { titulo_lancado: 33, ordem_sem_saldo: 32 } } }),
     });
 
   // #160 esqueleto vermelho: vira it(...) quando a camada de contrato o satisfaz
   it.fails("#160/AC-4: mostra o primeiro bloco, o contador e os números do topo dos agregados (duplicadas = total, valor evitado, por quê)", async () => {
-    serveDup();
-    renderAt("/pagar/duplicadas");
+    const api = serveDup();
+    renderAt("/pagar/duplicadas"); // ADR-004
     await waitFor(() => expect(noteRows()).toHaveLength(30));
+    expectPaged(api.lists()[0]!);
     expect(screen.getByText("65 notas")).toBeTruthy();
     expect(screen.getByText("Duplicadas").closest("div")!.textContent).toContain("65");
     expect(screen.getByText("Pagamento em dobro evitado").closest("div")!.textContent).toContain("R$ 78.624,00");
@@ -441,7 +451,7 @@ describe("#160 duplicadas com scroll infinito", () => {
   // #160 esqueleto vermelho: vira it(...) quando a camada de estado o satisfaz
   it.fails("#160/AC-3: o último bloco encerra com \"Você viu todas as 65 notas\" e os números do topo não mudam", async () => {
     serveDup();
-    renderAt("/pagar/duplicadas");
+    renderAt("/pagar/duplicadas"); // ADR-004
     await waitFor(() => expect(screen.getByText("65 notas")).toBeTruthy());
     const before = screen.getByText("Duplicadas").closest("div")!.textContent;
     await reachEnd();
@@ -453,11 +463,10 @@ describe("#160 duplicadas com scroll infinito", () => {
   });
 });
 
-// ---------- a doca (/doca) e o recebimento na loja (/recebimento/loja) ----------
 
 describe.each([
-  ["doca", "/doca", "/api/doca", "CD-03"],
-  ["recebimento na loja", "/recebimento/loja", "/api/recebimento-loja", "LJ-012"],
+  ["doca", "/doca", "/api/doca", "CD-03"], // ADR-004
+  ["recebimento na loja", "/recebimento/loja", "/api/recebimento-loja", "LJ-012"], // ADR-004
 ])("#160 %s com scroll infinito", (_name, route, path, destination) => {
   const dockItem = (n: number) => ({
     key: `r${n}`,
@@ -477,12 +486,13 @@ describe.each([
 
   // #160 esqueleto vermelho: vira it(...) quando a camada de contrato o satisfaz
   it.fails("#160/AC-4: mostra o primeiro bloco, o contador e o aviso de aguardando vindo de aggregates.awaiting", async () => {
-    serveDock();
+    const api = serveDock();
     renderAt(route);
     expect(await screen.findByText("NF 1")).toBeTruthy();
+    expectPaged(api.lists()[0]!);
     expect(noteRows()).toHaveLength(30);
     expect(screen.getByText("64 notas")).toBeTruthy();
-    // 4 é o destino inteiro (aggregates.awaiting); as 30 linhas carregadas têm 0 aguardando.
+    // #160 4 é o destino inteiro (aggregates.awaiting); as 30 linhas carregadas têm 0 aguardando.
     expect(screen.getByText("4 notas aguardam aprovação.")).toBeTruthy();
   });
 
