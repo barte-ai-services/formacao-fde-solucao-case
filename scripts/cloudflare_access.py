@@ -15,14 +15,31 @@ aplicação já liga com nome do script, ou, na falta, a da conta com o nome atu
 aplicação a usa, o script recusa e não grava nada, porque o `include: everyone` valeria lá também. Nome, domínio e
 AUD não mudam. Rodar duas vezes deixa o mesmo estado.
 
+O MCP (#321) entra pelo mesmo Access da API. O PUT troca também `destinations`, que só ganha o destino
+público de MCP_HOST (se ainda não está; sem `destinations`, o ponto de partida é `self_hosted_domains`, ou o
+`domain` se ele faltar, com todo hostname extra preservado), e `oauth_configuration`: `enabled` e
+`dynamic_client_registration.enabled` viram ligados e o registro dinâmico de cliente (DCR) fica restrito ao Claude:
+`dynamic_client_registration.allowed_uris` é gravado como só CLAUDE_CALLBACK (campo do schema público da API do Access,
+não conferido contra a conta) e `allow_any_on_localhost` e `allow_any_on_loopback` são gravados desligados. Outras URIs
+que a aplicação tinha saem: o DCR aberto a elas seria um login de cliente que ninguém pediu. O resto de
+`oauth_configuration` (`grant` e o mais) fica como veio. O script nunca remove um destino nem desliga o OAuth.
+
+Na execução real, depois do PUT, o script relê a aplicação (GET por id) e confere que o DCR ficou restrito: só
+CLAUDE_CALLBACK em `allowed_uris` e os dois `allow_any_on_*` desligados (ausente conta como desligado). Se não, falha
+com ConfigError, que nomeia o campo e nunca leva corpo, id, URI alheia nem token. A aplicação nova (--create) nasce
+sem `oauth_configuration` e não é relida.
+
 Criar uma aplicação nova só por pedido explícito, com --create, e então o domínio vem de
 BARTE_ACADEMY_ACCESS_APP_DOMAIN. Sem --create, um AUD que não bate com nenhuma aplicação é erro.
 
 Variáveis de ambiente: BARTE_ACADEMY_CLOUDFLARE_API_TOKEN, BARTE_ACADEMY_CLOUDFLARE_ACCOUNT_ID e
 BARTE_ACADEMY_ACCESS_AUD.
 Nunca imprime o token nem o corpo das respostas de erro. O --dry-run da aplicação existente
-resume em campos nomeados (posição, precedência e tipo de cada política), sem a configuração dela, sem a conta e
-sem id de aplicação ou de política: o log do Actions de um repositório público é aberto.
+resume em campos nomeados (posição, precedência e tipo de cada política, destinos e OAuth antes e depois), sem a
+configuração dela, sem a conta e sem id de aplicação ou de política: o log do Actions de um repositório público
+é aberto. Dos destinos, só o hostname do MCP (constante do script) sai pelo nome; o `domain` da aplicação e os outros
+públicos, só pela contagem, e do `domain` só se mudou. Nenhum corpo é despejado: o dry-run da aplicação nova também
+resume em campos nomeados, sem o valor de BARTE_ACADEMY_ACCESS_APP_DOMAIN.
 
 Uso: python3 scripts/cloudflare_access.py [--dry-run] [--create]
 """
@@ -51,6 +68,10 @@ POLICY_NAME = "formacao-fde-solucao-case: qualquer e-mail"
 # O nome de antes do plano "qualquer e-mail": a política que já o tem também é a do script e é trocada no lugar. (#232)
 LEGACY_POLICY_NAME = "formacao-fde-solucao-case: barte.com e alunos"
 SCRIPT_POLICY_NAMES = (POLICY_NAME, LEGACY_POLICY_NAME)
+# O destino público do MCP, que passa pelo mesmo Access da API para o login de cliente MCP. (#321)
+MCP_HOST = "formacao-fde-solucao-case-mcp.barte-academy.workers.dev"
+# A redirect URI do Claude para conectores MCP, que o registro dinâmico de cliente do Access precisa permitir. (#321)
+CLAUDE_CALLBACK = "https://claude.ai/api/mcp/auth_callback"
 OTP_TYPE = "onetimepin"
 OTP_NAME = "Código por e-mail"
 # O que a API do Access devolve da aplicação e não aceita de volta no PUT: identificadores e carimbos. (#232)
@@ -219,8 +240,56 @@ def linked_policies(existing: list[Json], policy_id: str) -> list[Json]:
     return links if mine is not None else [*links, own]
 
 
+def _is_mcp_destination(item: Json) -> bool:
+    """O destino é público e é o do MCP (o uri sem barra final)."""
+    return (isinstance(item, dict) and item.get("type") == "public"
+            and str(item.get("uri", "")).rstrip("/") == MCP_HOST)
+
+
+def _current_destinations(existing: Json) -> tuple[list[Json], str | None]:
+    """Os destinos da aplicação e, se vierem do fallback, de onde: `self_hosted_domains`, ou `domain` se faltar."""
+    current = list(existing.get("destinations") or [])
+    if current:
+        return current, None
+    hosts = [h for h in existing.get("self_hosted_domains") or [] if isinstance(h, str) and h]
+    if hosts:
+        return [{"type": "public", "uri": h} for h in hosts], "self_hosted_domains"
+    domain = existing.get("domain")
+    return ([{"type": "public", "uri": domain}] if domain else []), "domain"
+
+
+def merged_destinations(existing: Json) -> list[Json]:
+    """Os destinos da aplicação como vieram, mais o do MCP ao fim se ainda não está. Nunca tira nenhum."""
+    current, _ = _current_destinations(existing)
+    if any(_is_mcp_destination(d) for d in current):
+        return current
+    return [*current, {"type": "public", "uri": MCP_HOST}]
+
+
+def _registration(oauth: Json) -> Json:
+    """O `dynamic_client_registration` de um `oauth_configuration`, ou {} se faltar ou não for objeto."""
+    registration = oauth.get("dynamic_client_registration") if isinstance(oauth, dict) else None
+    return registration if isinstance(registration, dict) else {}
+
+
+def oauth_enabled(existing: Json) -> Json:
+    """`oauth_configuration` com o OAuth e o registro dinâmico de cliente ligados e restritos ao Claude.
+
+    `allowed_uris` vira só CLAUDE_CALLBACK (as outras URIs saem) e `allow_any_on_localhost` e
+    `allow_any_on_loopback` ficam desligados, para que a releitura de `verify_dcr` passe. O resto (`grant` e o
+    mais) fica como veio. O campo das URIs é `dynamic_client_registration.allowed_uris`, do schema público da
+    API do Access (não conferido contra a conta).
+    """
+    current = existing.get("oauth_configuration")
+    oauth = dict(current) if isinstance(current, dict) else {}
+    return {**oauth, "enabled": True, "dynamic_client_registration": {
+        **_registration(oauth), "enabled": True, "allowed_uris": [CLAUDE_CALLBACK],
+        "allow_any_on_localhost": False, "allow_any_on_loopback": False}}
+
+
 def updated_app_payload(existing: Json, otp_id: str, policy_id: str | None) -> Json:
-    """O PUT substitui o recurso: o corpo parte da aplicação toda e troca só `allowed_idps` e `policies`.
+    """O PUT substitui o recurso: o corpo parte da aplicação toda e troca `allowed_idps`, `policies`,
+    `destinations` (só acrescenta o do MCP) e `oauth_configuration.enabled` (liga).
 
     `allowed_idps` vira exatamente o código por e-mail, qualquer que seja o valor atual.
 
@@ -230,6 +299,8 @@ def updated_app_payload(existing: Json, otp_id: str, policy_id: str | None) -> J
     body["allowed_idps"] = [otp_id]
     current = list(existing.get("policies") or [])
     body["policies"] = merged_policies(current) if policy_id is None else linked_policies(current, policy_id)
+    body["destinations"] = merged_destinations(existing)
+    body["oauth_configuration"] = oauth_enabled(existing)
     return body
 
 
@@ -242,9 +313,80 @@ def _call(client: Client, method: str, path: str, body: Json = None) -> Json:
         raise
 
 
-def _show(out: TextIO, method: str, route: str, body: Json) -> None:
-    """Dump do corpo que o script mesmo montou; a rota vai sem o `/accounts/<id>`."""
-    out.write(f"[dry-run] {method} {route}\n{json.dumps(body, ensure_ascii=False, indent=2)}\n")
+def _destinations_text(destinations: list[Json]) -> str:
+    """Só o hostname do MCP (constante do script) sai pelo nome; os outros públicos, o `domain` entre eles, só pela
+    contagem, e os demais pelo tipo."""
+    mcp = False
+    other_public = 0
+    others: dict[str, int] = {}
+    for d in destinations:
+        kind = str(d.get("type", "desconhecido")) if isinstance(d, dict) else "desconhecido"
+        if kind != "public":
+            others[kind] = others.get(kind, 0) + 1
+        elif _is_mcp_destination(d):
+            mcp = True
+        else:
+            other_public += 1
+    count = [] if not other_public else [f"{other_public} outro público" if other_public == 1
+                                         else f"{other_public} outros públicos"]
+    parts = [*([MCP_HOST] if mcp else []), *count, *(f"{n} de tipo {kind}" for kind, n in others.items())]
+    return ", ".join(parts) if parts else "nenhum"
+
+
+def _destination_lines(existing: Json, body: Json) -> list[str]:
+    before, source = _current_destinations(existing)
+    added = not any(_is_mcp_destination(d) for d in before)
+    origin = f" (só {source})" if source else ""
+    return [
+        f"destinos antes: {_destinations_text(before)}{origin}",
+        f"destinos depois: {_destinations_text(body['destinations'])}",
+        f"destino do MCP: {'acrescentado' if added else 'já estava'}",
+        f"domain: {'inalterado' if body.get('domain') == existing.get('domain') else 'alterado'}",
+    ]
+
+
+def _flag(value: Json) -> str:
+    return "ligado" if value is True else "desligado"
+
+
+def _oauth_lines(existing: Json, body: Json) -> list[str]:
+    """Antes e depois das chaves de OAuth que o script mexe; das URIs que saem, só a contagem."""
+    current = existing.get("oauth_configuration")
+    current = current if isinstance(current, dict) else {}
+    registration = _registration(current)
+    after = body["oauth_configuration"]
+    after_registration = after["dynamic_client_registration"]
+    prefix = "oauth_configuration.dynamic_client_registration"
+
+    def change(before: Json, now: Json) -> str:
+        return f"{_flag(now)}, inalterado" if (before is True) == (now is True) else f"{_flag(before)} -> {_flag(now)}"
+
+    uris = registration.get("allowed_uris")
+    removed = len([u for u in uris if u != CLAUDE_CALLBACK]) if isinstance(uris, list) else 0
+    return [
+        f"oauth_configuration.enabled: {change(current.get('enabled'), after['enabled'])}",
+        f"{prefix}.enabled: {change(registration.get('enabled'), after_registration['enabled'])}",
+        f"{prefix}.allowed_uris: só o callback do Claude (outras URIs removidas: {removed})",
+        f"{prefix}.allow_any_on_localhost: "
+        f"{change(registration.get('allow_any_on_localhost'), after_registration['allow_any_on_localhost'])}",
+        f"{prefix}.allow_any_on_loopback: "
+        f"{change(registration.get('allow_any_on_loopback'), after_registration['allow_any_on_loopback'])}",
+    ]
+
+
+def describe_new_app() -> str:
+    """Resumo do POST da aplicação nova: só constantes do script, nunca o corpo nem o valor do domínio."""
+    return "\n".join([
+        "[dry-run] POST /access/apps",
+        "allowed_idps: só o código por e-mail",
+        "policies: 1, libera qualquer e-mail",
+        f"domain: o de {APP_DOMAIN_VAR}, não impresso",
+    ]) + "\n"
+
+
+def describe_new_otp() -> str:
+    """Resumo do POST do provedor de código por e-mail: constantes do script."""
+    return f"[dry-run] POST /access/identity_providers\ntipo: {OTP_TYPE}\nnome: {OTP_NAME}\n"
 
 
 def describe_put(existing: Json, body: Json, policy_id: str | None) -> str:
@@ -263,6 +405,8 @@ def describe_put(existing: Json, body: Json, policy_id: str | None) -> str:
         "libera qualquer e-mail",
         f"outras políticas: {len(policies) - 1}, mantidas",
         f"caminho: {path}",
+        *_destination_lines(existing, body),
+        *_oauth_lines(existing, body),
     ]
     lines += [f"  política {n}: precedence={p.get('precedence')} tipo={kind}{' (do script)' if p is mine else ''}"
               for n, p in enumerate(policies, start=1)]
@@ -340,6 +484,17 @@ def app_request(existing: Json, otp_id: str, options: Options, policy_id: str | 
     return "PUT", f"/access/apps/{existing['id']}", updated_app_payload(existing, otp_id, policy_id)
 
 
+def verify_dcr(client: Client, account: str, app_id: str) -> None:
+    """Relê a aplicação e confere que o DCR ficou restrito ao callback do Claude. A mensagem só nomeia campos."""
+    app = _call(client, "GET", f"/accounts/{account}/access/apps/{app_id}")
+    registration = _registration(app.get("oauth_configuration") if isinstance(app, dict) else None)
+    wrong = [] if registration.get("allowed_uris") == [CLAUDE_CALLBACK] else ["allowed_uris"]
+    wrong += [flag for flag in ("allow_any_on_localhost", "allow_any_on_loopback") if registration.get(flag) is True]
+    if wrong:
+        raise ConfigError("a releitura da aplicação mostra o registro dinâmico de cliente fora do esperado "
+                          f"({', '.join(wrong)}); confira o OAuth da aplicação no painel")
+
+
 def report(out: TextIO, existing: Json, app: Json, organization: Json) -> None:
     """O fecho da execução: o que a política diz e os valores que o Worker lê. O AUD só sai de aplicação nova."""
     out.write("Política que libera qualquer e-mail, com o código por e-mail como único provedor.\n")
@@ -357,7 +512,7 @@ def provision(client: Client, account: str, options: Options, out: TextIO = sys.
     candidate = reusable_candidate(client, account, existing) if reusable else None  # recusa antes de gravar (#232)
     otp_id = find_otp(client, account)
     if otp_id is None and options.dry_run:
-        _show(out, "POST", "/access/identity_providers", {"type": OTP_TYPE, "name": OTP_NAME, "config": {}})
+        out.write(describe_new_otp())
         otp_id = PENDING_OTP
     elif otp_id is None:
         otp_id = create_otp(client, account)
@@ -368,15 +523,15 @@ def provision(client: Client, account: str, options: Options, out: TextIO = sys.
     elif reusable:
         policy_id = write_script_policy(client, account, candidate)
     method, route, body = app_request(existing, otp_id, options, policy_id)
-    if options.dry_run and existing is None:
-        _show(out, method, route, body)
-        app = existing
-    elif options.dry_run:
-        out.write(describe_put(existing, body, policy_id))
+    if options.dry_run:
+        out.write(describe_new_app() if existing is None else describe_put(existing, body, policy_id))
         app = existing
     else:
         app = _call(client, method, f"/accounts/{account}{route}", body)
         out.write("Criada a aplicação do Access.\n" if existing is None else "Atualizada a aplicação do Access.\n")
+        if existing is not None:
+            verify_dcr(client, account, str(existing["id"]))
+            out.write("Conferido na releitura: o registro dinâmico de cliente aceita só o callback do Claude.\n")
     organization = _call(client, "GET", f"/accounts/{account}/access/organizations") or {}
     report(out, existing, app, organization)
     return 0

@@ -7,7 +7,7 @@ repassando o cabeçalho `Cf-Access-Jwt-Assertion` de quem chamou. O MCP não dec
 estado da proposta ficam na API. Sem o cabeçalho, nenhuma chamada à API acontece.
 
 O MCP não valida, não guarda e não registra o JWT, e não tem segredo nenhum. A conexão no Claude é do plano 3 (#275) e o login
-pelo Access na frente do MCP é do plano 4 (#321).
+pelo Cloudflare Access na frente do MCP, com OAuth gerenciado, é do plano 4 (#321).
 
 ## Estrutura
 
@@ -61,8 +61,14 @@ olhar no navegador, sirva a pasta `mcp/ui` e abra `approval.html` num iframe de 
   todo número vem das tools. As `instructions` do servidor trazem o mesmo resumo.
 - **`decide_proposal` em "perguntar sempre".** Nas permissões das tools do conector, deixe `decide_proposal`
   em "perguntar sempre" e nunca em "permitir sempre": a tool declara `destructiveHint`.
-- **Login:** o login pelo Cloudflare Access chega no plano 4/4 (#321). Até lá, toda tool de dados responde
-  "Sua sessão expirou. Entre de novo pelo Access."; `open_approval_app` abre a tela, que mostra a mensagem.
+- **Login pelo Cloudflare Access (#321).** O hostname do MCP é um destino da mesma aplicação do Access da API, com
+  o OAuth gerenciado ligado. Ao adicionar o conector, o Claude abre o navegador para o login do Access: o analista
+  digita o próprio e-mail e o código que chega por e-mail. Daí em diante a identidade de cada chamada chega à API no
+  `Cf-Access-Jwt-Assertion`, com o mesmo AUD de `BARTE_ACADEMY_ACCESS_AUD`. Isso vale depois que a esteira
+  `Provisiona o Cloudflare Access` roda com o `scripts/cloudflare_access.py` deste plano, que acrescenta o destino do
+  MCP, liga o OAuth e o registro dinâmico de cliente e permite o callback do Claude
+  (`https://claude.ai/api/mcp/auth_callback`). Antes desse disparo, toda tool de dados responde "Sua sessão expirou. Entre de novo pelo
+  Access."; `open_approval_app` abre a tela, que mostra a mensagem.
 - **Conferir a publicação:** um `POST /mcp` com `Content-Type: application/json` e o JSON-RPC `initialize`
   devolve as `instructions` do servidor.
 
@@ -77,7 +83,7 @@ suportadas são `2025-11-25` e `2025-06-18`, as que não admitem lote; quem pede
 - Se a requisição traz o cabeçalho `Origin` (um navegador), ele só passa se estiver na variável `MCP_ALLOWED_ORIGINS`
   (origens separadas por vírgula, em `wrangler.jsonc`). Vazia, que é o padrão, todo `Origin` presente é recusado com 403.
   Requisição sem `Origin`, que é o caso de um cliente de servidor como o Claude, segue.
-- O plano 4 (#321) liga o Access na frente do MCP e ajusta essa lista se precisar.
+- O Claude não manda `Origin`, então a lista segue vazia com o Access na frente do MCP (#321).
 
 ## Testes
 

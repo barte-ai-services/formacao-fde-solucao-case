@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import contextlib
+import copy
 import io
 import json
 import re
 import unittest
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +39,7 @@ class FakeClient:
         self.apps = list(apps or [])
         self.policies = list(policies or [])
         self.not_enabled = not_enabled
+        self.reread: Callable[[Json], Json] = lambda app: app  # #321 como a API devolve a aplicação na releitura
         self.calls: list[tuple[str, str, Json]] = []
 
     def request(self, method: str, path: str, body: Json = None) -> Json:
@@ -61,6 +64,8 @@ class FakeClient:
         return created
 
     def _get_apps(self, item: str, body: Json) -> Json:
+        if item:
+            return self.reread(copy.deepcopy(next(a for a in self.apps if a["id"] == item)))
         return self.apps
 
     def _post_apps(self, item: str, body: Json) -> Json:
@@ -479,13 +484,16 @@ class DryRunTest(unittest.TestCase):
         code, out = run(client, dry_run=True)
         self.assertEqual(0, code)
         self.assertEqual([], client.writes())
-        self.assertIn('"onetimepin"', out)
+        self.assertIn("POST /access/identity_providers", out)
+        self.assertIn("onetimepin", out)
         self.assertIn("allowed_idps: passa a ser só o código por e-mail", out)
         self.assertNotIn(ACCOUNT, out)
 
     def test_dry_run_summarizes_the_put_in_named_fields_without_the_other_policies_content(self) -> None:
         """#232/AC-5: o dry-run não imprime a configuração da aplicação, a política alheia nem a conta."""
-        client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app()])
+        foreign = {"type": "public", "uri": "interno.alheio.example.com"}
+        client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app(destinations=[
+            {"type": "public", "uri": "vigente.example.com"}, foreign])])
         _, out = run(client, dry_run=True)
         self.assertIn("[dry-run] PUT na aplicação do AUD\n", out)
         self.assertIn("allowed_idps: inalterado", out)
@@ -493,6 +501,7 @@ class DryRunTest(unittest.TestCase):
         self.assertIn("outras políticas: 1, mantidas", out)
         self.assertIn("política 2: precedence=None tipo=da aplicação\n", out)
         self.assertNotRegex(out, r"\boutra\b")
+        # Só o hostname do MCP sai pelo nome (#321); o domain e o destino alheio, nunca.
         for hidden in ("alheio", ACCOUNT, "nome-vigente", "vigente.example.com"):
             self.assertNotIn(hidden, out)
 
@@ -653,8 +662,9 @@ class DocsAndWorkflowTest(unittest.TestCase):
     workflow = (ROOT / ".github" / "workflows" / "cloudflare-access.yml")
 
     def test_script_does_not_name_barte_academy_as_team(self) -> None:
-        """#232/AC-4: o script não cita mais barte-academy."""
-        self.assertNotIn("barte-academy", (ROOT / "scripts" / "cloudflare_access.py").read_text())
+        """#232/AC-4: o script não cita mais barte-academy; só o hostname público do MCP (#321) a tem."""
+        text = (ROOT / "scripts" / "cloudflare_access.py").read_text()
+        self.assertNotIn("barte-academy", text.replace(ca.MCP_HOST, ""))
 
     def test_readme_describes_the_real_team_and_the_workflow(self) -> None:
         """#232/AC-4: o README descreve o time real e o passo a passo pelo workflow."""
@@ -747,6 +757,409 @@ class OtpDryRunTest(unittest.TestCase):
         self.assertEqual([], empty.writes())
         self.assertEqual(OTP_ID, ca.create_otp(empty, ACCOUNT))
         self.assertEqual(["POST"], [m for m, _, _ in empty.writes()])
+
+
+class McpDestinationTest(unittest.TestCase):
+    """O destino público do MCP entra na aplicação vigente, sem tirar nada (#321)."""
+
+    MCP = ca.MCP_HOST
+
+    def sent(self, app: Json) -> Json:
+        client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[app])
+        run(client)
+        return client.writes()[0][2]
+
+    def test_the_mcp_host_is_the_public_worker_hostname(self) -> None:
+        """#321/AC-1: o hostname do MCP é o do Worker do MCP."""
+        self.assertEqual("formacao-fde-solucao-case-mcp.barte-academy.workers.dev", ca.MCP_HOST)
+
+    def test_mcp_destination_is_appended_to_the_existing_ones(self) -> None:
+        """#321/AC-1: o destino do MCP vai ao fim; a aplicação continua a mesma, sem POST."""
+        existing = [{"type": "public", "uri": "vigente.example.com"}]
+        client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}],
+                            apps=[existing_app(destinations=existing)])
+        run(client)
+        self.assertEqual(["PUT"], [m for m, _, _ in client.writes()])
+        self.assertEqual([*existing, {"type": "public", "uri": self.MCP}], client.writes()[0][2]["destinations"])
+
+    def test_existing_destinations_are_kept_in_order_with_overrides_and_other_types(self) -> None:
+        """#321/AC-1: nenhum destino existente sai nem muda, nem o com overrides, nem o de outro tipo."""
+        existing = [
+            {"type": "public", "uri": "vigente.example.com/api", "overrides": {"a": 1}},
+            {"type": "private", "cidr": "10.0.0.0/8", "port_range": "443"},
+            {"type": "public", "uri": "outro.example.com"},
+        ]
+        body = self.sent(existing_app(destinations=existing))
+        self.assertEqual(existing, body["destinations"][:3])
+        self.assertEqual({"type": "public", "uri": self.MCP}, body["destinations"][3])
+        self.assertEqual(4, len(body["destinations"]))
+
+    def test_app_with_only_a_domain_gets_the_domain_and_the_mcp_as_destinations(self) -> None:
+        """#321/AC-1: sem destinations, o corpo traz o domain atual e o MCP, nessa ordem."""
+        body = self.sent(existing_app())
+        self.assertEqual([{"type": "public", "uri": "vigente.example.com"}, {"type": "public", "uri": self.MCP}],
+                         body["destinations"])
+        self.assertEqual("vigente.example.com", body["domain"])
+
+    def test_without_destinations_the_fallback_starts_from_self_hosted_domains_keeping_every_extra(self) -> None:
+        """#321/AC-1: sem destinations, o corpo parte de self_hosted_domains: nenhum hostname extra se perde."""
+        body = self.sent(existing_app(self_hosted_domains=["vigente.example.com", "extra.example.com"]))
+        self.assertEqual(
+            [{"type": "public", "uri": "vigente.example.com"}, {"type": "public", "uri": "extra.example.com"},
+             {"type": "public", "uri": self.MCP}], body["destinations"])
+        self.assertEqual(["vigente.example.com", "extra.example.com"], body["self_hosted_domains"])
+
+    def test_fallback_from_self_hosted_domains_does_not_repeat_the_mcp(self) -> None:
+        """#321/AC-1: se self_hosted_domains já tem o MCP, o destino não se repete."""
+        body = self.sent(existing_app(self_hosted_domains=["vigente.example.com", self.MCP]))
+        self.assertEqual(["vigente.example.com", self.MCP], [d["uri"] for d in body["destinations"]])
+
+    def test_empty_self_hosted_domains_fall_back_to_the_domain(self) -> None:
+        """#321/AC-1: self_hosted_domains vazio ou ausente cai em [domain]."""
+        body = self.sent(existing_app(self_hosted_domains=[]))
+        self.assertEqual(["vigente.example.com", self.MCP], [d["uri"] for d in body["destinations"]])
+
+    def test_destinations_win_over_self_hosted_domains(self) -> None:
+        """#321/AC-1: com destinations, self_hosted_domains não entra na conta."""
+        body = self.sent(existing_app(destinations=[{"type": "public", "uri": "a.example.com"}],
+                                      self_hosted_domains=["b.example.com"]))
+        self.assertEqual(["a.example.com", self.MCP], [d["uri"] for d in body["destinations"]])
+
+    def test_empty_destinations_are_treated_as_absent(self) -> None:
+        """#321/AC-1: destinations vazio vira domain mais MCP."""
+        body = self.sent(existing_app(destinations=[]))
+        self.assertEqual(["vigente.example.com", self.MCP], [d["uri"] for d in body["destinations"]])
+
+    def test_domain_that_is_already_the_mcp_gives_a_single_destination(self) -> None:
+        """#321/AC-1: se o domain já é o do MCP, o destino não se repete."""
+        body = self.sent(existing_app(domain=self.MCP))
+        self.assertEqual([{"type": "public", "uri": self.MCP}], body["destinations"])
+
+    def test_second_run_does_not_duplicate_the_destination(self) -> None:
+        """#321/AC-1: rodar de novo manda o mesmo PUT e o mesmo estado, com um só destino do MCP."""
+        client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app()])
+        run(client)
+        first_state = json.dumps(client.apps, sort_keys=True)
+        first_body = client.writes()[0][2]
+        run(client)
+        self.assertEqual(first_state, json.dumps(client.apps, sort_keys=True))
+        self.assertEqual(first_body, client.writes()[1][2])
+        self.assertEqual(1, [d["uri"] for d in client.apps[0]["destinations"]].count(self.MCP))
+
+    def test_trailing_slash_of_an_existing_mcp_destination_counts_as_present(self) -> None:
+        """#321/AC-1: o uri do MCP com barra final já conta como presente, e fica como veio."""
+        existing = [{"type": "public", "uri": f"{self.MCP}/"}]
+        self.assertEqual(existing, self.sent(existing_app(destinations=existing))["destinations"])
+
+    def test_self_hosted_domains_stay_as_they_came(self) -> None:
+        """#321/AC-1: self_hosted_domains, se vier, não é tocado."""
+        body = self.sent(existing_app(self_hosted_domains=["vigente.example.com"]))
+        self.assertEqual(["vigente.example.com"], body["self_hosted_domains"])
+
+    def test_domain_aud_policy_and_provider_stay(self) -> None:
+        """#321/AC-3: domain, AUD, política e provedor ficam; o AUD que a API devolve é o mesmo."""
+        client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app()])
+        run(client)
+        body = client.writes()[0][2]
+        self.assertEqual("vigente.example.com", body["domain"])
+        self.assertEqual([OTP_ID], body["allowed_idps"])
+        self.assertEqual(ca.POLICY_NAME, body["policies"][0]["name"])
+        self.assertEqual("pol-1", body["policies"][0]["id"])
+        self.assertEqual(AUD, client.apps[0]["aud"])
+        self.assertNotIn("aud", body)
+
+    def test_new_app_payload_is_unchanged_by_the_mcp_destination(self) -> None:
+        """#321/AC-1: o --create fica como estava, sem destinations nem oauth_configuration."""
+        body = ca.new_app_payload(OTP_ID, APP_DOMAIN)
+        self.assertNotIn("destinations", body)
+        self.assertNotIn("oauth_configuration", body)
+
+
+class ManagedOauthTest(unittest.TestCase):
+    """O OAuth gerenciado liga para o cliente MCP entrar com o login do Access (#321)."""
+
+    CALLBACK = ca.CLAUDE_CALLBACK
+
+    def sent(self, app: Json) -> Json:
+        client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[app])
+        run(client)
+        return client.writes()[0][2]
+
+    def test_the_callback_is_the_one_of_claude(self) -> None:
+        """#321/AC-2: a redirect URI é a do Claude para conectores MCP."""
+        self.assertEqual("https://claude.ai/api/mcp/auth_callback", self.CALLBACK)
+
+    def test_oauth_registration_and_callback_are_set_when_the_app_has_none(self) -> None:
+        """#321/AC-2: sem oauth_configuration, liga o OAuth, o registro dinâmico e permite o callback do Claude."""
+        self.assertEqual(
+            {"enabled": True, "dynamic_client_registration": {
+                "enabled": True, "allowed_uris": [self.CALLBACK],
+                "allow_any_on_localhost": False, "allow_any_on_loopback": False}},
+            self.sent(existing_app())["oauth_configuration"])
+
+    def test_localhost_and_loopback_are_written_off(self) -> None:
+        """#321/AC-2: o PUT grava allow_any_on_localhost e allow_any_on_loopback desligados."""
+        registration = self.sent(existing_app())["oauth_configuration"]["dynamic_client_registration"]
+        self.assertIs(False, registration["allow_any_on_localhost"])
+        self.assertIs(False, registration["allow_any_on_loopback"])
+
+    def test_localhost_and_loopback_turned_on_in_the_app_are_turned_off(self) -> None:
+        """#321/AC-2: o que a aplicação tinha ligado nesses flags sai desligado no PUT."""
+        current = {"enabled": False, "dynamic_client_registration": {
+            "enabled": False, "allow_any_on_localhost": True, "allow_any_on_loopback": True}}
+        registration = self.sent(existing_app(oauth_configuration=current))["oauth_configuration"][
+            "dynamic_client_registration"]
+        self.assertIs(False, registration["allow_any_on_localhost"])
+        self.assertIs(False, registration["allow_any_on_loopback"])
+
+    def test_other_redirect_uris_are_dropped_and_the_other_fields_are_preserved(self) -> None:
+        """#321/AC-2: allowed_uris vira só o callback do Claude; o grant e o mais que vier ficam."""
+        current = {"enabled": False,
+                   "dynamic_client_registration": {"enabled": False, "allow_any_on_localhost": True,
+                                                   "allowed_uris": ["https://outro.example.com/cb"],
+                                                   "campo_novo": 1},
+                   "grant": {"session_duration": "2h"}, "extra": "x"}
+        oauth = self.sent(existing_app(oauth_configuration=current))["oauth_configuration"]
+        self.assertEqual({"session_duration": "2h"}, oauth["grant"])
+        self.assertEqual("x", oauth["extra"])
+        registration = oauth["dynamic_client_registration"]
+        self.assertEqual([self.CALLBACK], registration["allowed_uris"])
+        self.assertIs(True, registration["enabled"])
+        self.assertIs(False, registration["allow_any_on_localhost"])
+        self.assertEqual(1, registration["campo_novo"])
+        self.assertIs(True, oauth["enabled"])
+
+    def test_callback_already_allowed_is_not_repeated(self) -> None:
+        """#321/AC-2: com o callback já na lista, ele não se repete; só ele fica."""
+        current = {"enabled": True, "dynamic_client_registration": {
+            "enabled": True, "allowed_uris": [self.CALLBACK, "https://outro.example.com/cb"]}}
+        uris = self.sent(existing_app(oauth_configuration=current))["oauth_configuration"][
+            "dynamic_client_registration"]["allowed_uris"]
+        self.assertEqual([self.CALLBACK], uris)
+
+    def test_all_of_it_goes_in_the_same_put_of_the_same_app(self) -> None:
+        """#321/AC-2: um só PUT na aplicação vigente, sem criar outra, leva destinos e OAuth juntos."""
+        client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app()])
+        run(client)
+        method, path, body = client.writes()[0]
+        self.assertEqual(1, len(client.writes()))
+        self.assertEqual(("PUT", f"{BASE}/apps/{APP_ID}"), (method, path))
+        self.assertIn(self.CALLBACK, body["oauth_configuration"]["dynamic_client_registration"]["allowed_uris"])
+        self.assertIn(ca.MCP_HOST, [d["uri"] for d in body["destinations"]])
+
+    def test_second_run_keeps_oauth_enabled_and_equal(self) -> None:
+        """#321/AC-2: rodar de novo deixa o OAuth ligado e o corpo igual."""
+        client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app()])
+        run(client)
+        run(client)
+        self.assertEqual(client.writes()[0][2], client.writes()[1][2])
+        self.assertTrue(client.apps[0]["oauth_configuration"]["enabled"])
+
+
+class McpDryRunTest(unittest.TestCase):
+    """O dry-run mostra destinos e OAuth antes e depois, sem gravar e sem ids (#321)."""
+
+    def dry(self, app: Json) -> tuple[FakeClient, str]:
+        client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[app])
+        _, out = run(client, dry_run=True)
+        return client, out
+
+    def test_dry_run_shows_destinations_before_and_after_and_writes_nothing(self) -> None:
+        """#321/AC-1: antes e depois dos destinos, dizendo que o do MCP é acrescentado."""
+        client, out = self.dry(existing_app(destinations=[
+            {"type": "public", "uri": "vigente.example.com"}, {"type": "private", "cidr": "10.0.0.0/8"}]))
+        self.assertEqual([], client.writes())
+        self.assertIn("destinos antes: 1 outro público, 1 de tipo private", out)
+        self.assertIn(f"destinos depois: {ca.MCP_HOST}, 1 outro público, 1 de tipo private", out)
+        self.assertIn("destino do MCP: acrescentado", out)
+        self.assertIn("domain: inalterado", out)
+        self.assertNotIn("10.0.0.0", out)
+        self.assertNotIn("vigente.example.com", out)
+
+    def test_dry_run_says_the_mcp_destination_was_already_there(self) -> None:
+        """#321/AC-1: com o destino já presente, o dry-run diz que já estava."""
+        _, out = self.dry(existing_app(destinations=[{"type": "public", "uri": ca.MCP_HOST}]))
+        self.assertIn("destino do MCP: já estava", out)
+
+    def test_dry_run_lists_the_domain_as_before_when_the_app_has_no_destinations(self) -> None:
+        """#321/AC-1: sem destinations, o antes mostra o domain atual."""
+        _, out = self.dry(existing_app())
+        self.assertIn("destinos antes: 1 outro público (só domain)", out)
+        self.assertIn(f"destinos depois: {ca.MCP_HOST}, 1 outro público", out)
+        self.assertNotIn("vigente.example.com", out)
+
+    def test_dry_run_shows_oauth_before_and_after(self) -> None:
+        """#321/AC-2: o OAuth de cliente MCP passa de desligado para ligado, ou fica ligado inalterado."""
+        _, off = self.dry(existing_app())
+        self.assertIn("oauth_configuration.enabled: desligado -> ligado", off)
+        _, on = self.dry(existing_app(oauth_configuration={"enabled": True}))
+        self.assertIn("oauth_configuration.enabled: ligado, inalterado", on)
+
+    def test_dry_run_names_only_the_mcp_and_counts_every_other_public_destination(self) -> None:
+        """#232/AC-5 e #321/AC-1: o domain e o destino público alheio entram só pela contagem, nunca pelo nome."""
+        client, out = self.dry(existing_app(destinations=[
+            {"type": "public", "uri": "vigente.example.com"}, {"type": "public", "uri": "a.alheio.example.com"},
+            {"type": "public", "uri": "b.alheio.example.com"}]))
+        self.assertNotIn("alheio", out)
+        self.assertNotIn("vigente.example.com", out)
+        self.assertIn("destinos antes: 3 outros públicos", out)
+        self.assertIn(f"destinos depois: {ca.MCP_HOST}, 3 outros públicos", out)
+
+    def test_dry_run_counts_the_extra_self_hosted_domains_without_naming_them(self) -> None:
+        """#321/AC-1: no fallback por self_hosted_domains, o extra também só aparece pela contagem."""
+        _, out = self.dry(existing_app(self_hosted_domains=["vigente.example.com", "extra.alheio.example.com"]))
+        self.assertNotIn("alheio", out)
+        self.assertNotIn("vigente.example.com", out)
+        self.assertIn("destinos antes: 2 outros públicos (só self_hosted_domains)", out)
+
+    def test_dry_run_shows_the_oauth_keys_before_and_after(self) -> None:
+        """#321/AC-2: o antes e o depois de enabled, do registro dinâmico e do callback do Claude."""
+        _, out = self.dry(existing_app())
+        self.assertIn("oauth_configuration.enabled: desligado -> ligado", out)
+        self.assertIn("oauth_configuration.dynamic_client_registration.enabled: desligado -> ligado", out)
+        self.assertIn("oauth_configuration.dynamic_client_registration.allowed_uris: só o callback do Claude "
+                      "(outras URIs removidas: 0)", out)
+        current = {"enabled": True, "dynamic_client_registration": {
+            "enabled": True, "allowed_uris": [ca.CLAUDE_CALLBACK, "https://secreto.example.com/cb"]}}
+        _, again = self.dry(existing_app(oauth_configuration=current))
+        self.assertIn("oauth_configuration.dynamic_client_registration.enabled: ligado, inalterado", again)
+        self.assertIn("allowed_uris: só o callback do Claude (outras URIs removidas: 1)", again)
+        self.assertIn("allow_any_on_localhost: desligado, inalterado", again)
+        self.assertIn("allow_any_on_loopback: desligado, inalterado", again)
+        self.assertNotIn("secreto", again)
+
+    def test_dry_run_prints_no_id_nor_oauth_subfields(self) -> None:
+        """#321/AC-1: nada de id nem de subcampos do OAuth no log público."""
+        _, out = self.dry(existing_app(oauth_configuration={"enabled": False, "grant": {"session_duration": "segredo-x"}}))
+        for hidden in (APP_ID, "pol-1", "pol-x", ACCOUNT, "segredo-x"):
+            self.assertNotIn(hidden, out)
+
+
+class McpDryRunNewAppTest(unittest.TestCase):
+    """O dry-run da aplicação nova resume em campos nomeados, sem o corpo nem o domínio (#321)."""
+
+    def test_dry_run_of_a_new_app_dumps_no_body_and_prints_no_domain(self) -> None:
+        """#321/AC-2: o log mostra só campos nomeados; o valor do APP_DOMAIN e do OTP não saem."""
+        client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}])
+        code, out = run(client, aud="", create=True, dry_run=True, app_domain=APP_DOMAIN)
+        self.assertEqual(0, code)
+        self.assertEqual([], client.writes())
+        self.assertIn("[dry-run] POST /access/apps\n", out)
+        self.assertIn("allowed_idps: só o código por e-mail", out)
+        self.assertIn("policies: 1, libera qualquer e-mail", out)
+        self.assertIn("domain: o de BARTE_ACADEMY_ACCESS_APP_DOMAIN, não impresso", out)
+        for hidden in (APP_DOMAIN, OTP_ID, ACCOUNT, "{", '"'):
+            self.assertNotIn(hidden, out)
+
+    def test_dry_run_with_a_missing_otp_and_a_new_app_prints_only_constants(self) -> None:
+        """#321/AC-2: sem OTP na conta, o resumo do POST do provedor também é em campos nomeados."""
+        _, out = run(FakeClient(), aud="", create=True, dry_run=True, app_domain=APP_DOMAIN)
+        self.assertIn("[dry-run] POST /access/identity_providers\n", out)
+        self.assertNotIn(APP_DOMAIN, out)
+        self.assertNotIn("{", out)
+
+
+class DcrVerificationTest(unittest.TestCase):
+    """Na execução real, a releitura da aplicação confirma o DCR restrito ao callback do Claude (#321)."""
+
+    def client(self, reread: Callable[[Json], Json] | None = None, **changes: Json) -> FakeClient:
+        client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app(**changes)])
+        if reread is not None:
+            client.reread = reread
+        return client
+
+    def fail(self, client: FakeClient) -> str:
+        with self.assertRaises(ca.ConfigError) as raised:
+            run(client)
+        return str(raised.exception)
+
+    @staticmethod
+    def with_registration(**fields: Json) -> Callable[[Json], Json]:
+        def tamper(app: Json) -> Json:
+            app["oauth_configuration"]["dynamic_client_registration"].update(fields)
+            return app
+        return tamper
+
+    def test_the_app_is_reread_after_the_put_and_the_run_passes(self) -> None:
+        """#321/AC-2: depois do PUT, um GET da aplicação por id; DCR só no callback, nada em localhost."""
+        client = self.client()
+        code, _ = run(client)
+        self.assertEqual(0, code)
+        app_calls = [(m, p) for m, p, _ in client.calls if "/apps" in p]
+        self.assertEqual([("GET", f"{BASE}/apps"), ("PUT", f"{BASE}/apps/{APP_ID}"),
+                          ("GET", f"{BASE}/apps/{APP_ID}")], app_calls)
+
+    def test_a_stale_oauth_uri_in_the_app_is_overwritten_so_the_reread_passes(self) -> None:
+        """#321/AC-2: a URI alheia que a aplicação tinha sai no PUT; a releitura confirma."""
+        current = {"enabled": True, "dynamic_client_registration": {
+            "enabled": True, "allowed_uris": ["https://alheio.example.com/cb"], "allow_any_on_localhost": True}}
+        client = self.client(oauth_configuration=current)
+        code, _ = run(client)
+        registration = client.apps[0]["oauth_configuration"]["dynamic_client_registration"]
+        self.assertEqual(0, code)
+        self.assertEqual([ca.CLAUDE_CALLBACK], registration["allowed_uris"])
+
+    def test_an_extra_uri_on_the_reread_fails_without_naming_it(self) -> None:
+        """#321/AC-2: URI extra na releitura: ConfigError nomeado, sem a URI alheia."""
+        extra = "https://alheio.example.com/cb"
+        message = self.fail(self.client(self.with_registration(allowed_uris=[ca.CLAUDE_CALLBACK, extra])))
+        self.assertIn("allowed_uris", message)
+        self.assertNotIn("alheio", message)
+
+    def test_an_empty_or_missing_uri_list_on_the_reread_fails(self) -> None:
+        """#321/AC-2: sem o callback do Claude na releitura, a execução falha."""
+        self.assertIn("allowed_uris", self.fail(self.client(self.with_registration(allowed_uris=[]))))
+
+    def test_localhost_turned_on_on_the_reread_fails(self) -> None:
+        """#321/AC-2: allow_any_on_localhost ligado na releitura falha, nomeando o flag."""
+        message = self.fail(self.client(self.with_registration(allow_any_on_localhost=True)))
+        self.assertIn("allow_any_on_localhost", message)
+        self.assertNotIn("allow_any_on_loopback", message)
+
+    def test_loopback_turned_on_on_the_reread_fails(self) -> None:
+        """#321/AC-2: allow_any_on_loopback ligado na releitura falha, nomeando o flag."""
+        message = self.fail(self.client(self.with_registration(allow_any_on_loopback=True)))
+        self.assertIn("allow_any_on_loopback", message)
+        self.assertNotIn("allow_any_on_localhost", message)
+
+    def test_an_app_reread_without_oauth_fails(self) -> None:
+        """#321/AC-2: se a releitura não traz o registro dinâmico, o DCR não está restrito: falha."""
+        def drop(app: Json) -> Json:
+            app.pop("oauth_configuration")
+            return app
+
+        self.assertIn("allowed_uris", self.fail(self.client(drop)))
+
+    def test_the_failure_message_carries_no_body_id_account_or_token(self) -> None:
+        """#321/AC-2: a mensagem não leva corpo, id de aplicação, conta, domínio nem token."""
+        tamper = self.with_registration(allowed_uris=["https://alheio.example.com/cb"],
+                                        allow_any_on_localhost=True, allow_any_on_loopback=True)
+        message = self.fail(self.client(tamper))
+        for hidden in (APP_ID, ACCOUNT, TOKEN, AUD, "alheio", "vigente.example.com", "{", ca.MCP_HOST):
+            self.assertNotIn(hidden, message)
+
+    def test_main_exits_non_zero_with_the_named_message_on_stderr(self) -> None:
+        """#321/AC-2: pela linha de comando, a releitura divergente sai com código 1 e mensagem nomeada."""
+        client = self.client(self.with_registration(allow_any_on_localhost=True))
+        env = {ca.TOKEN_VAR: TOKEN, ca.ACCOUNT_VAR: ACCOUNT, ca.AUD_VAR: AUD}
+        code, _, err = run_main(env, client=client)
+        self.assertEqual(1, code)
+        self.assertIn("allow_any_on_localhost", err)
+        for hidden in (APP_ID, ACCOUNT, TOKEN):
+            self.assertNotIn(hidden, err)
+
+    def test_dry_run_does_not_reread_the_app(self) -> None:
+        """#321/AC-2: o dry-run não grava, então não relê a aplicação por id."""
+        client = self.client()
+        run(client, dry_run=True)
+        self.assertEqual([], [p for _, p, _ in client.calls if p.endswith(f"/apps/{APP_ID}")])
+
+    def test_a_new_app_is_not_reread(self) -> None:
+        """#321/AC-2: o POST da aplicação nova não leva oauth_configuration; não há DCR a conferir."""
+        client = FakeClient()
+        code, _ = run(client, aud="", create=True, app_domain=APP_DOMAIN)
+        self.assertEqual(0, code)
+        self.assertEqual([], [p for _, p, _ in client.calls if p.endswith(f"/apps/{APP_ID}")])
 
 
 class HttpClientTest(unittest.TestCase):
