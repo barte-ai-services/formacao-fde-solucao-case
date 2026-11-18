@@ -1,15 +1,21 @@
 """O adaptador do Worker, com dublês dos módulos do runtime (`js`, `workers`) que só existem no Pyodide."""
 
+from __future__ import annotations
+
 import asyncio
 import importlib
 import json
 import sys
 import types
 import unittest
+from typing import TYPE_CHECKING
 from unittest import mock
 
-from api_client import ApiRequest, ApiResponse
+from api_client import ApiRequest, ApiResponse, FetchInit
 from test_support import JWT, ROUTE_QUEUE
+
+if TYPE_CHECKING:
+    from typing_extensions import Unpack  # #272 o `typing.Unpack` só existe a partir do Python 3.11
 
 
 class FakeJsResponse:
@@ -25,10 +31,10 @@ class FakeBinding:
     """O service binding `API`: grava o que recebeu e responde com o que lhe deram, ou falha."""
 
     def __init__(self, status: int = 200, text: str = "{}", error: Exception | None = None) -> None:
-        self.calls: list[tuple[str, dict[str, object]]] = []
+        self.calls: list[tuple[str, FetchInit]] = []
         self.status, self.text, self.error = status, text, error
 
-    async def fetch(self, resource: str, /, **options: object) -> FakeJsResponse:
+    async def fetch(self, resource: str, /, **options: Unpack[FetchInit]) -> FakeJsResponse:
         """Como o `_FetcherWrapper` do pacote `workers` no runtime: o init entra só por palavra-chave."""
         self.calls.append((resource, options))
         if self.error:

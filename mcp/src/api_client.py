@@ -7,10 +7,22 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Mapping, Optional, Protocol
+from typing import Any, Mapping, Optional, Protocol, TypedDict
 
 from errors import Log
 from json_types import JsonValue
+
+
+class _FetchInitRequired(TypedDict):
+    method: str
+    headers: dict[str, str]
+
+
+class FetchInit(_FetchInitRequired, total=False):
+    """O init do `fetch` do service binding, que entra por palavra-chave (#272)."""
+
+    signal: Any  # #272 o AbortSignal do runtime JS, sem tipo estático
+    body: str
 
 
 @dataclass(frozen=True)

@@ -174,6 +174,8 @@ async def _tools_list(call: MethodCall) -> JsonObject:
     listed = []
     for tool in call.server.tools.values():
         entry: JsonObject = {"name": tool.name, "description": tool.description, "inputSchema": dict(tool.input_schema)}
+        if tool.annotations:
+            entry["annotations"] = dict(tool.annotations)
         if tool.meta:
             entry["_meta"] = dict(tool.meta)
         listed.append(entry)

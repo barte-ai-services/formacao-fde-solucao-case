@@ -13,7 +13,7 @@ from js import AbortSignal
 from workers import Response, WorkerEntrypoint
 
 import app
-from api_client import ApiRequest, ApiResponse, parse_response
+from api_client import ApiRequest, ApiResponse, FetchInit, parse_response
 from protocol import HttpRequest, Settings
 
 JsProxy = Any  # #272 objeto do runtime JS (Request, Response, service binding), sem tipo estático
@@ -33,7 +33,7 @@ class BindingApiClient:
 
     async def call(self, request: ApiRequest, jwt: str) -> ApiResponse:
         headers = {ACCESS_HEADER: jwt, "Accept": "application/json"}
-        options: dict[str, object] = {"method": request.method, "headers": headers, "signal": AbortSignal.timeout(API_TIMEOUT_MS)}
+        options: FetchInit = {"method": request.method, "headers": headers, "signal": AbortSignal.timeout(API_TIMEOUT_MS)}
         if request.body is not None:
             headers["Content-Type"] = "application/json"
             options["body"] = json.dumps(request.body)
