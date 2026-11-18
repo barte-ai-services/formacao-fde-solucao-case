@@ -377,6 +377,13 @@ class SharedReusablePolicyTest(unittest.TestCase):
         """#232/AC-3: sem app_count, a política que a vigente não liga é tratada como compartilhada."""
         self.assert_refused_without_writing(client_with_script_policy_not_linked())
 
+    def test_refuses_before_creating_the_one_time_pin_when_the_account_has_none(self) -> None:
+        """#232/AC-3: sem OTP na conta, a recusa vem antes de qualquer gravação, inclusive a do provedor."""
+        mine, other = script_policy(app_count=2), other_policy()
+        client = FakeClient(apps=[existing_app(policies=[linked(mine, 1), linked(other, 2)])],
+                            policies=[mine, other])
+        self.assert_refused_without_writing(client)
+
     def test_dry_run_refuses_the_same_way_and_writes_nothing(self) -> None:
         """#232/AC-3: o dry-run aplica a mesma checagem."""
         self.assert_refused_without_writing(client_linking_script_policy(app_count=2), dry_run=True)
@@ -706,7 +713,17 @@ class ErrorRouteTest(unittest.TestCase):
         """#232/AC-5: o erro vai para o log público: a rota sai sem o `/accounts/<id>`."""
         error = ca.CloudflareError("PUT", f"{BASE}/apps/{APP_ID}", 500, [{"code": 7003}])
         self.assertNotIn(ACCOUNT, str(error))
-        self.assertIn("falha em PUT /access/apps/app-1: HTTP 500 (códigos 7003)", str(error))
+        self.assertIn("falha em PUT /access/apps/<id>: HTTP 500 (códigos 7003)", str(error))
+
+    def test_error_message_hides_the_application_and_policy_ids(self) -> None:
+        """#232/AC-5: o id da aplicação e o da política também ficam fora do log público."""
+        for path, resource_id in ((f"{BASE}/apps/{APP_ID}", APP_ID), (f"{BASE}/policies/pol-r1", "pol-r1"),
+                                  (f"{BASE}/identity_providers/{OTP_ID}", OTP_ID)):
+            with self.subTest(path=path):
+                error = ca.CloudflareError("PUT", path, 500, [{"code": 7003}])
+                self.assertNotIn(resource_id, str(error))
+                self.assertNotIn(ACCOUNT, str(error))
+                self.assertIn("/<id>:", str(error))
 
     def test_main_prints_no_account_id_on_an_api_failure(self) -> None:
         """#232/AC-5: pela linha de comando, o erro da API não traz o id da conta."""

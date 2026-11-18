@@ -98,6 +98,7 @@ class CloudflareError(Exception):
 
     def describe(self) -> str:
         route = re.sub(r"^/accounts/[^/]+", "", self.path)
+        route = re.sub(r"^(/access/(?:apps|policies|identity_providers))/[^/]+", r"\1/<id>", route)
         codes = [str(e["code"]) for e in self.errors if isinstance(e, dict) and "code" in e]
         status = f"HTTP {self.status}" if self.status is not None else "falha de rede"
         suffix = f" (códigos {', '.join(codes)})" if codes else ""
@@ -339,12 +340,9 @@ def app_request(existing: Json, otp_id: str, options: Options, policy_id: str | 
     return "PUT", f"/access/apps/{existing['id']}", updated_app_payload(existing, otp_id, policy_id)
 
 
-def _script_policy_id(client: Client, account: str, existing: Json, options: Options) -> str | None:
-    """O id da política reutilizável do script, se a aplicação usa reutilizáveis; senão None. No dry-run só lê."""
-    if existing is None or not uses_reusable(existing):
-        return None
-    candidate = reusable_candidate(client, account, existing)
-    if options.dry_run:
+def _script_policy_id(client: Client, account: str, candidate: Json, dry_run: bool) -> str:
+    """O id da política reutilizável do script, de uma candidata já checada. No dry-run só lê."""
+    if dry_run:
         return str(candidate["id"]) if candidate else PENDING_POLICY
     return write_script_policy(client, account, candidate)
 
@@ -352,6 +350,8 @@ def _script_policy_id(client: Client, account: str, existing: Json, options: Opt
 def provision(client: Client, account: str, options: Options, out: TextIO = sys.stdout) -> int:
     validate(options)
     existing = find_app(client, account, options)
+    reusable = existing is not None and uses_reusable(existing)
+    candidate = reusable_candidate(client, account, existing) if reusable else None  # recusa antes de gravar
     otp_id = find_otp(client, account)
     if otp_id is None and options.dry_run:
         _show(out, "POST", "/access/identity_providers", {"type": OTP_TYPE, "name": OTP_NAME, "config": {}})
@@ -359,7 +359,7 @@ def provision(client: Client, account: str, options: Options, out: TextIO = sys.
     elif otp_id is None:
         out.write("Criado o provedor de código por e-mail (one-time PIN).\n")
         otp_id = create_otp(client, account)
-    policy_id = _script_policy_id(client, account, existing, options)
+    policy_id = _script_policy_id(client, account, candidate, options.dry_run) if reusable else None
     method, route, body = app_request(existing, otp_id, options, policy_id)
     if options.dry_run and existing is None:
         _show(out, method, route, body)
