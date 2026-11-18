@@ -15,10 +15,14 @@ aplicação já liga com nome do script, ou, na falta, a da conta com o nome atu
 aplicação a usa, o script recusa e não grava nada, porque o `include: everyone` valeria lá também. Nome, domínio e
 AUD não mudam. Rodar duas vezes deixa o mesmo estado.
 
-O MCP (#321) entra pelo mesmo Access da API. O PUT agora troca também `destinations`, que só ganha o destino
-público de MCP_HOST (se ainda não está; sem `destinations`, o corpo passa a ter o domínio atual e o do MCP), e
-`oauth_configuration.enabled`, que vira ligado (OAuth gerenciado: o Claude abre o login do Access); os demais
-campos de `oauth_configuration` ficam como vieram. O script nunca remove um destino nem desliga o OAuth.
+O MCP (#321) entra pelo mesmo Access da API. O PUT troca também `destinations`, que só ganha o destino
+público de MCP_HOST (se ainda não está; sem `destinations`, o ponto de partida é `self_hosted_domains`, ou o
+`domain` se ele faltar, com todo hostname extra preservado), e `oauth_configuration`: `enabled` e
+`dynamic_client_registration.enabled` viram ligados e CLAUDE_CALLBACK entra em
+`dynamic_client_registration.allowed_uris` (campo do schema público da API do Access, não conferido contra a conta),
+para o Claude abrir o login do Access (OAuth gerenciado). O resto de `oauth_configuration` fica como veio: outras
+URIs, `grant` e os flags `allow_any_on_localhost` e `allow_any_on_loopback`, que o script nunca liga. O script nunca
+remove um destino nem desliga o OAuth.
 
 Criar uma aplicação nova só por pedido explícito, com --create, e então o domínio vem de
 BARTE_ACADEMY_ACCESS_APP_DOMAIN. Sem --create, um AUD que não bate com nenhuma aplicação é erro.
@@ -28,7 +32,7 @@ BARTE_ACADEMY_ACCESS_AUD.
 Nunca imprime o token nem o corpo das respostas de erro. O --dry-run da aplicação existente
 resume em campos nomeados (posição, precedência e tipo de cada política, destinos e OAuth antes e depois), sem a
 configuração dela, sem a conta e sem id de aplicação ou de política: o log do Actions de um repositório público
-é aberto.
+é aberto. Dos destinos, só o `domain` e o hostname do MCP saem pelo nome; os outros públicos, só pela contagem.
 
 Uso: python3 scripts/cloudflare_access.py [--dry-run] [--create]
 """
@@ -59,6 +63,8 @@ LEGACY_POLICY_NAME = "formacao-fde-solucao-case: barte.com e alunos"
 SCRIPT_POLICY_NAMES = (POLICY_NAME, LEGACY_POLICY_NAME)
 # O destino público do MCP, que passa pelo mesmo Access da API para o login de cliente MCP. (#321)
 MCP_HOST = "formacao-fde-solucao-case-mcp.barte-academy.workers.dev"
+# A redirect URI do Claude para conectores MCP, que o registro dinâmico de cliente do Access precisa permitir. (#321)
+CLAUDE_CALLBACK = "https://claude.ai/api/mcp/auth_callback"
 OTP_TYPE = "onetimepin"
 OTP_NAME = "Código por e-mail"
 # O que a API do Access devolve da aplicação e não aceita de volta no PUT: identificadores e carimbos. (#232)
@@ -233,21 +239,47 @@ def _is_mcp_destination(item: Json) -> bool:
             and str(item.get("uri", "")).rstrip("/") == MCP_HOST)
 
 
+def _current_destinations(existing: Json) -> tuple[list[Json], str | None]:
+    """Os destinos da aplicação e, se vierem do fallback, de onde: `self_hosted_domains`, ou `domain` se faltar."""
+    current = list(existing.get("destinations") or [])
+    if current:
+        return current, None
+    hosts = [h for h in existing.get("self_hosted_domains") or [] if isinstance(h, str) and h]
+    if hosts:
+        return [{"type": "public", "uri": h} for h in hosts], "self_hosted_domains"
+    domain = existing.get("domain")
+    return ([{"type": "public", "uri": domain}] if domain else []), "domain"
+
+
 def merged_destinations(existing: Json) -> list[Json]:
     """Os destinos da aplicação como vieram, mais o do MCP ao fim se ainda não está. Nunca tira nenhum."""
-    current = list(existing.get("destinations") or [])
-    if not current:
-        domain = existing.get("domain")
-        current = [{"type": "public", "uri": domain}] if domain else []
+    current, _ = _current_destinations(existing)
     if any(_is_mcp_destination(d) for d in current):
         return current
     return [*current, {"type": "public", "uri": MCP_HOST}]
 
 
+def _other_uris(registration: Json) -> list[Json]:
+    uris = registration.get("allowed_uris") if isinstance(registration, dict) else None
+    return list(uris) if isinstance(uris, list) else []
+
+
 def oauth_enabled(existing: Json) -> Json:
-    """`oauth_configuration` da aplicação com `enabled` ligado; os outros campos ficam como vieram."""
+    """`oauth_configuration` com o OAuth e o registro dinâmico de cliente ligados e o callback do Claude permitido.
+
+    O resto fica como veio: outras URIs, `grant`, e os flags `allow_any_on_localhost` e `allow_any_on_loopback`,
+    que o script nunca liga. O campo das URIs é `dynamic_client_registration.allowed_uris`, do schema público da
+    API do Access (não conferido contra a conta).
+    """
     current = existing.get("oauth_configuration")
-    return {**(current if isinstance(current, dict) else {}), "enabled": True}
+    oauth = dict(current) if isinstance(current, dict) else {}
+    registration = oauth.get("dynamic_client_registration")
+    registration = dict(registration) if isinstance(registration, dict) else {}
+    uris = _other_uris(registration)
+    if CLAUDE_CALLBACK not in uris:
+        uris.append(CLAUDE_CALLBACK)
+    return {**oauth, "enabled": True,
+            "dynamic_client_registration": {**registration, "enabled": True, "allowed_uris": uris}}
 
 
 def updated_app_payload(existing: Json, otp_id: str, policy_id: str | None) -> Json:
@@ -281,35 +313,64 @@ def _show(out: TextIO, method: str, route: str, body: Json) -> None:
     out.write(f"[dry-run] {method} {route}\n{json.dumps(body, ensure_ascii=False, indent=2)}\n")
 
 
-def _destinations_text(destinations: list[Json]) -> str:
-    """Os uri públicos, que são hostnames; os de outro tipo só pela contagem e pelo tipo."""
-    public = [str(d.get("uri", "")) for d in destinations if isinstance(d, dict) and d.get("type") == "public"]
+def _destinations_text(destinations: list[Json], domain: str | None) -> str:
+    """Só o `domain` e o hostname do MCP saem pelo nome; os outros públicos só pela contagem, os demais pelo tipo."""
+    named: list[str] = []
+    other_public = 0
     others: dict[str, int] = {}
     for d in destinations:
-        if not (isinstance(d, dict) and d.get("type") == "public"):
-            kind = str(d.get("type", "desconhecido")) if isinstance(d, dict) else "desconhecido"
+        kind = str(d.get("type", "desconhecido")) if isinstance(d, dict) else "desconhecido"
+        uri = str(d.get("uri", "")).rstrip("/") if isinstance(d, dict) else ""
+        if kind != "public":
             others[kind] = others.get(kind, 0) + 1
-    parts = [*public, *(f"{n} de tipo {kind}" for kind, n in others.items())]
+        elif uri in (MCP_HOST, (domain or "").rstrip("/")) and uri:
+            named.append(uri)
+        else:
+            other_public += 1
+    count = [] if not other_public else [f"{other_public} outro público" if other_public == 1
+                                         else f"{other_public} outros públicos"]
+    parts = [*named, *count, *(f"{n} de tipo {kind}" for kind, n in others.items())]
     return ", ".join(parts) if parts else "nenhum"
 
 
 def _destination_lines(existing: Json, body: Json) -> list[str]:
-    before = list(existing.get("destinations") or [])
-    only_domain = not before
-    if only_domain:
-        before = [{"type": "public", "uri": existing["domain"]}] if existing.get("domain") else []
+    before, source = _current_destinations(existing)
+    domain = existing.get("domain")
     added = not any(_is_mcp_destination(d) for d in before)
+    origin = f" (só {source})" if source else ""
     return [
-        f"destinos antes: {_destinations_text(before)}{' (só domain)' if only_domain else ''}",
-        f"destinos depois: {_destinations_text(body['destinations'])}",
+        f"destinos antes: {_destinations_text(before, domain)}{origin}",
+        f"destinos depois: {_destinations_text(body['destinations'], domain)}",
         f"destino do MCP: {'acrescentado' if added else 'já estava'}",
     ]
 
 
-def _oauth_line(existing: Json) -> str:
+def _flag(value: Json) -> str:
+    return "ligado" if value is True else "desligado"
+
+
+def _oauth_lines(existing: Json, body: Json) -> list[str]:
+    """Antes e depois das chaves de OAuth que o script mexe; das outras URIs, só a contagem."""
     current = existing.get("oauth_configuration")
-    was_on = isinstance(current, dict) and current.get("enabled") is True
-    return "oauth_configuration.enabled: " + ("ligado, inalterado" if was_on else "desligado -> ligado")
+    current = current if isinstance(current, dict) else {}
+    registration = current.get("dynamic_client_registration")
+    registration = registration if isinstance(registration, dict) else {}
+    after = body["oauth_configuration"]
+    prefix = "oauth_configuration.dynamic_client_registration"
+
+    def change(before: Json, now: Json) -> str:
+        return "ligado, inalterado" if before is True and now is True else f"{_flag(before)} -> {_flag(now)}"
+
+    uris_before = _other_uris(registration)
+    had = CLAUDE_CALLBACK in uris_before
+    others_before = len([u for u in uris_before if u != CLAUDE_CALLBACK])
+    others_after = len([u for u in after["dynamic_client_registration"]["allowed_uris"] if u != CLAUDE_CALLBACK])
+    return [
+        f"oauth_configuration.enabled: {change(current.get('enabled'), after['enabled'])}",
+        f"{prefix}.enabled: {change(registration.get('enabled'), after['dynamic_client_registration']['enabled'])}",
+        f"{prefix}.allowed_uris: {CLAUDE_CALLBACK} {'já estava' if had else 'acrescentado'} "
+        f"(outras URIs: {others_before} antes, {others_after} depois)",
+    ]
 
 
 def describe_put(existing: Json, body: Json, policy_id: str | None) -> str:
@@ -329,7 +390,7 @@ def describe_put(existing: Json, body: Json, policy_id: str | None) -> str:
         f"outras políticas: {len(policies) - 1}, mantidas",
         f"caminho: {path}",
         *_destination_lines(existing, body),
-        _oauth_line(existing),
+        *_oauth_lines(existing, body),
     ]
     lines += [f"  política {n}: precedence={p.get('precedence')} tipo={kind}{' (do script)' if p is mine else ''}"
               for n, p in enumerate(policies, start=1)]

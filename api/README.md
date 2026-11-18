@@ -282,8 +282,12 @@ campos ficam como estão. Em `allowed_idps` fica exatamente o código por e-mail
 novo deixa o mesmo estado.
 
 O script também garante o destino público do Worker do MCP (`MCP_HOST` no script) entre os destinos
-da aplicação, só acrescentando, e liga o OAuth gerenciado (`oauth_configuration.enabled`), para o Claude entrar pelo
-login do Access (#321). Ele nunca remove um destino nem desliga o OAuth.
+da aplicação, só acrescentando (sem `destinations`, parte de `self_hosted_domains`, ou do `domain`), e liga o OAuth
+gerenciado para o Claude entrar pelo login do Access (#321): `oauth_configuration.enabled`,
+`oauth_configuration.dynamic_client_registration.enabled` e `https://claude.ai/api/mcp/auth_callback` em
+`oauth_configuration.dynamic_client_registration.allowed_uris`, no mesmo PUT, sem ligar localhost nem loopback e sem
+tirar outras URIs. Ele nunca remove um destino nem desliga o OAuth. O `--dry-run` mostra o antes e o depois dessas
+chaves e nomeia só o `domain` e o MCP; os demais destinos públicos saem pela contagem.
 
 **Pelo workflow** (o caminho normal):
 

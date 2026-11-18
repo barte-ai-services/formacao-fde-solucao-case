@@ -66,7 +66,8 @@ olhar no navegador, sirva a pasta `mcp/ui` e abra `approval.html` num iframe de 
   digita o próprio e-mail e o código que chega por e-mail. Daí em diante a identidade de cada chamada chega à API no
   `Cf-Access-Jwt-Assertion`, com o mesmo AUD de `BARTE_ACADEMY_ACCESS_AUD`. Isso vale depois que a esteira
   `Provisiona o Cloudflare Access` roda com o `scripts/cloudflare_access.py` deste plano, que acrescenta o destino do
-  MCP e liga o OAuth. Antes desse disparo, toda tool de dados responde "Sua sessão expirou. Entre de novo pelo
+  MCP, liga o OAuth e o registro dinâmico de cliente e permite o callback do Claude
+  (`https://claude.ai/api/mcp/auth_callback`). Antes desse disparo, toda tool de dados responde "Sua sessão expirou. Entre de novo pelo
   Access."; `open_approval_app` abre a tela, que mostra a mensagem.
 - **Conferir a publicação:** um `POST /mcp` com `Content-Type: application/json` e o JSON-RPC `initialize`
   devolve as `instructions` do servidor.

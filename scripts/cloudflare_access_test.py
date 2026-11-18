@@ -485,7 +485,9 @@ class DryRunTest(unittest.TestCase):
 
     def test_dry_run_summarizes_the_put_in_named_fields_without_the_other_policies_content(self) -> None:
         """#232/AC-5: o dry-run não imprime a configuração da aplicação, a política alheia nem a conta."""
-        client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app()])
+        foreign = {"type": "public", "uri": "interno.alheio.example.com"}
+        client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app(destinations=[
+            {"type": "public", "uri": "vigente.example.com"}, foreign])])
         _, out = run(client, dry_run=True)
         self.assertIn("[dry-run] PUT na aplicação do AUD\n", out)
         self.assertIn("allowed_idps: inalterado", out)
@@ -493,7 +495,7 @@ class DryRunTest(unittest.TestCase):
         self.assertIn("outras políticas: 1, mantidas", out)
         self.assertIn("política 2: precedence=None tipo=da aplicação\n", out)
         self.assertNotRegex(out, r"\boutra\b")
-        # O hostname público da aplicação agora aparece, nos destinos (#321); o resto continua escondido.
+        # Só o domain da aplicação e o hostname do MCP saem pelo nome (#321); o destino alheio, nunca.
         for hidden in ("alheio", ACCOUNT, "nome-vigente"):
             self.assertNotIn(hidden, out)
 
@@ -793,6 +795,30 @@ class McpDestinationTest(unittest.TestCase):
                          body["destinations"])
         self.assertEqual("vigente.example.com", body["domain"])
 
+    def test_without_destinations_the_fallback_starts_from_self_hosted_domains_keeping_every_extra(self) -> None:
+        """#321/AC-1: sem destinations, o corpo parte de self_hosted_domains: nenhum hostname extra se perde."""
+        body = self.sent(existing_app(self_hosted_domains=["vigente.example.com", "extra.example.com"]))
+        self.assertEqual(
+            [{"type": "public", "uri": "vigente.example.com"}, {"type": "public", "uri": "extra.example.com"},
+             {"type": "public", "uri": self.MCP}], body["destinations"])
+        self.assertEqual(["vigente.example.com", "extra.example.com"], body["self_hosted_domains"])
+
+    def test_fallback_from_self_hosted_domains_does_not_repeat_the_mcp(self) -> None:
+        """#321/AC-1: se self_hosted_domains já tem o MCP, o destino não se repete."""
+        body = self.sent(existing_app(self_hosted_domains=["vigente.example.com", self.MCP]))
+        self.assertEqual(["vigente.example.com", self.MCP], [d["uri"] for d in body["destinations"]])
+
+    def test_empty_self_hosted_domains_fall_back_to_the_domain(self) -> None:
+        """#321/AC-1: self_hosted_domains vazio ou ausente cai em [domain]."""
+        body = self.sent(existing_app(self_hosted_domains=[]))
+        self.assertEqual(["vigente.example.com", self.MCP], [d["uri"] for d in body["destinations"]])
+
+    def test_destinations_win_over_self_hosted_domains(self) -> None:
+        """#321/AC-1: com destinations, self_hosted_domains não entra na conta."""
+        body = self.sent(existing_app(destinations=[{"type": "public", "uri": "a.example.com"}],
+                                      self_hosted_domains=["b.example.com"]))
+        self.assertEqual(["a.example.com", self.MCP], [d["uri"] for d in body["destinations"]])
+
     def test_empty_destinations_are_treated_as_absent(self) -> None:
         """#321/AC-1: destinations vazio vira domain mais MCP."""
         body = self.sent(existing_app(destinations=[]))
@@ -846,26 +872,73 @@ class McpDestinationTest(unittest.TestCase):
 class ManagedOauthTest(unittest.TestCase):
     """O OAuth gerenciado liga para o cliente MCP entrar com o login do Access (#321)."""
 
+    CALLBACK = ca.CLAUDE_CALLBACK
+
     def sent(self, app: Json) -> Json:
         client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[app])
         run(client)
         return client.writes()[0][2]
 
-    def test_oauth_is_enabled_when_the_app_has_none(self) -> None:
-        """#321/AC-2: sem oauth_configuration, o corpo liga só o enabled."""
-        self.assertEqual({"enabled": True}, self.sent(existing_app())["oauth_configuration"])
+    def test_the_callback_is_the_one_of_claude(self) -> None:
+        """#321/AC-2: a redirect URI é a do Claude para conectores MCP."""
+        self.assertEqual("https://claude.ai/api/mcp/auth_callback", self.CALLBACK)
 
-    def test_oauth_is_enabled_keeping_the_subfields_the_app_has(self) -> None:
-        """#321/AC-2: dynamic_client_registration, grant e o mais que vier ficam como estavam."""
-        current = {"enabled": False, "dynamic_client_registration": {"enabled": True, "allow_any_on_localhost": True},
+    def test_oauth_registration_and_callback_are_set_when_the_app_has_none(self) -> None:
+        """#321/AC-2: sem oauth_configuration, liga o OAuth, o registro dinâmico e permite o callback do Claude."""
+        self.assertEqual(
+            {"enabled": True, "dynamic_client_registration": {"enabled": True, "allowed_uris": [self.CALLBACK]}},
+            self.sent(existing_app())["oauth_configuration"])
+
+    def test_localhost_and_loopback_are_never_turned_on(self) -> None:
+        """#321/AC-2: o script não liga allow_any_on_localhost nem allow_any_on_loopback."""
+        registration = self.sent(existing_app())["oauth_configuration"]["dynamic_client_registration"]
+        self.assertNotIn("allow_any_on_localhost", registration)
+        self.assertNotIn("allow_any_on_loopback", registration)
+
+    def test_existing_localhost_and_loopback_flags_stay_as_they_came(self) -> None:
+        """#321/AC-2: o que a aplicação já tem nesses flags (falso, no caso) não muda."""
+        current = {"enabled": False, "dynamic_client_registration": {
+            "enabled": False, "allow_any_on_localhost": False, "allow_any_on_loopback": False,
+            "allowed_uris": ["https://outro.example.com/cb"]}}
+        registration = self.sent(existing_app(oauth_configuration=current))["oauth_configuration"][
+            "dynamic_client_registration"]
+        self.assertIs(False, registration["allow_any_on_localhost"])
+        self.assertIs(False, registration["allow_any_on_loopback"])
+
+    def test_other_redirect_uris_and_fields_are_preserved(self) -> None:
+        """#321/AC-2: outras URIs, o grant e o mais que vier ficam; o callback vai ao fim."""
+        current = {"enabled": False,
+                   "dynamic_client_registration": {"enabled": False, "allow_any_on_localhost": True,
+                                                   "allowed_uris": ["https://outro.example.com/cb"],
+                                                   "campo_novo": 1},
                    "grant": {"session_duration": "2h"}, "extra": "x"}
-        body = self.sent(existing_app(oauth_configuration=current))
-        self.assertEqual({**current, "enabled": True}, body["oauth_configuration"])
+        oauth = self.sent(existing_app(oauth_configuration=current))["oauth_configuration"]
+        self.assertEqual({"session_duration": "2h"}, oauth["grant"])
+        self.assertEqual("x", oauth["extra"])
+        registration = oauth["dynamic_client_registration"]
+        self.assertEqual(["https://outro.example.com/cb", self.CALLBACK], registration["allowed_uris"])
+        self.assertIs(True, registration["enabled"])
+        self.assertIs(True, registration["allow_any_on_localhost"])
+        self.assertEqual(1, registration["campo_novo"])
+        self.assertIs(True, oauth["enabled"])
 
-    def test_script_invents_no_registration_or_grant(self) -> None:
-        """#321/AC-2: sem os subcampos na aplicação, o script não os cria."""
-        oauth = self.sent(existing_app(oauth_configuration={"enabled": False}))["oauth_configuration"]
-        self.assertEqual({"enabled": True}, oauth)
+    def test_callback_already_allowed_is_not_repeated(self) -> None:
+        """#321/AC-2: com o callback já na lista, ele não se repete e a ordem fica."""
+        current = {"enabled": True, "dynamic_client_registration": {
+            "enabled": True, "allowed_uris": [self.CALLBACK, "https://outro.example.com/cb"]}}
+        uris = self.sent(existing_app(oauth_configuration=current))["oauth_configuration"][
+            "dynamic_client_registration"]["allowed_uris"]
+        self.assertEqual([self.CALLBACK, "https://outro.example.com/cb"], uris)
+
+    def test_all_of_it_goes_in_the_same_put_of_the_same_app(self) -> None:
+        """#321/AC-2: um só PUT na aplicação vigente, sem criar outra, leva destinos e OAuth juntos."""
+        client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app()])
+        run(client)
+        method, path, body = client.writes()[0]
+        self.assertEqual(1, len(client.writes()))
+        self.assertEqual(("PUT", f"{BASE}/apps/{APP_ID}"), (method, path))
+        self.assertIn(self.CALLBACK, body["oauth_configuration"]["dynamic_client_registration"]["allowed_uris"])
+        self.assertIn(ca.MCP_HOST, [d["uri"] for d in body["destinations"]])
 
     def test_second_run_keeps_oauth_enabled_and_equal(self) -> None:
         """#321/AC-2: rodar de novo deixa o OAuth ligado e o corpo igual."""
@@ -911,6 +984,35 @@ class McpDryRunTest(unittest.TestCase):
         self.assertIn("oauth_configuration.enabled: desligado -> ligado", off)
         _, on = self.dry(existing_app(oauth_configuration={"enabled": True}))
         self.assertIn("oauth_configuration.enabled: ligado, inalterado", on)
+
+    def test_dry_run_names_only_the_domain_and_the_mcp_and_counts_the_other_public_destinations(self) -> None:
+        """#232/AC-5 e #321/AC-1: o destino público alheio entra só pela contagem, nunca pelo nome."""
+        client, out = self.dry(existing_app(destinations=[
+            {"type": "public", "uri": "vigente.example.com"}, {"type": "public", "uri": "a.alheio.example.com"},
+            {"type": "public", "uri": "b.alheio.example.com"}]))
+        self.assertNotIn("alheio", out)
+        self.assertIn("destinos antes: vigente.example.com, 2 outros públicos", out)
+        self.assertIn(f"destinos depois: vigente.example.com, {ca.MCP_HOST}, 2 outros públicos", out)
+
+    def test_dry_run_counts_the_extra_self_hosted_domains_without_naming_them(self) -> None:
+        """#321/AC-1: no fallback por self_hosted_domains, o extra também só aparece pela contagem."""
+        _, out = self.dry(existing_app(self_hosted_domains=["vigente.example.com", "extra.alheio.example.com"]))
+        self.assertNotIn("alheio", out)
+        self.assertIn("destinos antes: vigente.example.com, 1 outro público (só self_hosted_domains)", out)
+
+    def test_dry_run_shows_the_oauth_keys_before_and_after(self) -> None:
+        """#321/AC-2: o antes e o depois de enabled, do registro dinâmico e do callback do Claude."""
+        _, out = self.dry(existing_app())
+        self.assertIn("oauth_configuration.enabled: desligado -> ligado", out)
+        self.assertIn("oauth_configuration.dynamic_client_registration.enabled: desligado -> ligado", out)
+        self.assertIn(f"oauth_configuration.dynamic_client_registration.allowed_uris: {ca.CLAUDE_CALLBACK} "
+                      "acrescentado (outras URIs: 0 antes, 0 depois)", out)
+        current = {"enabled": True, "dynamic_client_registration": {
+            "enabled": True, "allowed_uris": [ca.CLAUDE_CALLBACK, "https://secreto.example.com/cb"]}}
+        _, again = self.dry(existing_app(oauth_configuration=current))
+        self.assertIn("oauth_configuration.dynamic_client_registration.enabled: ligado, inalterado", again)
+        self.assertIn(f"allowed_uris: {ca.CLAUDE_CALLBACK} já estava (outras URIs: 1 antes, 1 depois)", again)
+        self.assertNotIn("secreto", again)
 
     def test_dry_run_prints_no_id_nor_oauth_subfields(self) -> None:
         """#321/AC-1: nada de id nem de subcampos do OAuth no log público."""
