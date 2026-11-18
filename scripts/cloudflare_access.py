@@ -357,8 +357,8 @@ def provision(client: Client, account: str, options: Options, out: TextIO = sys.
         _show(out, "POST", "/access/identity_providers", {"type": OTP_TYPE, "name": OTP_NAME, "config": {}})
         otp_id = PENDING_OTP
     elif otp_id is None:
-        out.write("Criado o provedor de código por e-mail (one-time PIN).\n")
         otp_id = create_otp(client, account)
+        out.write("Criado o provedor de código por e-mail (one-time PIN).\n")
     policy_id = _script_policy_id(client, account, candidate, options.dry_run) if reusable else None
     method, route, body = app_request(existing, otp_id, options, policy_id)
     if options.dry_run and existing is None:
@@ -368,8 +368,8 @@ def provision(client: Client, account: str, options: Options, out: TextIO = sys.
         out.write(describe_put(existing, body, policy_id))
         app = existing
     else:
-        out.write("Criada a aplicação do Access.\n" if existing is None else "Atualizada a aplicação do Access.\n")
         app = _call(client, method, f"/accounts/{account}{route}", body)
+        out.write("Criada a aplicação do Access.\n" if existing is None else "Atualizada a aplicação do Access.\n")
     organization = _call(client, "GET", f"/accounts/{account}/access/organizations") or {}
     out.write("Política que libera qualquer e-mail, com o código por e-mail como único provedor.\n")
     if existing is None and app and app.get("aud"):
