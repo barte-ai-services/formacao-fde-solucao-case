@@ -4,6 +4,7 @@ import importlib.util
 import re
 import unittest
 from pathlib import Path
+from types import ModuleType
 
 import approval_screen
 
@@ -12,7 +13,7 @@ SOURCE = MCP_DIR / "ui" / "approval.html"
 GENERATOR = MCP_DIR / "scripts" / "generate_ui.py"
 
 
-def load_generator():  # type: ignore[no-untyped-def]
+def load_generator() -> ModuleType:
     spec = importlib.util.spec_from_file_location("generate_ui", GENERATOR)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
