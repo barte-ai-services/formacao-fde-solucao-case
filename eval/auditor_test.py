@@ -743,7 +743,7 @@ class ClosedClassTest(unittest.TestCase):
         self.assertIn("E6", err)
         self.assertEqual(len(self.run_files()), 1)
 
-    def run_program_with_encoding(self, encoding: str, *extra: str, lines: list[dict[str, Any]] | None = None) -> subprocess.CompletedProcess[bytes]:
+    def run_program_with_encoding(self, encoding: str, *extra: str, lines: list[Record] | None = None) -> subprocess.CompletedProcess[bytes]:
         """Roda o programa de verdade com `PYTHONIOENCODING` dado; a saída vem em bytes, porque ela não é UTF-8 (#245)."""
         self.audits.write_text("\n".join(json.dumps(x) for x in (lines or all_correct())) + "\n", encoding="utf-8")
         argv = [sys.executable, str(ROOT / "eval" / "auditor.py"), str(self.audits),
