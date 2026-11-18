@@ -137,6 +137,5 @@ describe('#157 o texto da migração segue o projeto', () => { // ADR-002
   it('o carimbo é o último da árvore e as comentadas de enum levam ADR-002', () => { // ADR-002
     expect(SQL).toMatch(/-- ADR-002/);
     expect(SQL).toMatch(/-- #157/);
-    expect(SQL).toMatch(/-- #157/);
   });
 });

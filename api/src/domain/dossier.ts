@@ -26,7 +26,7 @@ import type { Quantity } from './quantity.js';
 // No texto, um fato aparece só como o marcador {{chave}}. Fora dos marcadores, só identificadores
 // (`FactCatalog.identifiers`) podem ter algarismos.
 
-export type FactSource = 'invoice' | 'purchase_order' | 'registry' | 'receipt' | 'history' | 'return_note'; // #157, #156
+export type FactSource = 'invoice' | 'purchase_order' | 'registry' | 'receipt' | 'history' | 'return_note'; // #68, #156
 
 export type Fact = {
   readonly label: string;
