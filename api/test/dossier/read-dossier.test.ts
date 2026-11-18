@@ -24,14 +24,18 @@ const row = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-const read = async (rows: Record<string, unknown>[], loadContext?: () => Promise<CheckContext>) => {
+const read = async (
+  rows: Record<string, unknown>[],
+  loadContext?: () => Promise<CheckContext>,
+  log: (event: string, detail: Record<string, unknown>) => void = () => undefined,
+) => {
   const { invoice, ctx, tables } = await kitCase();
   const fake = new FakePostgrest({ claude_suggestions: rows });
   const source = new SupabaseDossierSource(
     new SupabaseRest({ url: 'https://fake.supabase.co', secretKey: 'sb_secret_fake', fetch: fake.fetch }),
   );
   const load = vi.fn(loadContext ?? (async () => ctx));
-  const result = await readDossier({ invoiceAccessKey: KIT_ACCESS_KEY, invoice, loadContext: load, source });
+  const result = await readDossier({ invoiceAccessKey: KIT_ACCESS_KEY, invoice, loadContext: load, source, log });
   return { result, tables, fake, invoice, load };
 };
 
@@ -71,6 +75,49 @@ describe('readDossier, com a NF-004 da base do kit', () => {
   it('#38/AC-2 número inventado na saída do Claude dá indisponível number_mismatch', async () => {
     const { result } = await read([row({ output: { ...kitGoodRaw(), summary: 'Faltaram 22 litros, R$ 107,58.' } })]);
     expect(result).toEqual({ status: 'unavailable', reason: 'number_mismatch', generatedAt: GERADO });
+  });
+
+  it('#296/AC-3 número errado registra uma linha estruturada só com a verificação, o campo, o token e o banco', async () => {
+    const summary = 'Faltaram 22 litros, R$ 107,58.';
+    const log = vi.fn();
+    const { result } = await read([row({ output: { ...kitGoodRaw(), summary } })], undefined, log);
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith('dossie-number-mismatch', {
+      invoiceAccessKey: KIT_ACCESS_KEY,
+      check: 'loose_number',
+      field: 'summary',
+      cited: '22',
+      bank: null,
+    });
+    const [, detail] = log.mock.calls[0]!;
+    expect(Object.keys(detail as object).sort()).toEqual(['bank', 'check', 'cited', 'field', 'invoiceAccessKey']);
+    expect(JSON.stringify(log.mock.calls)).not.toContain(summary);
+    expect(result).toEqual({ status: 'unavailable', reason: 'number_mismatch', generatedAt: GERADO });
+    expect(result).not.toHaveProperty('mismatch');
+  });
+
+  it('#296/AC-3 sem log informado, o padrão é o console.warn', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const { invoice, ctx } = await kitCase();
+      const fake = new FakePostgrest({ claude_suggestions: [row({ output: { ...kitGoodRaw(), summary: 'Faltaram 22.' } })] });
+      const source = new SupabaseDossierSource(
+        new SupabaseRest({ url: 'https://fake.supabase.co', secretKey: 'sb_secret_fake', fetch: fake.fetch }),
+      );
+      await readDossier({ invoiceAccessKey: KIT_ACCESS_KEY, invoice, loadContext: async () => ctx, source });
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0]?.[0]).toBe('dossie-number-mismatch');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('#296/AC-3 dossiê pronto e sugestão com erro não registram nada', async () => {
+    const log = vi.fn();
+    await read([row()], undefined, log);
+    await read([row({ status: 'error', output: null, model: null, error: 'timeout' })], undefined, log);
+    await read([], undefined, log);
+    expect(log).not.toHaveBeenCalled();
   });
 
   it('#38/AC-2 chave que o banco não tem mais dá number_mismatch na hora de mostrar', async () => {
