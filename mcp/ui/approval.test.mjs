@@ -638,7 +638,7 @@ describe("Sua decisão", () => {
     assert.equal(screen.$("button[data-action=register]"), null);
   });
 
-  test("AC-4: sessão expirada ao registrar mostra o aviso; Entrar só limpa o aviso e não chama decide_proposal (#274, #275)", async () => {
+  test("AC-4: sessão expirada ao registrar mostra o aviso; Entrar só limpa o aviso e não chama decide_proposal (#274, #321)", async () => {
     await openProposal(proposalOutput(), { decide_proposal: () => fail("session_expired", SESSION_EXPIRED) });
     await screen.click(register());
     assert.equal(screen.text(screen.$("[data-state=session-expired]")), `${SESSION_EXPIRED} Entrar`);

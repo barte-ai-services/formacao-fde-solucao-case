@@ -88,6 +88,19 @@ class SkillTest(unittest.TestCase):
         self.assertIn("Sem a tela, chame `decide_proposal` só depois de pedido explícito da pessoa e de confirmação de uma linha", text)
         self.assertNotIn("ou, em texto, depois de pedido explícito", text)
 
+    def test_ac1_a_tela_so_conta_como_aberta_quando_o_host_a_desenhou(self) -> None:  # ADR-002
+        """#275/AC-1: o texto que open_approval_app devolve não prova que a tela abriu."""
+        text = flat(read_skill())
+        self.assertIn("A tela só conta como aberta quando o host a desenhou", text)
+        self.assertIn("ou se a pessoa disser que não vê a tela, siga em texto", text)
+
+    def test_ac1_o_numero_da_nota_nao_e_a_chave_e_a_chave_vem_da_fila(self) -> None:  # ADR-002
+        """#275/AC-1: a invoice_access_key sai da linha da fila com esse number, nunca é montada."""
+        text = flat(read_skill())
+        self.assertIn("Esse é o `number` da nota, não a chave", text)
+        self.assertIn("Pegue a `invoice_access_key` (44 dígitos) da linha da fila com esse `number`", text)
+        self.assertIn("Nunca monte a chave", text)
+
 
 class InstructionsTest(unittest.TestCase):
     def test_ac2_as_instructions_trazem_o_resumo_da_skill(self) -> None:  # ADR-002
@@ -99,6 +112,10 @@ class InstructionsTest(unittest.TestCase):
     def test_ac2_as_instructions_dizem_que_com_a_tela_aberta_a_decisao_e_da_tela(self) -> None:  # ADR-002
         """#275/AC-2: a frase da decisão, com a tela aberta e sem tela."""
         self.assertIn(DECIDE_RULE, flat(app.INFO.instructions))
+
+    def test_ac2_as_instructions_dizem_quando_a_tela_conta_como_aberta(self) -> None:  # ADR-002
+        """#275/AC-2: o texto da tool não prova que o host desenhou a tela."""
+        self.assertIn("A tela só conta como aberta quando o host a desenhou", flat(app.INFO.instructions))
 
     def test_ac2_as_instructions_mantem_o_aviso_de_texto_de_terceiros(self) -> None:  # ADR-002
         """#275/AC-2"""

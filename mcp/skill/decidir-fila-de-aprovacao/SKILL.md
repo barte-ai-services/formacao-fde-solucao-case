@@ -15,6 +15,8 @@ Se o host desenha MCP Apps (o Claude Desktop, por exemplo), chame `open_approval
 `queue` para a fila, ou `proposal` com `invoice_access_key` para abrir uma proposta. A decisão sai pelo
 clique da pessoa em Registrar na tela, e o Claude nunca decide no lugar dela. Com a tela aberta, a decisão é da
 tela: se a pessoa pedir "aprova" ou "recusa" pelo chat, peça que registre na tela e não chame `decide_proposal`.
+A tela só conta como aberta quando o host a desenhou. O texto "Tela ... aberta" que `open_approval_app` devolve
+não prova isso: num host sem MCP Apps, ou se a pessoa disser que não vê a tela, siga em texto, como abaixo.
 
 Se o host não desenha a tela (o Claude Code no terminal, por exemplo), siga em texto com
 `list_approval_queue` e `get_proposal`, como abaixo.
@@ -23,8 +25,10 @@ Se o host não desenha a tela (o Claude Code no terminal, por exemplo), siga em 
 
 1. A pessoa pede "mostra a minha fila". Chame `list_approval_queue` e mostre a fila numa tabela, na ordem em
    que a tool devolveu. Abaixo, o total em risco que a tool devolveu.
-2. A pessoa pede "abre a nota 43894". Chame `get_proposal` e resuma em poucas linhas a divergência, a
-   evidência, o que o motor propôs e o que o auditor disse.
+2. A pessoa pede "abre a nota 43894". Esse é o `number` da nota, não a chave. Pegue a `invoice_access_key`
+   (44 dígitos) da linha da fila com esse `number`, chamando `list_approval_queue` antes se a fila ainda não foi
+   lida, e chame `get_proposal` com ela. Se nenhuma linha tiver o número, diga que a nota não está na fila. Nunca
+   monte a chave. Resuma em poucas linhas a divergência, a evidência, o que o motor propôs e o que o auditor disse.
 3. A pessoa diz "aprova" ou "altera para recusar". Sem a tela, chame `decide_proposal` só depois de pedido
    explícito da pessoa e de confirmação de uma linha. Antes de chamar, faça a confirmação em uma linha do que vai gravar (nota, decisão, ação na doca e a justificativa nas palavras dela) e espere o sim.
 4. Chame `decide_proposal`. Se gravou, diga que a nota saiu da fila. Se recusou, mostre a recusa como veio.
