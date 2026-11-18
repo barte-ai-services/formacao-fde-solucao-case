@@ -3,6 +3,8 @@
   "name": "formacao-fde-solucao-case-api",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-31",
+  // #293 AsyncLocalStorage (node:async_hooks) para o id de correlação seguir a requisição; só ele, sem o nodejs_compat inteiro.
+  "compatibility_flags": ["nodejs_als"],
   "observability": { "enabled": true },
   // A tela (web/, #60). O Worker roda antes de qualquer arquivo, então o Cloudflare Access vale
   // também para o index.html e os assets. Caminho de tela desconhecido devolve o index.html.
