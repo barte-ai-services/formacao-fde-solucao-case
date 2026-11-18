@@ -79,7 +79,11 @@ export type DossierUnavailableReason =
   | 'timeout'; // #130 o Claude passou do prazo
 
 /** #296: qual das quatro verificações do texto do Claude derrubou o dossiê. */
-export type DossierMismatchCheck = 'loose_number' | 'spelled_number' | 'unknown_key' | 'unknown_classification';
+export type DossierMismatchCheck =
+  | 'loose_number'
+  | 'spelled_number'
+  | 'item_count_mismatch' // #313
+  | 'unknown_key' | 'unknown_classification';
 
 /** #296: o detalhe de um `number_mismatch`, para o log. Nunca vai à resposta da API nem à tela. */
 export type DossierMismatch = {
@@ -92,6 +96,7 @@ export type DossierMismatch = {
    * #296: o que o banco tem para comparar: as classificações reais da nota, separadas por vírgula, em
    * `unknown_classification`. `null` quando o banco não tem valor correspondente: um número solto
    * ou por extenso não está ligado a chave nenhuma, e uma chave desconhecida não existe no catálogo.
+   * #313: em `item_count_mismatch`, a quantidade de itens da nota (`nota.itens.quantidade`), ou `null` sem o fato.
    */
   readonly bank: string | null;
 };
@@ -330,7 +335,25 @@ const folded = (token: string): string => token.normalize('NFD').replace(/\p{M}/
 /** #296: o `cited` de um `DossierMismatch` tem no máximo este tamanho: o token ou a chave, nunca o texto. */
 const MAX_CITED_LENGTH = 64;
 
-type TextFailure = { readonly check: DossierMismatchCheck; readonly cited: string };
+type TextFailure = {
+  readonly check: DossierMismatchCheck;
+  readonly cited: string;
+  /** #313: o valor do banco para comparar, em `item_count_mismatch`. */
+  readonly bank?: string | null;
+};
+
+/** #313: os numerais por extenso de valor inteiro simples, que podem contar os itens da nota. `um`/`uma` ficam fora. */
+const COUNT_WORDS: Readonly<Record<string, number>> = {
+  dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10,
+  onze: 11, doze: 12, treze: 13, catorze: 14, quatorze: 14, quinze: 15, dezesseis: 16, dezessete: 17,
+  dezoito: 18, dezenove: 19, vinte: 20,
+};
+
+/** #313: as palavras que, logo depois de um numeral, o fazem contar os itens da nota. */
+const ITEM_WORDS: ReadonlySet<string> = new Set(['item', 'itens', 'sku', 'skus']);
+
+/** #313: o que vem antes e depois de um token no texto, com a posição de cada marcador ocupada. */
+type Neighbours = { readonly previous: string; readonly next: string };
 
 /** #313: o lugar de um marcador no texto: ocupa uma posição, para o marcador não ligar a palavra ao número. */
 const MARKER_SLOT = '\uFFFC';
@@ -347,25 +370,43 @@ function isListedSlashDate(bare: string, allowed: ReadonlySet<string>): boolean 
 }
 
 /**
+ * #313: um numeral por extenso. Seguido de item/itens/SKU/SKUs, passa se for a quantidade de itens da
+ * nota no catálogo; senão cai como `item_count_mismatch`. Qualquer outro numeral cai como `spelled_number`.
+ */
+function spelledFailure(bare: string, next: string, catalog: FactCatalog): TextFailure | null {
+  const word = folded(bare);
+  if (!SPELLED_NUMBERS.has(word)) return null;
+  const count = COUNT_WORDS[word];
+  if (count === undefined || !ITEM_WORDS.has(folded(next.replace(EDGE_PUNCTUATION, '')))) {
+    return { check: 'spelled_number', cited: bare };
+  }
+  const bank = catalog.facts[factKey.invoiceItemCount()]?.value ?? null;
+  return bank === String(count) ? null : { check: 'item_count_mismatch', cited: bare, bank };
+}
+
+/**
  * #313: a primeira falha de um token separado por espaço. O token inteiro na lista (CNPJ com barra) ou
  * a data com barra da lista passam; senão cada pedaço entre barras passa pelas verificações de sempre
  * (#68), e um número de nota só passa logo depois de uma palavra de `INVOICE_WORDS`.
  */
 function tokenFailure(
   token: string,
-  previous: string,
+  near: Neighbours,
   catalog: FactCatalog,
   allowed: ReadonlySet<string>,
 ): TextFailure | null {
   const whole = token.replace(EDGE_PUNCTUATION, '');
   const listed = allowed.has(whole) || isListedSlashDate(whole, allowed);
-  const afterInvoiceWord = INVOICE_WORDS.has(folded(previous.replace(EDGE_PUNCTUATION, '')));
-  for (const [index, piece] of token.split('/').entries()) {
+  const afterInvoiceWord = INVOICE_WORDS.has(folded(near.previous.replace(EDGE_PUNCTUATION, '')));
+  const pieces = token.split('/');
+  for (const [index, piece] of pieces.entries()) {
     const bare = piece.replace(EDGE_PUNCTUATION, '');
     const isInvoiceNumber = index === 0 && afterInvoiceWord && (catalog.invoiceNumbers ?? []).includes(bare);
     // #68: \p{N} pega também dígitos fora do ASCII (como `１５`), que o `\d` deixava passar.
     if (/\p{N}/u.test(bare) && !listed && !allowed.has(bare) && !isInvoiceNumber) return { check: 'loose_number', cited: bare };
-    if (SPELLED_NUMBERS.has(folded(bare))) return { check: 'spelled_number', cited: bare };
+    // #313: a contagem só conta com a palavra seguinte quando o token não tem barra.
+    const spelled = spelledFailure(bare, pieces.length === 1 ? near.next : '', catalog);
+    if (spelled) return spelled;
   }
   return null;
 }
@@ -378,7 +419,7 @@ function firstTextFailure(text: string, catalog: FactCatalog, allowed: ReadonlyS
   }
   const tokens = text.replace(MARKER, ` ${MARKER_SLOT} `).split(/\s+/);
   for (const [i, token] of tokens.entries()) {
-    const failure = tokenFailure(token, tokens[i - 1] ?? '', catalog, allowed);
+    const failure = tokenFailure(token, { previous: tokens[i - 1] ?? '', next: tokens[i + 1] ?? '' }, catalog, allowed);
     if (failure) return failure;
   }
   return null;
@@ -411,7 +452,7 @@ function firstTextMismatch(parsed: RawDossier, catalog: FactCatalog, allowed: Re
   ];
   for (const [field, text] of texts) {
     const failure = firstTextFailure(text, catalog, allowed);
-    if (failure) return mismatchOf(failure.check, field, failure.cited, null);
+    if (failure) return mismatchOf(failure.check, field, failure.cited, failure.bank ?? null);
   }
   return null;
 }

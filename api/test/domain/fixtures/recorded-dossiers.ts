@@ -3,6 +3,9 @@ import type { Divergence } from '../../../src/domain/index.js';
 // #313: os dois dossiês gravados em produção em 18/11 (notas 13793 e 13137): a saída do Claude como
 // foi gravada e o catálogo que o Worker mandou no prompt. A empresa é fictícia; nada além disto foi copiado.
 
+// #313: o fato `nota.itens.quantidade` não estava no prompt gravado, que é anterior a ele. Foi acrescentado
+// com o valor que `buildFactCatalog` daria: 2 itens na nota 13793 e 3 na 13137.
+
 export type RecordedFact = { readonly key: string; readonly label: string; readonly value: string };
 
 export type RecordedDossier = {
@@ -44,6 +47,11 @@ export const RECORDED_13793: RecordedDossier = {
       "key": "nota.total",
       "label": "Valor total da nota",
       "value": "R$ 16.283,52"
+    },
+    {
+      "key": "nota.itens.quantidade",
+      "label": "Quantidade de itens da nota",
+      "value": "2"
     },
     {
       "key": "nota.item[F07-001].quantidade",
@@ -239,6 +247,11 @@ export const RECORDED_13137: RecordedDossier = {
       "key": "nota.total",
       "label": "Valor total da nota",
       "value": "R$ 118.719,60"
+    },
+    {
+      "key": "nota.itens.quantidade",
+      "label": "Quantidade de itens da nota",
+      "value": "3"
     },
     {
       "key": "nota.item[F06-001].quantidade",

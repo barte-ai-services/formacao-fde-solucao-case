@@ -400,56 +400,12 @@ describe('os dossiês gravados em produção (#313)', () => {
       META,
     );
 
-  const ITEM_COUNT = { label: 'Quantidade de itens da nota', source: 'invoice' as const };
-
-  /** #313: o catálogo gravado mais o fato novo da quantidade de itens, para a contagem ir por marcador. */
-  const withItemCount = (r: RecordedDossier, count: string): FactCatalog => {
-    const base = recordedCatalog(r);
-    return { ...base, facts: { ...base.facts, 'nota.itens.quantidade': { ...ITEM_COUNT, value: count } } };
-  };
-
-  /** #313: o texto gravado com cada ocorrência da contagem por extenso trocada pelo marcador do catálogo. */
-  const countedByMarker = (r: RecordedDossier, spelled: string): unknown =>
-    JSON.parse(JSON.stringify(r.output).replaceAll(spelled, '{{nota.itens.quantidade}}'));
-
-  it('#313/AC-5 o texto gravado da nota 13793 passa no CNPJ e nos números de nota, e só cai em "dois"', () => {
-    expect(verifyRecorded(RECORDED_13793)).toEqual({
-      status: 'unavailable',
-      reason: 'number_mismatch',
-      generatedAt: META.generatedAt,
-      mismatch: { check: 'spelled_number', field: 'summary', cited: 'dois', bank: null },
-    });
-    expect(JSON.stringify(RECORDED_13793.output).match(/\bdois\b/g)).toHaveLength(1);
+  it('#313/AC-5 o texto gravado da nota 13793 dá ready, como foi gravado', () => {
+    expect(verifyRecorded(RECORDED_13793).status).toBe('ready');
   });
 
-  it('#313/AC-5 trocando só o "dois" da nota 13793 por um marcador, o texto dá ready', () => {
-    const result = verifyAndRender(
-      countedByMarker(RECORDED_13793, 'dois'),
-      withItemCount(RECORDED_13793, '2'),
-      [realDivergence('E6')],
-      META,
-    );
-    expect(result.status).toBe('ready');
-  });
-
-  it('#313/AC-5 o texto gravado da nota 13137 passa no CNPJ e no número da nota, e só cai em "três"', () => {
-    expect(verifyRecorded(RECORDED_13137)).toEqual({
-      status: 'unavailable',
-      reason: 'number_mismatch',
-      generatedAt: META.generatedAt,
-      mismatch: { check: 'spelled_number', field: 'summary', cited: 'três', bank: null },
-    });
-    expect(JSON.stringify(RECORDED_13137.output).match(/\btrês\b/g)).toHaveLength(2);
-  });
-
-  it('#313/AC-5 trocando só os dois "três" da nota 13137 por um marcador, o texto dá ready', () => {
-    const result = verifyAndRender(
-      countedByMarker(RECORDED_13137, 'três'),
-      withItemCount(RECORDED_13137, '3'),
-      [realDivergence('E6')],
-      META,
-    );
-    expect(result.status).toBe('ready');
+  it('#313/AC-5 o texto gravado da nota 13137 dá ready, como foi gravado', () => {
+    expect(verifyRecorded(RECORDED_13137).status).toBe('ready');
   });
 });
 
@@ -461,5 +417,54 @@ describe('quantidade de itens da nota (#313)', () => {
       value: '1',
       source: 'invoice',
     });
+  });
+});
+
+describe('contagem de itens por extenso (#313)', () => {
+  /** #313: um catálogo com a quantidade de itens da nota igual a `count`, ou sem o fato quando `null`. */
+  const countCatalog = (count: string | null): FactCatalog => ({
+    facts: count === null ? {} : { 'nota.itens.quantidade': { label: 'Quantidade de itens da nota', value: count, source: 'invoice' } },
+    identifiers: [],
+  });
+  const failureOf = (text: string, count: string | null) =>
+    verifyAndRender(withText('summary', text), countCatalog(count), [], META);
+
+  it('#313/AC-6 "três itens" e "três SKUs" passam quando a nota tem 3 itens', () => {
+    expect(passes('A nota tem três itens.', countCatalog('3'))).toBe(true);
+    expect(passes('São três SKUs na nota.', countCatalog('3'))).toBe(true);
+    expect(passes('A nota tem dois itens.', countCatalog('2'))).toBe(true);
+    expect(passes('Foram três itens, (três SKUs).', countCatalog('3'))).toBe(true);
+  });
+
+  it('#313/AC-6 "três itens" com 2 itens cai com item_count_mismatch, o numeral e a quantidade do banco', () => {
+    expect(failureOf('A nota tem três itens.', '2')).toEqual({
+      status: 'unavailable',
+      reason: 'number_mismatch',
+      generatedAt: META.generatedAt,
+      mismatch: { check: 'item_count_mismatch', field: 'summary', cited: 'três', bank: '2' },
+    });
+  });
+
+  it('#313/AC-6 sem o fato no catálogo, "três itens" cai com bank null', () => {
+    expect(failureOf('A nota tem três itens.', null)).toMatchObject({
+      mismatch: { check: 'item_count_mismatch', cited: 'três', bank: null },
+    });
+  });
+
+  it('#313/AC-6 outro numeral por extenso continua spelled_number', () => {
+    for (const text of ['Chegaram três caixas.', 'Foram dois pagamentos.', 'Metade dos itens.', 'Um dobro de itens.', 'Uma dezena de itens.']) {
+      expect(failureOf(text, '3')).toMatchObject({ mismatch: { check: 'spelled_number' } });
+    }
+    expect(failureOf('Metade dos itens.', '3')).toMatchObject({ mismatch: { cited: 'Metade' } });
+  });
+
+  it('#313/AC-6 um marcador entre o numeral e "itens" não dá contexto', () => {
+    expect(failureOf('São três {{nota.itens.quantidade}} itens.', '3')).toMatchObject({
+      mismatch: { check: 'spelled_number', cited: 'três' },
+    });
+  });
+
+  it('#313/AC-6 algarismo solto continua loose_number', () => {
+    expect(failureOf('A nota tem 3 itens.', '3')).toMatchObject({ mismatch: { check: 'loose_number', cited: '3' } });
   });
 });
