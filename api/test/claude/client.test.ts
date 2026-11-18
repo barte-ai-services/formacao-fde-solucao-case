@@ -56,7 +56,7 @@ describe('credentialsFromEnv (#171)', () => {
 });
 
 describe('ClaudeClient: autenticação (#171)', () => {
-  it('#credencial/AC-1 com as duas variáveis no ambiente, o fetch recebe x-api-key e nenhum authorization nem anthropic-beta', async () => {
+  it('#282/AC-1 com as duas variáveis no ambiente, o fetch recebe x-api-key e nenhum authorization nem anthropic-beta', async () => {
     const credentials = credentialsFromEnv({ BARTE_ACADEMY_ANTHROPIC_API_KEY: 'sk-secreta-api', BARTE_ACADEMY_CLAUDE_CODE_OAUTH_TOKEN: 'tok-secreto-oauth' });
     expect(credentials).toBeDefined();
     const { fetch, calls } = scripted([() => json([answer({ match: null })])]);
@@ -152,7 +152,7 @@ describe('ClaudeClient: laço de tool use (#171)', () => {
 });
 
 describe('ClaudeClient: falhas (#171)', () => {
-  it('#credencial/AC-4 429 com retry-after vira rate_limit global, conta a falha e não leva segredo nem corpo', async () => {
+  it('#282/AC-4 429 com retry-after vira rate_limit global, conta a falha e não leva segredo nem corpo', async () => {
     const { fetch } = scripted([() => new Response('{"error":"tok-secreto-oauth corpo"}', { status: 429, headers: { 'retry-after': '30' } })]);
     const client = new ClaudeClient({ credentials: OAUTH, fetch });
     const error = (await ask(client).catch((e: unknown) => e)) as ClaudeError;
@@ -162,7 +162,7 @@ describe('ClaudeClient: falhas (#171)', () => {
     expect(client.failures).toBe(1);
   });
 
-  it('#credencial/AC-3 429 sem retry-after com o setup token é credencial bloqueada, global, sem token nem corpo', async () => {
+  it('#282/AC-3 429 sem retry-after com o setup token é credencial bloqueada, global, sem token nem corpo', async () => {
     const { fetch } = scripted([() => new Response('{"error":"tok-secreto-oauth corpo"}', { status: 429 })]);
     const client = new ClaudeClient({ credentials: OAUTH, fetch });
     const error = (await ask(client).catch((e: unknown) => e)) as ClaudeError;
@@ -174,14 +174,14 @@ describe('ClaudeClient: falhas (#171)', () => {
     expect(client.failures).toBe(1);
   });
 
-  it('#credencial/AC-3 429 com retry-after com o setup token continua limite de uso passageiro', async () => {
+  it('#282/AC-3 429 com retry-after com o setup token continua limite de uso passageiro', async () => {
     const { fetch } = scripted([() => new Response('', { status: 429, headers: { 'retry-after': '30' } })]);
     const error = (await ask(new ClaudeClient({ credentials: OAUTH, fetch })).catch((e: unknown) => e)) as ClaudeError;
     expect(error).toMatchObject({ kind: 'rate_limit', isGlobal: true });
     expect(error.message).toBe('claude: HTTP 429 (limite de uso)');
   });
 
-  it('#credencial/AC-3 429 sem retry-after com a chave da API continua limite de uso, sem a chave na mensagem', async () => {
+  it('#282/AC-3 429 sem retry-after com a chave da API continua limite de uso, sem a chave na mensagem', async () => {
     const { fetch } = scripted([() => new Response('', { status: 429 })]);
     const error = (await ask(new ClaudeClient({ credentials: KEY, fetch })).catch((e: unknown) => e)) as ClaudeError;
     expect(error).toMatchObject({ kind: 'rate_limit', isGlobal: true });
@@ -189,7 +189,7 @@ describe('ClaudeClient: falhas (#171)', () => {
     expect(error.message).not.toContain('sk-secreta-api');
   });
 
-  it('#credencial/AC-4 401 vira auth, global', async () => {
+  it('#282/AC-4 401 vira auth, global', async () => {
     const { fetch } = scripted([() => new Response('', { status: 401 })]);
     expect(await ask(new ClaudeClient({ credentials: OAUTH, fetch })).catch((e: unknown) => e)).toMatchObject({ kind: 'auth', isGlobal: true });
   });
@@ -298,7 +298,7 @@ describe('runClaudeRound: o Cron falha fechado (#171)', () => {
       upsert: async () => { calls.push('upsert'); return []; },
     }) as unknown as SupabaseRest;
 
-  it('#credencial/AC-4 sem credencial, pula e registra uma linha', async () => {
+  it('#282/AC-4 sem credencial, pula e registra uma linha', async () => {
     const lines: string[] = [];
     const calls: string[] = [];
     const round = await runClaudeRound(rest(calls), {}, { log: (l) => lines.push(l) });
@@ -307,7 +307,7 @@ describe('runClaudeRound: o Cron falha fechado (#171)', () => {
     expect(lines).toEqual(['cron: sem credencial do Claude; tarefas do Claude puladas e a regra decide sozinha']);
   });
 
-  it('#credencial/AC-3 #credencial/AC-4 429 sem retry-after do setup token: a rodada para, nenhuma linha gasta tentativa e o log diz credencial bloqueada sem segredo', async () => {
+  it('#282/AC-3 #282/AC-4 429 sem retry-after do setup token: a rodada para, nenhuma linha gasta tentativa e o log diz credencial bloqueada sem segredo', async () => {
     const { runTasks } = await import('../../src/claude/runner.js');
     const { fetch } = scripted([() => new Response('', { status: 429 })]);
     const client = new ClaudeClient({ credentials: OAUTH, fetch });

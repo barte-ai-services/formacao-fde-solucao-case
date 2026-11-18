@@ -144,7 +144,7 @@ function addUsage(total: Usage | null, more: Usage | null): Usage | null {
 }
 
 /**
- * #171 O 429 do setup token sem `retry-after` não é limite passageiro: é a credencial barrada, e esperar
+ * #282 O 429 do setup token sem `retry-after` não é limite passageiro: é a credencial barrada, e esperar
  * não resolve. Segue `rate_limit` (e global, a rodada para), com a mensagem própria para o log do Cron.
  * Só o cabeçalho e o tipo da credencial entram na decisão; nada do corpo nem da credencial vai à mensagem.
  */
