@@ -354,7 +354,7 @@ def provision(client: Client, account: str, options: Options, out: TextIO = sys.
     validate(options)
     existing = find_app(client, account, options)
     reusable = existing is not None and uses_reusable(existing)
-    candidate = reusable_candidate(client, account, existing) if reusable else None  # recusa antes de gravar
+    candidate = reusable_candidate(client, account, existing) if reusable else None  # recusa antes de gravar (#232)
     otp_id = find_otp(client, account)
     if otp_id is None and options.dry_run:
         _show(out, "POST", "/access/identity_providers", {"type": OTP_TYPE, "name": OTP_NAME, "config": {}})
@@ -362,9 +362,9 @@ def provision(client: Client, account: str, options: Options, out: TextIO = sys.
     elif otp_id is None:
         otp_id = create_otp(client, account)
         out.write("Criado o provedor de código por e-mail (one-time PIN).\n")
-    policy_id: str | None = None  # None: as políticas são da aplicação (inline)
+    policy_id: str | None = None  # None: as políticas são da aplicação (inline) (#232)
     if reusable and options.dry_run:
-        policy_id = str(candidate["id"]) if candidate else PENDING_POLICY  # o dry-run só lê
+        policy_id = str(candidate["id"]) if candidate else PENDING_POLICY  # o dry-run só lê (#232)
     elif reusable:
         policy_id = write_script_policy(client, account, candidate)
     method, route, body = app_request(existing, otp_id, options, policy_id)
