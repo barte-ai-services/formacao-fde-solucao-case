@@ -23,6 +23,9 @@ jobs:
   provisionar:
     # Só a main grava: um disparo manual a partir de outra branch não chega à conta.
     if: github.ref == 'refs/heads/main'
+    # O token, o id da conta e o AUD só existem no environment producao, que aceita só a main (#234):
+    # uma branch empurrada por quem tem escrita não chega a eles.
+    environment: producao
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

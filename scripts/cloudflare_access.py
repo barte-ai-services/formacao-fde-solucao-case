@@ -9,9 +9,11 @@ e troca só duas coisas: `allowed_idps`, que vira exatamente o código por e-mai
 é "todos os provedores", também), e `policies`, onde a política do script (a de POLICY_NAME ou a de
 LEGACY_POLICY_NAME, de antes) é trocada no lugar ou acrescentada. A Cloudflare não aceita política reutilizável
 e da aplicação juntas no mesmo PUT: se alguma política existente é reutilizável, a do script também vira
-(achada por nome em /access/policies, atualizada ou criada) e o PUT manda todas como link; senão as alheias
-vão só com as chaves aceitas no pedido (INLINE_POLICY_KEYS). Nome, domínio e AUD não mudam. Rodar duas vezes
-deixa o mesmo estado.
+(atualizada ou criada em /access/policies) e o PUT manda todas como link; senão as alheias vão só com as chaves
+aceitas no pedido (INLINE_POLICY_KEYS). A política reutilizável é de quem a liga: a candidata é a que a própria
+aplicação já liga com nome do script, ou, na falta, a da conta com o nome atual; se o `app_count` dela diz que outra
+aplicação a usa, o script recusa e não grava nada, porque o `include: everyone` valeria lá também. Nome, domínio e
+AUD não mudam. Rodar duas vezes deixa o mesmo estado.
 
 Criar uma aplicação nova só por pedido explícito, com --create, e então o domínio vem de
 BARTE_ACADEMY_ACCESS_APP_DOMAIN. Sem --create, um AUD que não bate com nenhuma aplicação é erro.
@@ -19,13 +21,15 @@ BARTE_ACADEMY_ACCESS_APP_DOMAIN. Sem --create, um AUD que não bate com nenhuma 
 Variáveis de ambiente: BARTE_ACADEMY_CLOUDFLARE_API_TOKEN, BARTE_ACADEMY_CLOUDFLARE_ACCOUNT_ID e
 BARTE_ACADEMY_ACCESS_AUD.
 Nunca imprime o token nem o corpo das respostas de erro. O --dry-run da aplicação existente
-resume em campos nomeados (id, precedência e tipo de cada política), sem a configuração dela nem a conta.
+resume em campos nomeados (posição, precedência e tipo de cada política), sem a configuração dela, sem a conta e
+sem id de aplicação ou de política: o log do Actions de um repositório público é aberto.
 
 Uso: python3 scripts/cloudflare_access.py [--dry-run] [--create]
 """
 import argparse
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -79,7 +83,7 @@ class AccessNotEnabled(Exception):
 
 
 class CloudflareError(Exception):
-    """Falha da API. Guarda método, caminho, status e os erros da Cloudflare; só imprime os códigos."""
+    """Falha da API. Guarda método, caminho, status e os erros da Cloudflare; só imprime a rota sem a conta e os códigos."""
 
     def __init__(self, method: str, path: str, status: int | None, errors: list[Json]) -> None:
         self.method = method
@@ -93,10 +97,11 @@ class CloudflareError(Exception):
         return any("not_enabled" in str(e.get("message", "")) for e in self.errors if isinstance(e, dict))
 
     def describe(self) -> str:
+        route = re.sub(r"^/accounts/[^/]+", "", self.path)
         codes = [str(e["code"]) for e in self.errors if isinstance(e, dict) and "code" in e]
         status = f"HTTP {self.status}" if self.status is not None else "falha de rede"
         suffix = f" (códigos {', '.join(codes)})" if codes else ""
-        return f"falha em {self.method} {self.path}: {status}{suffix}"
+        return f"falha em {self.method} {route}: {status}{suffix}"
 
 
 class Client(Protocol):
@@ -242,7 +247,7 @@ def _show(out: TextIO, method: str, route: str, body: Json) -> None:
 
 
 def describe_put(existing: Json, body: Json, policy_id: str | None) -> str:
-    """Resumo do PUT da aplicação em campos nomeados: nunca o corpo, que é a configuração inteira dela."""
+    """Resumo do PUT da aplicação em campos nomeados: nunca o corpo, que é a configuração inteira dela, nem ids."""
     policies = body["policies"]
     mine = next(p for p in policies if is_script_policy(p) or (policy_id and p.get("id") == policy_id))
     kind = "reutilizável" if policy_id is not None else "da aplicação"
@@ -251,29 +256,29 @@ def describe_put(existing: Json, body: Json, policy_id: str | None) -> str:
     path = "políticas reutilizáveis (na execução real, POST ou PUT em /access/policies)" if policy_id is not None \
         else "políticas da aplicação (inline)"
     lines = [
-        f"[dry-run] PUT /access/apps/{existing['id']}",
+        "[dry-run] PUT na aplicação do AUD",
         f"allowed_idps: {idps}",
         f"policies: {len(policies)} no total; a do script na precedência {mine.get('precedence')}, "
         "libera qualquer e-mail",
         f"outras políticas: {len(policies) - 1}, mantidas",
         f"caminho: {path}",
     ]
-    lines += [f"  id={p.get('id', 'novo')} precedence={p.get('precedence')} tipo={kind}"
-              f"{' (do script)' if p is mine else ''}" for p in policies]
+    lines += [f"  política {n}: precedence={p.get('precedence')} tipo={kind}{' (do script)' if p is mine else ''}"
+              for n, p in enumerate(policies, start=1)]
     return "\n".join(lines) + "\n"
 
 
-def ensure_otp(client: Client, account: str, dry_run: bool, out: TextIO) -> str:
-    path = f"/accounts/{account}/access/identity_providers"
-    for idp in _call(client, "GET", path) or []:
+def find_otp(client: Client, account: str) -> str | None:
+    """O id do provedor de código por e-mail da conta, ou None. Só lê."""
+    for idp in _call(client, "GET", f"/accounts/{account}/access/identity_providers") or []:
         if idp.get("type") == OTP_TYPE:
             return str(idp["id"])
+    return None
+
+
+def create_otp(client: Client, account: str) -> str:
     body = {"type": OTP_TYPE, "name": OTP_NAME, "config": {}}
-    if dry_run:
-        _show(out, "POST", "/access/identity_providers", body)
-        return PENDING_OTP
-    out.write("Criado o provedor de código por e-mail (one-time PIN).\n")
-    return str(_call(client, "POST", path, body)["id"])
+    return str(_call(client, "POST", f"/accounts/{account}/access/identity_providers", body)["id"])
 
 
 def find_app(client: Client, account: str, options: Options) -> Json:
@@ -288,31 +293,43 @@ def find_app(client: Client, account: str, options: Options) -> Json:
     return existing
 
 
-def _known_script_policy(account_policies: list[Json]) -> Json:
-    """A política do script na conta: a de nome atual, senão a de nome antigo."""
-    for name in SCRIPT_POLICY_NAMES:
-        found = next((p for p in account_policies if p.get("name") == name), None)
-        if found is not None:
-            return found
-    return None
+def _linked_script_policy(existing: Json) -> Json:
+    """A política com nome do script que a própria aplicação já liga, ou None."""
+    return next((p for p in existing.get("policies") or [] if is_script_policy(p) and p.get("id")), None)
 
 
-def ensure_script_policy(client: Client, account: str, existing: Json, options: Options) -> str | None:
-    """O id da política reutilizável do script, se a aplicação usa reutilizáveis; senão None.
+def reusable_candidate(client: Client, account: str, existing: Json) -> Json:
+    """A política reutilizável que o script pode gravar, ou None se for criar uma.
 
-    Achada por nome na conta, é atualizada; senão é criada. No --dry-run só se lê (#232).
+    Primeiro a que a aplicação já liga com nome do script; senão a da conta com o nome atual. A de nome antigo
+    que a aplicação não liga não é tocada. Recusa, sem gravar, a que outra aplicação também usa.
     """
-    if existing is None or not uses_reusable(existing):
-        return None
+    account_policies = _call(client, "GET", f"/accounts/{account}/access/policies") or []
+    own = _linked_script_policy(existing)
+    if own is not None:
+        candidate = next((p for p in account_policies if p.get("id") == own["id"]), own)
+    else:
+        candidate = next((p for p in account_policies if p.get("name") == POLICY_NAME), None)
+    if candidate is not None:
+        _refuse_if_shared(candidate, linked=own is not None)
+    return candidate
+
+
+def _refuse_if_shared(candidate: Json, linked: bool) -> None:
+    """Outra aplicação usa a política: `app_count` maior que 1, ou 1 sem ser a vigente, ou desconhecido e não ligada."""
+    count = candidate.get("app_count")
+    shared = (count > 1 or (count == 1 and not linked)) if isinstance(count, int) else not linked
+    if shared:
+        raise ConfigError("a política reutilizável do script está ligada a outra aplicação; nada foi gravado")
+
+
+def write_script_policy(client: Client, account: str, candidate: Json) -> str:
+    """Cria a política do script na conta, ou atualiza a candidata no lugar. Devolve o id."""
     path = f"/accounts/{account}/access/policies"
-    known = _known_script_policy(_call(client, "GET", path) or [])
-    body = policy_fields()
-    if options.dry_run:
-        return str(known["id"]) if known else PENDING_POLICY
-    if known is None:
-        return str(_call(client, "POST", path, body)["id"])
-    _call(client, "PUT", f"{path}/{known['id']}", body)
-    return str(known["id"])
+    if candidate is None:
+        return str(_call(client, "POST", path, policy_fields())["id"])
+    _call(client, "PUT", f"{path}/{candidate['id']}", policy_fields())
+    return str(candidate["id"])
 
 
 def app_request(existing: Json, otp_id: str, options: Options, policy_id: str | None) -> tuple[str, str, Json]:
@@ -322,11 +339,27 @@ def app_request(existing: Json, otp_id: str, options: Options, policy_id: str | 
     return "PUT", f"/access/apps/{existing['id']}", updated_app_payload(existing, otp_id, policy_id)
 
 
+def _script_policy_id(client: Client, account: str, existing: Json, options: Options) -> str | None:
+    """O id da política reutilizável do script, se a aplicação usa reutilizáveis; senão None. No dry-run só lê."""
+    if existing is None or not uses_reusable(existing):
+        return None
+    candidate = reusable_candidate(client, account, existing)
+    if options.dry_run:
+        return str(candidate["id"]) if candidate else PENDING_POLICY
+    return write_script_policy(client, account, candidate)
+
+
 def provision(client: Client, account: str, options: Options, out: TextIO = sys.stdout) -> int:
     validate(options)
     existing = find_app(client, account, options)
-    otp_id = ensure_otp(client, account, options.dry_run, out)
-    policy_id = ensure_script_policy(client, account, existing, options)
+    otp_id = find_otp(client, account)
+    if otp_id is None and options.dry_run:
+        _show(out, "POST", "/access/identity_providers", {"type": OTP_TYPE, "name": OTP_NAME, "config": {}})
+        otp_id = PENDING_OTP
+    elif otp_id is None:
+        out.write("Criado o provedor de código por e-mail (one-time PIN).\n")
+        otp_id = create_otp(client, account)
+    policy_id = _script_policy_id(client, account, existing, options)
     method, route, body = app_request(existing, otp_id, options, policy_id)
     if options.dry_run and existing is None:
         _show(out, method, route, body)

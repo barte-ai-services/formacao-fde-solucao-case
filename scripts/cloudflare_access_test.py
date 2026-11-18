@@ -263,23 +263,49 @@ class PreserveExistingAppTest(unittest.TestCase):
         self.assertEqual(APP_DOMAIN, body["domain"])
 
 
-def reusable_client(script_policy_in_account: bool, legacy: bool = False) -> FakeClient:
-    """Uma aplicação cujas políticas são reutilizáveis, como o GET as devolve, e a conta que as guarda."""
-    mine = {"id": "pol-r1", "name": ca.POLICY_NAME, "decision": "allow", "include": [{"email": {"email": "x@example.com"}}]}
-    mine = {**mine, "name": LEGACY_POLICY_NAME} if legacy else mine
-    other = {**OTHER_POLICY, "id": "pol-r2", "created_at": "2026-01-01"}
-    app_policies = [{**mine, "reusable": True, "precedence": 1}, {**other, "reusable": True, "precedence": 2}]
-    if not script_policy_in_account:
-        app_policies = app_policies[1:]
-    account = ([mine] if script_policy_in_account else []) + [other]
+def script_policy(name: str = ca.POLICY_NAME, **changes: Json) -> Json:
+    """A política do script como a conta a guarda: reutilizável, com o id `pol-r1`."""
+    return {"id": "pol-r1", "name": name, "decision": "allow",
+            "include": [{"email": {"email": "x@example.com"}}], **changes}
+
+
+def other_policy() -> Json:
+    return {**OTHER_POLICY, "id": "pol-r2", "created_at": "2026-01-01"}
+
+
+def linked(policy: Json, precedence: int) -> Json:
+    """Como o GET da aplicação devolve uma política reutilizável que ela liga."""
+    return {k: v for k, v in policy.items() if k != "app_count"} | {"reusable": True, "precedence": precedence}
+
+
+def reusable_client(account_policies: list[Json], app_policies: list[Json]) -> FakeClient:
+    """Uma aplicação cujas políticas são reutilizáveis (as `app_policies`, já como o GET as devolve) e a conta."""
     return FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app(policies=app_policies)],
-                      policies=account)
+                      policies=account_policies)
+
+
+def client_linking_script_policy(name: str = ca.POLICY_NAME, **changes: Json) -> FakeClient:
+    """A aplicação liga a política do script e mais uma; as duas estão na conta."""
+    mine, other = script_policy(name, **changes), other_policy()
+    return reusable_client([mine, other], [linked(mine, 1), linked(other, 2)])
+
+
+def client_without_script_policy() -> FakeClient:
+    """A aplicação só liga uma política alheia, e a conta não tem a do script."""
+    other = other_policy()
+    return reusable_client([other], [linked(other, 2)])
+
+
+def client_with_script_policy_not_linked(name: str = ca.POLICY_NAME, **changes: Json) -> FakeClient:
+    """A conta tem a política do script, mas a aplicação liga só uma alheia."""
+    other = other_policy()
+    return reusable_client([script_policy(name, **changes), other], [linked(other, 2)])
 
 
 class ReusablePoliciesTest(unittest.TestCase):
     def test_script_policy_found_by_name_is_updated_and_the_app_gets_only_links(self) -> None:
         """#232/AC-1: com política reutilizável, a do script é atualizada na conta e o PUT manda só links."""
-        client = reusable_client(script_policy_in_account=True)
+        client = client_linking_script_policy()
         run(client)
         self.assertEqual([("PUT", f"{BASE}/policies/pol-r1"), ("PUT", f"{BASE}/apps/{APP_ID}")],
                          [(m, p) for m, p, _ in client.writes()])
@@ -291,7 +317,7 @@ class ReusablePoliciesTest(unittest.TestCase):
 
     def test_reusable_policy_with_the_old_name_is_updated_in_place_with_the_new_name(self) -> None:
         """#232/AC-3: a reutilizável de nome antigo é a do script: atualizada, não duplicada."""
-        client = reusable_client(script_policy_in_account=True, legacy=True)
+        client = client_linking_script_policy(LEGACY_POLICY_NAME)
         run(client)
         self.assertEqual([("PUT", f"{BASE}/policies/pol-r1"), ("PUT", f"{BASE}/apps/{APP_ID}")],
                          [(m, p) for m, p, _ in client.writes()])
@@ -301,7 +327,7 @@ class ReusablePoliciesTest(unittest.TestCase):
 
     def test_missing_script_policy_is_created_in_the_account_after_the_others(self) -> None:
         """#232/AC-1: sem a política do script na conta, POST em /access/policies; precedência maior+1."""
-        client = reusable_client(script_policy_in_account=False)
+        client = client_without_script_policy()
         run(client)
         self.assertEqual([("POST", f"{BASE}/policies"), ("PUT", f"{BASE}/apps/{APP_ID}")],
                          [(m, p) for m, p, _ in client.writes()])
@@ -310,7 +336,7 @@ class ReusablePoliciesTest(unittest.TestCase):
 
     def test_no_post_to_apps_and_name_domain_and_aud_stay(self) -> None:
         """#232/AC-1: nesse caminho também só há PUT na aplicação."""
-        client = reusable_client(script_policy_in_account=False)
+        client = client_without_script_policy()
         run(client)
         self.assertNotIn(("POST", f"{BASE}/apps"), [(m, p) for m, p, _ in client.writes()])
         self.assertEqual(("nome-vigente", "vigente.example.com", AUD),
@@ -318,7 +344,7 @@ class ReusablePoliciesTest(unittest.TestCase):
 
     def test_second_run_changes_nothing(self) -> None:
         """#232/AC-1: rodar de novo, com política reutilizável, deixa o mesmo estado."""
-        client = reusable_client(script_policy_in_account=False)
+        client = client_without_script_policy()
         run(client)
         first = json.dumps([client.apps, client.policies], sort_keys=True)
         run(client)
@@ -329,6 +355,70 @@ class ReusablePoliciesTest(unittest.TestCase):
         mixed = {"policies": [{"id": "pol-r1", "precedence": 1}, {"name": "x", "decision": "allow"}]}
         with self.assertRaises(AssertionError):
             client.request("PUT", f"{BASE}/apps/{APP_ID}", mixed)
+
+
+class SharedReusablePolicyTest(unittest.TestCase):
+    def assert_refused_without_writing(self, client: FakeClient, **kwargs: Json) -> None:
+        with self.assertRaises(ca.ConfigError) as raised:
+            run(client, **kwargs)
+        self.assertIn("ligada a outra aplicação", str(raised.exception))
+        self.assertIn("nada foi gravado", str(raised.exception))
+        self.assertEqual([], client.writes())
+
+    def test_refuses_when_the_policy_the_app_links_is_linked_by_two_apps(self) -> None:
+        """#232/AC-3: com app_count 2, a política seria de outra aplicação também: recusa, sem gravar."""
+        self.assert_refused_without_writing(client_linking_script_policy(app_count=2))
+
+    def test_refuses_when_the_only_app_counted_is_another_one(self) -> None:
+        """#232/AC-3: app_count 1 numa política que a vigente não liga é de outra aplicação: recusa."""
+        self.assert_refused_without_writing(client_with_script_policy_not_linked(app_count=1))
+
+    def test_refuses_an_unknown_app_count_when_the_app_does_not_link_it(self) -> None:
+        """#232/AC-3: sem app_count, a política que a vigente não liga é tratada como compartilhada."""
+        self.assert_refused_without_writing(client_with_script_policy_not_linked())
+
+    def test_dry_run_refuses_the_same_way_and_writes_nothing(self) -> None:
+        """#232/AC-3: o dry-run aplica a mesma checagem."""
+        self.assert_refused_without_writing(client_linking_script_policy(app_count=2), dry_run=True)
+
+    def test_accepts_when_only_the_current_app_links_it(self) -> None:
+        """#232/AC-3: app_count 1 e a vigente a liga: é só dela, atualiza."""
+        client = client_linking_script_policy(app_count=1)
+        run(client)
+        self.assertEqual([("PUT", f"{BASE}/policies/pol-r1"), ("PUT", f"{BASE}/apps/{APP_ID}")],
+                         [(m, p) for m, p, _ in client.writes()])
+
+    def test_accepts_an_unknown_app_count_when_the_app_links_it(self) -> None:
+        """#232/AC-3: sem app_count, mas a vigente a liga: atualiza."""
+        client = client_linking_script_policy()
+        run(client)
+        self.assertEqual("PUT", client.writes()[0][0])
+
+    def test_the_policy_the_app_links_wins_over_the_current_name_elsewhere_in_the_account(self) -> None:
+        """#232/AC-3: a de nome antigo que a aplicação liga é a candidata, não a de nome atual solta na conta."""
+        legacy, loose = script_policy(LEGACY_POLICY_NAME, app_count=1), script_policy(id="pol-loose", app_count=0)
+        client = reusable_client([legacy, loose], [linked(legacy, 1)])
+        run(client)
+        self.assertEqual(f"{BASE}/policies/pol-r1", client.writes()[0][1])
+        self.assertEqual("pol-loose", client.policies[1]["id"])
+        self.assertEqual([{"id": "pol-r1", "precedence": 1}], client.writes()[1][2]["policies"])
+
+    def test_a_legacy_named_policy_the_app_does_not_link_is_left_alone_and_a_new_one_is_created(self) -> None:
+        """#232/AC-3: a de nome antigo fora da aplicação não é tocada; a do script é criada."""
+        client = client_with_script_policy_not_linked(LEGACY_POLICY_NAME, app_count=3)
+        before = json.dumps(client.policies[0], sort_keys=True)
+        run(client)
+        self.assertEqual([("POST", f"{BASE}/policies"), ("PUT", f"{BASE}/apps/{APP_ID}")],
+                         [(m, p) for m, p, _ in client.writes()])
+        self.assertEqual(before, json.dumps(client.policies[0], sort_keys=True))
+        self.assertEqual({"id": POLICY_ID, "precedence": 3}, client.writes()[1][2]["policies"][-1])
+
+    def test_the_current_name_in_the_account_is_the_candidate_when_the_app_links_none_of_the_script(self) -> None:
+        """#232/AC-3: sem política do script na aplicação, a de nome atual na conta (sem outro uso) é atualizada."""
+        client = client_with_script_policy_not_linked(app_count=0)
+        run(client)
+        self.assertEqual([("PUT", f"{BASE}/policies/pol-r1"), ("PUT", f"{BASE}/apps/{APP_ID}")],
+                         [(m, p) for m, p, _ in client.writes()])
 
 
 class UnknownAudTest(unittest.TestCase):
@@ -390,11 +480,11 @@ class DryRunTest(unittest.TestCase):
         """#232/AC-5: o dry-run não imprime a configuração da aplicação, a política alheia nem a conta."""
         client = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app()])
         _, out = run(client, dry_run=True)
-        self.assertIn(f"[dry-run] PUT /access/apps/{APP_ID}\n", out)
+        self.assertIn("[dry-run] PUT na aplicação do AUD\n", out)
         self.assertIn("allowed_idps: inalterado", out)
         self.assertIn("policies: 2 no total; a do script na precedência 1, libera qualquer e-mail", out)
         self.assertIn("outras políticas: 1, mantidas", out)
-        self.assertIn("pol-x", out)
+        self.assertIn("política 2: precedence=None tipo=da aplicação\n", out)
         self.assertNotRegex(out, r"\boutra\b")
         for hidden in ("alheio", ACCOUNT, "nome-vigente", "vigente.example.com"):
             self.assertNotIn(hidden, out)
@@ -408,13 +498,24 @@ class DryRunTest(unittest.TestCase):
 
     def test_dry_run_of_reusable_policies_says_the_path_and_touches_no_policy(self) -> None:
         """#232/AC-5: no dry-run, nenhum POST/PUT em /access/policies, e o resumo diz o caminho."""
-        client = reusable_client(script_policy_in_account=False)
+        client = client_without_script_policy()
         _, out = run(client, dry_run=True)
         self.assertEqual([], client.writes())
         self.assertIn("reutilizáveis", out)
         self.assertNotRegex(out, r"\boutra\b")
         _, inline_out = run(FakeClient(idps=client.idps, apps=[existing_app()]), dry_run=True)
         self.assertIn("da aplicação", inline_out)
+
+
+    def test_dry_run_prints_no_application_or_policy_id(self) -> None:
+        """#232/AC-5: o log do Actions é público: nenhum id de aplicação ou de política sai no dry-run."""
+        ids = (APP_ID, "pol-1", "pol-x", "pol-r1", "pol-r2", POLICY_ID)
+        for client in (FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}], apps=[existing_app()]),
+                       client_linking_script_policy(), client_without_script_policy()):
+            _, out = run(client, dry_run=True)
+            for identifier in ids:
+                self.assertNotIn(identifier, out)
+            self.assertIn("(do script)", out)
 
 
 class CreateTest(unittest.TestCase):
@@ -577,6 +678,7 @@ class DocsAndWorkflowTest(unittest.TestCase):
         self.assertIn("contents: read", text)
         self.assertIn("persist-credentials: false", text)
         self.assertIn("timeout-minutes:", text)
+        self.assertRegex(text, r"(?m)^    environment: producao$")
         self.assertIn("dry_run:", text)
         self.assertRegex(text, r"uses: actions/checkout@[0-9a-f]{40}")
 
@@ -597,6 +699,37 @@ class DocsAndWorkflowTest(unittest.TestCase):
         self.assertNotIn("echo", commands)
         self.assertNotIn("set -x", commands)
         self.assertNotIn(ca.TOKEN_VAR, commands)
+
+
+class ErrorRouteTest(unittest.TestCase):
+    def test_error_message_names_the_route_without_the_account_id(self) -> None:
+        """#232/AC-5: o erro vai para o log público: a rota sai sem o `/accounts/<id>`."""
+        error = ca.CloudflareError("PUT", f"{BASE}/apps/{APP_ID}", 500, [{"code": 7003}])
+        self.assertNotIn(ACCOUNT, str(error))
+        self.assertIn("falha em PUT /access/apps/app-1: HTTP 500 (códigos 7003)", str(error))
+
+    def test_main_prints_no_account_id_on_an_api_failure(self) -> None:
+        """#232/AC-5: pela linha de comando, o erro da API não traz o id da conta."""
+        class Failing(FakeClient):
+            def request(self, method: str, path: str, body: Json = None) -> Json:
+                raise ca.CloudflareError(method, path, 400, [{"code": 1234}])
+
+        env = {ca.TOKEN_VAR: TOKEN, ca.ACCOUNT_VAR: ACCOUNT, ca.AUD_VAR: AUD}
+        _, _, err = run_main(env, client=Failing())
+        self.assertNotIn(ACCOUNT, err)
+
+
+class OtpDryRunTest(unittest.TestCase):
+    def test_finding_the_provider_never_writes_and_creating_it_is_a_separate_step(self) -> None:
+        """#232/AC-3: achar o provedor só lê; criar é outro passo, e o dry-run se decide em `provision`."""
+        found = FakeClient(idps=[{"id": OTP_ID, "type": "onetimepin"}])
+        self.assertEqual(OTP_ID, ca.find_otp(found, ACCOUNT))
+        self.assertEqual([], found.writes())
+        empty = FakeClient()
+        self.assertIsNone(ca.find_otp(empty, ACCOUNT))
+        self.assertEqual([], empty.writes())
+        self.assertEqual(OTP_ID, ca.create_otp(empty, ACCOUNT))
+        self.assertEqual(["POST"], [m for m, _, _ in empty.writes()])
 
 
 class HttpClientTest(unittest.TestCase):

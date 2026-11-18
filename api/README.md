@@ -199,7 +199,7 @@ Localmente, ficam no `.dev.vars`; sem elas, só o `/health` responde 200.
 
 ### Provisionar
 
-O time do Zero Trust é `long-frost-f16b.cloudflareaccess.com` (variável do repositório
+O time do Zero Trust é `long-frost-f16b.cloudflareaccess.com` (variável do environment `producao`,
 `BARTE_ACADEMY_ACCESS_TEAM_DOMAIN`). A aplicação do Access que o Worker usa já existe, e o AUD dela está em
 `BARTE_ACADEMY_ACCESS_AUD`. O script `scripts/cloudflare_access.py` a atualiza e nunca cria outra: acha a
 aplicação pelo AUD, não pelo nome, e um AUD que não bate com nenhuma aplicação é erro, sem gravar nada.
@@ -219,20 +219,28 @@ novo deixa o mesmo estado.
 
 **Pelo workflow** (o caminho normal):
 
-1. Em Settings, Secrets and variables, Actions, confira os secrets `BARTE_ACADEMY_CLOUDFLARE_API_TOKEN` (com
+1. Em Settings, Environments, `producao`, confira os secrets `BARTE_ACADEMY_CLOUDFLARE_API_TOKEN` (com
    permissão de Access: Apps and Policies) e `BARTE_ACADEMY_CLOUDFLARE_ACCOUNT_ID` e a variável
-   `BARTE_ACADEMY_ACCESS_AUD`.
+   `BARTE_ACADEMY_ACCESS_AUD`. Eles ficam no environment, não no repositório: o job `provisionar` declara
+   `environment: producao`, que só a `main` alcança.
 2. Na aba Actions, rode `Provisiona o Cloudflare Access` (`.github/workflows/cloudflare-access.yml`) na `main`,
    com `dry_run` marcado. O log traz um resumo em campos nomeados: `allowed_idps` (inalterado ou passa a ser só o código por e-mail, sem listar os
-   outros ids), o total de políticas, a precedência da do script, e `id`, `precedence` e tipo de cada política
-   (reutilizável ou da aplicação). Não traz a configuração da aplicação, as políticas alheias nem a conta. Se a
-   aplicação usa políticas reutilizáveis, a do script também vira reutilizável (a Cloudflare não aceita as duas
-   juntas) e o resumo diz o caminho; o dry-run não grava em `/access/policies`.
+   outros ids), o total de políticas, a precedência da do script, e a posição, a `precedence` e o tipo de cada
+   política (reutilizável ou da aplicação). Não traz a configuração da aplicação, as políticas alheias, a conta nem
+   id de aplicação ou de política, porque o log de um repositório público é aberto. Se a aplicação usa políticas
+   reutilizáveis, a do script também vira reutilizável (a Cloudflare não aceita as duas juntas) e o resumo diz o
+   caminho; o dry-run não grava em `/access/policies`.
+
+   A política reutilizável é de quem a liga. O script grava na que a própria aplicação já liga com nome do script
+   (o atual ou o antigo) ou, na falta, na da conta com o nome atual; a de nome antigo que a aplicação não liga não
+   é tocada. Se o `app_count` dela mostra que outra aplicação também a usa, o script recusa com "a política
+   reutilizável do script está ligada a outra aplicação; nada foi gravado", no dry-run também, porque o `include:
+   everyone` passaria a valer lá. Resolva desligando a política da outra aplicação e rode de novo.
 3. Rode de novo com `dry_run` desmarcado para gravar.
 
 O workflow não imprime o token. Para criar uma aplicação nova, o que só se faz de propósito, rode à
 mão com `--create` e `BARTE_ACADEMY_ACCESS_APP_DOMAIN` com o domínio dela; o script imprime o `ACCESS_AUD=...`
-novo, que vai para a variável do repositório.
+novo, que vai para a variável do environment `producao`.
 
 **À mão**, na raiz do repositório:
 
