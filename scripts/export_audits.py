@@ -79,6 +79,7 @@ def describe(error: ExportError) -> str:
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     """Não segue redirecionamento: o urllib copiaria apikey e Authorization para o novo host (#264)."""
 
+    # Any: a assinatura é a do urllib, e nenhum argumento é lido (#264).
     def redirect_request(self, *args: Any, **kwargs: Any) -> None:
         return None
 

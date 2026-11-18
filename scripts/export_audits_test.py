@@ -324,6 +324,7 @@ class PaginationTest(unittest.TestCase):
 TEST_KEY = "chave-de-teste-secreta"
 
 
+# Any: cada teste passa o dublê de _get com a assinatura que precisa (#240).
 def reader_with(get: Any = None) -> ea.Reader:
     """Um Reader de teste; `get` troca o _get, para a página vir de onde o teste quiser."""
     reader = ea.Reader("https://exemplo.invalid", TEST_KEY)
@@ -368,6 +369,7 @@ class ReadFailureTest(unittest.TestCase):
         class Seen(urllib.request.BaseHandler):
             handler_order = 100
 
+            # Any: o urllib não tipa o retorno de um handler; aqui é uma resposta montada à mão (#264).
             def http_open(self, request: urllib.request.Request) -> Any:
                 opened.append(request.full_url)
                 headers = http.client.HTTPMessage()
