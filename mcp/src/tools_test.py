@@ -48,7 +48,7 @@ class ToolsListTest(unittest.IsolatedAsyncioTestCase):
         message = {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
         response = await app.handle(HttpRequest("POST", "/mcp", json.dumps(message), JWT, content_type="application/json"), FakeApi(), lambda c: None)
         tools = {t["name"]: t for t in json.loads(response.body or "")["result"]["tools"]}
-        self.assertEqual(set(tools), {"list_approval_queue", "get_proposal", "decide_proposal"})
+        self.assertEqual(set(tools), {"list_approval_queue", "get_proposal", "decide_proposal", "open_approval_app"})
         self.assertEqual(set(tools["list_approval_queue"]["inputSchema"]["properties"]), {"scope", "classification", "level"})
         self.assertEqual(tools["get_proposal"]["inputSchema"]["required"], ["invoice_access_key"])
         decide = tools["decide_proposal"]["inputSchema"]

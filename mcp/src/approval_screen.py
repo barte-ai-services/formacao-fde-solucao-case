@@ -1,0 +1,679 @@
+"""GERADO por mcp/scripts/generate_ui.py a partir de mcp/ui/approval.html. Não edite: edite o HTML e rode o script.
+
+A tela do MCP App da fila (#274), como literal, porque o Python Worker só sobe módulos .py."""
+
+APPROVAL_HTML = """<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Sem rede: nada é buscado de fora, e o único script é o desta página. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<title>Fila de aprovação</title>
+<style>
+  /* Os tokens do barte-design-tokens (a base do barte-ui-kit), tema claro, embutidos: a tela não carrega o kit. */
+  :root {
+    color-scheme: light;
+    --bg-primary: #fefefe; --bg-secondary: #f9f9f9; --bg-tertiary: #efefef; --bg-brand: #df285d;
+    --content-primary: #171717; --content-secondary: #404040; --content-tertiary: #737373; --content-alwaysLight: #fefefe;
+    --stroke-primary: #efefef; --stroke-brand: #df285d; --actions-bg-pressed: #ce1b4f;
+    --accent-green: #169e72; --accent-green-light: #d2fff1; --accent-green-dark: #12805c;
+    --accent-red: #d63939; --accent-red-light: #f7e0e0; --accent-red-dark: #c62828;
+    --accent-orange: #ec9732; --accent-orange-light: #fff0db; --accent-yellow-dark: #935019;
+    --accent-blue: #1fa3d4; --accent-blue-light: #e1f7ff; --accent-blue-dark: #00749e;
+    --border-width-sm: 0.0625rem; --border-radius-sm: 0.25rem; --border-radius-md: 0.375rem; --border-radius-lg: 0.5rem;
+    --border-radius-xl: 0.75rem; --border-radius-full: 624.9375rem;
+    --spacing-2xs: 0.125rem; --spacing-xs: 0.25rem; --spacing-sm: 0.5rem; --spacing-md: 0.75rem; --spacing-xl: 1rem;
+    --spacing-2xl: 1.5rem; --spacing-3xl: 2rem;
+    --typography-fontFamily: Inter;
+    --typography-body-sm-fontSize: 0.875rem; --typography-body-sm-lineHeight: 1.429;
+    --typography-body-xs-fontSize: 0.75rem; --typography-body-xs-lineHeight: 1.333;
+    --typography-title-fontSize: 1.25rem;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: var(--spacing-xl); background: var(--bg-primary); color: var(--content-primary);
+    font-family: var(--typography-fontFamily), system-ui, sans-serif;
+    font-size: var(--typography-body-sm-fontSize); line-height: var(--typography-body-sm-lineHeight);
+  }
+  h1 { margin: 0; font-size: var(--typography-title-fontSize); line-height: 1.3; font-weight: 600; }
+  h2 { margin: 0 0 var(--spacing-sm); font-size: var(--typography-body-sm-fontSize); font-weight: 600; color: var(--content-secondary); }
+  h2.ai::before { content: "\\2726  "; color: var(--bg-brand); }
+  p { margin: 0 0 var(--spacing-sm); }
+  .muted { color: var(--content-tertiary); }
+  .grow { flex: 1 1 auto; }
+  .stack { display: flex; flex-direction: column; gap: var(--spacing-xl); }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-md); }
+  .titlebar { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--spacing-sm); }
+  .panel {
+    border: var(--border-width-sm) solid var(--stroke-primary); border-radius: var(--border-radius-xl);
+    background: var(--bg-primary); padding: var(--spacing-xl);
+  }
+
+  button, select, textarea, input { font: inherit; color: inherit; }
+  button {
+    cursor: pointer; padding: var(--spacing-sm) var(--spacing-xl); border-radius: var(--border-radius-lg);
+    border: var(--border-width-sm) solid var(--content-tertiary); background: var(--bg-primary);
+  }
+  button.primary { background: var(--bg-brand); border-color: var(--bg-brand); color: var(--content-alwaysLight); }
+  button.primary:hover:not(:disabled) { background: var(--actions-bg-pressed); }
+  button.link { border: 0; padding: 0; background: none; color: var(--accent-blue-dark); text-decoration: underline; }
+  button[aria-pressed="true"] { background: var(--bg-brand); border-color: var(--bg-brand); color: var(--content-alwaysLight); }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+  :focus-visible { outline: 2px solid var(--stroke-brand); outline-offset: 2px; }
+  select, input[type="text"], textarea {
+    padding: var(--spacing-xs) var(--spacing-sm); border-radius: var(--border-radius-md);
+    border: var(--border-width-sm) solid var(--content-tertiary); background: var(--bg-primary);
+  }
+  textarea { width: 100%; min-height: 4rem; resize: vertical; }
+  textarea.invalid { border-color: var(--accent-red); background: var(--accent-red-light); }
+  .field-error { color: var(--accent-red-dark); margin: var(--spacing-xs) 0 0; }
+  label.field { display: flex; flex-direction: column; gap: var(--spacing-xs); }
+
+  .table-wrap { overflow-x: auto; margin-top: var(--spacing-md); border: var(--border-width-sm) solid var(--stroke-primary); border-radius: var(--border-radius-xl); }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: var(--spacing-sm) var(--spacing-md); border-bottom: var(--border-width-sm) solid var(--stroke-primary); }
+  thead th { background: var(--bg-secondary); color: var(--content-secondary); font-weight: 600; }
+  tbody tr:last-child td { border-bottom: 0; }
+  .num { text-align: right; white-space: nowrap; }
+  table[data-table="queue"] tbody tr { cursor: pointer; }
+  table[data-table="queue"] tbody tr:hover { background: var(--bg-secondary); }
+  tr.row-blocked { color: var(--content-tertiary); background: var(--bg-secondary); }
+
+  .badge {
+    display: inline-flex; align-items: center; height: var(--spacing-2xl); padding: 0 var(--spacing-sm);
+    border-radius: var(--border-radius-full); font-size: var(--typography-body-xs-fontSize);
+    line-height: var(--typography-body-xs-lineHeight); white-space: nowrap;
+    background: var(--bg-tertiary); color: var(--content-secondary);
+  }
+  .badge-positive { background: var(--accent-green-light); color: var(--accent-green-dark); }
+  .badge-waiting { background: var(--accent-orange-light); color: var(--accent-yellow-dark); }
+  .badge-negative { background: var(--accent-red-light); color: var(--accent-red-dark); }
+  .badge-info { background: var(--accent-blue-light); color: var(--accent-blue-dark); }
+
+  /* Esqueleto de carregamento: barras cinza paradas, sem animação e sem spinner. */
+  .skeleton-row { display: flex; gap: var(--spacing-md); padding: var(--spacing-md); border-bottom: var(--border-width-sm) solid var(--stroke-primary); }
+  .skeleton-row .bar { flex: 1 1 0; height: 1rem; border-radius: var(--border-radius-sm); background: var(--bg-tertiary); }
+
+  .notice { padding: var(--spacing-md) var(--spacing-xl); border-radius: var(--border-radius-lg); margin: 0 0 var(--spacing-xl); }
+  .notice-warning { background: var(--accent-orange-light); color: var(--accent-yellow-dark); }
+  .notice-error { background: var(--accent-red-light); color: var(--accent-red-dark); }
+  .notice-info { background: var(--bg-secondary); color: var(--content-secondary); }
+  .seal { padding: var(--spacing-md) var(--spacing-xl); border-radius: var(--border-radius-lg); font-weight: 600; margin: 0; }
+  .seal-ok { background: var(--accent-green-light); color: var(--accent-green-dark); }
+  .empty { padding: var(--spacing-3xl) var(--spacing-xl); text-align: center; color: var(--content-secondary); }
+
+  dl.summary { display: grid; grid-template-columns: max-content 1fr; gap: var(--spacing-sm) var(--spacing-2xl); margin: 0; }
+  dl.summary dt { color: var(--content-tertiary); }
+  dl.summary dd { margin: 0; overflow-wrap: anywhere; }
+  .divergence { margin-bottom: var(--spacing-md); }
+  .divergence ul, .dossier ul { margin: var(--spacing-xs) 0 0; padding-left: var(--spacing-2xl); }
+  .quote { font-style: italic; }
+  label.choice { display: flex; align-items: center; gap: var(--spacing-sm); padding: var(--spacing-xs) 0; }
+  .evidence-options { display: flex; flex-wrap: wrap; gap: var(--spacing-xs) var(--spacing-2xl); margin: var(--spacing-sm) 0 var(--spacing-md); }
+  .evidence-options label { display: flex; align-items: center; gap: var(--spacing-sm); }
+  .actions { display: flex; justify-content: flex-end; gap: var(--spacing-md); margin-top: var(--spacing-xl); }
+</style>
+</head>
+<body>
+<main id="app" aria-live="polite"></main>
+<script>
+"use strict";
+// A tela não decide nem calcula: mostra o que as tools devolvem e chama list_approval_queue, get_proposal e
+// decide_proposal pelo host (MCP Apps, extensão io.modelcontextprotocol/ui, por postMessage). Todo número vem de uma
+// tool. Texto vindo de tool entra só por textContent (nós de texto), nunca como marcação.
+
+// Os rótulos da web (web/src/texts.ts) e do glossário.
+const LEVEL = { regra: "Regra", analista: "Analista", coordenacao: "Coordenação", diretoria: "Diretoria", bloqueio: "Bloqueio" };
+const LEVEL_TONE = { regra: "positive", analista: "info", coordenacao: "neutral", diretoria: "waiting", bloqueio: "negative" };
+const PERSON_LEVELS = ["analista", "coordenacao", "diretoria"];
+const ACTION = { receber: "Receber", receber_parcial: "Receber parcial", recusar: "Recusar" };
+const ACTION_TONE = { receber: "positive", receber_parcial: "waiting", recusar: "negative" };
+const EXCEPTIONS = [
+  ["E1", "Falta física"], ["E2", "Item trocado"], ["E3", "Quantidade menor"], ["E4", "Unidade de medida"],
+  ["E5", "Nota sem ordem"], ["E6", "Duplicidade"], ["E7", "Pago fora do fluxo"], ["E8", "Item sem cadastro"],
+  ["NAO_CATALOGADA", "Divergência não catalogada"],
+];
+const VERDICT = { approve: "Aprovaria", refuse: "Recusaria" };
+const DIFFERS = { classification: "exceção", dockAction: "ação na doca", dock_action: "ação na doca", routing: "nível" };
+const AUDIT_REASON = {
+  claude_falhou: "A auditoria não rodou: o Claude falhou.",
+  erro_de_tool: "A auditoria não rodou: uma tool falhou.",
+  sem_auditoria: "A nota não passou pela auditoria.",
+};
+const SESSION_EXPIRED = "Sua sessão expirou. Entre de novo pelo Access.";
+const GENERIC_FAILURE = "Não foi possível concluir agora. Tente de novo em instantes.";
+const APP_ROOT = document.getElementById("app");
+
+// ---------------------------------------------------------------------------------------------------------------
+// Pequenos auxiliares de tela
+
+function h(tag, attributes, ...children) {
+  const element = document.createElement(tag);
+  for (const [name, value] of Object.entries(attributes || {})) {
+    if (value === false || value === null || value === undefined) continue;
+    if (name === "class") element.className = value;
+    else if (name.startsWith("on")) element.addEventListener(name.slice(2), value);
+    else element.setAttribute(name, value === true ? "" : String(value));
+  }
+  for (const child of children.flat(Infinity)) {
+    if (child === null || child === undefined || child === false) continue;
+    element.append(child instanceof Node ? child : document.createTextNode(String(child)));
+  }
+  return element;
+}
+
+const orDash = (value) => (value === null || value === undefined || value === "" ? "—" : String(value));
+const decimal = (value) => String(value).replace(".", ","); // só troca o separador: o número é o da tool
+const lower = (text) => text.charAt(0).toLowerCase() + text.slice(1);
+const money = (value) => (value && typeof value.text === "string" ? value.text : "—");
+const groupKey = (key) => (/^\\d+$/.test(String(key)) ? String(key).replace(/(\\d{4})(?=\\d)/g, "$1 ") : orDash(key));
+const levelLabel = (level) => LEVEL[level] || orDash(level);
+const actionLabel = (action) => (action && ACTION[action.kind]) || "—";
+
+function badge(text, tone) {
+  return h("span", { class: `badge badge-${tone || "neutral"}`, "data-badge": "" }, text);
+}
+
+function show(...nodes) {
+  APP_ROOT.replaceChildren(...nodes);
+}
+
+function skeleton() {
+  const rows = [0, 1, 2].map(() => h("div", { class: "skeleton-row" }, h("span", { class: "bar" }), h("span", { class: "bar" }), h("span", { class: "bar" })));
+  return h("div", { "data-skeleton": "", "aria-busy": "true", "aria-label": "Carregando", class: "table-wrap" }, rows);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// O protocolo com o host
+
+let nextRequestId = 1;
+const pendingRequests = new Map();
+
+function post(message) {
+  window.parent.postMessage(message, "*");
+}
+
+function request(method, params) {
+  const id = nextRequestId++;
+  post({ jsonrpc: "2.0", id, method, params });
+  return new Promise((resolve, reject) => pendingRequests.set(id, { resolve, reject }));
+}
+
+function notify(method, params) {
+  post({ jsonrpc: "2.0", method, params });
+}
+
+/** Chama uma tool pelo host. Devolve { data } ou { error: { code, message } }, nunca o texto de um erro do host. */
+async function callTool(name, args) {
+  let result;
+  try {
+    result = await request("tools/call", { name, arguments: args });
+  } catch (_) {
+    return { error: { code: "unavailable", message: GENERIC_FAILURE } };
+  }
+  const data = result && typeof result.structuredContent === "object" ? result.structuredContent : null;
+  if (result && result.isError) {
+    const code = data && typeof data.error === "string" ? data.error : "unavailable";
+    const message = data && typeof data.message === "string" ? data.message : GENERIC_FAILURE;
+    return { error: { code, message } };
+  }
+  if (!data) return { error: { code: "unavailable", message: GENERIC_FAILURE } };
+  return { data };
+}
+
+window.addEventListener("message", (event) => {
+  if (event.source !== window.parent) return; // só o host fala com a tela
+  const message = event.data;
+  if (!message || message.jsonrpc !== "2.0") return;
+  if (message.method === undefined) {
+    const waiting = pendingRequests.get(message.id);
+    if (!waiting) return;
+    pendingRequests.delete(message.id);
+    if (message.error) waiting.reject(message.error);
+    else waiting.resolve(message.result);
+    return;
+  }
+  if (message.method === "ui/notifications/tool-result") onToolResult(message.params);
+  else if (message.method === "ui/resource-teardown" && message.id !== undefined) post({ jsonrpc: "2.0", id: message.id, result: {} });
+  else if (message.id !== undefined) post({ jsonrpc: "2.0", id: message.id, error: { code: -32601, message: "Método desconhecido" } });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// Estados que valem para a fila e para a proposta
+
+function errorState(error, retry) {
+  if (error.code === "session_expired") {
+    return h("div", { "data-state": "session-expired", class: "notice notice-warning" },
+      h("p", null, SESSION_EXPIRED), " ",
+      h("button", { type: "button", class: "primary", "data-action": "sign-in", onclick: retry }, "Entrar"));
+  }
+  return h("div", { "data-state": "error", class: "notice notice-error", role: "alert" },
+    h("p", null, error.message), " ",
+    retry ? h("button", { type: "button", onclick: retry }, "Tentar de novo") : null);
+}
+
+function onToolResult(params) {
+  const result = params && params.structuredContent;
+  if (params && params.isError) {
+    const message = result && typeof result.message === "string" ? result.message : GENERIC_FAILURE;
+    show(errorState({ code: "unavailable", message }));
+  } else if (result && result.view === "proposal" && typeof result.invoice_access_key === "string") {
+    showProposal(result.invoice_access_key);
+  } else if (result && result.view === "report") {
+    showReport();
+  } else {
+    showQueue();
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// 1. Fila
+
+const queueState = { scope: "mine", classification: "", level: "" };
+let queueView = null;
+let queueSerial = 0;
+
+function filtersActive() {
+  return queueState.classification !== "" || queueState.level !== "";
+}
+
+function showQueue() {
+  const scopeButton = (scope, label) =>
+    h("button", { type: "button", "data-scope": scope, "aria-pressed": String(queueState.scope === scope), onclick: () => chooseScope(scope) }, label);
+  const filter = (name, label, allLabel, options) => {
+    const select = h("select", { "data-filter": name, onchange: (event) => { queueState[name] = event.target.value; loadQueue(); } },
+      h("option", { value: "" }, allLabel), options.map(([value, text]) => h("option", { value }, text)));
+    select.value = queueState[name];
+    return h("label", { class: "row" }, label, select);
+  };
+  const refs = {
+    approver: h("span", { "data-field": "approver", class: "muted" }),
+    summary: h("p", { "data-field": "summary", class: "muted" }),
+    results: h("div", { "data-region": "results" }),
+    mine: scopeButton("mine", "Minhas"),
+    all: scopeButton("all", "Todas"),
+  };
+  queueView = refs;
+  show(h("section", { "data-screen": "queue" },
+    h("div", { class: "stack" },
+      h("header", null,
+        h("div", { class: "titlebar" }, h("h1", null, "Fila de aprovação"), refs.approver),
+        refs.summary),
+      h("div", { class: "row" },
+        h("div", { role: "group", "aria-label": "Escopo da fila", class: "row" }, refs.mine, refs.all),
+        filter("classification", "Exceção", "Todas", EXCEPTIONS.map(([code, name]) => [code, `${code} ${name}`])),
+        filter("level", "Nível", "Todos", ["analista", "coordenacao", "diretoria", "bloqueio"].map((level) => [level, LEVEL[level]])),
+        h("span", { class: "grow" }),
+        h("button", { type: "button", "data-action": "delegate", disabled: true, "aria-describedby": "delegate-note" }, "Delegar ao motor ✦"),
+        h("span", { id: "delegate-note", "data-field": "delegate-note", class: "muted" }, "Na #138")),
+      refs.results)));
+  return loadQueue();
+}
+
+function chooseScope(scope) {
+  queueState.scope = scope;
+  loadQueue();
+}
+
+async function loadQueue() {
+  const view = queueView;
+  const serial = ++queueSerial;
+  view.mine.setAttribute("aria-pressed", String(queueState.scope === "mine"));
+  view.all.setAttribute("aria-pressed", String(queueState.scope === "all"));
+  view.summary.textContent = "Carregando a fila…";
+  view.results.replaceChildren(skeleton());
+  const args = { scope: queueState.scope };
+  if (queueState.classification) args.classification = [queueState.classification];
+  if (queueState.level) args.level = [queueState.level];
+  const reply = await callTool("list_approval_queue", args);
+  if (serial !== queueSerial || view !== queueView) return; // uma resposta antiga não apaga a mais nova
+  if (reply.error) {
+    view.summary.textContent = "";
+    view.results.replaceChildren(errorState(reply.error, loadQueue));
+    return;
+  }
+  drawQueue(view, reply.data);
+}
+
+function drawQueue(view, data) {
+  const approver = data.approver || {};
+  const levelText = PERSON_LEVELS.includes(approver.level) ? LEVEL[approver.level] : "Sem nível para decidir";
+  view.approver.textContent = `${orDash(approver.email)} · ${levelText}`;
+  const waiting = data.waiting_for_you;
+  if (waiting && waiting.count !== undefined) {
+    view.summary.textContent = `${waiting.count} ${waiting.count === 1 ? "proposta esperando você" : "propostas esperando você"} · ${money(waiting.amount_at_risk)} em risco`;
+  } else {
+    view.summary.textContent = "";
+  }
+  const items = Array.isArray(data.items) ? data.items : [];
+  view.results.replaceChildren(items.length === 0 ? emptyQueue() : queueTable(items));
+}
+
+function emptyQueue() {
+  if (filtersActive()) return h("div", { "data-state": "empty", class: "empty" }, h("p", null, "Nenhuma proposta com esses filtros."));
+  return h("div", { "data-state": "empty", class: "empty" },
+    h("p", null, "Nada esperando você. As próximas notas chegam com a captura das 10h."), " ",
+    queueState.scope === "mine" ? h("button", { type: "button", class: "link", onclick: () => chooseScope("all") }, "Ver todas") : null);
+}
+
+function engineCell(engine) {
+  if (!engine || (engine.outcome !== "approve" && engine.outcome !== "refuse")) {
+    return h("td", { title: "Sem avaliação do motor" }, "—");
+  }
+  const mark = engine.outcome === "approve" ? "✓" : "✕";
+  return h("td", null, engine.confidence === null || engine.confidence === undefined ? mark : `${mark} ${decimal(engine.confidence)}`);
+}
+
+function queueTable(items) {
+  const body = items.map((item) => {
+    const open = () => showProposal(item.invoice_access_key);
+    const action = item.can_decide
+      ? h("td", null, h("span", { class: `badge badge-${ACTION_TONE[item.dock_action && item.dock_action.kind] || "neutral"}` }, actionLabel(item.dock_action)))
+      : h("td", { title: "Nível que decide esta proposta" }, levelLabel(item.required_approver_level));
+    return h("tr", {
+      "data-key": item.invoice_access_key, tabindex: "0", class: item.can_decide ? "" : "row-blocked", onclick: open,
+      onkeydown: (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } },
+    },
+    h("td", null, orDash(item.number)), h("td", null, orDash(item.supplier_id)),
+    h("td", null, `${orDash(item.classification)} ${orDash(item.classification_name)}`),
+    h("td", { class: "num" }, money(item.amount_at_risk)), action, engineCell(item.engine));
+  });
+  const head = ["Nota", "Fornecedor", "Exceção", "Em risco", "Ação", "Motor"].map((name) => h("th", { scope: "col", class: name === "Em risco" ? "num" : "" }, name));
+  return h("div", { class: "table-wrap" },
+    h("table", { "data-table": "queue", "aria-label": "Propostas esperando decisão" }, h("thead", null, h("tr", null, head)), h("tbody", null, body)));
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// 2. Proposta
+
+function backButton() {
+  return h("button", { type: "button", "data-action": "back", onclick: () => showQueue() }, "← Fila");
+}
+
+async function showProposal(key, options) {
+  show(h("section", { "data-screen": "proposal", class: "stack" }, h("div", { class: "row" }, backButton()), skeleton()));
+  const reply = await callTool("get_proposal", { invoice_access_key: key });
+  if (reply.error) {
+    show(h("section", { "data-screen": "proposal", class: "stack" }, h("div", { class: "row" }, backButton()),
+      errorState(reply.error, () => showProposal(key))));
+    return;
+  }
+  drawProposal(reply.data, (options && options.notice) || null);
+}
+
+function emptyBlock(reason) {
+  return h("p", { "data-field": "empty", class: "muted" }, "— ", reason);
+}
+
+function block(name, title, ai, ...content) {
+  return h("section", { "data-block": name, class: "panel" }, h("h2", { class: ai ? "ai" : "" }, title), content);
+}
+
+function summaryBlock(p) {
+  const regua = p.regua || {};
+  const reason = regua.reason
+    ? (regua.line === null || regua.line === undefined ? regua.reason : `Linha ${regua.line} da régua: ${regua.reason}`)
+    : "—";
+  const rows = [
+    ["Ação na doca proposta", "dock-action", actionLabel(p.dock_action)],
+    ["Valor em risco", "amount-at-risk", money(p.amount_at_risk)],
+    ["Valor da nota", "invoice-total", money(p.total)],
+    ["Por que este nível", "reason", reason],
+    ["Chave de acesso", "access-key", groupKey(p.invoice_access_key)],
+  ];
+  return h("section", { "data-block": "summary", class: "panel" },
+    h("dl", { class: "summary" }, rows.map(([label, field, value]) => [h("dt", null, label), h("dd", { "data-field": field }, value)])));
+}
+
+function evidenceText(item) {
+  return typeof item === "string" ? item : item && item.description;
+}
+
+function evidenceBlock(p) {
+  const divergences = Array.isArray(p.divergences) ? p.divergences : [];
+  const content = divergences.length === 0
+    ? emptyBlock("Sem divergência de item nesta nota.")
+    : divergences.map((d) => h("div", { class: "divergence" },
+      h("strong", null, `${orDash(d.classification)} ${orDash(d.classification_name)}`),
+      Array.isArray(d.skus) && d.skus.length ? h("span", { class: "muted" }, `  ${d.skus.join(", ")}`) : null,
+      h("ul", null, (Array.isArray(d.evidence) ? d.evidence : []).map((e) => h("li", null, orDash(evidenceText(e)))))));
+  return block("evidence", "Evidência por divergência", false, content);
+}
+
+function engineBlock(p) {
+  const e = p.engine;
+  if (!e) return block("engine", "Motor de decisão", true, emptyBlock("Ainda não avaliado"));
+  const verdict = VERDICT[e.outcome] || "Sem decisão do motor";
+  const parts = [verdict];
+  if (e.confidence !== null && e.confidence !== undefined) parts.push(`confiança ${decimal(e.confidence)}`);
+  if (e.model_version) parts.push(e.model_version);
+  return block("engine", "Motor de decisão", true,
+    h("p", { "data-field": "engine-verdict" }, parts.join(" · ")),
+    e.mode ? h("p", { "data-field": "engine-mode", class: "muted" }, e.mode === "delegated" ? "Modo delegado" : "Modo sombra: só registra o que faria") : null,
+    e.reason ? h("p", { "data-field": "engine-reason", class: "quote" }, `“${e.reason}”`) : null,
+    typeof e.similar_cases_count === "number" ? h("p", { "data-field": "engine-similar", class: "muted" }, `Casos parecidos: ${e.similar_cases_count}`) : null);
+}
+
+function auditBlock(p) {
+  const a = p.audit;
+  if (!a) return block("audit", "Agente auditor", true, emptyBlock("Ainda não auditada"));
+  if (a.status !== "auditada") return block("audit", "Agente auditor", true, emptyBlock(AUDIT_REASON[a.reason] || "A auditoria não rodou."));
+  const proposed = `${orDash(a.classification)} · ${actionLabel(a.dock_action)} · ${levelLabel(a.routing)}`;
+  const agreement = a.agreement || {};
+  const differs = (Array.isArray(agreement.differs) ? agreement.differs : []).map((field) => DIFFERS[field] || field);
+  const verdict = agreement.agrees === false
+    ? `Diverge da regra em: ${differs.join(", ")}. Propõe: ${proposed}`
+    : `Concorda com a regra: ${proposed}`;
+  return block("audit", "Agente auditor", true,
+    h("p", { "data-field": "audit-verdict" }, verdict),
+    a.justification ? h("p", { "data-field": "audit-justification", class: "muted" }, a.justification) : null,
+    a.raised_level ? h("p", { class: "muted" }, `Subiu o nível para ${levelLabel(a.raised_level)}.`) : null,
+    a.injection_flag ? h("p", { class: "notice notice-warning" }, "Atenção: o texto desta nota tentou dar instruções ao agente.") : null);
+}
+
+function dossierBlock(p) {
+  const d = p.dossier;
+  if (!d || d.status === "none" || !d.status) return block("dossier", "Dossiê do Claude", true, emptyBlock("Esta nota ainda não tem dossiê."));
+  if (d.status === "generating") return block("dossier", "Dossiê do Claude", true, emptyBlock("O Claude está escrevendo o dossiê."));
+  if (d.status !== "ready") return block("dossier", "Dossiê do Claude", true, emptyBlock(d.notice || "Ainda não avaliado"));
+  const divergences = Array.isArray(d.divergences) ? d.divergences : [];
+  return block("dossier", "Dossiê do Claude", true,
+    h("div", { class: "dossier" },
+      d.summary ? h("p", null, d.summary) : null,
+      divergences.map((x) => h("div", { class: "divergence" },
+        h("strong", null, `${orDash(x.classification)} ${orDash(x.classification_name)}`),
+        x.what_diverges ? h("p", null, x.what_diverges) : null,
+        h("ul", null, (Array.isArray(x.evidence) ? x.evidence : []).map((e) => h("li", null, `${orDash(e.label)}: ${orDash(e.value)}`)))))));
+}
+
+function drawProposal(p, notice) {
+  const header = h("header", { "data-block": "header", class: "titlebar" },
+    h("div", { class: "row" }, backButton(), h("h1", { "data-field": "title" }, `Nota ${orDash(p.number)} · ${orDash(p.supplier_id)} · ${orDash(p.store)}`)),
+    h("div", { class: "row" }, badge(orDash(p.classification), "neutral"), badge(levelLabel(p.level), LEVEL_TONE[p.level])));
+  const sections = [
+    notice ? h("p", { "data-state": "already-decided", class: "notice notice-warning", role: "status" }, notice) : null,
+    summaryBlock(p), evidenceBlock(p), engineBlock(p), auditBlock(p), dossierBlock(p),
+    p.approval ? decidedByBlock(p.approval) : decisionBlock(p),
+  ];
+  show(h("section", { "data-screen": "proposal", class: "stack" }, header, sections));
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Sua decisão
+
+function decidedByBlock(approval) {
+  const hour = approval.decided_hour ? ` às ${approval.decided_hour}` : "";
+  const kind = approval.dock_action && approval.dock_action.kind;
+  return h("section", { "data-block": "decided", class: "panel" },
+    h("p", { "data-state": "decided-by", class: "seal notice-info" }, `Decidida por ${orDash(approval.approver)}${hour} · ${ACTION[kind] || "—"}`));
+}
+
+function forbiddenText(p) {
+  return PERSON_LEVELS.includes(p.required_approver_level)
+    ? `Esta proposta pede o nível ${LEVEL[p.required_approver_level]} ou acima.`
+    : "Esta proposta pede um nível acima do seu.";
+}
+
+/** As evidências que a pessoa pode marcar como "pesaram": as da proposta, e as do dossiê quando ele está pronto. */
+function weighableEvidence(p) {
+  const found = [];
+  const add = (text) => { if (typeof text === "string" && text && !found.includes(text)) found.push(text); };
+  for (const d of Array.isArray(p.divergences) ? p.divergences : []) for (const e of Array.isArray(d.evidence) ? d.evidence : []) add(evidenceText(e));
+  if (p.dossier && p.dossier.status === "ready") {
+    for (const d of Array.isArray(p.dossier.divergences) ? p.dossier.divergences : []) for (const e of Array.isArray(d.evidence) ? d.evidence : []) add(e && e.label);
+  }
+  return found;
+}
+
+function decisionBlock(p) {
+  if (!p.can_decide) {
+    return h("section", { "data-block": "decision", class: "panel" }, h("h2", null, "Sua decisão"), h("p", { "data-state": "forbidden", class: "notice notice-info" }, forbiddenText(p)));
+  }
+  const root = h("section", { "data-block": "decision", class: "panel" });
+  const form = freshForm(p);
+  const proposedKind = p.dock_action && p.dock_action.kind;
+  const options = [{ value: "approve", text: `Aprovar: ${lower(ACTION[proposedKind] || "a ação proposta")}` }]
+    .concat(Object.keys(ACTION).filter((kind) => kind !== proposedKind).map((kind) => ({ value: kind, text: `Alterar para ${lower(ACTION[kind])}` })));
+  const partialSlot = h("div");
+  const errorSlot = h("div");
+  const justification = h("textarea", { "data-field": "justification", id: "justification", "aria-describedby": "justification-error" });
+  const justificationError = h("div", { id: "justification-error" });
+
+  const drawPartial = () => partialSlot.replaceChildren(form.choice === "receber_parcial" ? partialTable(form) : "");
+  const markInvalid = (message) => {
+    justification.classList.add("invalid");
+    justification.setAttribute("aria-invalid", "true");
+    justificationError.replaceChildren(h("p", { class: "field-error", "data-error": "justification" }, message));
+  };
+  const clearInvalid = () => {
+    justification.classList.remove("invalid");
+    justification.setAttribute("aria-invalid", "false");
+    justificationError.replaceChildren();
+  };
+  justification.setAttribute("aria-invalid", "false");
+  justification.addEventListener("input", () => {
+    form.justification = justification.value;
+    if (form.justification.trim()) clearInvalid();
+  });
+
+  const radios = options.map((option) => {
+    const input = h("input", { type: "radio", name: "choice", value: option.value, onchange: () => { form.choice = option.value; drawPartial(); } });
+    input.checked = option.value === form.choice;
+    return h("label", { class: "choice", "data-choice": "" }, input, option.text);
+  });
+  const evidence = weighableEvidence(p);
+  const evidenceGroup = evidence.length === 0 ? null : h("fieldset", { class: "evidence-options", style: "border:0;padding:0" },
+    h("legend", { class: "muted" }, "Evidências que pesaram"),
+    evidence.map((text) => {
+      const input = h("input", { type: "checkbox", "data-evidence": "", value: text, onchange: (event) => { if (event.target.checked) form.evidence.add(text); else form.evidence.delete(text); } });
+      return h("label", null, input, text);
+    }));
+
+  const register = h("button", { type: "button", class: "primary", "data-action": "register" }, "Registrar");
+  const cancel = h("button", { type: "button", "data-action": "cancel", onclick: () => root.replaceWith(decisionBlock(p)) }, "Cancelar");
+
+  const send = async () => {
+    errorSlot.replaceChildren();
+    const change = form.choice !== "approve";
+    if (change && !form.justification.trim()) { markInvalid("Para alterar, escreva o porquê."); return; }
+    const args = { invoice_access_key: p.invoice_access_key, decision: change ? "change" : "approve" };
+    if (change) {
+      args.dock_action = { kind: form.choice };
+      if (form.choice === "receber_parcial") {
+        args.dock_action.lines = form.lines.map((line) => {
+          const amount = Number(String(line.amount).replace(",", "."));
+          return { sku: line.sku, quantity: { amount: Number.isFinite(amount) && String(line.amount).trim() !== "" ? amount : line.amount, unit: line.unit }, disposition: line.disposition };
+        });
+      }
+      args.justification = form.justification.trim();
+    }
+    args.weighed_evidence = evidence.filter((text) => form.evidence.has(text));
+    register.disabled = true;
+    root.setAttribute("aria-busy", "true");
+    const reply = await callTool("decide_proposal", args);
+    root.removeAttribute("aria-busy");
+    register.disabled = false;
+    if (!reply.error) { root.replaceWith(decidedSeal(reply.data.approval)); return; }
+    const { code, message } = reply.error;
+    if (code === "already_decided") { showProposal(p.invoice_access_key, { notice: message }); return; }
+    if (code === "forbidden_level") { root.replaceWith(h("section", { "data-block": "decision", class: "panel" }, h("h2", null, "Sua decisão"), h("p", { "data-state": "forbidden", class: "notice notice-info" }, message))); return; }
+    if (code === "justification_required") { markInvalid(message); return; }
+    errorSlot.replaceChildren(errorState(reply.error, code === "session_expired" ? send : null));
+  };
+  register.addEventListener("click", send);
+
+  root.replaceChildren(...[
+    h("h2", null, "Sua decisão"),
+    radios, partialSlot, evidenceGroup,
+    h("label", { class: "field", for: "justification" }, h("span", null, "Justificativa ", h("span", { class: "muted" }, "(ao alterar)")), justification),
+    justificationError, errorSlot,
+    h("div", { class: "actions" }, cancel, register),
+  ].flat().filter(Boolean));
+  drawPartial();
+  return root;
+}
+
+function freshForm(p) {
+  const proposed = Array.isArray(p.proposed_partial_lines) ? p.proposed_partial_lines : [];
+  return {
+    choice: "approve",
+    justification: "",
+    evidence: new Set(),
+    // As linhas e as quantidades são as que a tool propõe (a regra); a pessoa edita, a tela não calcula.
+    lines: proposed.map((line) => ({
+      sku: line.sku,
+      amount: line.quantity && line.quantity.amount !== null && line.quantity.amount !== undefined ? String(line.quantity.amount) : "",
+      unit: (line.quantity && line.quantity.unit) || "UN",
+      disposition: line.disposition || "segurar",
+    })),
+  };
+}
+
+function partialTable(form) {
+  if (form.lines.length === 0) {
+    return h("p", { "data-table": "partial-empty", class: "muted" }, "A regra não propõe nenhum item para este parcial.");
+  }
+  const rows = form.lines.map((line) => {
+    const amount = h("input", { type: "text", inputmode: "decimal", "data-col": "amount", "aria-label": `Quantidade de ${line.sku}`, onchange: (event) => { line.amount = event.target.value; }, oninput: (event) => { line.amount = event.target.value; } });
+    amount.value = line.amount;
+    const unit = h("select", { "data-col": "unit", "aria-label": `Unidade de ${line.sku}`, onchange: (event) => { line.unit = event.target.value; } }, h("option", { value: "UN" }, "UN"), h("option", { value: "CX" }, "CX"));
+    unit.value = line.unit;
+    const disposition = h("select", { "data-col": "disposition", "aria-label": `Destino de ${line.sku}`, onchange: (event) => { line.disposition = event.target.value; } },
+      h("option", { value: "segurar" }, "Segurar"), h("option", { value: "devolver" }, "Devolver"));
+    disposition.value = line.disposition;
+    return h("tr", { "data-sku": line.sku }, h("td", { "data-col": "sku" }, orDash(line.sku)), h("td", null, amount), h("td", null, unit), h("td", null, disposition));
+  });
+  const head = ["SKU", "Quantidade", "UN/CX", "Segurar/Devolver"].map((name) => h("th", { scope: "col" }, name));
+  return h("div", { class: "table-wrap" }, h("table", { "data-table": "partial" }, h("thead", null, h("tr", null, head)), h("tbody", null, rows)));
+}
+
+function decidedSeal(approval) {
+  const hour = approval && approval.decided_hour ? ` às ${approval.decided_hour}` : "";
+  const kind = approval && approval.dock_action && approval.dock_action.kind;
+  return h("section", { "data-block": "decided", class: "panel" },
+    h("p", { "data-state": "decided", class: "seal seal-ok", role: "status" }, `Decidida por você${hour} · ${ACTION[kind] || "—"}`));
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// 3. Relatório do motor (a #138 traz o dado)
+
+function showReport() {
+  show(h("section", { "data-screen": "report", class: "stack" }, h("div", { class: "row" }, backButton()),
+    h("div", { "data-state": "report", class: "notice notice-info" }, h("p", null, "O relatório do motor chega na #138."))));
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Início: ui/initialize e, depois, o que o Claude pediu em open_approval_app (ui/notifications/tool-result)
+
+request("ui/initialize", { protocolVersion: "2026-01-26", appInfo: { name: "fila-de-aprovacao", version: "0.1.0" }, appCapabilities: {} })
+  .then(() => notify("ui/notifications/initialized", {}))
+  .catch(() => show(errorState({ code: "unavailable", message: GENERIC_FAILURE })));
+
+if (typeof ResizeObserver === "function") {
+  new ResizeObserver(() => notify("ui/notifications/size-changed", { height: Math.ceil(document.documentElement.scrollHeight) })).observe(document.body);
+}
+</script>
+</body>
+</html>
+"""

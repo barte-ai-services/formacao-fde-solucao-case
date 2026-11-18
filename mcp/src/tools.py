@@ -29,7 +29,8 @@ class Tool:
     execute: Callable[[JsonObject, Context], Awaitable[JsonObject]]
     requires_session: bool = True
     annotations: Optional[Mapping[str, JsonValue]] = None  # #272 LLM-7 o efeito da tool, para o cliente pedir confirmação
-    meta: Optional[Mapping[str, JsonValue]] = None  # #274 o plano 2 põe aqui o `ui.resourceUri` do MCP App
+    meta: Optional[Mapping[str, JsonValue]] = None  # #274 o `ui.resourceUri` do MCP App (extensão io.modelcontextprotocol/ui)
+    summarize: Optional[Callable[[JsonObject], str]] = None  # #274 o texto do resultado, quando não é o JSON da saída
 
 
 def _api_error_code(response: ApiResponse) -> Optional[str]:
@@ -138,6 +139,29 @@ async def decide_proposal(args: JsonObject, ctx: Context) -> JsonObject:
     raise _failure(ctx, "decide_proposal", response)
 
 
+APPROVAL_APP_URI = "ui://formacao-fde/approval"
+APP_VIEWS = ("queue", "proposal", "report")
+
+
+async def open_approval_app(args: JsonObject, ctx: Context) -> JsonObject:
+    """Só diz à tela o que abrir (#274): não chama a API e não exige sessão. Quem mostra a sessão expirada é a tela,
+    ao chamar as tools de dados; exigir a sessão aqui impediria o host de abrir a tela para mostrar isso."""
+    view = args.get("view", "queue")
+    if view not in APP_VIEWS:
+        raise ToolError("invalid_input", "view deve ser queue, proposal ou report.")
+    key = inputs.validate_read_key(args) if view == "proposal" else None
+    return {"view": view, "invoice_access_key": key}
+
+
+def _app_summary(output: JsonObject) -> str:
+    """O texto para o host sem MCP Apps: curto, e diz qual tool de dados usar no lugar da tela."""
+    if output["view"] == "proposal":
+        return "Tela da proposta aberta. Num host sem MCP Apps, use get_proposal com a chave."
+    if output["view"] == "report":
+        return "Tela do relatório do motor aberta. O relatório chega na #138."
+    return "Tela da fila de aprovação aberta. Num host sem MCP Apps, use list_approval_queue."
+
+
 _KEY_SCHEMA = {"type": "string", "pattern": "^[0-9]{44}$", "description": "Chave de acesso da nota, 44 dígitos."}
 
 _QUEUE_SCHEMA = {
@@ -154,6 +178,15 @@ _PROPOSAL_SCHEMA = {
     "type": "object",
     "properties": {"invoice_access_key": _KEY_SCHEMA},
     "required": ["invoice_access_key"],
+    "additionalProperties": False,
+}
+
+_APP_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "view": {"type": "string", "enum": list(APP_VIEWS), "description": "queue (padrão): a fila; proposal: uma proposta; report: o relatório do motor."},
+        "invoice_access_key": {**_KEY_SCHEMA, "description": "Chave de acesso da nota, 44 dígitos. Só com view proposal."},
+    },
     "additionalProperties": False,
 }
 
@@ -223,6 +256,19 @@ def create_tools() -> list[Tool]:
             MappingProxyType(_PROPOSAL_SCHEMA),
             get_proposal,
             annotations=READ_ONLY,
+        ),
+        Tool(
+            "open_approval_app",
+            "Abre a tela da fila de aprovação (MCP App) dentro do Claude: view queue (padrão) mostra a fila, proposal "
+            "mostra uma proposta (exige invoice_access_key) e report mostra o relatório do motor. A tela chama as "
+            "tools de dados e só registra uma decisão no clique da pessoa. Num host sem MCP Apps, use list_approval_queue "
+            "e get_proposal.",
+            MappingProxyType(_APP_SCHEMA),
+            open_approval_app,
+            requires_session=False,
+            annotations=READ_ONLY,
+            meta=MappingProxyType({"ui": {"resourceUri": APPROVAL_APP_URI}}),
+            summarize=_app_summary,
         ),
         Tool(
             "decide_proposal",

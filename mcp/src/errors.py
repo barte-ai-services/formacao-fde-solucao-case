@@ -32,6 +32,10 @@ class InvalidParams(Exception):
     """Parâmetros do JSON-RPC inválidos (-32602): é do protocolo, não da tool."""
 
 
+class ResourceNotFound(Exception):
+    """O recurso pedido não existe (-32002, do MCP): a URI não é uma das que o servidor serve."""
+
+
 def session_expired() -> ToolError:
     return ToolError("session_expired", SESSION_EXPIRED)
 

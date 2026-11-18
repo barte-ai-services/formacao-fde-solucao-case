@@ -87,6 +87,7 @@ class ProposalTest(unittest.TestCase):
         output = self.output(decided_at="2026-11-18T13:12:40Z", approval=approval_body(), state="alterada")
         self.assertEqual(output["approval"]["decision"], "change")
         self.assertEqual(output["approval"]["decided_at"], "2026-11-18T13:12:40Z")
+        self.assertEqual(output["approval"]["decided_hour"], "10h12")  # #274 a hora que a tela mostra vem da tool
 
     def test_o_motor_so_repassa_os_campos_conhecidos(self) -> None:  # ADR-002
         self.assertNotIn("segredo_interno", self.output()["engine"])
@@ -161,10 +162,109 @@ class RecordedDecisionTest(unittest.TestCase):
     def test_devolve_a_aprovacao_gravada_e_o_estado_do_titulo(self) -> None:  # ADR-002
         output = self.record({"approval": approval_body("ana@exemplo.com"), "title": {"state": "na_lista_do_dia"}})
         self.assertEqual((output["approval"]["decision"], output["title_state"]), ("approve", "na_lista_do_dia"))
+        self.assertIsNone(output["approval"]["decided_hour"])  # #274 a API só grava o dia: sem hora, a tela não inventa
 
     def test_sem_aprovacao_ou_titulo_e_value_error(self) -> None:  # ADR-002
         with self.assertRaises(ValueError):
             self.record({"approval": approval_body()})
+
+
+class QueueSummaryTest(unittest.TestCase):
+    """#274/AC-5: a contagem e o valor em risco do cabeçalho da fila vêm da tool; a tela não soma."""
+
+    def body(self) -> JsonObject:
+        items = [
+            queue_line(amountAtRisk=money(141856)),
+            queue_line(invoiceAccessKey=OTHER_KEY, amountAtRisk=money(26362), classification="E3"),
+            queue_line(invoiceAccessKey="3" * 44, amountAtRisk=money(500000), canApprove=False, level="diretoria"),
+        ]
+        return {"approver": {"email": "ana@exemplo.com", "level": "analista"}, "items": items}
+
+    def test_conta_e_soma_so_o_que_a_pessoa_decide(self) -> None:  # ADR-002
+        summary = translation.queue(self.body(), "mine", None, None)["waiting_for_you"]
+        self.assertEqual(summary, {"count": 2, "amount_at_risk": {"cents": 168218, "text": "R$ 1.682,18"}})
+
+    def test_nao_muda_com_o_escopo_nem_com_os_filtros(self) -> None:  # ADR-002
+        expected = translation.queue(self.body(), "mine", None, None)["waiting_for_you"]
+        self.assertEqual(translation.queue(self.body(), "all", None, None)["waiting_for_you"], expected)
+        self.assertEqual(translation.queue(self.body(), "all", ("E5",), ("diretoria",))["waiting_for_you"], expected)
+
+    def test_fila_vazia_diz_zero(self) -> None:  # ADR-002
+        body: JsonObject = {"approver": {"email": None, "level": None}, "items": []}
+        summary = translation.queue(body, "mine", None, None)["waiting_for_you"]
+        self.assertEqual(summary, {"count": 0, "amount_at_risk": {"cents": 0, "text": "R$ 0,00"}})
+
+    def test_o_texto_do_dinheiro_agrupa_milhares_e_centavos(self) -> None:  # ADR-002
+        self.assertEqual(translation.money_text(8431020), "R$ 84.310,20")
+        self.assertEqual(translation.money_text(5), "R$ 0,05")
+        self.assertEqual(translation.money_text(123456789), "R$ 1.234.567,89")
+
+
+def partial_proposal(divergences: list[JsonObject], items: Optional[list[JsonObject]] = None) -> JsonObject:
+    base_items = [
+        {"supplierCode": "A1", "sku": "S1", "description": "Arroz 5kg", "quantity": {"amount": 10, "unit": "UN"}},
+        {"supplierCode": "A2", "sku": "S2", "description": "Feijão 1kg", "quantity": {"amount": 5, "unit": "CX"}},
+    ]
+    return translation.proposal(proposal_body(divergences=divergences, items=items or base_items))
+
+
+def divergence(classification: str, skus: list[str], *descriptions: str) -> JsonObject:
+    evidence = [{"source": "wms", "reference": "r", "description": d} for d in descriptions]
+    return {"classification": classification, "exceptionName": "n", "skus": skus, "evidence": evidence}
+
+
+class ProposedPartialLinesTest(unittest.TestCase):
+    """#274/AC-3: as linhas que a regra propõe para o receber parcial, no lugar da tela (porte de partial-prefill.ts da web)."""
+
+    def lines(self, divergences: list[JsonObject], items: Optional[list[JsonObject]] = None) -> JsonValue:
+        return partial_proposal(divergences, items)["proposed_partial_lines"]
+
+    def test_e3_devolve_a_diferenca_da_contagem(self) -> None:  # ADR-002
+        found = self.lines([divergence("E3", ["S1"], "Contado 7 UN de 10 UN: Arroz 5kg")])
+        self.assertEqual(found, [{"sku": "S1", "quantity": {"amount": 3, "unit": "UN"}, "disposition": "devolver"}])
+
+    def test_e3_decimal_sai_arredondado(self) -> None:  # ADR-002
+        found = self.lines([divergence("E3", ["S1"], "Contado 1.2 UN de 1.5 UN: Arroz 5kg")])
+        self.assertEqual(found, [{"sku": "S1", "quantity": {"amount": 0.3, "unit": "UN"}, "disposition": "devolver"}])
+
+    def test_as_outras_excecoes_seguram_o_item_inteiro_na_unidade_dele(self) -> None:  # ADR-002
+        for code in ("E1", "E2", "E4"):
+            found = self.lines([divergence(code, ["S1", "S2"])])
+            self.assertEqual(found, [
+                {"sku": "S1", "quantity": {"amount": 10, "unit": "UN"}, "disposition": "segurar"},
+                {"sku": "S2", "quantity": {"amount": 5, "unit": "CX"}, "disposition": "segurar"},
+            ], code)
+
+    def test_item_fora_das_divergencias_nao_entra_e_sem_divergencia_a_lista_e_vazia(self) -> None:  # ADR-002
+        self.assertEqual([line["sku"] for line in self.lines([divergence("E4", ["S1"])])], ["S1"])
+        self.assertEqual(self.lines([]), [])
+
+    def test_o_primeiro_motivo_de_um_sku_vale_e_o_item_sem_sku_usa_o_codigo_do_fornecedor(self) -> None:  # ADR-002
+        items = [{"supplierCode": "A1", "sku": None, "description": "Arroz 5kg", "quantity": {"amount": 4, "unit": "UN"}}]
+        found = self.lines([divergence("E4", ["A1"]), divergence("E3", ["A1"], "Contado 1 UN de 4 UN: Arroz 5kg")], items)
+        self.assertEqual(found, [{"sku": "A1", "quantity": {"amount": 4, "unit": "UN"}, "disposition": "segurar"}])
+
+
+class DivergenceEvidenceTest(unittest.TestCase):
+    def test_a_evidencia_leva_so_os_campos_nomeados(self) -> None:  # ADR-002
+        evidence = [{"source": "wms", "reference": "r1", "description": "Contado 7 UN", "interno": "nao-sai"}]
+        output = translation.proposal(proposal_body(divergences=[
+            {"classification": "E3", "exceptionName": "n", "skus": ["S1"], "evidence": evidence}]))
+        self.assertEqual(output["divergences"][0]["evidence"], [{"source": "wms", "reference": "r1", "description": "Contado 7 UN"}])
+
+
+class EngineSimilarCasesTest(unittest.TestCase):
+    def engine(self, **fields: JsonValue) -> JsonObject:
+        base = {"outcome": "approve", "similar_cases": [{"x": 1}, {"x": 2}, {"x": 3}], **fields}
+        engine = translation.proposal(proposal_body(engine=base))["engine"]
+        assert engine is not None
+        return engine
+
+    def test_a_contagem_dos_casos_parecidos_vem_da_tool(self) -> None:  # ADR-002
+        self.assertEqual(self.engine()["similar_cases_count"], 3)
+
+    def test_sem_a_lista_nao_ha_contagem(self) -> None:  # ADR-002
+        self.assertNotIn("similar_cases_count", self.engine(similar_cases=None))
 
 
 if __name__ == "__main__":
