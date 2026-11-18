@@ -283,9 +283,9 @@ describe("#160 fila de aprovação com scroll infinito", () => {
     expect(top()).toEqual(before);
   });
 
-  // #160 esqueleto vermelho: vira it(...) quando a camada de componente o satisfaz. É o AC-2; no jsdom afirma-se a regra do app.css
+  // #160 Camada de componentes: a regra do app.css (`.pagar-scroll ... thead th`) o satisfaz, então virou it(...). É o AC-2; no jsdom afirma-se a regra
   // #160 (por token, sem px solto), como web/test/tabelas-estilo.test.ts; a medida no navegador fica no relato da camada.
-  it.fails("#160/AC-2: o cabeçalho da tabela fica fixo na caixa que rola, por token do design system", () => {
+  it("#160/AC-2: o cabeçalho da tabela fica fixo na caixa que rola, por token do design system", () => {
     const css = readFileSync(resolve(process.cwd(), "src/app.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
     const sticky = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter(([, sel, body]) => /thead\s+th/.test(sel!) && /position:\s*sticky/.test(body!) && /top:\s*0/.test(body!));
     expect(sticky.length).toBeGreaterThan(0);

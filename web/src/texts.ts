@@ -17,6 +17,18 @@ export const texts = {
     noteWord: (n: number) => (n === 1 ? "1 nota" : `${n} notas`),
   },
 
+  /** #160 A tabela rolável das grids: contador no topo, esqueleto, faixa de erro do bloco, fim da lista e o aviso de recomeço. */
+  scrollTable: {
+    counterBusy: "Carregando…",
+    loadingRow: "Carregando mais notas",
+    empty: "Nenhuma nota nesta lista",
+    blockErrorTitle: "Não consegui carregar as próximas notas",
+    blockErrorDescription: (loaded: number) => `As ${loaded} que já carregaram continuam aqui.`,
+    endOfList: (total: number) => (total === 1 ? "Você viu a única nota" : `Você viu todas as ${total} notas`),
+    restartedTitle: "A lista mudou e voltou ao início",
+    restartedDescription: "Recomeçamos do início; nada que você decidiu se perdeu.",
+  },
+
   /** #211 A faixa de automação no topo das telas, a gaveta das rodadas e os indicadores. */
   automation: {
     ok: (lastAt: string, ago: string, nextAt: string) => `Automático · última rodada às ${lastAt} (${ago}) · próxima às ${nextAt}`,

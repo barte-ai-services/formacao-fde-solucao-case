@@ -202,3 +202,49 @@ table [class*="StatusBadge-module__label"] {
     animation: none;
   }
 }
+
+/* #160 A tabela rolável das listas por blocos (ScrollTable): a caixa rola e leva a borda; o cabeçalho fica preso ao topo dela.
+   Só tokens do design system; nenhuma cor nem z-index solto. */
+.pagar-list {
+  /* #160 O cabeçalho fica acima das linhas (as células da NF usam z-index 1, #222); a NF do cabeçalho, acima das duas. */
+  --pagar-sticky-z: 2;
+  --pagar-scroll-height: max(18rem, calc(100dvh - 24rem));
+  display: grid;
+  gap: var(--spacing-md);
+  min-width: 0;
+}
+.pagar-list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-md); flex-wrap: wrap; min-height: var(--sizes-3xl); }
+.pagar-list-counter { color: var(--content-primary); font-weight: var(--typography-label-sm-fontWeight); }
+
+/* #160 A caixa é quem rola: o `Table` do DS embrulha a tabela em dois `overflow` que prendem o `position: sticky`; aqui eles deixam de cortar. */
+.pagar-scroll {
+  max-height: var(--pagar-scroll-height);
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: var(--border-width-sm) solid var(--stroke-primary);
+  border-radius: var(--border-radius-xl);
+  background: var(--bg-primary);
+}
+.pagar-scroll [class*="Table-module__tableWrapper"] { overflow: visible; border: 0; border-radius: 0; }
+.pagar-scroll [class*="Table-module__tableContainer"] { overflow: visible; }
+.pagar-scroll .pagar-row-table { overflow: visible; }
+/* #160 A linha de baixo do cabeçalho é sombra: a borda do `border-collapse` rola embora. A classe repetida vence a regra da NF fixa (#222) em qualquer ordem. */
+.pagar-scroll.pagar-scroll .pagar-row-table thead th { position: sticky; top: 0; z-index: var(--pagar-sticky-z); box-shadow: 0 var(--border-width-sm) 0 var(--stroke-primary); }
+.pagar-scroll.pagar-scroll .pagar-row-table thead th:first-child { z-index: calc(var(--pagar-sticky-z) + 1); }
+
+/* #160 A linha de esqueleto: a barra pulsante do kit, só com tokens. */
+.pagar-skeleton {
+  display: block;
+  height: var(--sizes-xs);
+  border-radius: var(--border-radius-sm);
+  background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--bg-tertiary) 50%, var(--bg-secondary) 75%);
+  background-size: 200% 100%;
+  animation: pagar-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes pagar-skeleton-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .pagar-skeleton { animation: none; } }
+
+.pagar-list-end { display: flex; align-items: center; justify-content: center; gap: var(--spacing-sm); padding: var(--spacing-xl); border-top: var(--border-width-sm) solid var(--stroke-primary); }
+.pagar-block-error { display: flex; align-items: center; gap: var(--spacing-md); padding: var(--spacing-xl); border-top: var(--border-width-sm) solid var(--stroke-primary); background: var(--accent-red-light); position: sticky; inset-inline-start: 0; }
+.pagar-block-error > div { flex: 1; display: grid; gap: var(--spacing-2xs); min-width: 0; }
+.pagar-list-sentinel { height: 1px; }

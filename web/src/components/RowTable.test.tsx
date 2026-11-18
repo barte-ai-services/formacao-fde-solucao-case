@@ -64,3 +64,40 @@ describe("#209 RowTable: sem o que reordena as linhas", () => {
     expect(row("20").textContent).toContain("20");
   });
 });
+
+describe("#160 RowTable: linha inerte (esqueleto)", () => {
+  const data = [...rows, { key: "sk", number: "…" }];
+  const render3 = (onOpenRow = vi.fn()) => {
+    render(
+      <RowTable<Row>
+        data={data}
+        rowKey={(r) => r.key}
+        rowInert={(r) => r.key === "sk"}
+        onOpenRow={(r) => onOpenRow(r.key)}
+        rowLabel={(r) => `Abrir a nota ${r.number}`}
+        columns={[{ key: "nota", title: "Nota", dataIndex: "number", render: (_, r) => `NF ${r.number}` }]}
+      />,
+    );
+    return onOpenRow;
+  };
+
+  it("#160/AC-1: a linha inerte não tem tabindex nem rótulo, é aria-hidden e não abre a gaveta", () => {
+    const onOpenRow = render3();
+    const trs = Array.from(document.querySelectorAll("tbody tr"));
+    const inert = trs[2]!;
+    expect(inert.getAttribute("tabindex")).toBeNull();
+    expect(inert.getAttribute("aria-label")).toBeNull();
+    expect(inert.getAttribute("aria-hidden")).toBe("true");
+    fireEvent.click(inert);
+    fireEvent.keyDown(inert, { key: "Enter" });
+    expect(onOpenRow).not.toHaveBeenCalled();
+  });
+
+  it("#160/AC-1: as outras linhas seguem como na #209", () => {
+    const onOpenRow = render3();
+    fireEvent.click(row("10"));
+    fireEvent.keyDown(row("20"), { key: "Enter" });
+    expect(onOpenRow.mock.calls).toEqual([["k1"], ["k2"]]);
+    expect(row("10").getAttribute("tabindex")).toBe("0");
+  });
+});
