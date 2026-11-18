@@ -11,7 +11,7 @@ import type { Quantity } from './quantity.js';
 // a api, então este esquema é o que ele copia; mudar uma chave aqui é mudar o contrato. `<código>` é
 // o código do fornecedor do item; `<ordem>`, `<sku>` e `<recebimento>` são os ids como estão no banco.
 //
-//   nota.numero | nota.serie | nota.total | nota.itens.quantidade
+//   nota.numero | nota.serie | nota.total | nota.itens.quantidade (#313)
 //   nota.item[<código>].quantidade | .preco_unitario | .total
 //   ordem[<ordem>].total | ordem[<ordem>].status
 //   ordem[<ordem>].item[<código>].quantidade | .preco_unitario | .saldo
@@ -397,7 +397,8 @@ function tokenFailure(
 ): TextFailure | null {
   const whole = token.replace(EDGE_PUNCTUATION, '');
   const listed = allowed.has(whole) || isListedSlashDate(whole, allowed);
-  const afterInvoiceWord = INVOICE_WORDS.has(folded(near.previous.replace(EDGE_PUNCTUATION, '')));
+  const previous = near.previous.replace(/^[("'“‘[]+/, '').replace(/:$/, '');
+  const afterInvoiceWord = INVOICE_WORDS.has(folded(previous));
   const pieces = token.split('/');
   for (const [index, piece] of pieces.entries()) {
     const bare = piece.replace(EDGE_PUNCTUATION, '');
@@ -405,7 +406,7 @@ function tokenFailure(
     // #68: \p{N} pega também dígitos fora do ASCII (como `１５`), que o `\d` deixava passar.
     if (/\p{N}/u.test(bare) && !listed && !allowed.has(bare) && !isInvoiceNumber) return { check: 'loose_number', cited: bare };
     // #313: a contagem só conta com a palavra seguinte quando o token não tem barra.
-    const spelled = spelledFailure(bare, pieces.length === 1 ? near.next : '', catalog);
+    const spelled = spelledFailure(bare, pieces.length === 1 && !/[)"'”’\].,;:!?]$/.test(piece) ? near.next : '', catalog);
     if (spelled) return spelled;
   }
   return null;
