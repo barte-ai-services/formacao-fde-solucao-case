@@ -340,11 +340,14 @@ def app_request(existing: Json, otp_id: str, options: Options, policy_id: str | 
     return "PUT", f"/access/apps/{existing['id']}", updated_app_payload(existing, otp_id, policy_id)
 
 
-def _script_policy_id(client: Client, account: str, candidate: Json, dry_run: bool) -> str:
-    """O id da política reutilizável do script, de uma candidata já checada. No dry-run só lê."""
-    if dry_run:
-        return str(candidate["id"]) if candidate else PENDING_POLICY
-    return write_script_policy(client, account, candidate)
+def report(out: TextIO, existing: Json, app: Json, organization: Json) -> None:
+    """O fecho da execução: o que a política diz e os valores que o Worker lê. O AUD só sai de aplicação nova."""
+    out.write("Política que libera qualquer e-mail, com o código por e-mail como único provedor.\n")
+    if existing is None and app and app.get("aud"):
+        out.write(f"ACCESS_AUD={app['aud']}\n")
+    elif existing is None:
+        out.write("# ACCESS_AUD sai na execução real, quando a aplicação for criada.\n")
+    out.write(f"ACCESS_TEAM_DOMAIN={organization.get('auth_domain', '')}\n")
 
 
 def provision(client: Client, account: str, options: Options, out: TextIO = sys.stdout) -> int:
@@ -359,7 +362,11 @@ def provision(client: Client, account: str, options: Options, out: TextIO = sys.
     elif otp_id is None:
         otp_id = create_otp(client, account)
         out.write("Criado o provedor de código por e-mail (one-time PIN).\n")
-    policy_id = _script_policy_id(client, account, candidate, options.dry_run) if reusable else None
+    policy_id: str | None = None  # None: as políticas são da aplicação (inline)
+    if reusable and options.dry_run:
+        policy_id = str(candidate["id"]) if candidate else PENDING_POLICY  # o dry-run só lê
+    elif reusable:
+        policy_id = write_script_policy(client, account, candidate)
     method, route, body = app_request(existing, otp_id, options, policy_id)
     if options.dry_run and existing is None:
         _show(out, method, route, body)
@@ -371,12 +378,7 @@ def provision(client: Client, account: str, options: Options, out: TextIO = sys.
         app = _call(client, method, f"/accounts/{account}{route}", body)
         out.write("Criada a aplicação do Access.\n" if existing is None else "Atualizada a aplicação do Access.\n")
     organization = _call(client, "GET", f"/accounts/{account}/access/organizations") or {}
-    out.write("Política que libera qualquer e-mail, com o código por e-mail como único provedor.\n")
-    if existing is None and app and app.get("aud"):
-        out.write(f"ACCESS_AUD={app['aud']}\n")
-    elif existing is None:
-        out.write("# ACCESS_AUD sai na execução real, quando a aplicação for criada.\n")
-    out.write(f"ACCESS_TEAM_DOMAIN={organization.get('auth_domain', '')}\n")
+    report(out, existing, app, organization)
     return 0
 
 
