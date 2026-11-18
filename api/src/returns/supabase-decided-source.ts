@@ -64,7 +64,7 @@ export class SupabaseDecidedReturnSource implements DecidedReturnSource {
     ]);
     return parseRows(proposals, isDecidedRow, 'proposals').flatMap((row): DecidedReturnCase[] => {
       // #156 Decisão do dono do grupo, 17/11: a decisão sem aprovação é pulada e registrada (só a chave e o motivo, sem o corpo),
-      // como em dock-source.ts, para as outras entrarem na fila; o propose-checked da main pode deixá-la sem reparo.
+      // #156 como em dock-source.ts, para as outras entrarem na fila; o propose-checked da main pode deixá-la sem reparo.
       if (row.approvals === null) {
         console.error(`#8 devolução da nota ${row.invoice_access_key} pulada: decisão sem aprovação`);
         return [];
