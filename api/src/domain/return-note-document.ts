@@ -4,15 +4,15 @@ import type { InvoiceItem, InvoiceView } from './invoice.js';
 import { Money } from './money.js';
 import type { Unit } from './quantity.js';
 
-// #10: a nota de devolução no formato das notas do kit (data/kit/notas.json), montada pela regra.
-// #10: os campos têm o nome em inglês, par a par com os do kit (ADR-002 só mantém em português o valor
-// #10: `devolucao` da natureza); o mapeamento para o JSON do kit é da borda. O dinheiro sai em reais,
-// #10: derivado dos centavos exatos de `Money`.
+// #156: a nota de devolução no formato das notas do kit (data/kit/notas.json), montada pela regra.
+// #156: os campos têm o nome em inglês, par a par com os do kit (ADR-002 só mantém em português o valor
+// #156: `devolucao` da natureza); o mapeamento para o JSON do kit é da borda. O dinheiro sai em reais,
+// #156: derivado dos centavos exatos de `Money`.
 
-/** #10: a linha da fila (`outbox_return_notes.payload.lines`): o que voltou, na unidade da nota. */
+/** #156: a linha da fila (`outbox_return_notes.payload.lines`): o que voltou, na unidade da nota. */
 export type ReturnQueueLine = { readonly supplierCode: string; readonly amount: number; readonly unit: Unit };
 
-/** #10: a devolução pendente da fila que vira nota. */
+/** #156: a devolução pendente da fila que vira nota. */
 export type ReturnQueueEntry = { readonly invoiceAccessKey: string; readonly lines: readonly ReturnQueueLine[] };
 
 export type ReturnNoteItem = {
@@ -25,7 +25,7 @@ export type ReturnNoteItem = {
   readonly value: number;
 };
 
-/** #10/AC-1: a nota montada, ainda sem emissão. */
+/** #156: a nota montada, ainda sem emissão. */
 export type ReturnNoteDraft = {
   readonly nature: 'devolucao'; // ADR-002
   readonly referencedAccessKey: string;
@@ -35,7 +35,7 @@ export type ReturnNoteDraft = {
   readonly total: number;
 };
 
-/** #10/AC-2: a nota emitida pelo mock. O emitente leva só o nome e o destino: o kit não tem CNPJ de destino. */
+/** #156: a nota emitida pelo mock. O emitente leva só o nome e o destino: o kit não tem CNPJ de destino. */
 export type IssuedReturnNote = ReturnNoteDraft & {
   readonly noteId: string;
   readonly accessKey: string;
@@ -47,7 +47,7 @@ export type IssuedReturnNote = ReturnNoteDraft & {
 
 const reais = (money: Money): number => money.cents / 100;
 
-/** #10/AC-1: a mesma conta da fila (`return-notes.ts`): quantidade x preço unitário, em centavos. */
+/** #156: a mesma conta da fila (`return-notes.ts`): quantidade x preço unitário, em centavos. */
 const lineValue = (item: InvoiceItem, amount: number): Money => Money.ofCents(Math.round(item.unitPrice.cents * amount));
 
 function toNoteItem(line: ReturnQueueLine, invoice: InvoiceView): ReturnNoteItem {
@@ -72,14 +72,14 @@ function toNoteItem(line: ReturnQueueLine, invoice: InvoiceView): ReturnNoteItem
   });
 }
 
-/** #10/AC-1: monta a nota de devolução só com as linhas devolvidas, e o total é a soma exata dos itens. */
+/** #156: monta a nota de devolução só com as linhas devolvidas, e o total é a soma exata dos itens. */
 export function buildReturnNote(entry: ReturnQueueEntry, invoice: InvoiceView): ReturnNoteDraft {
   if (entry.invoiceAccessKey !== invoice.accessKey) {
     throw new DomainError('Nota de devolução: a devolução é de outra nota');
   }
   if (entry.lines.length === 0) throw new DomainError('Nota de devolução: a devolução não tem linhas');
   const items = entry.lines.map((line) => toNoteItem(line, invoice));
-  // #10/AC-1: cada valor já é centavos exatos em reais; voltar a centavos é exato, então a soma também.
+  // #156: cada valor já é centavos exatos em reais; voltar a centavos é exato, então a soma também.
   const total = items.reduce((sum, item) => sum.add(Money.fromReais(item.value)), Money.zero());
   return Object.freeze({
     nature: 'devolucao', // ADR-002
@@ -91,13 +91,13 @@ export function buildReturnNote(entry: ReturnQueueEntry, invoice: InvoiceView): 
   });
 }
 
-/** #10/AC-2: a série própria das devoluções, que não repete a série das notas de compra do kit. */
+/** #156: a série própria das devoluções, que não repete a série das notas de compra do kit. */
 export const RETURN_NOTE_SERIES = 9;
 
 const MAX_SEQUENCE = 999_999_999;
-const ISSUER_NAME = 'Já Chegou'; // #10: a operadora fictícia do caso (AGENTS.md)
+const ISSUER_NAME = 'Já Chegou'; // #156: a operadora fictícia do caso (AGENTS.md)
 
-/** #10/AC-2: dígito verificador módulo 11 da chave de acesso, pesos de 2 a 9 da direita para a esquerda. */
+/** #156: dígito verificador módulo 11 da chave de acesso, pesos de 2 a 9 da direita para a esquerda. */
 function checkDigit(digits: string): number {
   let weight = 2;
   let total = 0;
@@ -110,7 +110,7 @@ function checkDigit(digits: string): number {
 }
 
 /**
- * #10/AC-2: a chave de 44 algarismos do mock, determinística e única por sequência (o número da nota
+ * #156: a chave de 44 algarismos do mock, determinística e única por sequência (o número da nota
  * entra nela). Não inventa CNPJ: o campo do emitente vai zerado.
  */
 function mockAccessKey(sequence: number, issuedOn: string): string {
@@ -120,7 +120,7 @@ function mockAccessKey(sequence: number, issuedOn: string): string {
   return `${body}${checkDigit(body)}`;
 }
 
-/** #10/AC-2: a emissão mock: dados a sequência, a data e a nota montada, sai a nota com id, chave, número e série. */
+/** #156: a emissão mock: dados a sequência, a data e a nota montada, sai a nota com id, chave, número e série. */
 export function issueReturnNote(
   draft: ReturnNoteDraft,
   emission: { readonly sequence: number; readonly issuedOn: string },

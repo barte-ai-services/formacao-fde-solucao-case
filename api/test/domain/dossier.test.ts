@@ -165,6 +165,72 @@ describe('verifyAndRender', () => {
     expect(render(raw)).toMatchObject({ status: 'unavailable', reason: 'number_mismatch' });
   });
 
+  it('#296/AC-1 número solto no texto: loose_number, com o campo e o token', () => {
+    expect(render(withText('summary', 'Faltaram 15 caixas.'))).toEqual({
+      status: 'unavailable',
+      reason: 'number_mismatch',
+      generatedAt: META.generatedAt,
+      mismatch: { check: 'loose_number', field: 'summary', cited: '15', bank: null },
+    });
+  });
+
+  it('#296/AC-1 número por extenso: spelled_number, com o token sem a pontuação de borda', () => {
+    expect(render(withText('supplier_history', 'Faltaram quinze, caixas.'))).toMatchObject({
+      reason: 'number_mismatch',
+      mismatch: { check: 'spelled_number', field: 'supplier_history', cited: 'quinze', bank: null },
+    });
+  });
+
+  it('#296/AC-1 marcador desconhecido no texto: unknown_key, com a chave', () => {
+    const raw = goodRaw();
+    raw.divergences[0]!.what_diverges = 'A nota cobra {{nota.item[A1].desconto}}.';
+    expect(render(raw)).toMatchObject({
+      reason: 'number_mismatch',
+      mismatch: {
+        check: 'unknown_key',
+        field: 'divergences[0].what_diverges',
+        cited: 'nota.item[A1].desconto',
+        bank: null,
+      },
+    });
+  });
+
+  it('#296/AC-1 chave desconhecida em evidence: unknown_key, no campo da evidência', () => {
+    const raw = goodRaw();
+    raw.divergences[0]!.evidence = ['nota.item[A1].quantidade', 'nota.item[Z9].quantidade'];
+    expect(render(raw)).toMatchObject({
+      reason: 'number_mismatch',
+      mismatch: { check: 'unknown_key', field: 'divergences[0].evidence', cited: 'nota.item[Z9].quantidade', bank: null },
+    });
+  });
+
+  it('#296/AC-1 classificação que a nota não tem: unknown_classification, com as classificações do banco', () => {
+    const raw = goodRaw();
+    raw.divergences[0]!.classification = 'E6';
+    expect(render(raw)).toMatchObject({
+      reason: 'number_mismatch',
+      mismatch: { check: 'unknown_classification', field: 'divergences[0].classification', cited: 'E6', bank: 'E1' },
+    });
+  });
+
+  it('#296/AC-1 a primeira falha vence: o texto antes da classificação, o summary antes do histórico', () => {
+    const raw = { ...goodRaw(), summary: 'Faltaram 15 caixas.', supplier_history: 'Faltaram quinze caixas.' };
+    raw.divergences[0]!.classification = 'E6';
+    expect(render(raw)).toMatchObject({ mismatch: { check: 'loose_number', field: 'summary' } });
+  });
+
+  it('#296/AC-1 o cited é cortado em 64 caracteres e nunca leva o texto inteiro', () => {
+    const longToken = '9'.repeat(100);
+    const loose = render(withText('summary', `Faltaram ${longToken} caixas de arroz.`));
+    const unknownKey = render(withText('summary', `A nota cobra {{${'k'.repeat(100)}}}.`));
+    expect(loose).toMatchObject({ mismatch: { cited: '9'.repeat(64) } });
+    expect(unknownKey).toMatchObject({ mismatch: { check: 'unknown_key', cited: 'k'.repeat(64) } });
+  });
+
+  it('#296/AC-3 o dossiê pronto não traz mismatch', () => {
+    expect(render(goodRaw())).not.toHaveProperty('mismatch');
+  });
+
   it('#38/AC-2 identificadores e classificações podem aparecer sem marcador', () => {
     const result = render(withText('summary', `Nota ${ACCESS_KEY} da OC-100, loja L01, emitida em 2026-11-10 (E1).`));
     expect(result.status).toBe('ready');

@@ -4,7 +4,7 @@ import { ApiError } from "../api/client";
 import type { SentRequestDetailDto } from "../api/contract";
 import { useRequestDetail } from "./useRequestDetail";
 
-// #21 A leitura do pedido da gaveta: carrega pela chave, descarta o que chega de outra linha e guarda só o motivo fechado do erro.
+// #157 A leitura do pedido da gaveta: carrega pela chave, descarta o que chega de outra linha e guarda só o motivo fechado do erro.
 
 const sent = (key: string): SentRequestDetailDto => ({
   status: "sent",
@@ -20,8 +20,8 @@ const sent = (key: string): SentRequestDetailDto => ({
   followUp: { drafted: false, sent: false, draft: null, sentBy: null, sentAt: null, failure: null, dueOn: null },
 });
 
-describe("#21 useRequestDetail", () => {
-  it("#5/AC-3: sem chave não lê nada; com a chave, carrega e fica pronto", async () => {
+describe("#157 useRequestDetail", () => {
+  it("#157: sem chave não lê nada; com a chave, carrega e fica pronto", async () => {
     const load = vi.fn(async (key: string) => sent(key));
     const { result, rerender } = renderHook(({ key }: { key: string | null }) => useRequestDetail(key, load), { initialProps: { key: null as string | null } });
     expect(result.current.state).toBe("loading");
@@ -31,7 +31,7 @@ describe("#21 useRequestDetail", () => {
     expect(result.current.detail?.invoiceAccessKey).toBe("k1");
   });
 
-  it("#5/AC-3: trocando de linha, o pedido da linha anterior não vale: volta a carregar até chegar o da nova", async () => {
+  it("#157: trocando de linha, o pedido da linha anterior não vale: volta a carregar até chegar o da nova", async () => {
     const load = vi.fn(async (key: string) => sent(key));
     const { result, rerender } = renderHook(({ key }: { key: string | null }) => useRequestDetail(key, load), { initialProps: { key: "k1" as string | null } });
     await waitFor(() => expect(result.current.state).toBe("ready"));
@@ -41,7 +41,7 @@ describe("#21 useRequestDetail", () => {
     await waitFor(() => expect(result.current.detail?.invoiceAccessKey).toBe("k2"));
   });
 
-  it("#21: a falha guarda só o motivo fechado, e 'tentar de novo' lê outra vez", async () => {
+  it("#157: a falha guarda só o motivo fechado, e 'tentar de novo' lê outra vez", async () => {
     const load = vi
       .fn<(key: string) => Promise<SentRequestDetailDto>>()
       .mockRejectedValueOnce(new ApiError(502, "supabase_unavailable", "texto cru da dependência"))

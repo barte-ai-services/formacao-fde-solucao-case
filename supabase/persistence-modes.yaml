@@ -1,4 +1,4 @@
-# Registro de modos de persistência (#8). Uma entrada por tabela que as migrações criam, ao lado de
+# Registro de modos de persistência (#156). Uma entrada por tabela que as migrações criam, ao lado de
 # supabase/migrations/. Lido pela revisão de persistência (PER-1, PER-7, PER-8, IDX-3, MT-1).
 # Desenho que o originou: supabase/persistence-design-devolucao.md.
 #
@@ -14,9 +14,9 @@
 # #230: acrescenta invoice_audits e proposal_level_changes e a subida de nível de proposals (uma requisição
 # PostgREST por escrita, ver strategies).
 #
-# #12: acrescenta issued_return_notes e outbox_supplier_emails (desenho em
-# supabase/persistence-supplier-request.md); a estratégia de unidade de trabalho é a da #8.
-# #8 acrescenta: declara as tabelas que a camada de persistência da devolução lê ou grava e
+# #156: acrescenta issued_return_notes e outbox_supplier_emails (desenho em
+# supabase/persistence-supplier-request.md); a estratégia de unidade de trabalho é a da #156.
+# #156 acrescenta: declara as tabelas que a camada de persistência da devolução lê ou grava e
 # toda a base do kit. Ainda sem modo declarado, a declarar pelo dono de cada uma: titles,
 # outbox_dock_actions, outbox_registry_corrections, outbox_store_actions, claude_suggestions,
 # exceptions, automation_runs, dossier_requests (#253), engine_decisions e engine_settings (#251).
@@ -31,16 +31,16 @@ strategies:
   unit_of_work: postgrest-request
   tenancy:
     # A Já Chegou é uma empresa só; loja (store, destino) é um lugar dela, não um inquilino.
-    # O RLS ligado e sem política das migrações (#52, #59) é controle de acesso, não isolamento de inquilino.
+    # O RLS ligado e sem política das migrações (#52, #157) é controle de acesso, não isolamento de inquilino.
     strategy: none
   idempotency:
-    # #59 As caixas de saída são idempotentes por idempotency_key única: chave da nota mais o sha256 do
+    # #157 As caixas de saída são idempotentes por idempotency_key única: chave da nota mais o sha256 do
     # payload canônico (api/src/connectors/outbox.ts), gravadas com on_conflict e ignore-duplicates.
     outbox_key: invoice_access_key + sha256(payload canônico)
     migration: 20261115140000_outbox_idempotency.sql
 
 tables:
-  # Domínio da conferência (#59, #63). A camada #8 só lê estas.
+  # Domínio da conferência (#157, #157). A camada #156 só lê estas.
   invoice_audits:
     # Cada tentativa de auditoria de uma nota é um fato: a auditoria feita, ou a "não auditada"
     # com o motivo. Uma nova tentativa depois de "não auditada" é uma linha nova, nunca uma
@@ -101,7 +101,7 @@ tables:
       A proposta é editada: a decisão grava por cima state, dock_action e justification
       (SupabaseApprovalStore.saveDecision). A decisão em si fica em approvals, mas a ação proposta
       se perde quando a pessoa altera; só a subida de nível tem história (proposal_level_changes, #230).
-      Sem versão (PER-3, PER-4); a decisão de onde o histórico mora é do dono do #63.
+      Sem versão (PER-3, PER-4); a decisão de onde o histórico mora é do dono do #157.
     tenant: none
   approvals:
     mode: append-only
@@ -115,7 +115,7 @@ tables:
     gap: >-
       state, classification, checked_at e check_error são gravados por cima (invoice-store,
       propose-checked, saveDecision), sem versão e sem histórico (PER-3, PER-4). items, number e
-      supplier_id, que a #8 lê, vêm da SEFAZ e não mudam depois da captura. Decisão do dono do #59.
+      supplier_id, que a #156 lê, vêm da SEFAZ e não mudam depois da captura. Decisão do dono do #157.
   divergences:
     mode: append-only
     history: none
@@ -125,7 +125,7 @@ tables:
       invoice-store grava com upsert merge-duplicates na mesma chave, e ops/reconferir.ts apaga a
       tabela inteira (PER-2, PER-5). A reconferência é a operação do ambiente de formação (#56).
 
-  # Caixa de saída e fila da devolução (#59, #140). A #8 só insere nela.
+  # Caixa de saída e fila da devolução (#157, #140). A #156 só insere nela.
   outbox_return_notes:
     mode: upsert-with-history
     history: in-row-transition
@@ -137,12 +137,12 @@ tables:
       _cancelada_check. Não é a forma de docs/entity-history.md (uma linha de histórico por mudança);
       vale enquanto houver uma só transição terminal. ops/reconferir.ts apaga a tabela inteira (PER-5).
 
-  # Pedido ao fornecedor e nota emitida pelo mock (#12). Desenho: supabase/persistence-supplier-request.md.
+  # Pedido ao fornecedor e nota emitida pelo mock (#156). Desenho: supabase/persistence-supplier-request.md.
   issued_return_notes:
     mode: append-only
     history: none
-    # #12: a nota que o mock emitiu é um fato; nunca muda nem sai.
-    # #12/PER-5: queue_id referencia outbox_return_notes por identidade, sem FK: o reconferir (ops/reconferir.ts)
+    # #156: a nota que o mock emitiu é um fato; nunca muda nem sai.
+    # #156/PER-5: queue_id referencia outbox_return_notes por identidade, sem FK: o reconferir (ops/reconferir.ts)
     # apaga outbox_return_notes e esta linha sobrevive como referência órfã, por desenho.
     projection: none             # lida direto pela chave (queue_id ou id); não há estado derivado
     refusal: grant               # revoke update, delete, truncate de anon, authenticated e service_role
@@ -153,35 +153,35 @@ tables:
     history: json-column
     history_column: history      # jsonb, lista de {version, at, by, action, state}; estado inteiro depois
     version_column: version
-    # #12: o pedido ao fornecedor (raiz SupplierRequest): a pessoa edita o corpo do rascunho e o estado
+    # #156: o pedido ao fornecedor (raiz SupplierRequest): a pessoa edita o corpo do rascunho e o estado
     # anda; histórico na própria linha porque o PostgREST não dá transação entre duas tabelas.
-    # #12/PER-5: queue_id referencia outbox_return_notes por identidade, sem FK: o reconferir (ops/reconferir.ts)
+    # #156/PER-5: queue_id referencia outbox_return_notes por identidade, sem FK: o reconferir (ops/reconferir.ts)
     # apaga outbox_return_notes e esta linha sobrevive como referência órfã, por desenho.
     send_guard: "send_claim uuid + send_claimed_at timestamptz (trava do envio, com prazo)"
     deletion: none               # nada é apagado; o fim é status = discarded com motivo, quem e quando
     erasure: not stated          # sent_by e discarded_by identificam pessoas (ADR-005); sem caminho de apagamento registrado
-    # #35: a cobrança da leitura (#4/AC-2, AC-3) mora nesta linha, nas colunas follow_up_*, e segue a mesma
-    # #35: disciplina: todo PATCH filtra version=eq.<lida>, soma 1 e acrescenta a entrada em history no mesmo PATCH.
-    # #35: depois de `sent` a #12 não grava mais a linha (markSent e discard não partem de `sent`), então as
-    # #35: gravações da cobrança são as únicas num pedido enviado. Desenho: supabase/persistence-supplier-reply.md.
-    extended_by: "#35"
+    # #157: a cobrança da leitura (#157, AC-3) mora nesta linha, nas colunas follow_up_*, e segue a mesma
+    # #157: disciplina: todo PATCH filtra version=eq.<lida>, soma 1 e acrescenta a entrada em history no mesmo PATCH.
+    # #157: depois de `sent` a #156 não grava mais a linha (markSent e discard não partem de `sent`), então as
+    # #157: gravações da cobrança são as únicas num pedido enviado. Desenho: supabase/persistence-supplier-reply.md.
+    extended_by: "#157"
     follow_up_columns: "follow_up_draft jsonb, follow_up_rejection, follow_up_claimed_at, follow_up_claim, follow_up_sent_by, follow_up_sent_at, follow_up_channel, follow_up_provider_message_id, follow_up_failure"
-    follow_up_guard: "follow_up_claimed_at timestamptz (reivindicação do envio da cobrança, com o prazo da #12, LEASE_MS de 5 minutos: a vencida pode ser retomada, com o risco aceito de um segundo e-mail) e follow_up_claim uuid (a ficha da reivindicação, como o send_claim da #12: a falha e o carimbo filtram por ela, e quem perdeu a reivindicação recebe 0 linhas)"
+    follow_up_guard: "follow_up_claimed_at timestamptz (reivindicação do envio da cobrança, com o prazo da #156, LEASE_MS de 5 minutos: a vencida pode ser retomada, com o risco aceito de um segundo e-mail) e follow_up_claim uuid (a ficha da reivindicação, como o send_claim da #156: a falha e o carimbo filtram por ela, e quem perdeu a reivindicação recebe 0 linhas)"
     follow_up_history_actions: "follow_up_drafted | follow_up_rejected | follow_up_claimed | follow_up_failed | follow_up_sent | follow_up_edited"
-    # #63: a confirmação do documento citado na leitura é uma entrada do mesmo `history` (sem coluna nem migração):
-    # #63: `document_confirmed` com document, by (e-mail do Access) e at, num PATCH guardado por version e status=sent, sem tocar coluna do pedido.
-    # #63: a confirmação vale para o documento da leitura atual; uma leitura nova com outro documento a deixa para trás (a entrada fica).
+    # #157: a confirmação do documento citado na leitura é uma entrada do mesmo `history` (sem coluna nem migração):
+    # #157: `document_confirmed` com document, by (e-mail do Access) e at, num PATCH guardado por version e status=sent, sem tocar coluna do pedido.
+    # #157: a confirmação vale para o documento da leitura atual; uma leitura nova com outro documento a deixa para trás (a entrada fica).
     confirmation_history_action: "document_confirmed"
 
-  # Leitura da resposta do fornecedor (#35, história #4). Desenho: supabase/persistence-supplier-reply.md.
-  # #35: a unidade de trabalho segue postgrest-request; cada gravação abaixo é uma requisição, numa tabela.
+  # Leitura da resposta do fornecedor (#157, história #157). Desenho: supabase/persistence-supplier-reply.md.
+  # #157: a unidade de trabalho segue postgrest-request; cada gravação abaixo é uma requisição, numa tabela.
   inbox_supplier_messages:
     mode: upsert-with-history
     history: in-row-transition
     version_column: read_status  # o PATCH filtra read_status=eq.pending: sai de pending uma vez, para ok ou error
-    # #35: a mensagem (remetente, texto, anexos, chegada) é um fato e nunca muda; read_status sai de pending
-    # #35: uma vez, com quem (read_status_by: a tarefa da leitura), quando (read_status_at) e, no erro, o motivo fechado
-    # #35: (read_error), tudo na própria linha (PER-3).
+    # #157: a mensagem (remetente, texto, anexos, chegada) é um fato e nunca muda; read_status sai de pending
+    # #157: uma vez, com quem (read_status_by: a tarefa da leitura), quando (read_status_at) e, no erro, o motivo fechado
+    # #157: (read_error), tudo na própria linha (PER-3).
     refusal: grant               # revoke update, delete, truncate; grant update só em (read_status, read_error, read_status_at, read_status_by)
     idempotency: source_message_id   # o script de exemplo (e um webhook de entrada futuro) grava com on_conflict
     deletion: none
@@ -190,14 +190,14 @@ tables:
   supplier_reply_readings:
     mode: append-only
     history: none
-    # #35: cada leitura é um fato: "a mensagem M foi lida assim" ou "o prazo venceu sem resposta" (message_id nulo).
-    # #35: a leitura atual do pedido é derivada da ordem das mensagens, nunca gravada por cima.
+    # #157: cada leitura é um fato: "a mensagem M foi lida assim" ou "o prazo venceu sem resposta" (message_id nulo).
+    # #157: a leitura atual do pedido é derivada da ordem das mensagens, nunca gravada por cima.
     projection: "leitura atual por pedido: a primeira por message_id desc nulls last (no_reply só vale sem leitura de mensagem)"
     rebuild_test: "teste do adaptador que remonta a leitura atual de leituras gravadas em qualquer ordem (persistence-supplier-reply.md, Testes)"
     refusal: grant               # revoke update, delete, truncate de anon, authenticated e service_role
 
   # Base do kit (#52, ADR-001): espelho dos JSON de data/kit/, que é a fonte versionada.
-  kit_fornecedores: &kit   # #12: ganha a coluna email (migração da #12); o modo é o da #8
+  kit_fornecedores: &kit   # #156: ganha a coluna email (migração da #156); o modo é o da #156
     mode: ephemeral
     reason: >-
       Cópia de data/kit/*.json recarregada por scripts/load_kit.py com upsert na chave primária; o

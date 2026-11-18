@@ -3,9 +3,9 @@ import { SupabaseRestError, type SupabaseRest } from '../connectors/supabase-res
 import { issueReturnNote, type IssuedReturnNote, type ReturnNoteDraft, type ReturnNoteItem } from '../domain/index.js';
 import type { IssuedNoteStore } from './ports.js';
 
-// #12: a nota emitida pelo mock (issued_return_notes): um fato imutável, uma por devolução da fila (AC-2).
-// #12: o id da linha é a sequência da emissão (ND-<id>, número <id>); a chave de acesso e o emitente não são
-// #12: gravados: issueReturnNote é determinística e os refaz iguais a cada leitura (supabase/persistence-supplier-request.md).
+// #156: a nota emitida pelo mock (issued_return_notes): um fato imutável, uma por devolução da fila (AC-2).
+// #156: o id da linha é a sequência da emissão (ND-<id>, número <id>); a chave de acesso e o emitente não são
+// #156: gravados: issueReturnNote é determinística e os refaz iguais a cada leitura (supabase/persistence-supplier-request.md).
 
 const TABLE = 'issued_return_notes';
 
@@ -36,7 +36,7 @@ function corrupt(table: string, detail: string): never {
   throw new SupabaseRestError('parse', table, 0, detail);
 }
 
-/** #12: a nota montada como jsonb; o `jsonb` do Postgres reordena as chaves, então a leitura as põe na ordem da regra. */
+/** #156: a nota montada como jsonb; o `jsonb` do Postgres reordena as chaves, então a leitura as põe na ordem da regra. */
 export const noteToJson = (note: ReturnNoteDraft): unknown => ({
   nature: note.nature, // ADR-002
   referencedAccessKey: note.referencedAccessKey,
@@ -84,7 +84,7 @@ export function noteFromJson(raw: unknown, table = TABLE): ReturnNoteDraft {
 
 const toIssued = (row: Row): IssuedReturnNote => issueReturnNote(noteFromJson(row.note), { sequence: row.id, issuedOn: row.issued_on });
 
-/** #12: a nota emitida de uma linha de issued_return_notes, por id (o pedido guarda o id) ou por devolução da fila. */
+/** #156: a nota emitida de uma linha de issued_return_notes, por id (o pedido guarda o id) ou por devolução da fila. */
 export async function readIssuedNote(
   rest: SupabaseRest,
   by: { readonly id: number } | { readonly queueId: number },
@@ -94,7 +94,7 @@ export async function readIssuedNote(
   return row === undefined ? null : toIssued(row);
 }
 
-/** #12/AC-2: só `select` e `insert`; a tabela é append-only e o grant recusa o resto. */
+/** #156: só `select` e `insert`; a tabela é append-only e o grant recusa o resto. */
 export function supabaseIssuedNoteStore(rest: SupabaseRest): IssuedNoteStore {
   return {
     async issue(queueId, draft, issuedOn) {
@@ -105,7 +105,7 @@ export function supabaseIssuedNoteStore(rest: SupabaseRest): IssuedNoteStore {
         [{ queue_id: queueId, invoice_access_key: draft.referencedAccessKey, supplier_id: draft.supplierId, issued_on: issuedOn, note: noteToJson(draft) }],
         { onConflict: 'queue_id', ignoreDuplicates: true },
       );
-      // #12/AC-2: nada voltou: outra emissão da mesma devolução confirmou antes; lê a que ficou.
+      // #156: nada voltou: outra emissão da mesma devolução confirmou antes; lê a que ficou.
       if (inserted.length === 0) {
         const winner = await readIssuedNote(rest, { queueId });
         return winner ?? corrupt(TABLE, 'a nota emitida da devolução não foi achada');

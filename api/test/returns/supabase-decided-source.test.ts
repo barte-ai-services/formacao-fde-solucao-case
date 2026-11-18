@@ -6,10 +6,10 @@ import { SupabaseDecidedReturnSource } from '../../src/returns/supabase-decided-
 import { sweepReturnNotes } from '../../src/returns/sweep-return-notes.js';
 import { awaiting, decide, proposedWorld, returnFirstItem } from './supabase-decided-source.support.js';
 
-// #8 A leitura das decisões que devolvem, sobre o PostgREST falso com o kit e o Cron já rodado (14 decididas pela regra).
+// #156 A leitura das decisões que devolvem, sobre o PostgREST falso com o kit e o Cron já rodado (14 decididas pela regra).
 
-describe('#8 o adaptador lê as decisões: listDecided', () => {
-  it('#8/AC-1: lê aprovada e alterada com a ação, o dia da decisão, a nota e os recebimentos, e não lê as outras', async () => {
+describe('#156 o adaptador lê as decisões: listDecided', () => {
+  it('#156: lê aprovada e alterada com a ação, o dia da decisão, a nota e os recebimentos, e não lê as outras', async () => {
     const { fake, rest } = await proposedWorld();
     const e3 = awaiting(fake, 'E3');
     const e1 = awaiting(fake, 'E1');
@@ -24,7 +24,7 @@ describe('#8 o adaptador lê as decisões: listDecided', () => {
     expect(decided).toHaveLength(14 + 2);
     expect(byKey.get(String(e3.invoice_access_key))?.decision).toMatchObject({ classification: 'E3', state: 'alterada', decidedOn: '2026-11-12' });
     expect(byKey.get(String(e3.invoice_access_key))?.decision.dockAction.kind).toBe('receber_parcial');
-    // #8/AC-1 decided_on nulo cai no dia de approved_at.
+    // #156 decided_on nulo cai no dia de approved_at.
     expect(byKey.get(String(e1.invoice_access_key))?.decision).toMatchObject({ state: 'aprovada', decidedOn: '2026-11-13' });
     expect(byKey.has(String(registrada.invoice_access_key))).toBe(false);
     expect(byKey.has(String(awaiting(fake, 'E4').invoice_access_key))).toBe(false);
@@ -34,7 +34,7 @@ describe('#8 o adaptador lê as decisões: listDecided', () => {
     expect(one?.invoice.items.length).toBeGreaterThan(0);
   });
 
-  it('#8/AC-1: a nota da decisão sai com as divergências e o estado gravados', async () => {
+  it('#156: a nota da decisão sai com as divergências e o estado gravados', async () => {
     const { fake, rest } = await proposedWorld();
     const e3 = awaiting(fake, 'E3');
     decide(fake, e3, { state: 'aprovada', action: returnFirstItem(fake, e3), decidedOn: '2026-11-12' });
@@ -44,7 +44,7 @@ describe('#8 o adaptador lê as decisões: listDecided', () => {
     expect(invoice?.divergences.length).toBeGreaterThan(0);
   });
 
-  it('#8: lê em um número fixo de requisições: 4 leituras, todas GET, e nenhuma por decisão', async () => {
+  it('#156: lê em um número fixo de requisições: 4 leituras, todas GET, e nenhuma por decisão', async () => {
     const { fake, rest } = await proposedWorld();
     const first = awaiting(fake, 'E3', 0);
     decide(fake, first, { state: 'aprovada', action: returnFirstItem(fake, first), decidedOn: '2026-11-12' });
@@ -61,7 +61,7 @@ describe('#8 o adaptador lê as decisões: listDecided', () => {
   });
 });
 
-describe('#8/AC-3 linha fora do formato vira erro sem repetir os dados', () => {
+describe('#156 linha fora do formato vira erro sem repetir os dados', () => {
   const secret = 'segredo-nao-numerico';
 
   it('proposta com campo fora do formato', async () => {
@@ -142,8 +142,8 @@ describe('#8/AC-3 linha fora do formato vira erro sem repetir os dados', () => {
   });
 });
 
-describe('#8 a varredura sobre a fonte e a caixa de saída do Supabase', () => {
-  it('#8/AC-2 #1/AC-7: publicar a mesma nota duas vezes deixa uma linha só em outbox_return_notes', async () => {
+describe('#156 a varredura sobre a fonte e a caixa de saída do Supabase', () => {
+  it('#156: publicar a mesma nota duas vezes deixa uma linha só em outbox_return_notes', async () => {
     const { fake, rest } = await proposedWorld();
     const e3 = awaiting(fake, 'E3');
     decide(fake, e3, { state: 'alterada', action: returnFirstItem(fake, e3), decidedOn: '2026-11-12' });
@@ -157,7 +157,7 @@ describe('#8 a varredura sobre a fonte e a caixa de saída do Supabase', () => {
     expect(fake.rows('outbox_return_notes')).toHaveLength(1);
   });
 
-  it('#1/AC-6 #8/AC-2: a decisão sem devolução na fila é publicada na rodada, e a seguinte não grava nada', async () => {
+  it('#156: a decisão sem devolução na fila é publicada na rodada, e a seguinte não grava nada', async () => {
     const { fake, rest } = await proposedWorld();
     const e3 = awaiting(fake, 'E3');
     decide(fake, e3, { state: 'alterada', action: returnFirstItem(fake, e3), decidedOn: '2026-11-12' });
@@ -171,7 +171,7 @@ describe('#8 a varredura sobre a fonte e a caixa de saída do Supabase', () => {
     expect(fake.rows('outbox_return_notes')[0]).toMatchObject({ invoice_access_key: e3.invoice_access_key, status: 'pendente' });
   });
 
-  it('#1/AC-7: a devolução já emitida ou cancelada na fila não é publicada de novo', async () => {
+  it('#156: a devolução já emitida ou cancelada na fila não é publicada de novo', async () => {
     const { fake, rest } = await proposedWorld();
     const a = awaiting(fake, 'E3', 0);
     const b = awaiting(fake, 'E3', 1);
@@ -188,7 +188,7 @@ describe('#8 a varredura sobre a fonte e a caixa de saída do Supabase', () => {
     expect(fake.rows('outbox_return_notes')).toHaveLength(2);
   });
 
-  it('#8: uma rodada faz 4 leituras da fonte, 1 da fila e 1 gravação por nota nova', async () => {
+  it('#156: uma rodada faz 4 leituras da fonte, 1 da fila e 1 gravação por nota nova', async () => {
     const { fake, rest } = await proposedWorld();
     const e3 = awaiting(fake, 'E3');
     decide(fake, e3, { state: 'aprovada', action: returnFirstItem(fake, e3), decidedOn: '2026-11-12' });

@@ -7,9 +7,9 @@ import { returnNote } from '../domain/supplier-request-fixtures.js';
 import { GOOD_FOLLOW_UP, NOW, noReply, reading } from './reply-doubles.js';
 import { INBOX, OUTBOX, READINGS, inboxRow, readingRow, replyHarness, sentRow } from './supabase-reply-support.js';
 
-// #35: o adaptador do pedido na leitura da resposta sobre o PostgREST falso: cada gravação é uma requisição, numa tabela.
+// #157: o adaptador do pedido na leitura da resposta sobre o PostgREST falso: cada gravação é uma requisição, numa tabela.
 
-const RULE = 'supplier-overdue-sweep'; // #58: quem grava o rascunho montado pela regra na varredura (ADR-005)
+const RULE = 'supplier-overdue-sweep'; // #157: quem grava o rascunho montado pela regra na varredura (ADR-005)
 const FOLLOW_DUE = '2026-11-25';
 const ANA = 'ana@jachegou.example';
 const CLAIM = expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
@@ -21,7 +21,7 @@ const setup = (outbox: Record<string, unknown>[], extra: Record<string, Record<s
   return { ...h, store: supabaseReplyRequestStore(h.rest, { now: () => now }) };
 };
 
-/** #35: reivindica e devolve a ficha; falha o teste se a reivindicação não for ganha. */
+/** #157: reivindica e devolve a ficha; falha o teste se a reivindicação não for ganha. */
 async function won(store: ReturnType<typeof supabaseReplyRequestStore>, id = 1, by = ANA): Promise<string> {
   const attempt = await store.claimFollowUpSend(id, by, GOOD_FOLLOW_UP);
   if (attempt.kind !== 'won') throw new Error('a reivindicação devia ter sido ganha');
@@ -31,7 +31,7 @@ async function won(store: ReturnType<typeof supabaseReplyRequestStore>, id = 1, 
 const outboxRow = (fake: ReturnType<typeof replyHarness>['fake'], id = 1) => fake.rows(OUTBOX).find((r) => r.id === id) as Record<string, unknown>;
 const lastEntry = (row: Record<string, unknown>) => (row.history as Record<string, unknown>[]).at(-1) as Record<string, unknown>;
 
-describe('#35/AC-1 listSent: todo pedido enviado, com a leitura atual, a cobrança, a nota e o fornecedor', () => {
+describe('#157 listSent: todo pedido enviado, com a leitura atual, a cobrança, a nota e o fornecedor', () => {
   it('lê só os enviados, na ordem do id, e monta a leitura atual pela ordem das mensagens', async () => {
     const { store } = setup(
       [sentRow(2), sentRow(1), sentRow(3, { status: 'draft', sent_by: null, sent_at: null, channel: null, provider_message_id: null })],
@@ -107,7 +107,7 @@ describe('#35/AC-1 listSent: todo pedido enviado, com a leitura atual, a cobran�
   });
 });
 
-describe('#35/AC-1 recordReading: um fato novo por requisição; a mais nova vence pela ordem das mensagens', () => {
+describe('#157 recordReading: um fato novo por requisição; a mais nova vence pela ordem das mensagens', () => {
   const withMessages = () => setup([sentRow(1)], { [INBOX]: [inboxRow(5, 1), inboxRow(7, 1), inboxRow(8, 1)] });
 
   it('grava a leitura da mensagem e devolve recorded', async () => {
@@ -158,7 +158,7 @@ describe('#35/AC-1 recordReading: um fato novo por requisição; a mais nova ven
   });
 });
 
-describe('#35/AC-3 a varredura do prazo: um único no_reply por pedido, e a resposta tardia vence', () => {
+describe('#157 a varredura do prazo: um único no_reply por pedido, e a resposta tardia vence', () => {
   it('grava o no_reply do pedido sem leitura e devolve recorded; a segunda varredura é superseded (409 23505 no índice parcial)', async () => {
     const { fake, store } = setup([sentRow(1)]);
     expect(await store.recordReading(1, noReply(), null)).toBe('recorded');
@@ -173,7 +173,7 @@ describe('#35/AC-3 a varredura do prazo: um único no_reply por pedido, e a resp
     expect((await store.get(1))?.reading?.summary).toBe('Leitura da mensagem 5.');
   });
 
-  it('a resposta tardia vence o no_reply da varredura (#34)', async () => {
+  it('a resposta tardia vence o no_reply da varredura (#157)', async () => {
     const { store } = setup([sentRow(1)], { [INBOX]: [inboxRow(5, 1)] });
     await store.recordReading(1, noReply(), null);
     expect((await store.get(1))?.reading?.replyOutcome).toBe('no_reply');
@@ -188,7 +188,7 @@ describe('#35/AC-3 a varredura do prazo: um único no_reply por pedido, e a resp
   });
 });
 
-describe('#35/AC-3 #58/AC-1 o rascunho da cobrança: uma gravação guardada, e a cobrança não se repete', () => {
+describe('#157 o rascunho da cobrança: uma gravação guardada, e a cobrança não se repete', () => {
   it('grava o rascunho na linha do pedido, com o novo prazo, a versão +1 e a entrada de histórico no mesmo PATCH', async () => {
     const { fake, store } = setup([sentRow(1)]);
     await store.saveFollowUpDraft(1, GOOD_FOLLOW_UP, FOLLOW_DUE);
@@ -208,14 +208,14 @@ describe('#35/AC-3 #58/AC-1 o rascunho da cobrança: uma gravação guardada, e 
     expect(patches[0]?.url).toContain('status=eq.sent');
   });
 
-  it('o pedido lido traz o novo prazo do rascunho em followUp.dueOn, e o rascunho sem o campo (do Claude, antes da #58) traz nulo', async () => {
+  it('o pedido lido traz o novo prazo do rascunho em followUp.dueOn, e o rascunho sem o campo (do Claude, antes da #157) traz nulo', async () => {
     const { store } = setup([sentRow(1, { follow_up_draft: { ...GOOD_FOLLOW_UP, dueOn: FOLLOW_DUE } }), sentRow(2, { follow_up_draft: GOOD_FOLLOW_UP })]);
     const [a, b] = await store.listSent();
     expect(a?.followUp).toMatchObject({ draft: GOOD_FOLLOW_UP, dueOn: FOLLOW_DUE });
     expect(b?.followUp).toMatchObject({ draft: GOOD_FOLLOW_UP, dueOn: null });
   });
 
-  it('com rascunho já gravado, não grava de novo e volta (#35/AC-3)', async () => {
+  it('com rascunho já gravado, não grava de novo e volta (#157)', async () => {
     const { fake, store } = setup([sentRow(1)]);
     await store.saveFollowUpDraft(1, GOOD_FOLLOW_UP, FOLLOW_DUE);
     await store.saveFollowUpDraft(1, { ...GOOD_FOLLOW_UP, subject: 'Outro assunto' }, '2026-12-01');
@@ -236,11 +236,11 @@ describe('#35/AC-3 #58/AC-1 o rascunho da cobrança: uma gravação guardada, e 
   });
 });
 
-describe('#58/AC-4 e #58/AC-5 editFollowUpDraft: troca só o texto do rascunho ainda não enviado e sem envio reivindicado', () => {
+describe('#157 e #157 editFollowUpDraft: troca só o texto do rascunho ainda não enviado e sem envio reivindicado', () => {
   const drafted = () => setup([sentRow(1, { follow_up_draft: { ...GOOD_FOLLOW_UP, dueOn: FOLLOW_DUE } })]);
   const NEW_TEXT = { subject: 'Novo assunto {{nota.numero}}', body: 'Novo corpo {{cobranca.prazo}}.', asks: ['Pedir {{devolucao.total}}'] };
 
-  it('#58/AC-4: grava o texto novo num PATCH guardado, mantém o novo prazo, e o histórico leva quem editou (ADR-005)', async () => {
+  it('#157: grava o texto novo num PATCH guardado, mantém o novo prazo, e o histórico leva quem editou (ADR-005)', async () => {
     const { fake, store } = drafted();
     expect(await store.editFollowUpDraft(1, NEW_TEXT, ANA)).toBe('recorded');
     const row = outboxRow(fake);
@@ -249,48 +249,48 @@ describe('#58/AC-4 e #58/AC-5 editFollowUpDraft: troca só o texto do rascunho a
     const patches = fake.requests.filter((r) => r.method === 'PATCH');
     expect(patches).toHaveLength(1);
     expect(patches[0]?.url).toContain('follow_up_sent_at=is.null');
-    expect(patches[0]?.url).toContain('follow_up_claimed_at.is.null'); // #58/AC-5: sem reivindicação, ou com a reivindicação vencida (o `or` da guarda)
+    expect(patches[0]?.url).toContain('follow_up_claimed_at.is.null'); // #157: sem reivindicação, ou com a reivindicação vencida (o `or` da guarda)
     expect(JSON.stringify(lastEntry(row))).not.toContain('Novo corpo');
   });
 
-  it('#58/AC-5: com o carimbo gravado, volta already_sent e não grava', async () => {
+  it('#157: com o carimbo gravado, volta already_sent e não grava', async () => {
     const sent = { follow_up_draft: GOOD_FOLLOW_UP, follow_up_claimed_at: NOW.toISOString(), follow_up_claim: FIRST, follow_up_sent_by: ANA, follow_up_sent_at: NOW.toISOString(), follow_up_channel: 'mock', follow_up_provider_message_id: 'mock-9' };
     const { fake, store } = setup([sentRow(1, sent)]);
     expect(await store.editFollowUpDraft(1, NEW_TEXT, ANA)).toBe('already_sent');
     expect(outboxRow(fake)).toMatchObject({ follow_up_draft: GOOD_FOLLOW_UP, version: 3 });
   });
 
-  it('#58/AC-5: com o envio reivindicado e sem carimbo, volta send_in_progress e não grava', async () => {
+  it('#157: com o envio reivindicado e sem carimbo, volta send_in_progress e não grava', async () => {
     const claimed = { follow_up_draft: GOOD_FOLLOW_UP, follow_up_claimed_at: NOW.toISOString(), follow_up_claim: FIRST };
     const { fake, store } = setup([sentRow(1, claimed)]);
     expect(await store.editFollowUpDraft(1, NEW_TEXT, ANA)).toBe('send_in_progress');
     expect(outboxRow(fake)).toMatchObject({ follow_up_draft: GOOD_FOLLOW_UP, version: 3 });
   });
 
-  it('#58/AC-5: a reivindicação vencida (LEASE_MS) não trava a edição: grava o texto, solta a ficha vencida, e o antigo detentor perde o carimbo', async () => {
+  it('#157: a reivindicação vencida (LEASE_MS) não trava a edição: grava o texto, solta a ficha vencida, e o antigo detentor perde o carimbo', async () => {
     const claimed = { follow_up_draft: { ...GOOD_FOLLOW_UP, dueOn: FOLLOW_DUE }, follow_up_claimed_at: NOW.toISOString(), follow_up_claim: FIRST };
     const later = new Date(NOW.getTime() + LEASE_MS + 1000);
     const { fake, store } = setup([sentRow(1, claimed)], {}, later);
     expect(await store.editFollowUpDraft(1, NEW_TEXT, ANA)).toBe('recorded');
     expect(outboxRow(fake)).toMatchObject({ follow_up_draft: { ...NEW_TEXT, dueOn: FOLLOW_DUE }, follow_up_claimed_at: null, follow_up_claim: null, version: 4 });
-    expect(await store.recordFollowUpSent(1, FIRST, STAMP)).toBe('lost'); // #58/AC-5: o envio que parou não carimba o texto antigo como enviado
+    expect(await store.recordFollowUpSent(1, FIRST, STAMP)).toBe('lost'); // #157: o envio que parou não carimba o texto antigo como enviado
     expect(await store.claimFollowUpSend(1, ANA, NEW_TEXT)).toEqual({ kind: 'won', claim: CLAIM });
   });
 
-  it('#58/AC-5: a reivindicação ainda dentro do prazo segue travando a edição (send_in_progress, nada gravado)', async () => {
+  it('#157: a reivindicação ainda dentro do prazo segue travando a edição (send_in_progress, nada gravado)', async () => {
     const claimed = { follow_up_draft: GOOD_FOLLOW_UP, follow_up_claimed_at: NOW.toISOString(), follow_up_claim: FIRST };
     const { fake, store } = setup([sentRow(1, claimed)], {}, new Date(NOW.getTime() + LEASE_MS - 1000));
     expect(await store.editFollowUpDraft(1, NEW_TEXT, ANA)).toBe('send_in_progress');
     expect(outboxRow(fake)).toMatchObject({ follow_up_draft: GOOD_FOLLOW_UP, follow_up_claim: FIRST, version: 3 });
   });
 
-  it('#58/AC-5: a reivindicação vencida de um envio que já saiu não destrava a edição: already_sent', async () => {
+  it('#157: a reivindicação vencida de um envio que já saiu não destrava a edição: already_sent', async () => {
     const sent = { follow_up_draft: GOOD_FOLLOW_UP, follow_up_claimed_at: NOW.toISOString(), follow_up_claim: FIRST, follow_up_sent_by: ANA, follow_up_sent_at: NOW.toISOString(), follow_up_channel: 'mock', follow_up_provider_message_id: 'mock-9' };
     const { store } = setup([sentRow(1, sent)], {}, new Date(NOW.getTime() + 10 * LEASE_MS));
     expect(await store.editFollowUpDraft(1, NEW_TEXT, ANA)).toBe('already_sent');
   });
 
-  it('#58/AC-4: sem rascunho a gravação é recusada (lança, sem gravar), e o pedido que não existe também', async () => {
+  it('#157: sem rascunho a gravação é recusada (lança, sem gravar), e o pedido que não existe também', async () => {
     const { fake, store } = setup([sentRow(1)]);
     await expect(store.editFollowUpDraft(1, NEW_TEXT, ANA)).rejects.toBeInstanceOf(SupplierStoreError);
     await expect(store.editFollowUpDraft(9, NEW_TEXT, ANA)).rejects.toBeInstanceOf(SupplierStoreError);
@@ -298,17 +298,17 @@ describe('#58/AC-4 e #58/AC-5 editFollowUpDraft: troca só o texto do rascunho a
   });
 });
 
-describe('#35/AC-4 a reivindicação do envio: uma transição guardada e atômica', () => {
+describe('#157 a reivindicação do envio: uma transição guardada e atômica', () => {
   const drafted = () => setup([sentRow(1, { follow_up_draft: GOOD_FOLLOW_UP })]);
 
-  it('#58/AC-5: o texto que o envio leu já não é o gravado: volta stale e não reivindica nem grava nada', async () => {
+  it('#157: o texto que o envio leu já não é o gravado: volta stale e não reivindica nem grava nada', async () => {
     const { fake, store } = setup([sentRow(1, { follow_up_draft: { ...GOOD_FOLLOW_UP, body: 'Texto editado depois da leitura.' } })]);
     expect(await store.claimFollowUpSend(1, ANA, GOOD_FOLLOW_UP)).toEqual({ kind: 'stale' });
     expect(outboxRow(fake)).toMatchObject({ follow_up_claimed_at: null, follow_up_claim: null, version: 3 });
     expect(fake.requests.filter((r) => r.method === 'PATCH')).toHaveLength(0);
   });
 
-  it('#58/AC-5: a edição que entra entre a leitura da linha e a gravação da reivindicação é pega pela versão: volta stale e o texto editado fica', async () => {
+  it('#157: a edição que entra entre a leitura da linha e a gravação da reivindicação é pega pela versão: volta stale e o texto editado fica', async () => {
     const h = replyHarness({ [OUTBOX]: [sentRow(1, { follow_up_draft: GOOD_FOLLOW_UP })] });
     let edited = false;
     const racing = new SupabaseRest({
@@ -316,7 +316,7 @@ describe('#35/AC-4 a reivindicação do envio: uma transição guardada e atômi
       secretKey: 'sb_secret_teste',
       fetch: (input, init) => {
         if (!edited && init?.method === 'PATCH') {
-          edited = true; // #58/AC-5: a edição de outra pessoa entra aqui: depois da leitura do envio e antes do seu PATCH
+          edited = true; // #157: a edição de outra pessoa entra aqui: depois da leitura do envio e antes do seu PATCH
           Object.assign(outboxRow(h.fake), { follow_up_draft: { ...GOOD_FOLLOW_UP, body: 'Texto editado no meio.' }, version: 4 });
         }
         return h.fake.fetch(input, init);
@@ -337,7 +337,7 @@ describe('#35/AC-4 a reivindicação do envio: uma transição guardada e atômi
     expect(lastEntry(outboxRow(fake))).toMatchObject({ action: 'follow_up_claimed', follow_up: { claimed: true } });
   });
 
-  it('#35 a ficha da reivindicação vai para a coluna e nunca para o histórico nem para a leitura do pedido', async () => {
+  it('#157 a ficha da reivindicação vai para a coluna e nunca para o histórico nem para a leitura do pedido', async () => {
     const { fake, store } = drafted();
     const claim = await won(store);
     expect(outboxRow(fake).follow_up_claim).toBe(claim);
@@ -345,7 +345,7 @@ describe('#35/AC-4 a reivindicação do envio: uma transição guardada e atômi
     expect(JSON.stringify(await store.get(1))).not.toContain(claim);
   });
 
-  it('#35 a reivindicação tem prazo (o da #12): dentro dele volta taken; vencida, é retomada com outra ficha', async () => {
+  it('#157 a reivindicação tem prazo (o da #156): dentro dele volta taken; vencida, é retomada com outra ficha', async () => {
     const claimed = { follow_up_draft: GOOD_FOLLOW_UP, follow_up_claimed_at: NOW.toISOString(), follow_up_claim: FIRST };
     const inside = setup([sentRow(1, claimed)], {}, new Date(NOW.getTime() + LEASE_MS - 1000));
     expect(await inside.store.claimFollowUpSend(1, ANA, GOOD_FOLLOW_UP)).toEqual({ kind: 'taken' });
@@ -357,7 +357,7 @@ describe('#35/AC-4 a reivindicação do envio: uma transição guardada e atômi
     expect(outboxRow(expired.fake).follow_up_claim).not.toBe(FIRST);
   });
 
-  it('#35 a reivindicação vencida de um envio que já saiu não é retomada: o carimbo impede o segundo e-mail', async () => {
+  it('#157 a reivindicação vencida de um envio que já saiu não é retomada: o carimbo impede o segundo e-mail', async () => {
     const sent = { follow_up_draft: GOOD_FOLLOW_UP, follow_up_claimed_at: NOW.toISOString(), follow_up_claim: FIRST, follow_up_sent_by: ANA, follow_up_sent_at: NOW.toISOString(), follow_up_channel: 'mock', follow_up_provider_message_id: 'mock-9' };
     const { store } = setup([sentRow(1, sent)], {}, new Date(NOW.getTime() + 10 * LEASE_MS));
     expect(await store.claimFollowUpSend(1, ANA, GOOD_FOLLOW_UP)).toEqual({ kind: 'taken' });
@@ -424,7 +424,7 @@ describe('#35/AC-4 a reivindicação do envio: uma transição guardada e atômi
     await expect(store.recordFollowUpSent(99, FIRST, STAMP)).rejects.toBeInstanceOf(SupplierStoreError);
   });
 
-  it('claim, a reivindicação vence, segunda reivindicação: a falha e o carimbo do primeiro detentor são recusados (#35 REL-3)', async () => {
+  it('claim, a reivindicação vence, segunda reivindicação: a falha e o carimbo do primeiro detentor são recusados (#157 REL-3)', async () => {
     const first = setup([sentRow(1, { follow_up_draft: GOOD_FOLLOW_UP })]);
     const claimA = await won(first.store);
     const later = new Date(NOW.getTime() + LEASE_MS + 1000);
@@ -432,14 +432,14 @@ describe('#35/AC-4 a reivindicação do envio: uma transição guardada e atômi
     const claimB = await won(second);
     expect(claimB).not.toBe(claimA);
 
-    // #35 REL-3: A estagnou e volta: a falha dele não solta a reivindicação de B, e o carimbo dele não vale.
+    // #157 REL-3: A estagnou e volta: a falha dele não solta a reivindicação de B, e o carimbo dele não vale.
     expect(await first.store.recordFollowUpFailure(1, claimA, 'mailbox_full', ANA)).toBe('lost');
     expect(outboxRow(first.fake)).toMatchObject({ follow_up_claim: claimB, follow_up_claimed_at: later.toISOString(), follow_up_failure: null });
-    expect(await second.claimFollowUpSend(1, 'beto@jachegou.example', GOOD_FOLLOW_UP)).toEqual({ kind: 'taken' }); // #35: ninguém mais reivindica
+    expect(await second.claimFollowUpSend(1, 'beto@jachegou.example', GOOD_FOLLOW_UP)).toEqual({ kind: 'taken' }); // #157: ninguém mais reivindica
     expect(await first.store.recordFollowUpSent(1, claimA, STAMP)).toBe('lost');
     expect(outboxRow(first.fake)).toMatchObject({ follow_up_sent_at: null, follow_up_claim: claimB });
 
-    // #35 REL-3: B, o detentor, grava o carimbo.
+    // #157 REL-3: B, o detentor, grava o carimbo.
     expect(await second.recordFollowUpSent(1, claimB, { ...STAMP, by: 'beto@jachegou.example' })).toBe('recorded');
     expect(outboxRow(first.fake)).toMatchObject({ follow_up_sent_by: 'beto@jachegou.example', follow_up_claim: claimB });
   });
@@ -452,7 +452,7 @@ describe('#35/AC-4 a reivindicação do envio: uma transição guardada e atômi
   });
 });
 
-describe('#4/AC-6 e #35/AC-2 nada alcança a proposta, o título nem o valor em risco', () => {
+describe('#157 e #157 nada alcança a proposta, o título nem o valor em risco', () => {
   it('toda requisição dos adaptadores toca só as três tabelas da leitura; o que lê a mais é só invoices e kit_fornecedores', async () => {
     const { fake, store, rest } = setup([sentRow(1), sentRow(2)], { [INBOX]: [inboxRow(5, 1)] });
     const inbox = supabaseSupplierInbox(rest, { now: () => NOW });
@@ -498,7 +498,7 @@ describe('#4/AC-6 e #35/AC-2 nada alcança a proposta, o título nem o valor em 
   });
 });
 
-describe('#35 a falha do banco sai só com campos nomeados', () => {
+describe('#157 a falha do banco sai só com campos nomeados', () => {
   it('o erro do PostgREST em um PATCH vira SupplierStoreError sem o texto da resposta', async () => {
     const { fake, store } = setup([sentRow(1, { follow_up_draft: GOOD_FOLLOW_UP })]);
     fake.failNext(OUTBOX, 'PATCH', 500, { code: '40001', message: 'postgres://u:senha@db.interno', hint: 'role service_role' });

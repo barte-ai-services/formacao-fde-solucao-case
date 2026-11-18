@@ -1,4 +1,4 @@
-// #11: testes da tarefa do Cron (api/src/supplier/draft-task.ts); o caminho do rascunho tem os seus em draft.test.ts.
+// #156: testes da tarefa do Cron (api/src/supplier/draft-task.ts); o caminho do rascunho tem os seus em draft.test.ts.
 import { describe, expect, it } from 'vitest';
 import { ClaudeError } from '../../src/claude/client.js';
 import type { Db } from '../../src/claude/db.js';
@@ -7,7 +7,7 @@ import { GOOD_TEXT, draftInput, fakeAsk, fakeMailer, queueView, world } from './
 
 const db: Db = { select: async () => [], upsert: async () => [] };
 
-describe('#11/AC-1 a tarefa lista as devoluções pendentes sem pedido aberto', () => { // ADR-002
+describe('#156 a tarefa lista as devoluções pendentes sem pedido aberto', () => { // ADR-002
   it('uma chave estável por devolução da fila', async () => { // ADR-002
     const w = world(fakeMailer(), [queueView(7), queueView(8, { status: 'emitida' })]);
     const { requests, dropped } = await supplierRequestDraftTask(w.deps).pending(db);
@@ -31,7 +31,7 @@ describe('#11/AC-1 a tarefa lista as devoluções pendentes sem pedido aberto', 
   });
 });
 
-describe('#12/AC-1 o custo do Cron: poucas leituras, e a entrada da tarefa basta para o rascunho', () => { // ADR-002
+describe('#156 o custo do Cron: poucas leituras, e a entrada da tarefa basta para o rascunho', () => { // ADR-002
   it('pending lê a fila e os pedidos abertos uma vez cada, sem findOpen por devolução', async () => { // ADR-002
     const w = world(fakeMailer(), [queueView(7), queueView(8, { invoiceAccessKey: 'outra-chave' }), queueView(9, { invoiceAccessKey: 'mais-uma' })]);
     let listCalls = 0;
@@ -50,7 +50,7 @@ describe('#12/AC-1 o custo do Cron: poucas leituras, e a entrada da tarefa basta
     expect(w.requests.listOpenKeysArgs).toEqual([[queueView(7).invoiceAccessKey, 'outra-chave']]);
     const empty = world(fakeMailer(), [queueView(9, { status: 'emitida' })]);
     expect((await supplierRequestDraftTask(empty.deps).pending(db)).requests).toEqual([]);
-    expect(empty.requests.listOpenKeysArgs).toEqual([[]]); // #12: o adaptador não lê com lista vazia (supabase-store.test.ts)
+    expect(empty.requests.listOpenKeysArgs).toEqual([[]]); // #156: o adaptador não lê com lista vazia (supabase-store.test.ts)
   });
 
   it('a entrada leva o que o run precisa da fila: id, chave de acesso e linhas', async () => { // ADR-002
@@ -94,7 +94,7 @@ describe('#12/AC-1 o custo do Cron: poucas leituras, e a entrada da tarefa basta
   });
 });
 
-describe('#11/AC-2 texto do Claude recusado pelo catálogo', () => { // ADR-002
+describe('#156 texto do Claude recusado pelo catálogo', () => { // ADR-002
   it('a tarefa volta normalmente com o pedido descartado (os motivos estão em draft.test.ts)', async () => { // ADR-002
     const w = world();
     const bad = { ...GOOD_TEXT, body: 'Devolvemos 999 caixas.' };
@@ -109,7 +109,7 @@ describe('#11/AC-2 texto do Claude recusado pelo catálogo', () => { // ADR-002
   });
 });
 
-describe('#11/AC-1 sem credencial, 401 ou 429 não deixa rascunho', () => { // ADR-002
+describe('#156 sem credencial, 401 ou 429 não deixa rascunho', () => { // ADR-002
   it.each([
     ['auth', 401],
     ['rate_limit', 429],

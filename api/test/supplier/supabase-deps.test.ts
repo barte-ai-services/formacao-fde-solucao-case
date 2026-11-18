@@ -5,11 +5,11 @@ import { NOW, fakeAsk, fakeMailer } from './doubles.js';
 import { draftRequest } from '../../src/supplier/draft.js';
 import { harness, invoiceRow, queueRow, supplierRow } from './supabase-support.js';
 
-// #12: as portas do pedido ao fornecedor ligadas ao Supabase, do rascunho ao envio, sobre o PostgREST falso.
+// #156: as portas do pedido ao fornecedor ligadas ao Supabase, do rascunho ao envio, sobre o PostgREST falso.
 
 const seed = () => ({ outbox_return_notes: [queueRow()], invoices: [invoiceRow()], kit_fornecedores: [supplierRow()] });
 
-describe('#12/AC-5 do rascunho ao envio pela caixa de saída mock', () => { // ADR-002
+describe('#156 do rascunho ao envio pela caixa de saída mock', () => { // ADR-002
   it('rascunha, emite a nota uma vez, move a fila e envia pelo mock: o pedido guarda o canal e o envio', async () => { // ADR-002
     const { fake, rest } = harness(seed());
     const deps = supplierDeps(rest, { clock: { now: () => NOW } });
@@ -29,7 +29,7 @@ describe('#12/AC-5 do rascunho ao envio pela caixa de saída mock', () => { // A
     expect(String(fake.rows('outbox_supplier_emails')[0]?.provider_message_id)).toMatch(/^mock-/);
     expect(fake.rows('outbox_supplier_emails')[0]?.attachments).toEqual([
       { filename: 'nota-devolucao-ND-1.json', content_type: 'application/json', issued_return_note_id: 1 },
-      { filename: 'nota-devolucao-ND-1.pdf', content_type: 'application/pdf', issued_return_note_id: 1 }, // #57/AC-1
+      { filename: 'nota-devolucao-ND-1.pdf', content_type: 'application/pdf', issued_return_note_id: 1 }, // #156
     ]);
   });
 
@@ -64,7 +64,7 @@ describe('#12/AC-5 do rascunho ao envio pela caixa de saída mock', () => { // A
   });
 });
 
-describe('#12/AC-4 dois envios ao mesmo tempo do mesmo pedido', () => { // ADR-002
+describe('#156 dois envios ao mesmo tempo do mesmo pedido', () => { // ADR-002
   const BY = 'ana@jachegou.example';
 
   const twoSends = async (separateInstances: boolean) => {

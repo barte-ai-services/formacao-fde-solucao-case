@@ -1,5 +1,5 @@
-// #13: os cenários de aceite do pedido ao fornecedor (#2/AC-1 a AC-10 e os três cantos da história), de ponta a ponta pela rota
-// #13: sobre o PostgREST falso, com o Claude falso e o laço do Cron de verdade. O espelho de api/src/http/supplier-requests.ts (ADR-003).
+// #156: os cenários de aceite do pedido ao fornecedor (#156 a AC-10 e os três cantos da história), de ponta a ponta pela rota
+// #156: sobre o PostgREST falso, com o Claude falso e o laço do Cron de verdade. O espelho de api/src/http/supplier-requests.ts (ADR-003).
 import { describe, expect, it } from 'vitest';
 import { runClaudeRound } from '../../src/claude/cron.js';
 import { supabaseReturnNoteQueue } from '../../src/returns/return-notes.js';
@@ -7,12 +7,12 @@ import { SOURCE_KEY } from '../domain/supplier-request-fixtures.js';
 import { GOOD_TEXT, SUPPLIER_EMAIL, fakeAsk, fakeMailer } from '../supplier/doubles.js';
 import { askFailingWith, supplierWorld } from '../support/supplier-world.js';
 
-type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any -- #13 os corpos de resposta são lidos campo a campo
+type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any -- #156 os corpos de resposta são lidos campo a campo
 
 const requestOf = (reply: { body: Record<string, unknown> }): Json => reply.body.request as Json;
 
-describe('#2/AC-1 Dado uma devolução pendente, quando o Cron roda o agente, então há um rascunho com a nota e o e-mail', () => { // ADR-002
-  it('#2/AC-1 #13/AC-1: antes do Cron o pedido está sendo escrito; depois, é um rascunho com a nota pela regra e o e-mail do Claude', async () => { // ADR-002
+describe('#156 Dado uma devolução pendente, quando o Cron roda o agente, então há um rascunho com a nota e o e-mail', () => { // ADR-002
+  it('#156: antes do Cron o pedido está sendo escrito; depois, é um rascunho com a nota pela regra e o e-mail do Claude', async () => { // ADR-002
     const w = await supplierWorld();
     expect(requestOf(await w.call('GET', w.path()))).toEqual({ status: 'writing' });
 
@@ -29,14 +29,14 @@ describe('#2/AC-1 Dado uma devolução pendente, quando o Cron roda o agente, en
     expect(request.email.template).toContain('{{devolucao.total}}');
   });
 
-  it('#2/AC-1: uma nota sem devolução pendente nem pedido não tem pedido', async () => { // ADR-002
+  it('#156: uma nota sem devolução pendente nem pedido não tem pedido', async () => { // ADR-002
     const w = await supplierWorld({ emptyQueue: true });
     expect(requestOf(await w.call('GET', w.path()))).toBeNull();
   });
 });
 
-describe('#2/AC-2 a nota de devolução segue o formato do kit, cita a origem e só leva as linhas devolvidas', () => { // ADR-002
-  it('#2/AC-2: depois do envio, a nota tem as chaves do kit, a nota de origem, só a linha devolvida e o total da fila', async () => { // ADR-002
+describe('#156 a nota de devolução segue o formato do kit, cita a origem e só leva as linhas devolvidas', () => { // ADR-002
+  it('#156: depois do envio, a nota tem as chaves do kit, a nota de origem, só a linha devolvida e o total da fila', async () => { // ADR-002
     const w = await supplierWorld();
     await w.runCron();
     expect((await w.call('POST', w.path('/send'), { body: {} })).status).toBe(200);
@@ -54,8 +54,8 @@ describe('#2/AC-2 a nota de devolução segue o formato do kit, cita a origem e 
   });
 });
 
-describe('#2/AC-3 nada é emitido nem enviado sem a pessoa chamar a rota de envio', () => { // ADR-002
-  it('#2/AC-3: com o rascunho pronto, não há nota emitida, e-mail enviado nem fila movida', async () => { // ADR-002
+describe('#156 nada é emitido nem enviado sem a pessoa chamar a rota de envio', () => { // ADR-002
+  it('#156: com o rascunho pronto, não há nota emitida, e-mail enviado nem fila movida', async () => { // ADR-002
     const mailer = fakeMailer();
     const w = await supplierWorld({ mailer });
     await w.runCron();
@@ -68,8 +68,8 @@ describe('#2/AC-3 nada é emitido nem enviado sem a pessoa chamar a rota de envi
   });
 });
 
-describe('#2/AC-4 emitir gera chave e número pelo mock e a fila passa a emitida com o número', () => { // ADR-002
-  it('#2/AC-4 #13/AC-1: o envio emite a ND-n com a chave de 44 dígitos e a devolução da fila vira emitida com o número', async () => { // ADR-002
+describe('#156 emitir gera chave e número pelo mock e a fila passa a emitida com o número', () => { // ADR-002
+  it('#156: o envio emite a ND-n com a chave de 44 dígitos e a devolução da fila vira emitida com o número', async () => { // ADR-002
     const w = await supplierWorld();
     await w.runCron();
 
@@ -86,8 +86,8 @@ describe('#2/AC-4 emitir gera chave e número pelo mock e a fila passa a emitida
   });
 });
 
-describe('#2/AC-5 emitir de novo a mesma devolução não gera outra nota', () => { // ADR-002
-  it('#2/AC-5: um segundo envio do pedido já enviado é recusado e continua só uma nota emitida', async () => { // ADR-002
+describe('#156 emitir de novo a mesma devolução não gera outra nota', () => { // ADR-002
+  it('#156: um segundo envio do pedido já enviado é recusado e continua só uma nota emitida', async () => { // ADR-002
     const w = await supplierWorld();
     await w.runCron();
     await w.call('POST', w.path('/send'), { body: {} });
@@ -99,7 +99,7 @@ describe('#2/AC-5 emitir de novo a mesma devolução não gera outra nota', () =
     expect(w.rows('issued_return_notes')).toHaveLength(1);
   });
 
-  it('#2/AC-5: o reenvio depois da falha do envio manda o e-mail sem emitir outra nota', async () => { // ADR-002
+  it('#156: o reenvio depois da falha do envio manda o e-mail sem emitir outra nota', async () => { // ADR-002
     const mailer = fakeMailer({ ok: false, reason: 'resend_unavailable' });
     const w = await supplierWorld({ mailer });
     await w.runCron();
@@ -112,12 +112,12 @@ describe('#2/AC-5 emitir de novo a mesma devolução não gera outra nota', () =
     expect(requestOf(resent)).toMatchObject({ status: 'sent', returnNote: { number: 'ND-1' } }); // ADR-002
     expect(w.rows('issued_return_notes')).toHaveLength(1);
     expect(mailer.sent).toHaveLength(2);
-    expect(mailer.sent[1]?.attachments.map((a) => a.filename)).toEqual(['nota-devolucao-ND-1.json', 'nota-devolucao-ND-1.pdf']); // #57/AC-6
+    expect(mailer.sent[1]?.attachments.map((a) => a.filename)).toEqual(['nota-devolucao-ND-1.json', 'nota-devolucao-ND-1.pdf']); // #156
   });
 });
 
-describe('#2/AC-6 o e-mail sai pela caixa de saída mock quando não há chave do Resend', () => { // ADR-002
-  it('#2/AC-6: sem RESEND_API_KEY o pedido fica enviado pelo canal mock, com a nota anexa', async () => { // ADR-002
+describe('#156 o e-mail sai pela caixa de saída mock quando não há chave do Resend', () => { // ADR-002
+  it('#156: sem RESEND_API_KEY o pedido fica enviado pelo canal mock, com a nota anexa', async () => { // ADR-002
     const w = await supplierWorld();
     await w.runCron();
 
@@ -127,12 +127,12 @@ describe('#2/AC-6 o e-mail sai pela caixa de saída mock quando não há chave d
     const row = w.rows('outbox_supplier_emails')[0];
     expect(row).toMatchObject({ status: 'sent', channel: 'mock' }); // ADR-002
     expect(String(row?.provider_message_id)).toMatch(/^mock-/);
-    expect(row?.attachments).toHaveLength(2); // #57/AC-1
+    expect(row?.attachments).toHaveLength(2); // #156
   });
 });
 
-describe('#2/AC-7 número fora do catálogo descarta o rascunho e registra o motivo', () => { // ADR-002
-  it('#2/AC-7: o Claude escreve um número solto e o pedido nasce descartado, com o motivo, sem nota nem e-mail', async () => { // ADR-002
+describe('#156 número fora do catálogo descarta o rascunho e registra o motivo', () => { // ADR-002
+  it('#156: o Claude escreve um número solto e o pedido nasce descartado, com o motivo, sem nota nem e-mail', async () => { // ADR-002
     const w = await supplierWorld();
     await w.runCron(fakeAsk({ ...GOOD_TEXT, body: 'Devolvemos 99 itens, no valor de {{devolucao.total}}.' }));
 
@@ -145,8 +145,8 @@ describe('#2/AC-7 número fora do catálogo descarta o rascunho e registra o mot
   });
 });
 
-describe('#2/AC-8 a pessoa edita o texto do e-mail, mas não os números, os itens nem o que pedimos', () => { // ADR-002
-  it('#2/AC-8: o PATCH troca só o corpo; assunto, itens, total e lista do que pedimos ficam como estavam', async () => { // ADR-002
+describe('#156 a pessoa edita o texto do e-mail, mas não os números, os itens nem o que pedimos', () => { // ADR-002
+  it('#156: o PATCH troca só o corpo; assunto, itens, total e lista do que pedimos ficam como estavam', async () => { // ADR-002
     const w = await supplierWorld();
     await w.runCron();
     const before = requestOf(await w.call('GET', w.path()));
@@ -163,7 +163,7 @@ describe('#2/AC-8 a pessoa edita o texto do e-mail, mas não os números, os ite
     expect(after.returnNote).toEqual(before.returnNote);
   });
 
-  it('#2/AC-8: um texto com número solto é recusado com 422 e o corpo anterior fica', async () => { // ADR-002
+  it('#156: um texto com número solto é recusado com 422 e o corpo anterior fica', async () => { // ADR-002
     const w = await supplierWorld();
     await w.runCron();
     const before = requestOf(await w.call('GET', w.path()));
@@ -176,8 +176,8 @@ describe('#2/AC-8 a pessoa edita o texto do e-mail, mas não os números, os ite
   });
 });
 
-describe('#2/AC-9 uma nota de origem não tem dois pedidos abertos do mesmo tipo', () => { // ADR-002
-  it('#2/AC-9: o Cron rodando duas vezes cria um pedido só, e refazer com um aberto dá 409', async () => { // ADR-002
+describe('#156 uma nota de origem não tem dois pedidos abertos do mesmo tipo', () => { // ADR-002
+  it('#156: o Cron rodando duas vezes cria um pedido só, e refazer com um aberto dá 409', async () => { // ADR-002
     const w = await supplierWorld({ ask: fakeAsk() });
     await w.runCron();
     await w.runCron();
@@ -190,7 +190,7 @@ describe('#2/AC-9 uma nota de origem não tem dois pedidos abertos do mesmo tipo
     expect(w.rows('outbox_supplier_emails')).toHaveLength(1);
   });
 
-  it('#2/AC-9: descartado o rascunho, refazer abre um novo e só ele fica aberto', async () => { // ADR-002
+  it('#156: descartado o rascunho, refazer abre um novo e só ele fica aberto', async () => { // ADR-002
     const w = await supplierWorld({ ask: fakeAsk() });
     await w.runCron();
     const discarded = await w.call('POST', w.path('/discard'), { body: { reason: '  texto ruim  ' } });
@@ -206,8 +206,8 @@ describe('#2/AC-9 uma nota de origem não tem dois pedidos abertos do mesmo tipo
   });
 });
 
-describe('#2/AC-10 o pedido vai para o e-mail de teste do fornecedor', () => { // ADR-002
-  it('#2/AC-10: o rascunho e o e-mail enviado têm o e-mail do fornecedor como destino', async () => { // ADR-002
+describe('#156 o pedido vai para o e-mail de teste do fornecedor', () => { // ADR-002
+  it('#156: o rascunho e o e-mail enviado têm o e-mail do fornecedor como destino', async () => { // ADR-002
     const mailer = fakeMailer();
     const w = await supplierWorld({ mailer });
     await w.runCron();
@@ -220,8 +220,8 @@ describe('#2/AC-10 o pedido vai para o e-mail de teste do fornecedor', () => { /
   });
 });
 
-describe('#2 canto: sem credencial do Claude, ou com 401 ou 429, nenhum rascunho é criado e nada quebra', () => { // ADR-002
-  it('#2/AC-1: sem credencial a rodada do Claude pula as tarefas e o pedido segue sendo escrito', async () => { // ADR-002
+describe('#156 canto: sem credencial do Claude, ou com 401 ou 429, nenhum rascunho é criado e nada quebra', () => { // ADR-002
+  it('#156: sem credencial a rodada do Claude pula as tarefas e o pedido segue sendo escrito', async () => { // ADR-002
     const w = await supplierWorld();
 
     const round = await runClaudeRound(w.rest, {}, { log: () => undefined });
@@ -231,7 +231,7 @@ describe('#2 canto: sem credencial do Claude, ou com 401 ou 429, nenhum rascunho
     expect(w.rows('outbox_supplier_emails')).toHaveLength(0);
   });
 
-  it.each([401, 429])('#2/AC-1: com %i do Claude nenhum rascunho é criado e a leitura continua respondendo', async (status) => { // ADR-002
+  it.each([401, 429])('#156: com %i do Claude nenhum rascunho é criado e a leitura continua respondendo', async (status) => { // ADR-002
     const w = await supplierWorld();
 
     const log = await w.runCron(askFailingWith(status));
@@ -242,8 +242,8 @@ describe('#2 canto: sem credencial do Claude, ou com 401 ou 429, nenhum rascunho
   });
 });
 
-describe('#57 o e-mail do envio leva o JSON e o PDF da nota (cenário da história)', () => { // ADR-002
-  it('#57/AC-1 #57/AC-2: Dado um rascunho com nota, quando a pessoa envia, então a caixa de saída mock leva dois anexos e o GET do PDF o devolve', async () => { // ADR-002
+describe('#156 o e-mail do envio leva o JSON e o PDF da nota (cenário da história)', () => { // ADR-002
+  it('#156: Dado um rascunho com nota, quando a pessoa envia, então a caixa de saída mock leva dois anexos e o GET do PDF o devolve', async () => { // ADR-002
     const w = await supplierWorld();
     await w.runCron();
     expect((await w.call('POST', w.path('/send'), { body: {} })).status).toBe(200);
@@ -256,7 +256,7 @@ describe('#57 o e-mail do envio leva o JSON e o PDF da nota (cenário da histór
     expect([pdf.status, pdf.headers.get('content-type')]).toEqual([200, 'application/pdf']);
   });
 
-  it('#57/AC-3: o PDF devolvido traz o que o JSON da nota traz', async () => { // ADR-002
+  it('#156: o PDF devolvido traz o que o JSON da nota traz', async () => { // ADR-002
     const w = await supplierWorld();
     await w.runCron();
     await w.call('POST', w.path('/send'), { body: {} });
@@ -268,7 +268,7 @@ describe('#57 o e-mail do envio leva o JSON e o PDF da nota (cenário da histór
     expect(pdf).toContain('R$ 59,43');
   });
 
-  it('#57/AC-5: depois da emissão, o anexo da visão aponta para o PDF; antes, não há anexo', async () => { // ADR-002
+  it('#156: depois da emissão, o anexo da visão aponta para o PDF; antes, não há anexo', async () => { // ADR-002
     const w = await supplierWorld();
     await w.runCron();
     expect(requestOf(await w.call('GET', w.path())).attachment).toBeUndefined();
@@ -276,7 +276,7 @@ describe('#57 o e-mail do envio leva o JSON e o PDF da nota (cenário da histór
     expect(requestOf(await w.call('GET', w.path())).attachment).toEqual({ name: 'nota-devolucao-ND-1.pdf', url: w.path('/return-note.pdf') });
   });
 
-  it('#57/AC-6: o reenvio depois da falha anexa o mesmo PDF e continua uma só nota emitida', async () => { // ADR-002
+  it('#156: o reenvio depois da falha anexa o mesmo PDF e continua uma só nota emitida', async () => { // ADR-002
     const mailer = fakeMailer({ ok: false, reason: 'resend_unavailable' });
     const w = await supplierWorld({ mailer });
     await w.runCron();

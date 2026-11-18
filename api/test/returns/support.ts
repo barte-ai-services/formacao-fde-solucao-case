@@ -2,7 +2,7 @@ import type { Published, ReturnNoteMessage, ReturnNoteOutbox } from '../../src/c
 import { DockAction, Invoice, Money, Quantity, type Classification, type Product, type Receipt, type Unit } from '../../src/domain/index.js';
 import type { DecidedReturnCase } from '../../src/returns/publish-return-note.js';
 
-// #7 Apoio dos testes de api/test/returns: nota decidida e caixa de saída em memória.
+// #156 Apoio dos testes de api/test/returns: nota decidida e caixa de saída em memória.
 export const KEY = '35261100000000000000550010000099991000099999';
 export const OTHER_KEY = '35261100000000000000550010000088881000088888';
 
@@ -66,7 +66,7 @@ export type MemoryOutbox = {
   readonly calls: { publish: number; list: number };
 };
 
-/** #7 Dublê em memória da caixa de saída: grava toda publicação e conta as chamadas; a idempotência testada é a da varredura. */
+/** #156 Dublê em memória da caixa de saída: grava toda publicação e conta as chamadas; a idempotência testada é a da varredura. */
 export function memoryOutbox(seed: readonly ReturnNoteMessage[] = []): MemoryOutbox {
   const rows: Published<ReturnNoteMessage>[] = seed.map((m, i) => ({ ...m, id: i + 1, publishedAt: '2026-11-12T10:00:00Z' }));
   const calls = { publish: 0, list: 0 };

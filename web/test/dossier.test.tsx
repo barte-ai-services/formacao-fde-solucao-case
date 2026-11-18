@@ -61,8 +61,8 @@ describe("#38/AC-1 o dossiê pronto mostra divergência, evidência e histórico
   });
 });
 
-describe("#54/AC-4 a evidência de nota de devolução tem rótulo na tela (decisão do dono)", () => {
-  it("#54/AC-4 mostra \"Nota de devolução\" para a evidência cuja fonte é return_note, e não o código cru", () => {
+describe("#155 a evidência de nota de devolução tem rótulo na tela (decisão do dono)", () => {
+  it("#155 mostra \"Nota de devolução\" para a evidência cuja fonte é return_note, e não o código cru", () => {
     const withReturnNote: DossierField = {
       ...READY,
       divergences: [

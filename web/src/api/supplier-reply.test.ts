@@ -3,7 +3,7 @@ import { ApiError } from "./client";
 import type { ReadingListDto, SentRequestDetailDto } from "./contract";
 import { CONFIRM_DOCUMENT_TIMEOUT_MS, ConfirmRereadFailed, FOLLOW_UP_SAVE_TIMEOUT_MS, FOLLOW_UP_SEND_TIMEOUT_MS, saveFailureOf, supplierReplyApi, supplierReplyReason } from "./supplier-reply";
 
-// #21 O fio da lista "Pedidos ao fornecedor" (#5): o filtro vai na consulta, as contagens são do servidor, e o erro vira motivo fechado.
+// #157 O fio da lista "Pedidos ao fornecedor" (#157): o filtro vai na consulta, as contagens são do servidor, e o erro vira motivo fechado.
 
 const KEY = "35261100000000000000550010000200461000200461";
 const BASE = `/api/supplier-requests/${KEY}`;
@@ -46,34 +46,34 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("#21 fio da lista dos pedidos ao fornecedor", () => {
-  it("#5/AC-2: list pede o filtro pela consulta e devolve as linhas e as contagens do servidor", async () => {
+describe("#157 fio da lista dos pedidos ao fornecedor", () => {
+  it("#157: list pede o filtro pela consulta e devolve as linhas e as contagens do servidor", async () => {
     serve(() => Response.json(LIST));
     expect(await supplierReplyApi.list("overdue", new AbortController().signal)).toEqual(LIST);
     expect(calls).toEqual([{ method: "GET", path: "/api/supplier-requests?status=overdue", body: undefined }]);
   });
 
-  it("#5/AC-3: detail lê o pedido pela chave de acesso e devolve o pedido enviado", async () => {
+  it("#157: detail lê o pedido pela chave de acesso e devolve o pedido enviado", async () => {
     serve(() => Response.json({ request: SENT }));
     expect(await supplierReplyApi.detail(KEY, new AbortController().signal)).toEqual(SENT);
     expect(calls).toEqual([{ method: "GET", path: BASE, body: undefined }]);
   });
 
-  it("#5/AC-3: sem pedido, ou com um pedido que não está enviado, a carga da gaveta falha", async () => {
+  it("#157: sem pedido, ou com um pedido que não está enviado, a carga da gaveta falha", async () => {
     for (const request of [null, { status: "draft" }, { status: "writing" }]) {
       serve(() => Response.json({ request }));
       await expect(supplierReplyApi.detail(KEY, new AbortController().signal)).rejects.toBeInstanceOf(ApiError);
     }
   });
 
-  it("#5/AC-4: sendFollowUp é um POST com corpo vazio no .../send e devolve o pedido como ficou", async () => {
+  it("#157: sendFollowUp é um POST com corpo vazio no .../send e devolve o pedido como ficou", async () => {
     const after = { ...SENT, followUp: { ...SENT.followUp, sent: true, sentBy: "analista@barte.com", sentAt: "2026-11-15T13:12:00.000Z" } };
     serve(() => Response.json({ request: after }));
     expect(await supplierReplyApi.sendFollowUp(KEY)).toEqual(after);
     expect(calls).toEqual([{ method: "POST", path: `${BASE}/send`, body: {} }]);
   });
 
-  it("#5/AC-4: um 409 no envio (já enviado) relê o pedido e devolve como o servidor o tem, com followUp.sent", async () => {
+  it("#157: um 409 no envio (já enviado) relê o pedido e devolve como o servidor o tem, com followUp.sent", async () => {
     const sent = { ...SENT, followUp: { ...SENT.followUp, sent: true, sentAt: "2026-11-15T13:12:00.000Z" } };
     calls = [];
     vi.stubGlobal(
@@ -87,7 +87,7 @@ describe("#21 fio da lista dos pedidos ao fornecedor", () => {
     expect(calls.map((call) => `${call.method} ${call.path}`)).toEqual([`POST ${BASE}/send`, `GET ${BASE}`]);
   });
 
-  it("#5/AC-4: um 409 em que o pedido não consta enviado (envio em curso) devolve o pedido sem followUp.sent; outro erro segue como erro", async () => {
+  it("#157: um 409 em que o pedido não consta enviado (envio em curso) devolve o pedido sem followUp.sent; outro erro segue como erro", async () => {
     serve(() => Response.json({ request: SENT }));
     vi.stubGlobal("fetch", vi.fn(async (_input: RequestInfo | URL, init: RequestInit = {}) => (init.method === "POST" ? Response.json({ error: "conflict" }, { status: 409 }) : Response.json({ request: SENT }))));
     expect((await supplierReplyApi.sendFollowUp(KEY)).followUp.sent).toBe(false);
@@ -95,7 +95,7 @@ describe("#21 fio da lista dos pedidos ao fornecedor", () => {
     await expect(supplierReplyApi.sendFollowUp(KEY)).rejects.toBeInstanceOf(ApiError);
   });
 
-  it("#21: o envio da cobrança tem prazo próprio e termina como falha de rede (status 0) quando ele estoura", async () => {
+  it("#157: o envio da cobrança tem prazo próprio e termina como falha de rede (status 0) quando ele estoura", async () => {
     vi.useFakeTimers();
     vi.stubGlobal(
       "fetch",
@@ -114,7 +114,7 @@ describe("#21 fio da lista dos pedidos ao fornecedor", () => {
     expect((reason as ApiError).status).toBe(0);
   });
 
-  it("#21: o motivo do erro sai só do status; o corpo e a mensagem da API não entram", () => {
+  it("#157: o motivo do erro sai só do status; o corpo e a mensagem da API não entram", () => {
     const body = "texto cru da dependência";
     expect(supplierReplyReason(new ApiError(401, null, body))).toBe("unauthorized");
     expect(supplierReplyReason(new ApiError(403, "forbidden", body))).toBe("unauthorized");
@@ -128,16 +128,16 @@ describe("#21 fio da lista dos pedidos ao fornecedor", () => {
   });
 });
 
-// #59 O PATCH da cobrança: troca só o texto (o molde com {{...}}); o 422 e o 409 viram motivo fechado, e a chamada tem prazo.
-describe("#59 fio da edição da cobrança", () => {
-  it("#59/AC-2: saveFollowUp é um PATCH em .../follow-up com o molde e devolve o pedido como ficou, com o rascunho novo", async () => {
+// #157 O PATCH da cobrança: troca só o texto (o molde com {{...}}); o 422 e o 409 viram motivo fechado, e a chamada tem prazo.
+describe("#157 fio da edição da cobrança", () => {
+  it("#157: saveFollowUp é um PATCH em .../follow-up com o molde e devolve o pedido como ficou, com o rascunho novo", async () => {
     const after = { ...SENT, followUp: { ...SENT.followUp, draft: { subject: "Cobrança", body: "Novo 20/11", template: "Novo {{cobranca.prazo}}", asks: [] } } };
     serve(() => Response.json({ request: after }));
     expect(await supplierReplyApi.saveFollowUp(KEY, "Novo {{cobranca.prazo}}")).toEqual({ kind: "saved", detail: after });
     expect(calls).toEqual([{ method: "PATCH", path: `${BASE}/follow-up`, body: { template: "Novo {{cobranca.prazo}}" } }]);
   });
 
-  it("#59/AC-2: o 422 (número solto, forma inválida) falha como ApiError 422, e o motivo fechado é 'invalid'", async () => {
+  it("#157: o 422 (número solto, forma inválida) falha como ApiError 422, e o motivo fechado é 'invalid'", async () => {
     serve(() => Response.json({ error: "invalid", reason: "number_mismatch", field: "body" }, { status: 422 }));
     const reason = await supplierReplyApi.saveFollowUp(KEY, "263,62").catch((error: unknown) => error);
     expect(reason).toBeInstanceOf(ApiError);
@@ -145,7 +145,7 @@ describe("#59 fio da edição da cobrança", () => {
     expect(saveFailureOf(reason)).toBe("invalid");
   });
 
-  it("#59: um 409 (já enviado, envio em curso, sem rascunho, stale) relê o pedido e devolve como conflito", async () => {
+  it("#157: um 409 (já enviado, envio em curso, sem rascunho, stale) relê o pedido e devolve como conflito", async () => {
     const sent = { ...SENT, followUp: { ...SENT.followUp, sent: true, draft: null, sentAt: "2026-11-15T13:12:00.000Z" } };
     calls = [];
     vi.stubGlobal(
@@ -159,7 +159,7 @@ describe("#59 fio da edição da cobrança", () => {
     expect(calls.map((call) => `${call.method} ${call.path}`)).toEqual([`PATCH ${BASE}/follow-up`, `GET ${BASE}`]);
   });
 
-  it("#59: o motivo do salvamento sai só do status: 422 'invalid', 409 'conflict', o resto 'unknown'; o texto do erro não entra", () => {
+  it("#157: o motivo do salvamento sai só do status: 422 'invalid', 409 'conflict', o resto 'unknown'; o texto do erro não entra", () => {
     const body = "texto cru da dependência";
     expect(saveFailureOf(new ApiError(422, "invalid", body))).toBe("invalid");
     expect(saveFailureOf(new ApiError(409, "conflict", body))).toBe("conflict");
@@ -168,7 +168,7 @@ describe("#59 fio da edição da cobrança", () => {
     expect(saveFailureOf(new TypeError(body))).toBe("unknown");
   });
 
-  it("#59: o salvamento tem prazo próprio e termina como falha de rede (status 0) quando ele estoura", async () => {
+  it("#157: o salvamento tem prazo próprio e termina como falha de rede (status 0) quando ele estoura", async () => {
     vi.useFakeTimers();
     vi.stubGlobal(
       "fetch",
@@ -186,7 +186,7 @@ describe("#59 fio da edição da cobrança", () => {
     expect((reason as ApiError).status).toBe(0);
   });
 
-  it("#59: o envio que o servidor recusa por texto trocado no meio (409 stale) relê o pedido, com o texto novo, e nada saiu", async () => {
+  it("#157: o envio que o servidor recusa por texto trocado no meio (409 stale) relê o pedido, com o texto novo, e nada saiu", async () => {
     const changed = { ...SENT, followUp: { ...SENT.followUp, draft: { subject: "Cobrança", body: "Texto novo", template: "Texto novo", asks: [] } } };
     vi.stubGlobal("fetch", vi.fn(async (_input: RequestInfo | URL, init: RequestInit = {}) => (init.method === "POST" ? Response.json({ error: "conflict", reason: "stale" }, { status: 409 }) : Response.json({ request: changed }))));
     const reread = await supplierReplyApi.sendFollowUp(KEY);
@@ -195,17 +195,17 @@ describe("#59 fio da edição da cobrança", () => {
   });
 });
 
-describe("#64 fio da confirmação do documento citado", () => {
+describe("#157 fio da confirmação do documento citado", () => {
   const CONFIRMATION = { document: "NF-D 881", by: "analista@barte.com", at: "2026-11-17T13:05:00.000Z" };
   const CONFIRMED = { ...SENT, documentConfirmation: CONFIRMATION };
 
-  it("#64/AC-2: confirmDocument é um POST de corpo {} no .../confirm-document e devolve o pedido como ficou, com quem confirmou e quando", async () => {
+  it("#157: confirmDocument é um POST de corpo {} no .../confirm-document e devolve o pedido como ficou, com quem confirmou e quando", async () => {
     serve(() => Response.json({ request: CONFIRMED }));
     expect(await supplierReplyApi.confirmDocument(KEY)).toEqual({ kind: "confirmed", detail: CONFIRMED });
     expect(calls).toEqual([{ method: "POST", path: `${BASE}/confirm-document`, body: {} }]);
   });
 
-  it("#64/AC-2: um 409 (já confirmado, ou o pedido mudou) relê o pedido e o devolve como conflito; o corpo do 409 não é lido", async () => {
+  it("#157: um 409 (já confirmado, ou o pedido mudou) relê o pedido e o devolve como conflito; o corpo do 409 não é lido", async () => {
     calls = [];
     vi.stubGlobal(
       "fetch",
@@ -218,7 +218,7 @@ describe("#64 fio da confirmação do documento citado", () => {
     expect(calls.map((call) => `${call.method} ${call.path}`)).toEqual([`POST ${BASE}/confirm-document`, `GET ${BASE}`]);
   });
 
-  it("#64/AC-2: 403, 404 e 5xx seguem como erro (sem reler), para a tela tirar o motivo fechado do status", async () => {
+  it("#157: 403, 404 e 5xx seguem como erro (sem reler), para a tela tirar o motivo fechado do status", async () => {
     for (const status of [403, 404, 500, 502]) {
       serve(() => Response.json({ error: "x", correlationId: "c-1" }, { status }));
       await expect(supplierReplyApi.confirmDocument(KEY)).rejects.toMatchObject({ status });
@@ -226,7 +226,7 @@ describe("#64 fio da confirmação do documento citado", () => {
     }
   });
 
-  it("#64/AC-2: a chamada tem prazo próprio e termina como falha de rede (status 0) quando ele estoura", async () => {
+  it("#157: a chamada tem prazo próprio e termina como falha de rede (status 0) quando ele estoura", async () => {
     vi.useFakeTimers();
     vi.stubGlobal(
       "fetch",
@@ -244,12 +244,12 @@ describe("#64 fio da confirmação do documento citado", () => {
     expect((reason as ApiError).status).toBe(0);
   });
 
-  it("#64/AC-2: uma resposta 200 que não é o pedido enviado falha a chamada, em vez de mostrar o que não se sabe", async () => {
+  it("#157: uma resposta 200 que não é o pedido enviado falha a chamada, em vez de mostrar o que não se sabe", async () => {
     serve(() => Response.json({ request: { status: "draft" } }));
     await expect(supplierReplyApi.confirmDocument(KEY)).rejects.toBeInstanceOf(ApiError);
   });
 
-  it("#64: 409 já confirmado e a releitura falha: o motivo fechado 'already_confirmed' sai, sem o corpo nem o texto do erro", async () => {
+  it("#157: 409 já confirmado e a releitura falha: o motivo fechado 'already_confirmed' sai, sem o corpo nem o texto do erro", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (_input: RequestInfo | URL, init: RequestInit = {}) =>
@@ -262,7 +262,7 @@ describe("#64 fio da confirmação do documento citado", () => {
     expect(String((failure as Error).message)).not.toContain("texto cru");
   });
 
-  it("#64: 409 de outro motivo (ou um que a tela não conhece) e a releitura falha: o motivo fechado é 'other'", async () => {
+  it("#157: 409 de outro motivo (ou um que a tela não conhece) e a releitura falha: o motivo fechado é 'other'", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (_input: RequestInfo | URL, init: RequestInit = {}) =>

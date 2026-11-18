@@ -54,7 +54,7 @@ export interface RouterDeps {
   dock?: DockDeps;
   /** #140 A fila de notas de devolução. Padrão: o Supabase do Env. */
   returnNotes?: ReturnNotesDeps;
-  /** #13 O pedido ao fornecedor: Supabase, relógio, envio e Claude injetáveis. Padrão: o Env. */
+  /** #156 O pedido ao fornecedor: Supabase, relógio, envio e Claude injetáveis. Padrão: o Env. */
   supplierRequests?: SupplierRequestsDeps;
   /** Leitura das duplicidades (#31/AC-6). Padrão: o Supabase, se o env tem as credenciais. */
   duplicates?: (env: Env) => DuplicatesReader;
