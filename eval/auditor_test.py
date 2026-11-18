@@ -1,5 +1,6 @@
 """Testes do eval do auditor (#239), com um gabarito mínimo e sem ler o do kit."""
 import contextlib
+import errno
 import io
 import json
 import re
@@ -465,6 +466,17 @@ class MalformedInputTest(unittest.TestCase):
         self.assert_invalid(self.exit_of(all_correct()))
 
 
+SAVE_FAILURE = "não foi possível gravar a rodada na pasta de rodadas"
+STDOUT_FAILURE = "a rodada foi gravada, mas a saída padrão falhou"
+
+
+class BrokenStdout(io.StringIO):
+    """Saída padrão que falha ao escrever, como um pipe fechado."""
+
+    def write(self, text: str) -> int:
+        raise BrokenPipeError(errno.EPIPE, "Broken pipe")
+
+
 class ClosedClassTest(unittest.TestCase):
     """#245: a classe fechada no ponto de entrada. Toda exceção que não é o desfecho da E6 sai 2, com mensagem fixa."""
 
@@ -490,12 +502,17 @@ class ClosedClassTest(unittest.TestCase):
     def run_files(self) -> list[str]:
         return sorted(x.name for x in self.runs_dir.iterdir()) if self.runs_dir.exists() else []
 
-    def assert_fixed_two(self, result: tuple[int, str, str], forbidden: str = "", kept: list[str] | None = None) -> None:
+    def assert_fixed_two(
+        self,
+        result: tuple[int, str, str],
+        forbidden: str = "",
+        kept: list[str] | None = None,
+        message: str = auditor.UNEXPECTED_FAILURE,
+    ) -> None:
         code, out, err = result
         self.assertEqual(code, 2)
         self.assertEqual(out, "")
-        self.assertTrue(err.startswith("erro: "))
-        self.assertEqual(err.count("\n"), 1)
+        self.assertEqual(err, f"erro: {message}\n")
         self.assertNotIn("Traceback", err)
         if forbidden:
             self.assertNotIn(forbidden, err)
@@ -559,10 +576,35 @@ class ClosedClassTest(unittest.TestCase):
     def test_ac2_failed_write_leaves_no_file_and_next_run_succeeds(self) -> None:
         """#245/AC-2: gravação que falha não deixa arquivo (nem temporário) e a rodada seguinte sai 0."""
         with mock.patch("auditor.os.replace", side_effect=OSError("disco cheio")):
-            self.assert_fixed_two(self.run_lines(all_correct()), "disco cheio")
+            self.assert_fixed_two(self.run_lines(all_correct()), "disco cheio", message=SAVE_FAILURE)
         code, out, _ = self.run_lines(all_correct())
         self.assertEqual(code, 0)
         self.assertEqual(self.run_files(), [f"{json.loads(out)['run_id']}.json"])
+
+    def test_ac2_no_space_on_write_exits_two_with_save_message_and_leaves_nothing(self) -> None:
+        """#245/AC-2: disco cheio ao escrever o temporário sai 2 com a mensagem de gravação; nada sobra."""
+        with mock.patch("auditor.os.fdopen", side_effect=OSError(errno.ENOSPC, "No space left on device")):
+            self.assert_fixed_two(self.run_lines(all_correct()), "No space", message=SAVE_FAILURE)
+        self.assertEqual(self.run_files(), [])
+
+    def test_ac2_no_space_on_replace_exits_two_with_save_message_and_leaves_nothing(self) -> None:
+        """#245/AC-2: disco cheio no `os.replace` sai 2 com a mensagem de gravação; nem o temporário sobra."""
+        with mock.patch("auditor.os.replace", side_effect=OSError(errno.ENOSPC, "No space left on device")):
+            self.assert_fixed_two(self.run_lines(all_correct()), "No space", message=SAVE_FAILURE)
+        self.assertEqual(self.run_files(), [])
+
+    def test_ac2_broken_stdout_after_save_exits_two_and_keeps_the_run(self) -> None:
+        """#245/AC-2: stdout que falha depois de gravar sai 2 com a mensagem nova; a rodada continua gravada."""
+        err = io.StringIO()
+        self.audits.write_text("\n".join(json.dumps(x) for x in all_correct()) + "\n", encoding="utf-8")
+        argv = [str(self.audits), "--answer-key", str(self.key_file), "--runs-dir", str(self.runs_dir)]
+        with contextlib.redirect_stdout(BrokenStdout()), contextlib.redirect_stderr(err):
+            code = auditor.main(argv, now=lambda: NOW)
+        self.assertEqual(code, 2)
+        self.assertEqual(err.getvalue(), f"erro: {STDOUT_FAILURE}\n")
+        self.assertNotIn("nada foi gravado", err.getvalue())
+        self.assertEqual(len(self.run_files()), 1)
+        self.assertTrue(self.run_files()[0].endswith(".json"))
 
     def test_ac2_surrogate_failure_then_valid_run_succeeds(self) -> None:
         """#245/AC-2: depois de uma rodada recusada por surrogate, a rodada válida roda e grava um só arquivo."""

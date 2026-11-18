@@ -7,6 +7,7 @@ A medição (`measure`, `difference`, `markdown_report`) é pura; a leitura e a 
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
 import os
@@ -30,6 +31,8 @@ FIELDS = {"classification": "classificacao", "dock_action": "acao_doca", "routin
 EXIT_E6_MISSED = 1
 EXIT_USAGE = 2
 UNEXPECTED_FAILURE = "não foi possível processar a entrada; nada foi gravado"
+SAVE_FAILURE = "não foi possível gravar a rodada na pasta de rodadas"
+STDOUT_FAILURE = "a rodada foi gravada, mas a saída padrão falhou"
 
 
 class InvalidInput(ValueError):
@@ -396,42 +399,52 @@ def _save_run(folder: Path, run: Record, payload: bytes) -> None:
         folder.mkdir(parents=True, exist_ok=True)
         descriptor, temp_name = tempfile.mkstemp(dir=folder, prefix=".rodada-", suffix=".tmp")
     except OSError as error:
-        raise InvalidInput("não foi possível gravar a rodada na pasta de rodadas") from error
+        raise InvalidInput(SAVE_FAILURE) from error
     try:
         with os.fdopen(descriptor, "wb") as handle:
             handle.write(payload)
         os.replace(temp_name, folder / f"{run['run_id']}.json")
+    except OSError as error:
+        Path(temp_name).unlink(missing_ok=True)
+        raise InvalidInput(SAVE_FAILURE) from error
     except BaseException:
         Path(temp_name).unlink(missing_ok=True)
         raise
 
 
-def _publish(run: Record, args: argparse.Namespace) -> None:
+def _publish(run: Record, args: argparse.Namespace) -> str:
     """Valida tudo o que vai sair antes de gravar e de imprimir: uma falha de codificação não deixa nada pela metade.
 
     Texto com surrogate isolado passa pela checagem de tipo e só quebra ao codificar; por isso o JSON gravado e o
-    texto do stdout são codificados aqui, antes do `os.replace` e do `print`.
+    texto do stdout são codificados aqui, antes do `os.replace`. Devolve o texto; quem escreve no stdout é `main`,
+    depois da gravação, para que uma falha de saída não passe por falha de entrada.
     """
     text = _render(run, args.format)
     text.encode(getattr(sys.stdout, "encoding", None) or "utf-8")
     payload = (json.dumps(run, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     _save_run(args.runs_dir, run, payload)
-    sys.stdout.write(text)
+    return text
 
 
-def _run(args: argparse.Namespace, now: datetime) -> Record:
+def _run(args: argparse.Namespace, now: datetime) -> tuple[Record, str]:
     """Mede e publica; fecha a classe: toda exceção que não é `InvalidInput` vira `InvalidInput` de mensagem fixa (#245).
 
     A mensagem não leva o valor nem o texto da exceção (que ecoaria a entrada); a causa fica só em `__cause__`.
     """
     try:
         run = _execute(args, now)
-        _publish(run, args)
+        text = _publish(run, args)
     except InvalidInput:
         raise
     except Exception as error:
         raise InvalidInput(UNEXPECTED_FAILURE) from error
-    return run
+    return run, text
+
+
+def _complain(message: str) -> None:
+    """Escreve no stderr; se o próprio stderr falhar não há aonde avisar, e o código de saída é o que resta."""
+    with contextlib.suppress(OSError, ValueError):  # pipe fechado, ou arquivo já fechado
+        print(message, file=sys.stderr)
 
 
 def main(argv: list[str] | None = None, now: Callable[[], datetime] | None = None) -> int:
@@ -441,12 +454,18 @@ def main(argv: list[str] | None = None, now: Callable[[], datetime] | None = Non
     except SystemExit as exit_status:  # argparse sai com 0 em --help e com 2 em uso inválido (#239)
         return exit_status.code if isinstance(exit_status.code, int) else EXIT_USAGE
     try:
-        run = _run(args, (now or (lambda: datetime.now(timezone.utc)))())
+        run, text = _run(args, (now or (lambda: datetime.now(timezone.utc)))())
     except InvalidInput as error:
-        print(f"erro: {error.why}", file=sys.stderr)
+        _complain(f"erro: {error.why}")
+        return EXIT_USAGE
+    try:
+        sys.stdout.write(text)
+        sys.stdout.flush()
+    except OSError:  # a rodada já está gravada; só a saída padrão falhou
+        _complain(f"erro: {STDOUT_FAILURE}")
         return EXIT_USAGE
     if e6_missed(run):
-        print("falha: alguma duplicidade (E6) do gabarito não foi classificada como E6", file=sys.stderr)
+        _complain("falha: alguma duplicidade (E6) do gabarito não foi classificada como E6")
         return EXIT_E6_MISSED
     return 0
 
