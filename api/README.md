@@ -199,6 +199,7 @@ entra o modo paginado, que é o contrato novo.
 |---|---|---|
 | `limite` | inteiro de 25 a 50; ausente (com `cursor`) é 30 | 400 `{ "error": "limite_invalido" }` |
 | `cursor` | o `nextCursor` da página anterior, como veio; ausente é a primeira página | 400 `{ "error": "cursor_invalido" }` |
+| `pode_aprovar` | só na fila (#323, ADR-006): o valor `1`; ausente é sem filtro | 400 `{ "error": "pode_aprovar_invalido" }` |
 
 Por que 30: é o meio da faixa. Enche uma tela de tabela com folga, para o scroll infinito pedir a
 próxima página antes de a pessoa chegar ao fim, e a resposta cabe no Worker sem custo. O 400 traz só o
@@ -212,7 +213,7 @@ Mais os campos de contexto da lista.
 
 | Lista | Contexto | `aggregates` | Os itens |
 |---|---|---|---|
-| `/api/fila` | `approver` | `approvable` (quantas a pessoa pode aprovar), `amountAtRisk` (soma do valor em risco), `blocked` (quantas no nível `bloqueio`) | os de antes, em `items` |
+| `/api/fila` | `approver` | `all` (a fila inteira, #323), `approvable` (quantas a pessoa pode aprovar), `amountAtRisk` (soma do valor em risco), `blocked` (quantas no nível `bloqueio`) | os de antes, em `items` |
 | `/api/hoje` | `day` | `toPay` (a soma "A pagar"), `approvedByRule` (quantas aprovadas pela regra) | os de antes, em `items` |
 | `/api/duplicates` | nenhum | `blockedAmount` (soma do valor barrado), `byReason` (`titulo_lancado` e `ordem_sem_saldo`) | as entradas de `duplicates`, em `items` |
 | `/api/doca` | `destination`, `date`, `destinations` | `awaiting` (aguardando aprovação no destino inteiro) | as `rows`, em `items` |
@@ -220,6 +221,14 @@ Mais os campos de contexto da lista.
 Atenção a `total` na lista do dia: sem cursor continua `{ "cents": ... }` (a soma); com cursor é a
 contagem, e a soma passou para `aggregates.toPay`. Na doca, `rows` vira `items`, e `awaiting` sai do topo
 e vai para `aggregates`.
+
+**Filtro da fila (#323).** `GET /api/fila?pode_aprovar=1` devolve só as notas que `canApprove` marca para
+quem pede, na ordem da fila; `total` conta a lista filtrada. Só o valor `1` vale: `0`, vazio e qualquer outro
+valor são 400 `pode_aprovar_invalido`, sem repetir o valor. O filtro sozinho (sem `cursor` nem `limite`) já
+ativa o modo paginado, com o limite padrão de 30; as outras listas não leem `pode_aprovar`. Os `aggregates`
+(`all`, `approvable`, `amountAtRisk`, `blocked`) valem para a fila inteira, iguais com ou sem o filtro e em
+qualquer página: `aggregates.all` é a contagem do chip "Todas" e `aggregates.approvable` a de "Minhas",
+igual ao `total` filtrado. Sem `cursor`, `limite` nem o filtro, a resposta é a de antes: `{ approver, items }`.
 
 **Ordem.** Cada lista tem uma ordem total, que vale só nas páginas: fila, o nível mais severo primeiro
 (`APPROVAL_LEVELS`), depois o maior valor em risco, depois a chave de acesso; hoje e duplicadas, a chave
@@ -230,7 +239,7 @@ número da nota): a ordem antiga faz parte do contrato do modo inteiro.
 **Cursor.** É opaco: base64url de um JSON versionado com a tupla de ordenação do último item entregue e o
 identidade da lista, que inclui os filtros. A próxima página são os itens estritamente depois dessa tupla, e não uma posição: um item
 decidido entre duas páginas não faz outro pular nem repetir. O cursor de uma lista não serve noutra, nem com outro filtro: usado assim, devolve 400 `cursor_invalido`.
-A identidade de cada lista é `fila`; `hoje:<dia>`; `duplicadas`; `doca:<destino>:<data>` e
+A identidade de cada lista é `fila` (ou `fila:pode_aprovar` com o filtro, #323: um cursor de uma não serve na outra); `hoje:<dia>`; `duplicadas`; `doca:<destino>:<data>` e
 `recebimento-loja:<loja>:<data>`, em que destino ou loja é o que a resposta mostra (sem `destino` na query o
 servidor escolhe o primeiro, e o cursor vale para esse, com ou sem o `destino` explícito na página seguinte).
 Quem consome trata o cursor como texto e não o monta.
