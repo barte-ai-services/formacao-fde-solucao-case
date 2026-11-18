@@ -329,7 +329,7 @@ def reader_with(get: Callable[[str, int], tuple[int, bytes]] | None = None) -> e
     """Um Reader de teste; `get` troca o _get, para a página vir de onde o teste quiser."""
     reader = ea.Reader("https://exemplo.invalid", TEST_KEY)
     if get is not None:
-        reader._get = get  # type: ignore[method-assign]
+        reader._get = get  # type: ignore[assignment]
     return reader
 
 
