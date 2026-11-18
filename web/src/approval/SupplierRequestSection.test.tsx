@@ -101,12 +101,12 @@ describe("#3 pedido ao fornecedor: emitir e enviar", () => {
     click(t.actions.sendWithNote);
     expect(p.send).toHaveBeenCalledWith(KEY);
     const busy = await screen.findByRole("button", { name: t.pending.sendWithNote });
-    expect(region().getAttribute("aria-busy")).toBe("true");
+    expect(region().parentElement?.getAttribute("aria-busy") ?? null).toBe("true");
     for (const b of screen.getAllByRole("button")) expect((b as HTMLButtonElement).disabled).toBe(true);
     expect(busy).toBeTruthy();
     pending.resolve({ status: "sent", sentBy: VIEWER, sentAt: SENT_AT, returnNote: note, email });
     expect(await screen.findByText(/Nota de devolução ND-0012 emitida e enviada por você/)).toBeTruthy();
-    expect(region().getAttribute("aria-busy")).toBeNull();
+    expect(region().parentElement?.getAttribute("aria-busy") ?? null).toBeNull();
   });
 
   it.each([
@@ -122,7 +122,7 @@ describe("#3 pedido ao fornecedor: emitir e enviar", () => {
     expect(await screen.findByText(message)).toBeTruthy();
     expect(region().textContent).not.toMatch(/SQLSTATE|codigo_interno|corpo cru/);
     expect(button(t.actions.sendWithNote).disabled).toBe(false);
-    expect(region().getAttribute("aria-busy")).toBeNull();
+    expect(region().parentElement?.getAttribute("aria-busy") ?? null).toBeNull();
   });
 
   it("#3/AC-4: a falha de rede (status 0) também mostra só a mensagem genérica", async () => {
