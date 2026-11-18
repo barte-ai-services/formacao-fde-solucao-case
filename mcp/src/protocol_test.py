@@ -2,21 +2,22 @@
 
 import json
 import unittest
+from dataclasses import replace
 from typing import Optional
 
 import app
 from json_types import JsonValue
-from protocol import HttpRequest, HttpResponse
+from protocol import HttpRequest, HttpResponse, Settings
 from test_support import JWT, FakeApi
 
 
 def request(body: JsonValue, method: str = "POST", path: str = "/mcp") -> HttpRequest:
     text = body if isinstance(body, str) else json.dumps(body)
-    return HttpRequest(method, path, text, JWT)
+    return HttpRequest(method, path, text, JWT, content_type="application/json")
 
 
-async def ask(http_request: HttpRequest, api: Optional[FakeApi] = None) -> HttpResponse:
-    return await app.handle(http_request, api or FakeApi(), lambda fields: None)
+async def ask(http_request: HttpRequest, api: Optional[FakeApi] = None, settings: Settings = Settings()) -> HttpResponse:
+    return await app.handle(http_request, api or FakeApi(), lambda fields: None, settings)
 
 
 def rpc(method: str, params: JsonValue = None, id: Optional[int] = 1) -> dict[str, JsonValue]:
@@ -40,6 +41,12 @@ class InitializeTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_devolve_a_mais_recente_quando_a_pedida_nao_e_suportada(self) -> None:  # ADR-002
         self.assertEqual((await self.initialize("1999-01-01"))["protocolVersion"], "2025-11-25")
+
+    async def test_so_as_versoes_cujo_transporte_o_endpoint_fala_sem_lote(self) -> None:  # ADR-002
+        """#272: 2025-03-26 e 2024-11-05 admitem lote JSON-RPC, que este endpoint não atende."""
+        for requested in ("2025-03-26", "2024-11-05"):
+            self.assertEqual((await self.initialize(requested))["protocolVersion"], "2025-11-25")
+        self.assertEqual((await self.initialize("2025-11-25"))["protocolVersion"], "2025-11-25")
 
     async def test_declara_a_capacidade_de_tools(self) -> None:  # ADR-002
         result = await self.initialize("2025-06-18")
@@ -66,6 +73,45 @@ class NotificationsAndPingTest(unittest.IsolatedAsyncioTestCase):
     async def test_outro_caminho_e_404(self) -> None:  # ADR-002
         response = await ask(request(rpc("ping"), path="/outra"))
         self.assertEqual(response.status, 404)
+
+
+class CrossSiteGuardTest(unittest.IsolatedAsyncioTestCase):
+    """#272: um POST de outro site (uma página que o navegador da pessoa abriu) não chega às tools."""
+
+    LIST_TOOLS = rpc("tools/list")
+    ALLOWED = Settings(allowed_origins=("https://claude.ai",))
+
+    async def ask_with(self, settings: Settings = Settings(), **headers: str) -> HttpResponse:
+        return await ask(replace(request(self.LIST_TOOLS), **headers), FakeApi(), settings)  # type: ignore[arg-type]
+
+    async def test_content_type_que_nao_e_json_e_415_sem_chamar_nada(self) -> None:  # ADR-002
+        for content_type in ("text/plain", "application/x-www-form-urlencoded", "multipart/form-data", None):
+            api = FakeApi()
+            response = await ask(replace(request(rpc("tools/call", {"name": "list_approval_queue"})), content_type=content_type), api)
+            self.assertEqual(response.status, 415, content_type)
+            self.assertEqual(api.calls, [])
+
+    async def test_json_com_charset_e_aceito(self) -> None:  # ADR-002
+        for content_type in ("application/json; charset=utf-8", "Application/JSON"):
+            self.assertEqual((await self.ask_with(content_type=content_type)).status, 200)
+
+    async def test_origin_presente_e_recusado_com_403_quando_a_lista_esta_vazia(self) -> None:  # ADR-002
+        api = FakeApi()
+        response = await ask(replace(request(rpc("tools/call", {"name": "list_approval_queue"})), origin="https://outro.site"), api)
+        self.assertEqual(response.status, 403)
+        self.assertEqual(api.calls, [])
+
+    async def test_origin_fora_da_lista_e_403_e_na_lista_passa(self) -> None:  # ADR-002
+        self.assertEqual((await self.ask_with(self.ALLOWED, origin="https://outro.site")).status, 403)
+        self.assertEqual((await self.ask_with(self.ALLOWED, origin="null")).status, 403)
+        self.assertEqual((await self.ask_with(self.ALLOWED, origin="https://claude.ai")).status, 200)
+
+    async def test_sem_origin_e_o_cliente_de_servidor_e_segue(self) -> None:  # ADR-002
+        self.assertEqual((await self.ask_with()).status, 200)
+
+    async def test_a_recusa_nao_carrega_corpo_nem_o_jwt(self) -> None:  # ADR-002
+        response = await self.ask_with(origin="https://outro.site")
+        self.assertIsNone(response.body)
 
 
 class JsonRpcErrorsTest(unittest.IsolatedAsyncioTestCase):

@@ -15,6 +15,7 @@ from json_types import JsonObject, JsonValue
 # #272 Pyodide não traz. Se o horário de verão voltar, este é o ponto a trocar.
 SAO_PAULO = timezone(timedelta(hours=-3))
 _UPPERCASE = re.compile(r"(?<!^)(?=[A-Z])")
+_HAS_TIME = re.compile(r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}")
 
 
 def to_snake(name: str) -> str:
@@ -41,8 +42,9 @@ def _money(value: JsonValue) -> Optional[JsonObject]:
 
 
 def hour_in_sao_paulo(moment: JsonValue) -> Optional[str]:
-    """Um instante ISO 8601 como 10h12, no horário de Brasília. Nulo se não for um instante."""
-    if not isinstance(moment, str):
+    """Um instante ISO 8601 como 10h12, no horário de Brasília. Nulo se não for um instante com hora: um valor
+    só com a data (#272/AC-5) não diz a que horas foi, e converter a meia-noite daria a hora de outro dia."""
+    if not isinstance(moment, str) or not _HAS_TIME.match(moment):
         return None
     try:
         when = datetime.fromisoformat(moment.replace("Z", "+00:00"))
@@ -55,7 +57,7 @@ def hour_in_sao_paulo(moment: JsonValue) -> Optional[str]:
 
 
 def queue_item(line: JsonObject) -> JsonObject:
-    """Os campos da linha da fila (#137). GET /api/fila não traz o dossiê nem o motor."""
+    """Os campos da linha da fila (#137)."""
     return {
         "invoice_access_key": line.get("invoiceAccessKey"),
         "number": line.get("number"),
@@ -69,7 +71,9 @@ def queue_item(line: JsonObject) -> JsonObject:
         "amount_at_risk": _money(line.get("amountAtRisk")),
         "dock_action": _dock_action(line.get("dockAction")),
         "can_decide": line.get("canApprove") is True,
-        "dossier_status": "none",
+        # #272 GET /api/fila não traz o dossiê: null é "desconhecido", e o valor real vem em get_proposal.
+        "dossier_status": None,
+        # #137 null já é "sem avaliação"; o motor também só vem em get_proposal.
         "engine": None,
     }
 

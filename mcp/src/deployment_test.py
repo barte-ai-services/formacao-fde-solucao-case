@@ -27,6 +27,10 @@ class WranglerConfigTest(unittest.TestCase):
         self.assertTrue(config["main"].endswith(".py"))
         self.assertIn({"binding": "API", "service": "formacao-fde-solucao-case-api"}, config["services"])
 
+    def test_ac7_a_lista_de_origens_permitidas_e_uma_variavel_vazia_por_padrao(self) -> None:  # ADR-002
+        """#272/AC-7: vazia, qualquer Origin presente é recusado; o plano 3 (#275) ajusta se preciso."""
+        self.assertEqual(wrangler_config()["vars"], {"MCP_ALLOWED_ORIGINS": ""})
+
 
 
 class WorkflowTest(unittest.TestCase):
@@ -39,9 +43,39 @@ class WorkflowTest(unittest.TestCase):
         self.assertIn("if: github.ref == 'refs/heads/main'", text)
         self.assertIn("environment: producao", text)
         self.assertIn("working-directory: mcp", text)
-        self.assertIn("npx wrangler@4.156.0 deploy", text)
+        self.assertIn("npx wrangler deploy", text)
+        self.assertNotIn("wrangler@", text)
         self.assertIn("python3 -m unittest discover -s mcp/src", text)
         self.assertRegex(text, r"paths:\s*\n\s*- \"mcp/\*\*\"")
+
+    def steps(self) -> list[str]:
+        return self.workflow().split("\n      - ")[1:]
+
+    def test_ac7_as_dependencias_instalam_do_lockfile_num_passo_sem_secrets(self) -> None:  # ADR-002
+        """#272/AC-7 e SUP-1: `npm ci` roda scripts de instalação, então nenhum secret está no ambiente dele."""
+        installs = [step for step in self.steps() if "npm ci" in step]
+        self.assertEqual(len(installs), 1)
+        self.assertIn("working-directory: mcp", installs[0])
+        for forbidden in ("secrets.", "CLOUDFLARE", "env:"):
+            self.assertNotIn(forbidden, installs[0])
+
+    def test_ac7_o_deploy_usa_o_wrangler_instalado_e_so_ele_ve_as_credenciais(self) -> None:  # ADR-002
+        """#272/AC-7 e SUP-1: o wrangler vem do node_modules travado, não de um `npx` que resolve a árvore na hora."""
+        steps = self.steps()
+        deploys = [step for step in steps if "wrangler deploy" in step]
+        self.assertEqual(len(deploys), 1)
+        self.assertIn("CLOUDFLARE_API_TOKEN: ${{ secrets.BARTE_ACADEMY_CLOUDFLARE_API_TOKEN }}", deploys[0])
+        self.assertIn("CLOUDFLARE_ACCOUNT_ID: ${{ secrets.BARTE_ACADEMY_CLOUDFLARE_ACCOUNT_ID }}", deploys[0])
+        self.assertEqual([step for step in steps if "secrets." in step], deploys)
+        install = next(i for i, step in enumerate(steps) if "npm ci" in step)
+        self.assertLess(install, steps.index(deploys[0]))
+
+    def test_ac7_o_node_vem_do_setup_node_com_cache_do_lockfile_do_mcp(self) -> None:  # ADR-002
+        """#272/AC-7"""
+        setup = next(step for step in self.steps() if "actions/setup-node@" in step)
+        self.assertRegex(setup, r"actions/setup-node@[0-9a-f]{40} # v4")
+        self.assertIn("cache: npm", setup)
+        self.assertIn("cache-dependency-path: mcp/package-lock.json", setup)
 
     def test_ac7_nenhuma_expressao_do_actions_na_linha_de_comando(self) -> None:  # ADR-002
         """#272/AC-7"""
@@ -54,6 +88,34 @@ class WorkflowTest(unittest.TestCase):
         used = set(re.findall(r"secrets\.([A-Z0-9_]+)", self.workflow()))
         self.assertEqual(used, {"BARTE_ACADEMY_CLOUDFLARE_API_TOKEN", "BARTE_ACADEMY_CLOUDFLARE_ACCOUNT_ID"})
 
+
+
+class LockedDependenciesTest(unittest.TestCase):
+    def package(self) -> JsonObject:
+        return json.loads((MCP_DIR / "package.json").read_text(encoding="utf-8"))
+
+    def lock_packages(self) -> JsonObject:
+        return json.loads((MCP_DIR / "package-lock.json").read_text(encoding="utf-8"))["packages"]
+
+    def test_ac7_o_wrangler_e_a_unica_dependencia_e_tem_versao_exata(self) -> None:  # ADR-002
+        """#272/AC-7 e SUP-1"""
+        package = self.package()
+        self.assertEqual(self.lock_packages()[""]["devDependencies"], package["devDependencies"])
+        self.assertTrue(package["private"])
+        self.assertEqual(package["devDependencies"], {"wrangler": "4.156.0"})
+        self.assertNotIn("dependencies", package)
+
+    def test_ac7_o_lockfile_trava_a_arvore_inteira_com_integridade(self) -> None:  # ADR-002
+        """#272/AC-7 e SUP-1"""
+        packages = self.lock_packages()
+        self.assertEqual(packages["node_modules/wrangler"]["version"], "4.156.0")
+        unlocked = [name for name, entry in packages.items() if name and "integrity" not in entry and not entry.get("link")]
+        self.assertEqual(unlocked, [])
+
+    def test_ac7_o_node_modules_nao_vai_para_o_git(self) -> None:  # ADR-002
+        """#272/AC-7"""
+        self.assertIn("node_modules/", (REPO_DIR / ".gitignore").read_text(encoding="utf-8").splitlines())
+        self.assertEqual(self.package()["name"], "formacao-fde-solucao-case-mcp")
 
 
 class NoSecretsTest(unittest.TestCase):

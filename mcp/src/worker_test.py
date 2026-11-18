@@ -76,6 +76,12 @@ class BindingApiClientTest(WorkerTestCase):
         self.assertEqual(options["headers"]["Cf-Access-Jwt-Assertion"], JWT)
         self.assertEqual((response.status, response.body), (200, {"ok": True}))
 
+    async def test_ac6_a_chamada_a_api_tem_prazo(self) -> None:  # ADR-002
+        """#272 REL-1: sem prazo, uma API pendurada prende o Worker; o estouro vira a falha do binding."""
+        binding = FakeBinding()
+        await self.call_api(binding, ApiRequest(*ROUTE_QUEUE))
+        self.assertEqual(binding.calls[0][1]["signal"], "abort-after-10000ms")
+
     async def test_o_corpo_do_pedido_vai_como_json(self) -> None:  # ADR-002
         binding = FakeBinding()
         await self.call_api(binding, ApiRequest("POST", "/x", {"a": 1}))
@@ -85,21 +91,45 @@ class BindingApiClientTest(WorkerTestCase):
 
 
 class DefaultFetchTest(WorkerTestCase):
-    async def test_monta_o_pedido_com_o_jwt_e_devolve_a_resposta_do_app(self) -> None:  # ADR-002
-        class Headers:
-            def get(self, name: str) -> str | None:
-                return JWT if name == "Cf-Access-Jwt-Assertion" else None
+    PING = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "ping"})
 
+    async def fetch(self, headers: dict[str, str], binding: FakeBinding | None = None, **env: str) -> FakeResponse:
         async def text() -> str:
-            return json.dumps({"jsonrpc": "2.0", "id": 1, "method": "ping"})
+            return self.PING
 
-        request = types.SimpleNamespace(method="POST", url="https://mcp.exemplo/mcp", headers=Headers(), text=text)
+        request = types.SimpleNamespace(
+            method="POST", url="https://mcp.exemplo/mcp", headers=types.SimpleNamespace(get=headers.get), text=text
+        )
         entry = self.worker.Default()
-        entry.env = types.SimpleNamespace(API=FakeBinding())
-        response = await entry.fetch(request)
+        entry.env = types.SimpleNamespace(API=binding or FakeBinding(), **env)
+        return await entry.fetch(request)
+
+    async def test_monta_o_pedido_com_o_jwt_e_devolve_a_resposta_do_app(self) -> None:  # ADR-002
+        response = await self.fetch({"Cf-Access-Jwt-Assertion": JWT, "Content-Type": "application/json"})
         self.assertEqual(response.status, 200)
         self.assertEqual(json.loads(response.body)["result"], {})
         self.assertEqual(response.headers["Content-Type"], "application/json")
+
+    async def test_sem_content_type_json_e_415(self) -> None:  # ADR-002
+        response = await self.fetch({"Cf-Access-Jwt-Assertion": JWT, "Content-Type": "text/plain"})
+        self.assertEqual(response.status, 415)
+
+    async def test_origin_e_recusado_por_padrao_e_aceito_se_estiver_em_mcp_allowed_origins(self) -> None:  # ADR-002
+        headers = {"Content-Type": "application/json", "Origin": "https://claude.ai"}
+        self.assertEqual((await self.fetch(headers)).status, 403)
+        self.assertEqual((await self.fetch(headers, MCP_ALLOWED_ORIGINS="")).status, 403)
+        self.assertEqual((await self.fetch(headers, MCP_ALLOWED_ORIGINS="https://x.exemplo,https://claude.ai")).status, 200)
+
+    async def test_ac6_a_falha_do_binding_vira_unavailable_sem_o_texto_do_erro(self) -> None:  # ADR-002
+        """#272/AC-6 e REL-1: o estouro do prazo e a falha de rede chegam à pessoa como o erro genérico."""
+        binding = FakeBinding(error=TimeoutError("sem resposta em segredo.interno.exemplo"))
+        call = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "list_approval_queue", "arguments": {}}}
+        self.PING = json.dumps(call)
+        response = await self.fetch({"Cf-Access-Jwt-Assertion": JWT, "Content-Type": "application/json"}, binding)
+        result = json.loads(response.body)["result"]
+        self.assertTrue(result["isError"])
+        self.assertEqual(result["structuredContent"]["error"], "unavailable")
+        self.assertNotIn("segredo.interno", response.body)
 
 
 if __name__ == "__main__":

@@ -29,6 +29,10 @@ class HourInSaoPauloTest(unittest.TestCase):
         for value in (None, 12, "ontem"):
             self.assertIsNone(self.hour(value))
 
+    def test_ac5_valor_so_com_a_data_nao_tem_hora(self) -> None:  # ADR-002
+        """#272/AC-5: converter 2026-11-18 como meia-noite UTC daria 21h00 do dia anterior, que é falso."""
+        self.assertIsNone(self.hour("2026-11-18"))
+
 
 class QueueTest(unittest.TestCase):
     def body(self) -> JsonObject:
@@ -50,6 +54,12 @@ class QueueTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 translation.queue(body, "all", None, None)
         self.assertEqual(translation.queue(self.body(), "all", None, None)["items"][1]["level"], "diretoria")
+
+    def test_dossie_e_motor_ficam_desconhecidos_na_fila(self) -> None:  # ADR-002
+        """#272/AC-3: GET /api/fila não traz o dossiê; o valor real vem em get_proposal."""
+        item = translation.queue(self.body(), "all", None, None)["items"][0]
+        self.assertIsNone(item["dossier_status"])
+        self.assertIsNone(item["engine"])
 
     def test_a_linha_nomeia_os_campos_e_nao_repassa_o_resto(self) -> None:  # ADR-002
         item = translation.queue_item(queue_line(segredo="nao-sai"))

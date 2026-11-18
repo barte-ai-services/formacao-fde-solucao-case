@@ -15,7 +15,8 @@ from errors import InvalidParams, Log, ToolError, generic_failure, session_expir
 from json_types import JsonObject, JsonValue
 from tools import Tool
 
-SUPPORTED_VERSIONS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")  # #272 da mais recente para a mais antiga
+# #272 só as versões cujo transporte este endpoint fala de verdade (uma mensagem por POST, sem lote JSON-RPC).
+SUPPORTED_VERSIONS = ("2025-11-25", "2025-06-18")  # #272 da mais recente para a mais antiga
 
 PARSE_ERROR = -32700
 INVALID_REQUEST = -32600
@@ -34,6 +35,13 @@ class HttpRequest:
     path: str
     body: str
     jwt: Optional[str] = None  # o cabeçalho Cf-Access-Jwt-Assertion de quem chamou (#272), repassado e nunca guardado
+    content_type: Optional[str] = None
+    origin: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class Settings:
+    allowed_origins: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -63,8 +71,9 @@ def _is_valid_id(value: JsonValue) -> bool:
 
 
 class Server:
-    def __init__(self, info: ServerInfo, tools: Sequence[Tool]) -> None:
+    def __init__(self, info: ServerInfo, tools: Sequence[Tool], settings: Settings = Settings()) -> None:
         self.info = info
+        self.settings = settings
         self.tools = {tool.name: tool for tool in tools}
         self.methods: dict[str, Method] = {
             "initialize": _initialize,
@@ -81,11 +90,24 @@ class Server:
             return HttpResponse(404)
         if request.method != "POST":
             return HttpResponse(405, MappingProxyType({"Allow": "POST"}))
+        rejection = self._cross_site_rejection(request)
+        if rejection is not None:
+            return rejection
         try:
             message = json.loads(request.body)
         except ValueError:
             return _rpc_error(None, PARSE_ERROR, "JSON inválido")
         return await self._dispatch(message, Context(request.jwt, api, log))
+
+    def _cross_site_rejection(self, request: HttpRequest) -> Optional[HttpResponse]:
+        """#272 um POST de outra página, pelo navegador da pessoa, traz `Origin` e só pode mandar tipos de formulário.
+        Sem `Origin` (um cliente de servidor, como o Claude) segue; com `Origin`, só se estiver na lista configurada."""
+        if request.origin is not None and request.origin not in self.settings.allowed_origins:
+            return HttpResponse(403)
+        media_type = (request.content_type or "").split(";")[0].strip().lower()
+        if media_type != "application/json":
+            return HttpResponse(415)
+        return None
 
     async def _dispatch(self, message: JsonValue, ctx: Context) -> HttpResponse:
         if not isinstance(message, dict) or message.get("jsonrpc") != "2.0":

@@ -95,10 +95,12 @@ async def _reread(ctx: Context, key: str) -> Optional[JsonObject]:
 
 
 async def _insufficient_level(ctx: Context, key: str) -> ToolError:
+    # #272 em bloqueio o nível exigido depende da ação final, e o `requiredApproverLevel` relido pode não ser o efetivo:
+    # #272 só se nomeia o nível quando ele é um dos três que a pessoa pode ter.
     proposal = await _reread(ctx, key)
     label = LEVEL_LABELS.get(str((proposal or {}).get("requiredApproverLevel")))
     if label is None:
-        return ToolError("forbidden_level", "Esta proposta pede um nível que você não tem.")
+        return ToolError("forbidden_level", "Esta proposta pede um nível acima do seu.")
     return ToolError("forbidden_level", f"Esta proposta pede o nível {label} ou acima.")
 
 

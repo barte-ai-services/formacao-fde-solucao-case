@@ -6,7 +6,10 @@
   "compatibility_flags": ["python_workers"],
   "observability": { "enabled": true },
   // A API do Worker da fila de aprovação (api/). O MCP a chama por aqui, com o JWT do Access de quem chamou.
-  "services": [{ "binding": "API", "service": "formacao-fde-solucao-case-api" }]
+  "services": [{ "binding": "API", "service": "formacao-fde-solucao-case-api" }],
+  // As origens de navegador que podem chamar o MCP (#272), separadas por vírgula. Vazia, qualquer cabeçalho Origin é
+  // recusado com 403; um cliente de servidor, como o Claude, não manda Origin e segue. O plano 3 (#275) ajusta a lista.
+  "vars": { "MCP_ALLOWED_ORIGINS": "" }
   // Sem segredos: o MCP não guarda credencial nenhuma. A identidade vem no cabeçalho Cf-Access-Jwt-Assertion
   // de cada chamada e vai adiante como veio.
 }

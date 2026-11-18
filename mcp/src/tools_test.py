@@ -32,7 +32,7 @@ class Session:
 
     async def call(self, name: str, arguments: JsonObject) -> tuple[JsonObject, str]:
         message = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": name, "arguments": arguments}}
-        response = await app.handle(HttpRequest("POST", "/mcp", json.dumps(message), self.jwt), self.api, self.log.append)
+        response = await app.handle(HttpRequest("POST", "/mcp", json.dumps(message), self.jwt, content_type="application/json"), self.api, self.log.append)
         text = response.body or ""
         return json.loads(text)["result"], text
 
@@ -46,7 +46,7 @@ class ToolsListTest(unittest.IsolatedAsyncioTestCase):
     async def test_ac2_lista_as_tres_tools_com_as_entradas_da_137(self) -> None:  # ADR-002
         """#272/AC-2"""
         message = {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
-        response = await app.handle(HttpRequest("POST", "/mcp", json.dumps(message), JWT), FakeApi(), lambda c: None)
+        response = await app.handle(HttpRequest("POST", "/mcp", json.dumps(message), JWT, content_type="application/json"), FakeApi(), lambda c: None)
         tools = {t["name"]: t for t in json.loads(response.body or "")["result"]["tools"]}
         self.assertEqual(set(tools), {"list_approval_queue", "get_proposal", "decide_proposal"})
         self.assertEqual(set(tools["list_approval_queue"]["inputSchema"]["properties"]), {"scope", "classification", "level"})
@@ -77,6 +77,7 @@ class QueueListingTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result["isError"])
         self.assertEqual(output["approver"], {"email": "ana@exemplo.com", "level": "analista"})
         self.assertEqual([i["invoice_access_key"] for i in output["items"]], [KEY])
+        self.assertIsNone(output["items"][0]["dossier_status"])
         item = output["items"][0]
         self.assertEqual(item["supplier_id"], "F02")
         self.assertEqual(item["classification_name"], "Unidade de medida")
@@ -206,6 +207,24 @@ class DecisionTest(unittest.IsolatedAsyncioTestCase):
         failure = error_of(result)
         self.assertEqual(failure["error"], "already_decided")
         self.assertEqual(failure["message"], "Esta proposta já foi decidida por fulano@exemplo.com às 10h12.")
+
+    async def test_ac5_already_decided_sem_o_evento_de_decisao_nao_inventa_a_hora(self) -> None:  # ADR-002
+        """#272/AC-5: com `timeline: []` só há o dia gravado; a mensagem nomeia quem decidiu e não diz a hora."""
+        api = FakeApi({
+            ROUTE_APPROVE: ApiResponse(409, {"error": "ja_decidida"}),
+            ROUTE_READ: proposal_response(timeline=[], approval=approval_body(), state="aprovada"),
+        })
+        result, _ = await self.decide(api)
+        self.assertEqual(error_of(result)["message"], "Esta proposta já foi decidida por fulano@exemplo.com.")
+
+    async def test_ac5_forbidden_level_de_proposta_em_bloqueio_nao_nomeia_nivel(self) -> None:  # ADR-002
+        """#272/AC-5: o nível exigido pela API depende da ação final; em bloqueio o relido pode não ser o efetivo."""
+        for reread in (proposal_response(requiredApproverLevel="bloqueio"), ApiResponse(500, None)):
+            api = FakeApi({ROUTE_APPROVE: ApiResponse(403, {"error": "nivel_insuficiente"}), ROUTE_READ: reread})
+            result, _ = await self.decide(api)
+            failure = error_of(result)
+            self.assertEqual(failure["error"], "forbidden_level")
+            self.assertEqual(failure["message"], "Esta proposta pede um nível acima do seu.")
 
     async def test_ac5_already_decided_sem_conseguir_reler_fica_sem_quem_e_quando(self) -> None:  # ADR-002
         """#272/AC-5"""
