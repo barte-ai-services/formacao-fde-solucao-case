@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import errno
 import hashlib
 import json
 import os
@@ -453,7 +454,9 @@ def _run(args: argparse.Namespace, now: datetime) -> tuple[Record, str]:
 
 
 def _complain(message: str) -> None:
-    """Escreve no stderr; se o próprio stderr falhar, o aviso se perde (#245)."""
+    """Escreve no stderr; se o próprio stderr falhar ou não existir, o aviso se perde (#245)."""
+    if sys.stderr is None:  # descritor 2 fechado: `print(file=None)` cairia no stdout (#245)
+        return
     with contextlib.suppress(OSError, ValueError):  # pipe fechado, ou arquivo já fechado (#245)
         print(message, file=sys.stderr)
 
@@ -461,9 +464,12 @@ def _complain(message: str) -> None:
 def _detach_stdout() -> None:
     """Aponta o descritor do stdout para o devnull, para o flush do encerramento não falhar e trocar o código 2 por 120 (#245).
 
-    Receita da documentação do Python para o SIGPIPE. Sem descritor (StringIO), `fileno()` levanta `OSError` e não há o que fazer.
+    Receita da documentação do Python para o SIGPIPE. Sem stdout (`None`) não há o que apontar; sem descritor (StringIO),
+    `fileno()` levanta `OSError`, e com o arquivo já fechado levanta `ValueError` (#245).
     """
-    with contextlib.suppress(OSError):  # StringIO não tem fileno; devnull inacessível deixa o código como está (#245)
+    if sys.stdout is None:  # descritor 1 fechado (#245)
+        return
+    with contextlib.suppress(OSError, ValueError):  # StringIO não tem fileno, arquivo fechado, ou devnull inacessível (#245)
         devnull = os.open(os.devnull, os.O_WRONLY)
         try:
             os.dup2(devnull, sys.stdout.fileno())
@@ -483,9 +489,11 @@ def main(argv: list[str] | None = None, now: Callable[[], datetime] | None = Non
         _complain(f"erro: {error.why}")
         return EXIT_USAGE
     try:
+        if sys.stdout is None:  # descritor 1 fechado: a saída não existe (#245)
+            raise OSError(errno.EBADF, "sem saída padrão")
         sys.stdout.write(text)
         sys.stdout.flush()
-    except OSError:  # a rodada já está gravada; só a saída padrão falhou (#245)
+    except (OSError, ValueError):  # a rodada já está gravada; só a saída padrão falhou, ou já está fechada (#245)
         _detach_stdout()
         _complain(f"erro: {STDOUT_FAILURE}")
         return EXIT_USAGE

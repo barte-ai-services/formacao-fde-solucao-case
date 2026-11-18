@@ -567,6 +567,46 @@ class ClosedClassTest(unittest.TestCase):
         self.assertEqual(err, "erro: a rodada foi gravada, mas a saída padrão falhou\n")
         self.assertEqual(len(list(self.runs_dir.glob("*.json"))), 1)
 
+    def run_program_with_closed_descriptor(self, descriptor: int, audits_text: str) -> subprocess.CompletedProcess[str]:
+        """Roda o programa de verdade com o descritor dado fechado no filho (#245)."""
+        self.audits.write_text(audits_text, encoding="utf-8")
+        argv = [sys.executable, str(ROOT / "eval" / "auditor.py"), str(self.audits),
+                "--answer-key", str(self.key_file), "--runs-dir", str(self.runs_dir)]
+        return subprocess.run(
+            argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=60,
+            preexec_fn=lambda: os.close(descriptor),
+        )
+
+    def test_ac3_closed_stdout_descriptor_exits_two_and_keeps_the_run(self) -> None:
+        """#245/AC-3: com o descritor 1 fechado (`sys.stdout` é `None`) o processo sai 2, não 1 com traceback; a rodada fica gravada."""
+        text = "\n".join(json.dumps(x) for x in all_correct()) + "\n"
+        argv = [sys.executable, "-c", "import sys; sys.exit(0 if sys.stdout is None else 9)"]
+        probe = subprocess.run(argv, stdout=subprocess.PIPE, preexec_fn=lambda: os.close(1), timeout=60)
+        self.assertEqual(probe.returncode, 0)  # no filho, o descritor 1 fechado deixa mesmo `sys.stdout` em `None` (#245)
+        done = self.run_program_with_closed_descriptor(1, text)
+        self.assertEqual(done.returncode, 2)
+        self.assertEqual(done.stderr, "erro: a rodada foi gravada, mas a saída padrão falhou\n")
+        self.assertEqual(len(list(self.runs_dir.glob("*.json"))), 1)
+
+    def test_ac3_closed_stdout_file_exits_two_and_keeps_the_run(self) -> None:
+        """#245/AC-3: com `sys.stdout` já fechado (`ValueError` ao escrever) o programa sai 2 com a mensagem fixa; a rodada fica gravada."""
+        err = io.StringIO()
+        closed = io.StringIO()
+        closed.close()
+        self.audits.write_text("\n".join(json.dumps(x) for x in all_correct()) + "\n", encoding="utf-8")
+        argv = [str(self.audits), "--answer-key", str(self.key_file), "--runs-dir", str(self.runs_dir)]
+        with contextlib.redirect_stdout(closed), contextlib.redirect_stderr(err):
+            code = auditor.main(argv, now=lambda: NOW)
+        self.assertEqual(code, 2)
+        self.assertEqual(err.getvalue(), f"erro: {STDOUT_FAILURE}\n")
+        self.assertEqual(len(self.run_files()), 1)
+
+    def test_ac1_closed_stderr_descriptor_keeps_the_message_out_of_stdout(self) -> None:
+        """#245/AC-1: com o descritor 2 fechado (`sys.stderr` é `None`) e entrada inválida, sai 2 e o aviso não vai parar no stdout."""
+        done = self.run_program_with_closed_descriptor(2, "isto não é json\n")
+        self.assertEqual(done.returncode, 2)
+        self.assertEqual(done.stdout, "")
+
     def test_ac1_integer_over_4300_digits_in_audits_exits_two(self) -> None:
         """#245/AC-1: inteiro com mais de 4300 dígitos numa linha do JSONL sai 2, sem rastro."""
         line = '{"invoice_access_key": "K1", "x": ' + "9" * 5000 + "}"
