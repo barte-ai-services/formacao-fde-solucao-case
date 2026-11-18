@@ -51,8 +51,8 @@ export function useSupplierRequest(port: SupplierRequestPort, accessKey: string,
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     // #3/AC-9 Uma consulta por vez: a próxima só é agendada quando a anterior volta, para uma resposta
-    // atrasada nunca passar na frente da falha que para a consulta. A contagem fica também aqui: a limpeza
-    // do efeito roda depois do render, e sem ela uma consulta a mais saía depois da quinta falha.
+    // #3/AC-9 atrasada nunca passar na frente da falha que para a consulta. A contagem fica também aqui: a limpeza
+    // #3/AC-9 do efeito roda depois do render, e sem ela uma consulta a mais saía depois da quinta falha.
     let failures = 0;
     const schedule = (): void => {
       timer = setTimeout(() => {
