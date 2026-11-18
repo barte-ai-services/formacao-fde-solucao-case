@@ -6,8 +6,8 @@ API. Ele fala MCP (JSON-RPC 2.0 por Streamable HTTP, `POST /mcp`) e expõe as to
 repassando o cabeçalho `Cf-Access-Jwt-Assertion` de quem chamou. O MCP não decide nada: a régua, a regra 8 e o
 estado da proposta ficam na API. Sem o cabeçalho, nenhuma chamada à API acontece.
 
-O MCP não valida, não guarda e não registra o JWT, e não tem segredo nenhum. A conexão no Claude e o Access na
-frente do MCP são do plano 3 (#275).
+O MCP não valida, não guarda e não registra o JWT, e não tem segredo nenhum. A conexão no Claude é do plano 3 (#275) e o login
+pelo Access na frente do MCP é do plano 4 (#321).
 
 ## Estrutura
 
@@ -42,11 +42,29 @@ de dados, e o botão Entrar repete a chamada que falhou.
   `proposed_partial_lines` (a proposta da regra para a tabela do receber parcial, porte de
   `web/src/approval/partial-prefill.ts`), `engine.similar_cases_count` e `approval.decided_hour` (nulo quando a API só
   tem o dia).
-- **`decide_proposal` só sai no clique em Registrar.** Texto de tool entra por `textContent`.
+- **`decide_proposal` só sai no clique em Registrar.** Com a tela aberta o Claude não o chama. Texto de tool entra por `textContent`.
 
 Para ver a tela à mão, sem o Claude: o teste abre a tela num host falso (`ui/host.mjs`, `ui/fixtures.mjs`); para
 olhar no navegador, sirva a pasta `mcp/ui` e abra `approval.html` num iframe de uma página que responda ao
 `ui/initialize` e aos `tools/call` com os dados de `fixtures.mjs`.
+
+## Conectar no Claude (#275)
+
+- **Claude.ai e Desktop:** Configurações > Conectores > Adicionar conector personalizado, com a URL
+  `https://formacao-fde-solucao-case-mcp.barte-academy.workers.dev/mcp`.
+- **Claude Code:** `claude mcp add --transport http formacao-fde-solucao-case-mcp https://formacao-fde-solucao-case-mcp.barte-academy.workers.dev/mcp`
+  e confira com `/mcp`.
+- **Instalar a Skill** (`skill/decidir-fila-de-aprovacao/`): no Claude.ai e no Desktop, Configurações >
+  Capacidades > Skills, subindo a pasta zipada; no Claude Code, copie a pasta para `~/.claude/skills/` ou
+  `.claude/skills/`. A Skill diz quando abrir a tela, que, com a tela aberta, o Claude não chama decide_proposal e
+  pede que a pessoa registre na tela (sem tela, só após pedido explícito e confirmação de uma linha), e que
+  todo número vem das tools. As `instructions` do servidor trazem o mesmo resumo.
+- **`decide_proposal` em "perguntar sempre".** Nas permissões das tools do conector, deixe `decide_proposal`
+  em "perguntar sempre" e nunca em "permitir sempre": a tool declara `destructiveHint`.
+- **Login:** o login pelo Cloudflare Access chega no plano 4/4 (#321). Até lá, toda tool de dados responde
+  "Sua sessão expirou. Entre de novo pelo Access."; `open_approval_app` abre a tela, que mostra a mensagem.
+- **Conferir a publicação:** um `POST /mcp` com `Content-Type: application/json` e o JSON-RPC `initialize`
+  devolve as `instructions` do servidor.
 
 ## Protocolo
 
@@ -59,7 +77,7 @@ suportadas são `2025-11-25` e `2025-06-18`, as que não admitem lote; quem pede
 - Se a requisição traz o cabeçalho `Origin` (um navegador), ele só passa se estiver na variável `MCP_ALLOWED_ORIGINS`
   (origens separadas por vírgula, em `wrangler.jsonc`). Vazia, que é o padrão, todo `Origin` presente é recusado com 403.
   Requisição sem `Origin`, que é o caso de um cliente de servidor como o Claude, segue.
-- O plano 3 (#275) liga o Claude e o Access na frente do MCP e ajusta essa lista se precisar.
+- O plano 4 (#321) liga o Access na frente do MCP e ajusta essa lista se precisar.
 
 ## Testes
 

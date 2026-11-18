@@ -52,7 +52,7 @@ class WranglerConfigTest(unittest.TestCase):
             self.assertIn(term, comment)
 
     def test_ac7_a_lista_de_origens_permitidas_e_uma_variavel_vazia_por_padrao(self) -> None:  # ADR-002
-        """#272/AC-7: vazia, qualquer Origin presente é recusado; o plano 3 (#275) ajusta se preciso."""
+        """#272/AC-7: vazia, qualquer Origin presente é recusado; o plano 4 (#321) ajusta se preciso."""
         self.assertEqual(wrangler_config()["vars"], {"MCP_ALLOWED_ORIGINS": ""})
 
 
