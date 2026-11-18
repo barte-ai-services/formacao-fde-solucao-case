@@ -442,7 +442,7 @@ def _run(args: argparse.Namespace, now: datetime) -> tuple[Record, str]:
 
 
 def _complain(message: str) -> None:
-    """Escreve no stderr; se o próprio stderr falhar não há aonde avisar, e o código de saída é o que resta."""
+    """Escreve no stderr; se o próprio stderr falhar, o aviso se perde (#245)."""
     with contextlib.suppress(OSError, ValueError):  # pipe fechado, ou arquivo já fechado (#245)
         print(message, file=sys.stderr)
 

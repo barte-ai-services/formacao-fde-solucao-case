@@ -600,7 +600,7 @@ class ClosedClassTest(unittest.TestCase):
         self.assertEqual(self.run_files(), [f"{json.loads(out)['run_id']}.json"])
 
     def test_ac2_no_space_on_write_exits_two_with_save_message_and_leaves_nothing(self) -> None:
-        """#245/AC-2: disco cheio ao escrever o temporário sai 2 com a mensagem de gravação; nada sobra."""
+        """#245/AC-2: falha ao abrir o temporário para escrita (ENOSPC, como disco cheio) sai 2 com a mensagem de gravação; nada sobra."""
         with mock.patch("auditor.os.fdopen", side_effect=OSError(errno.ENOSPC, "No space left on device")):
             self.assert_fixed_two(self.run_lines(all_correct()), "No space", message=SAVE_FAILURE)
         self.assertEqual(self.run_files(), [])
