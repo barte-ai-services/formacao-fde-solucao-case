@@ -30,7 +30,8 @@ function serve(path: string, body: unknown): void {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
-      expect(String(input)).toBe(path);
+      // #160 A fila chega em blocos: o primeiro pedido leva `limite`, sem cursor.
+      expect(String(input)).toBe(`${path}?limite=30`);
       return Response.json(body);
     }),
   );
@@ -55,6 +56,9 @@ describe("#201 fila: coluna Código", () => {
     serve("/api/fila", {
       approver: { email: null, level: "analista" },
       items: [queueItem("1", "MATCH"), queueItem("2", "E3")],
+      nextCursor: null,
+      total: 2,
+      aggregates: { all: 2, approvable: 2, amountAtRisk: money(2000), blocked: 0 },
     });
     render(<FilaDeAprovacao params={{}} />);
     await waitFor(() => expect(screen.getByRole("table")).toBeTruthy());

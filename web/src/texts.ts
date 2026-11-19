@@ -237,6 +237,7 @@ export const texts = {
   recebimento: {
     loading: (noun: string) => `Carregando as notas da ${noun}…`,
     error: (noun: string) => `Não consegui ler as notas desta ${noun} agora`,
+    changeDestination: (noun: string) => `Trocar a ${noun}`,
     awaitingTitle: (n: number) => `${n} ${n === 1 ? "nota aguarda" : "notas aguardam"} aprovação.`,
     tableEmpty: "Nenhuma nota.",
     columns: { invoice: "Nota fiscal", items: "Itens", whatToDo: "O que fazer" },

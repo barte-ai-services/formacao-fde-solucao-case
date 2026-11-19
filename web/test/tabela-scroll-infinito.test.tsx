@@ -11,8 +11,10 @@ import { fallbackContext } from "../src/shell/context";
  * contrato paginado de api/README.md (`items`, `nextCursor`, `total`, `aggregates`) e um IntersectionObserver simulado que
  * o teste dispara. Os textos são os do wireframe. Não há Playwright no repositório: o "ponta a ponta" daqui é vitest + jsdom.
  *
- * Cada caso é `it.fails`: o vitest o dá por passado enquanto a asserção falha, o que mantém o `make check` verde com a
- * tabela ainda por construir. Quando a camada indicada satisfaz o caso, ele vira `it(...)`.
+ * O esqueleto nasceu vermelho (cada caso em `it.fails`, para o `make check` ficar verde com a tabela por construir) e foi virando `it(...)` conforme
+ * a camada indicada o satisfazia; na camada de contrato os últimos viraram, e nenhum `it.fails` sobra. Duas correções de teste feitas aqui, ambas
+ * sem afrouxar asserção: o `Stat` é achado pelo título dentro do Stat (`stat(...)`, porque "A pagar", "Por quê" e "Aguardando aprovação" também
+ * são cabeçalho de coluna e selo de linha), e o disparo do observador e a contagem das linhas esperam o efeito que as liga (corrida vista em 1 de 8 rodadas).
  * Nome dos casos: `#160/AC-n:`. D3 e D4 não são AC; levam o AC que mais se aproxima (D3 e a faixa de erro do bloco: AC-1;
  * o filtro e o `cursor_invalido`: AC-1, porque recomeçam a busca por blocos).
  */
@@ -48,8 +50,15 @@ class FakeObserver {
   }
 }
 
-/** #160 O teste "rola até perto do fim": dispara a interseção em todo observador vivo que ainda olha algo. */
+/**
+ * #160 O teste "rola até perto do fim": dispara a interseção em todo observador vivo que ainda olha algo. O observador novo nasce num efeito
+ * (a cada bloco, a tabela refaz a observação) e o `findBy`/`waitFor` pode voltar antes de ele rodar: sem esperar o efeito, o disparo caía no
+ * vazio e o teste falhava de vez em quando (a doca, uma em oito rodadas). O navegador real avisa ao observar; o simulado, não.
+ */
 async function reachEnd() {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  });
   await act(async () => {
     FakeObserver.live.filter((o) => o.targets.length > 0).forEach((o) => o.fire());
   });
@@ -138,6 +147,11 @@ function renderAt(path: string) {
 }
 
 const money = (cents: number) => ({ cents, text: `R$ ${(cents / 100).toFixed(2).replace(".", ",")}` });
+/**
+ * #160 O Stat do topo pelo título dele. O mesmo texto também é cabeçalho de coluna ("A pagar", "Por quê") e selo de linha ("Aguardando
+ * aprovação", na gaveta): `getByText` achava mais de um assim que a tabela existia, e só o Stat guarda o número dos agregados.
+ */
+const stat = (caption: string): string => screen.getAllByText(caption).find((el) => /Stat-module__caption/.test(el.className))!.closest("div")!.textContent ?? "";
 const rows = () => Array.from(document.querySelectorAll("tbody tr"));
 /** #160 Linhas de nota de verdade: as de esqueleto não levam o rótulo "Abrir…". */
 const noteRows = () => rows().filter((tr) => (tr.getAttribute("aria-label") ?? "").length > 0 && !/Carregando/.test(tr.getAttribute("aria-label")!));
@@ -199,30 +213,25 @@ function serveQueue(): Api {
 }
 
 describe("#160 fila de aprovação com scroll infinito", () => {
-  // #160 esqueleto vermelho: vira it(...) quando a camada de contrato (a tela lê `items`, `total` e `aggregates`) o satisfaz
-  it.fails("#160/AC-3: mostra o primeiro bloco e o contador de notas no topo", async () => {
+  it("#160/AC-3: mostra o primeiro bloco e o contador de notas no topo", async () => {
     const api = serveQueue();
     renderAt("/pagar/fila"); // ADR-004
     expect(await screen.findByText("NF 1")).toBeTruthy();
     expectPaged(api.lists()[0]!);
-    expect(noteRows()).toHaveLength(30);
+    await waitFor(() => expect(noteRows()).toHaveLength(30)); // #160 o rótulo da linha entra num efeito do RowTable, depois de o texto da nota aparecer
     // #160 O contador é a `total` da API (70), não as 30 que carregaram.
     expect(screen.getByText("70 notas").closest('[role="status"]')).toBeTruthy();
   });
-
-  // #160 esqueleto vermelho: vira it(...) quando a camada de contrato o satisfaz
-  it.fails("#160/AC-4: os números do topo vêm dos agregados da API, não do que carregou", async () => {
+  it("#160/AC-4: os números do topo vêm dos agregados da API, não do que carregou", async () => {
     serveQueue();
     renderAt("/pagar/fila"); // ADR-004
     await screen.findByText("NF 1");
     // #160 Aguardando = aggregates.all (70, e não as 30 linhas); bloqueadas = aggregates.blocked (12); risco = aggregates.amountAtRisk.
-    expect(screen.getByText("Aguardando aprovação").closest("div")!.textContent).toContain("70");
-    expect(screen.getByText("Bloqueadas por duplicidade").closest("div")!.textContent).toContain("12");
-    expect(screen.getByText("Valor em risco na fila").closest("div")!.textContent).toMatch(/123\.456/);
+    expect(stat("Aguardando aprovação")).toContain("70");
+    expect(stat("Bloqueadas por duplicidade")).toContain("12");
+    expect(stat("Valor em risco na fila")).toMatch(/123\.456/);
   });
-
-  // #160 esqueleto vermelho: vira it(...) quando a camada de contrato o satisfaz
-  it.fails("#160/AC-1: perto do fim busca o próximo bloco pelo nextCursor e mostra esqueleto enquanto carrega", async () => {
+  it("#160/AC-1: perto do fim busca o próximo bloco pelo nextCursor e mostra esqueleto enquanto carrega", async () => {
     const api = serveQueue();
     renderAt("/pagar/fila"); // ADR-004
     await screen.findByText("NF 1");
@@ -232,7 +241,7 @@ describe("#160 fila de aprovação com scroll infinito", () => {
     // #160 Pendente: o cursor do primeiro bloco foi pedido, e três linhas de esqueleto ficam abaixo da última nota.
     await waitFor(() => expect(api.lists().at(-1)!.searchParams.get("cursor")).toBe("all:30"));
     expect(rows()).toHaveLength(33);
-    expect(noteRows()).toHaveLength(30);
+    await waitFor(() => expect(noteRows()).toHaveLength(30)); // #160 o rótulo da linha entra num efeito do RowTable, depois de o texto da nota aparecer
     // #160 O esqueleto não é linha de nota: não entra no Tab e não abre a gaveta.
     const skeleton = rows().slice(30);
     skeleton.forEach((tr) => expect(tr.getAttribute("tabindex")).toBeNull());
@@ -243,21 +252,18 @@ describe("#160 fila de aprovação com scroll infinito", () => {
     await waitFor(() => expect(noteRows()).toHaveLength(60));
     expect(rows()).toHaveLength(60);
   });
-
-  // #160 esqueleto vermelho: vira it(...) quando a camada de componente (a tabela compartilhada) o satisfaz
-  it.fails("#160/AC-1: o gatilho olha a caixa da tabela (root), que contém o cabeçalho e as linhas", async () => {
+  it("#160/AC-1: o gatilho olha a caixa da tabela (root), que contém o cabeçalho e as linhas", async () => {
     serveQueue();
     renderAt("/pagar/fila"); // ADR-004
     await screen.findByText("NF 1");
+    // #160 o observador nasce num efeito, depois de o texto da nota aparecer
+    await waitFor(() => expect(FakeObserver.live.some((o) => o.targets.length > 0)).toBe(true));
     const observer = FakeObserver.live.find((o) => o.targets.length > 0)!;
-    expect(observer).toBeTruthy();
     const root = observer.options.root as Element;
     expect(root.querySelector("thead")).toBeTruthy();
     expect(root.querySelector("tbody tr")).toBeTruthy();
   });
-
-  // #160 esqueleto vermelho: vira it(...) quando a camada de componente o satisfaz
-  it.fails("#160/AC-3: no último bloco (nextCursor nulo) o rodapé diz \"Você viu todas as 70 notas\" e nada mais é buscado", async () => {
+  it("#160/AC-3: no último bloco (nextCursor nulo) o rodapé diz \"Você viu todas as 70 notas\" e nada mais é buscado", async () => {
     const api = serveQueue();
     renderAt("/pagar/fila"); // ADR-004
     await screen.findByText("NF 1");
@@ -270,13 +276,11 @@ describe("#160 fila de aprovação com scroll infinito", () => {
     await reachEnd();
     expect(api.calls.length).toBe(before);
   });
-
-  // #160 esqueleto vermelho: vira it(...) quando a camada de contrato o satisfaz
-  it.fails("#160/AC-4: os números do topo ficam os mesmos depois do segundo bloco", async () => {
+  it("#160/AC-4: os números do topo ficam os mesmos depois do segundo bloco", async () => {
     serveQueue();
     renderAt("/pagar/fila"); // ADR-004
     await screen.findByText("NF 1");
-    const top = () => [screen.getByText("Aguardando aprovação").closest("div")!.textContent, screen.getByText("Valor em risco na fila").closest("div")!.textContent, screen.getByText("Bloqueadas por duplicidade").closest("div")!.textContent, screen.getByText("70 notas").textContent];
+    const top = () => [stat("Aguardando aprovação"), stat("Valor em risco na fila"), stat("Bloqueadas por duplicidade"), screen.getByText("70 notas").textContent];
     const before = top();
     await reachEnd();
     await waitFor(() => expect(noteRows()).toHaveLength(60));
@@ -294,25 +298,21 @@ describe("#160 fila de aprovação com scroll infinito", () => {
     expect(body).toMatch(/z-index:\s*var\(/);
     expect(body).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
   });
-
-  // #160 esqueleto vermelho: vira it(...) quando a camada de estado (a busca por blocos) o satisfaz
-  it.fails("#160/AC-1: se um bloco falha, a faixa oferece \"Tentar de novo\", que repete o mesmo cursor sem perder o carregado", async () => {
+  it("#160/AC-1: se um bloco falha, a faixa oferece \"Tentar de novo\", que repete o mesmo cursor sem perder o carregado", async () => {
     const api = serveQueue();
     renderAt("/pagar/fila"); // ADR-004
     await screen.findByText("NF 1");
     api.failOnce.add("all:30");
     await reachEnd();
     expect(await screen.findByText("Não consegui carregar as próximas notas")).toBeTruthy();
-    expect(noteRows()).toHaveLength(30);
+    await waitFor(() => expect(noteRows()).toHaveLength(30)); // #160 o rótulo da linha entra num efeito do RowTable, depois de o texto da nota aparecer
     fireEvent.click(screen.getByRole("button", { name: "Tentar de novo" }));
     await waitFor(() => expect(noteRows()).toHaveLength(60));
     const cursors = api.lists().map((u) => u.searchParams.get("cursor"));
     expect(cursors.filter((c) => c === "all:30")).toHaveLength(2);
     expect(screen.getByText("70 notas")).toBeTruthy();
   });
-
-  // #160 esqueleto vermelho: vira it(...) quando a camada de contrato (D1, `pode_aprovar` na API) o satisfaz. D1 não é AC: AC-1.
-  it.fails("#160/AC-1: trocar o filtro para \"Minhas\" recarrega do primeiro bloco, com pode_aprovar=1, e os números do topo ficam", async () => {
+  it("#160/AC-1: trocar o filtro para \"Minhas\" recarrega do primeiro bloco, com pode_aprovar=1, e os números do topo ficam", async () => {
     const api = serveQueue();
     renderAt("/pagar/fila"); // ADR-004
     await screen.findByText("NF 1");
@@ -326,11 +326,9 @@ describe("#160 fila de aprovação com scroll infinito", () => {
     await waitFor(() => expect(noteRows()).toHaveLength(30));
     expect(screen.getByText("40 notas")).toBeTruthy();
     // #160 Os agregados não mudam com o chip (api/README.md): o Stat continua em 70.
-    expect(screen.getByText("Aguardando aprovação").closest("div")!.textContent).toContain("70");
+    expect(stat("Aguardando aprovação")).toContain("70");
   });
-
-  // #160 esqueleto vermelho: vira it(...) quando a camada de estado o satisfaz. D4 não é AC: AC-1.
-  it.fails("#160/AC-1: cursor_invalido recomeça a lista do início, uma vez, com o aviso de uma linha", async () => {
+  it("#160/AC-1: cursor_invalido recomeça a lista do início, uma vez, com o aviso de uma linha", async () => {
     const api = serveQueue();
     renderAt("/pagar/fila"); // ADR-004
     await screen.findByText("NF 1");
@@ -342,9 +340,7 @@ describe("#160 fila de aprovação com scroll infinito", () => {
     expectPaged(api.lists().at(-1)!);
     await waitFor(() => expect(noteRows()).toHaveLength(30));
   });
-
-  // #160 esqueleto vermelho: vira it(...) quando a camada de estado o satisfaz. D3 não é AC: AC-4 (os números) e AC-1 (a rolagem não volta ao início).
-  it.fails("#160/AC-4: decidir na gaveta tira a linha e atualiza os números do topo, sem voltar ao início", async () => {
+  it("#160/AC-4: decidir na gaveta tira a linha e atualiza os números do topo, sem voltar ao início", async () => {
     const api = serveQueue();
     renderAt("/pagar/fila"); // ADR-004
     await screen.findByText("NF 1");
@@ -357,7 +353,7 @@ describe("#160 fila de aprovação com scroll infinito", () => {
     // #160 A linha decidida sai, as outras 59 continuam (o segundo bloco não foi descartado), e os números descem em um.
     await waitFor(() => expect(noteRows()).toHaveLength(59));
     expect(screen.getByText("69 notas")).toBeTruthy();
-    expect(screen.getByText("Aguardando aprovação").closest("div")!.textContent).toContain("69");
+    expect(stat("Aguardando aprovação")).toContain("69");
     // #160 não voltou ao início: nenhum esqueleto de recarga, nenhuma linha a mais além das 59
     expect(rows()).toHaveLength(59);
     // #160 o contrato não fixa como os números se atualizam (rebuscar o primeiro bloco só para ler `total` e `aggregates`, ou ajustar localmente): vale a lista carregada seguir inteira, com a NF 60 do segundo bloco
@@ -388,22 +384,18 @@ describe("#160 lista do dia com scroll infinito", () => {
       item: todayItem,
       body: ({ items, nextCursor, total }) => ({ day: "2026-11-15", items, nextCursor, total, aggregates: { toPay: { cents: 8_700_000, text: "R$ 87.000,00" }, approvedByRule: 44 } }),
     });
-
-  // #160 esqueleto vermelho: vira it(...) quando a camada de contrato o satisfaz
-  it.fails("#160/AC-4: mostra o primeiro bloco, o contador e os números do topo dos agregados (títulos = total, a pagar, pela regra)", async () => {
+  it("#160/AC-4: mostra o primeiro bloco, o contador e os números do topo dos agregados (títulos = total, a pagar, pela regra)", async () => {
     const api = serveToday();
     renderAt("/pagar/hoje"); // ADR-004
     expect(await screen.findByText("NF 1")).toBeTruthy();
     expectPaged(api.lists()[0]!);
-    expect(noteRows()).toHaveLength(30);
+    await waitFor(() => expect(noteRows()).toHaveLength(30)); // #160 o rótulo da linha entra num efeito do RowTable, depois de o texto da nota aparecer
     expect(screen.getByText("87 notas")).toBeTruthy();
-    expect(screen.getByText("Títulos na lista").closest("div")!.textContent).toContain("87");
-    expect(screen.getByText("A pagar", { selector: "*" }).closest("div")!.textContent).toContain("R$ 87.000,00");
-    expect(screen.getByText("Liberados pela regra").closest("div")!.textContent).toContain("44");
+    expect(stat("Títulos na lista")).toContain("87");
+    expect(stat("A pagar")).toContain("R$ 87.000,00");
+    expect(stat("Liberados pela regra")).toContain("44");
   });
-
-  // #160 esqueleto vermelho: vira it(...) quando a camada de estado o satisfaz
-  it.fails("#160/AC-3: rola por três blocos (30, 30, 27) e termina em \"Você viu todas as 87 notas\"", async () => {
+  it("#160/AC-3: rola por três blocos (30, 30, 27) e termina em \"Você viu todas as 87 notas\"", async () => {
     serveToday();
     renderAt("/pagar/hoje"); // ADR-004
     await screen.findByText("NF 1");
@@ -435,31 +427,27 @@ describe("#160 duplicadas com scroll infinito", () => {
       // #160 No modo paginado a lista se chama `items`, não `duplicates` (api/README.md).
       body: ({ items, nextCursor, total }) => ({ items, nextCursor, total, aggregates: { blockedAmount: { cents: 7_862_400, text: "R$ 78.624,00" }, byReason: { titulo_lancado: 33, ordem_sem_saldo: 32 } } }),
     });
-
-  // #160 esqueleto vermelho: vira it(...) quando a camada de contrato o satisfaz
-  it.fails("#160/AC-4: mostra o primeiro bloco, o contador e os números do topo dos agregados (duplicadas = total, valor evitado, por quê)", async () => {
+  it("#160/AC-4: mostra o primeiro bloco, o contador e os números do topo dos agregados (duplicadas = total, valor evitado, por quê)", async () => {
     const api = serveDup();
     renderAt("/pagar/duplicadas"); // ADR-004
     await waitFor(() => expect(noteRows()).toHaveLength(30));
     expectPaged(api.lists()[0]!);
     expect(screen.getByText("65 notas")).toBeTruthy();
-    expect(screen.getByText("Duplicadas").closest("div")!.textContent).toContain("65");
-    expect(screen.getByText("Pagamento em dobro evitado").closest("div")!.textContent).toContain("R$ 78.624,00");
-    expect(screen.getByText("Por quê").closest("div")!.textContent).toContain("33 · 32");
+    expect(stat("Duplicadas")).toContain("65");
+    expect(stat("Pagamento em dobro evitado")).toContain("R$ 78.624,00");
+    expect(stat("Por quê")).toContain("33 · 32");
   });
-
-  // #160 esqueleto vermelho: vira it(...) quando a camada de estado o satisfaz
-  it.fails("#160/AC-3: o último bloco encerra com \"Você viu todas as 65 notas\" e os números do topo não mudam", async () => {
+  it("#160/AC-3: o último bloco encerra com \"Você viu todas as 65 notas\" e os números do topo não mudam", async () => {
     serveDup();
     renderAt("/pagar/duplicadas"); // ADR-004
     await waitFor(() => expect(screen.getByText("65 notas")).toBeTruthy());
-    const before = screen.getByText("Duplicadas").closest("div")!.textContent;
+    const before = stat("Duplicadas");
     await reachEnd();
     await waitFor(() => expect(noteRows()).toHaveLength(60));
     await reachEnd();
     await waitFor(() => expect(noteRows()).toHaveLength(65));
     expect(await screen.findByText("Você viu todas as 65 notas")).toBeTruthy();
-    expect(screen.getByText("Duplicadas").closest("div")!.textContent).toBe(before);
+    expect(stat("Duplicadas")).toBe(before);
   });
 });
 
@@ -483,21 +471,17 @@ describe.each([
       item: dockItem,
       body: ({ items, nextCursor, total }) => ({ destination, date: "2026-11-11", destinations: [destination, "X-99"], items, nextCursor, total, aggregates: { awaiting: 4 } }),
     });
-
-  // #160 esqueleto vermelho: vira it(...) quando a camada de contrato o satisfaz
-  it.fails("#160/AC-4: mostra o primeiro bloco, o contador e o aviso de aguardando vindo de aggregates.awaiting", async () => {
+  it("#160/AC-4: mostra o primeiro bloco, o contador e o aviso de aguardando vindo de aggregates.awaiting", async () => {
     const api = serveDock();
     renderAt(route);
     expect(await screen.findByText("NF 1")).toBeTruthy();
     expectPaged(api.lists()[0]!);
-    expect(noteRows()).toHaveLength(30);
+    await waitFor(() => expect(noteRows()).toHaveLength(30)); // #160 o rótulo da linha entra num efeito do RowTable, depois de o texto da nota aparecer
     expect(screen.getByText("64 notas")).toBeTruthy();
     // #160 4 é o destino inteiro (aggregates.awaiting); as 30 linhas carregadas têm 0 aguardando.
     expect(screen.getByText("4 notas aguardam aprovação.")).toBeTruthy();
   });
-
-  // #160 esqueleto vermelho: vira it(...) quando a camada de estado o satisfaz
-  it.fails("#160/AC-3: busca o segundo bloco pelo nextCursor e termina em \"Você viu todas as 64 notas\"", async () => {
+  it("#160/AC-3: busca o segundo bloco pelo nextCursor e termina em \"Você viu todas as 64 notas\"", async () => {
     const api = serveDock();
     renderAt(route);
     await screen.findByText("NF 1");

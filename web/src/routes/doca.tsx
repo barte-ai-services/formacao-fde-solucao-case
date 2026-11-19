@@ -1,17 +1,18 @@
-import { useEffect, useState, type ReactElement } from "react";
+import { useState, type ReactElement } from "react";
 import { Alert, Select, Text } from "barte-design-system";
-import { dockApi, type DockBoardDto, type DockRowDto } from "../api/dock";
+import { dockApi, type DockBoardAggregates, type DockRow } from "../api/dock";
+import type { Block } from "../components/paged-list-state";
 import type { DockActionDto, QuantityDto } from "../api/contract";
 import { ACTION_LABEL, ACTION_TONE } from "../approval/labels";
 import { DataList } from "@barte-ai-services/barte-ui-kit";
 import { InvoiceDrawer } from "../approval/InvoiceDrawer";
-import { RowTable } from "../components/RowTable";
+import { ScrollTable } from "../components/ScrollTable";
 import { EmptyState } from "../components/EmptyState";
 import { DecidedBy } from "../components/DecidedBy";
 import { GridBadge } from "../components/GridBadge";
 import { InvoiceCell } from "../components/InvoiceCell";
 import { Screen } from "../components/Screen";
-import { useLoad } from "../components/useLoad";
+import { usePagedList } from "../components/usePagedList";
 import type { RouteProps } from "./types";
 import { texts } from "../texts";
 
@@ -69,7 +70,8 @@ function Two({ top, bottom }: { top: React.ReactNode; bottom: React.ReactNode })
 export interface ReceivingBoardProps {
   title: string;
   subtitle: string;
-  load: (destination: string | null, signal: AbortSignal) => Promise<DockBoardDto>;
+  /** #160 Um bloco da lista: o destino (nulo abre no primeiro do dia) e o cursor do bloco. */
+  load: (destination: string | null, cursor: string | null, signal: AbortSignal) => Promise<Block<DockRow, DockBoardAggregates>>;
   words: ReceivingWording;
   /** #135 "doca" ou "loja": o lugar, nas mensagens de carga e de erro. */
   noun: string;
@@ -78,12 +80,12 @@ export interface ReceivingBoardProps {
 }
 
 /** /doca: as notas do dia num destino e o que fazer com cada caminhão (#43 AC-3, AC-4). */
-export default function Doca(_props: RouteProps) {
+export default function Doca(_props: RouteProps): ReactElement {
   return (
     <ReceivingBoard
       title={texts.doca.title}
       subtitle={texts.doca.subtitle}
-      load={(destination, signal) => dockApi.board(destination, signal)}
+      load={dockApi.boardPage}
       words={DOCK_WORDING}
       noun={texts.doca.noun}
       emptyIn={texts.doca.emptyIn}
@@ -92,43 +94,39 @@ export default function Doca(_props: RouteProps) {
   );
 }
 
-/** #135 O quadro de recebimento, o mesmo para a doca do CD e para a loja; cada um passa o seu texto e a sua leitura. */
+/**
+ * #135 O quadro de recebimento, o mesmo para a doca do CD e para a loja; cada um passa o seu texto e a sua leitura.
+ * #160 A lista chega em blocos por cursor; o aviso de aguardando é `aggregates.awaiting`, do destino inteiro, e trocar o destino recomeça a lista.
+ */
 export function ReceivingBoard({ title, subtitle, load, words, noun, emptyIn, warning }: ReceivingBoardProps): ReactElement {
   const [destination, setDestination] = useState<string | null>(null);
-  const { state, data, retry } = useLoad(
-    (signal): Promise<DockBoardDto> => load(destination, signal),
-    (board) => board.rows.length === 0,
-  );
-  // #72 Trocar o destino carrega de novo: as duas mudanças entram no mesmo render, e o `useLoad` lê a carga nova.
-  const choose = (value: string) => {
-    setDestination(value);
-    retry();
-  };
-  // #72 A lista de destinos fica guardada entre as cargas: o seletor não some enquanto carrega nem depois de um erro.
-  const [destinations, setDestinations] = useState<string[]>([]);
-  useEffect(() => {
-    if (data) setDestinations(data.destinations);
-  }, [data]);
-  const [open, setOpen] = useState<DockRowDto | null>(null);
-  const shown = data?.destination ?? destination;
-  const rows = data?.rows ?? [];
-  const awaiting = data?.awaiting ?? 0;
+  // #160 O destino é parâmetro da lista: trocar recomeça do primeiro bloco, e o cursor de um destino não vale em outro.
+  const list = usePagedList<DockRow, DockBoardAggregates>((cursor, signal) => load(destination, cursor, signal), destination ?? "");
+  const { aggregates } = list;
+  // #72 A lista de destinos fica guardada entre as cargas: o seletor não some enquanto carrega (os agregados ficam até a resposta nova).
+  const destinations = aggregates?.destinations ?? [];
+  const [open, setOpen] = useState<DockRow | null>(null);
+  const shown = aggregates?.destination ?? destination;
+  const awaiting = aggregates?.awaiting ?? 0;
   return (
     <Screen
       title={title}
       subtitle={subtitle}
       actions={
         destinations.length > 0 ? (
-          <Select
-            size="sm"
-            value={destination ?? data?.destination ?? undefined}
-            onChange={choose}
-            options={destinations.map((d) => ({ value: d, label: d }))}
-          />
+          // #160 O seletor do DS não tem nome acessível: o grupo diz de que é a escolha (a checagem de página da doca o cobra).
+          <div role="group" aria-label={texts.recebimento.changeDestination(noun)}>
+            <Select
+              size="sm"
+              value={destination ?? aggregates?.destination ?? undefined}
+              onChange={setDestination}
+              options={destinations.map((d) => ({ value: d, label: d }))}
+            />
+          </div>
         ) : undefined
       }
-      state={state}
-      onRetry={retry}
+      state={list.state}
+      onRetry={list.retry}
       loadingLabel={texts.recebimento.loading(noun)}
       errorTitle={texts.recebimento.error(noun)}
       emptyLabel={emptyIn(shown)}
@@ -149,13 +147,19 @@ export function ReceivingBoard({ title, subtitle, load, words, noun, emptyIn, wa
               description={warning}
             />
           ) : null}
-          <RowTable<DockRowDto>
-            data={rows}
-            rowKey={(n) => n.invoiceAccessKey}
-            size="md"
+          <ScrollTable<DockRow>
+            rows={list.rows}
+            total={list.total}
+            phase={list.phase}
+            skeletonRows={list.skeletonRows}
+            counterBusy={list.counterBusy}
+            restarted={list.restarted}
+            resetKey={list.scrollKey}
+            onNearEnd={list.loadNext}
+            onRetry={list.retryBlock}
+            label={title}
             onOpenRow={(n) => setOpen(n)}
             rowLabel={(n) => texts.grid.openInvoice(n.number)}
-            emptyText={texts.recebimento.tableEmpty}
             columns={[
               { key: "nota", title: texts.recebimento.columns.invoice, dataIndex: "number", render: (_, n) => <InvoiceCell number={n.number} bottom={n.supplierId} /> },
               {
@@ -211,7 +215,7 @@ export function ReceivingBoard({ title, subtitle, load, words, noun, emptyIn, wa
             ]}
           />
           {open !== null ? (
-            <InvoiceDrawer invoiceAccessKey={open.invoiceAccessKey} title={texts.fila.drawerTitle} onClose={() => setOpen(null)} onDecided={retry}>
+            <InvoiceDrawer invoiceAccessKey={open.invoiceAccessKey} title={texts.fila.drawerTitle} onClose={() => setOpen(null)} onDecided={() => list.remove(open.key)}>
               <DataList
                 items={[
                   {

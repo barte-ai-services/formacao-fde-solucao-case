@@ -106,7 +106,7 @@ export function ScrollTable<T extends { key: string }>({
         </Text>
       </div>
       {restarted ? <Alert variant="info" title={texts.scrollTable.restartedTitle} description={texts.scrollTable.restartedDescription} showCloseButton={false} /> : null}
-      <div className="pagar-scroll" ref={box} aria-label={label} tabIndex={-1}>
+      <div className="pagar-scroll" ref={box} role="region" aria-label={label} tabIndex={-1}>
         <RowTable<T | SkeletonRow>
           data={data}
           // #160 O `render` embrulhado aceita também a linha de esqueleto; o `RowTable` só a conhece por este tipo.

@@ -13,7 +13,7 @@ export default function RecebimentoNaLoja(_props: RouteProps): ReactElement {
     <ReceivingBoard
       title={texts.recebimentoLoja.title}
       subtitle={texts.recebimentoLoja.subtitle}
-      load={(store, signal) => dockApi.storeBoard(store, signal)}
+      load={dockApi.storePage}
       words={texts.recebimentoLoja.words}
       noun={texts.recebimentoLoja.noun}
       emptyIn={texts.recebimentoLoja.emptyIn}

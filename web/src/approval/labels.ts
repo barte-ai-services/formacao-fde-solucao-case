@@ -23,16 +23,6 @@ export const ACTION_TONE: Record<DockActionKind, Tone> = {
   recusar: "negative",
 };
 
-/** A ordem da fila: o nível mais alto primeiro, depois o maior valor em risco. */
-const RANK: Record<ApprovalLevel, number> = { bloqueio: 4, diretoria: 3, coordenacao: 2, analista: 1, regra: 0 };
-
-export function byQueueOrder(
-  a: { level: ApprovalLevel; amountAtRisk: { cents: number } },
-  b: { level: ApprovalLevel; amountAtRisk: { cents: number } },
-): number {
-  return RANK[b.level] - RANK[a.level] || b.amountAtRisk.cents - a.amountAtRisk.cents;
-}
-
 /** #201 AC3: a coluna "Código" da fila e da lista do dia. MATCH não é código de exceção: aparece como traço. */
 export function codeLabel(code: Classification): string {
   return code === "MATCH" ? "—" : code;

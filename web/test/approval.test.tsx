@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Frame } from "../src/App";
 import { fallbackContext } from "../src/shell/context";
 import { texts } from "../src/texts";
+import { isPaged, pagedBody } from "./paged-fixture";
 
 // #63 As telas da aprovação contra uma API falsa, com o formato de api/src/http/approval.ts.
 
@@ -52,7 +53,9 @@ beforeEach(() => {
       const method = init.method ?? "GET";
       const path = String(input);
       calls.push({ method, path, body: init.body ? JSON.parse(String(init.body)) : undefined });
-      return respond(method, path);
+      const response = respond(method, path);
+      // #160 As listas chegam em blocos: o corpo "inteiro" que o teste montou vira a página única da API.
+      return isPaged(path) && method === "GET" && response.ok ? Response.json(pagedBody(path, await response.json())) : response;
     }),
   );
 });
@@ -66,7 +69,7 @@ function renderAt(path: string) {
 describe("#63 fila de aprovação", () => {
   it("AC-6: mostra a proposta que aguarda, com nível e valor em risco, e abre a gaveta com a evidência (AC-12)", async () => {
     respond = (_m, path) =>
-      path === "/api/fila"
+      path.startsWith("/api/fila") // ADR-004
         ? Response.json({ approver: { email: "c", level: "coordenacao" }, items: [item()] })
         : Response.json(detail());
     renderAt("/pagar/fila");
@@ -252,8 +255,10 @@ describe("#133 fila: Encaminhada a e Minhas", () => {
     expect(document.querySelectorAll(".pagar-dimmed[title='Precisa de Diretoria']").length).toBeGreaterThan(0);
     expect(document.querySelectorAll(".pagar-dimmed[title='Precisa de Coordenação']").length).toBe(0);
     fireEvent.click(screen.getByRole("radio", { name: /Minhas/ }));
-    expect(screen.getByText("NF 80")).toBeTruthy();
-    expect(screen.queryByText(/NF 81/)).toBeNull();
+    // #160 D1: "Minhas" é pedido à API, que devolve só o que a pessoa pode aprovar; a tela não filtra mais o que carregou.
+    await waitFor(() => expect(calls.some((c) => c.path.includes("pode_aprovar=1"))).toBe(true)); // ADR-006
+    expect(await screen.findByText("NF 80")).toBeTruthy();
+    await waitFor(() => expect(screen.queryByText(/NF 81/)).toBeNull());
   });
 });
 

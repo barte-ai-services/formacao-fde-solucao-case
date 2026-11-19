@@ -5,6 +5,7 @@ import { Frame } from "../src/App";
 import { navigate } from "../src/router";
 import { ROUTES } from "../src/routes";
 import { fallbackContext } from "../src/shell/context";
+import { isPaged, pagedBody } from "./paged-fixture";
 
 /** Um caminho de exemplo para cada rota da tabela, com o título e o texto vazio esperados. */
 const EXPECTED: Record<string, { path: string; title: string; empty: string }> = {
@@ -27,6 +28,12 @@ function renderAt(path: string) {
 /** #63 A API vazia: a fila e a lista do dia sem itens, e nenhuma proposta (404). */
 function emptyApi(input: RequestInfo | URL): Promise<Response> {
   const path = String(input);
+  // #160 As listas chegam em blocos (`?limite=`): a lista vazia é a página única sem itens.
+  if (isPaged(path)) return emptyApiOf(path.split("?")[0]!).then(async (response) => Response.json(pagedBody(path, await response.json())));
+  return emptyApiOf(path);
+}
+
+function emptyApiOf(path: string): Promise<Response> {
   if (path.startsWith("/api/propostas/")) return Promise.resolve(Response.json({ error: "not_found" }, { status: 404 }));
   if (path === "/api/fila") return Promise.resolve(Response.json({ approver: { email: null, level: null }, items: [] }));
   if (path.startsWith("/api/doca") || path.startsWith("/api/recebimento-loja")) return Promise.resolve(Response.json({ destination: null, date: "2026-11-15", destinations: [], awaiting: 0, rows: [] }));

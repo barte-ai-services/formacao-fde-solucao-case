@@ -1,13 +1,14 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { DivergenceDto, DuplicateDto, DuplicatesResponseDto, TitleState } from "../src/api/contract";
+import type { DivergenceDto, DuplicateDto, DuplicatesPageDto, TitleState } from "../src/api/contract";
 import NotasDuplicadas from "../src/routes/duplicadas";
 import { EvidenceView } from "../src/evidence/EvidenceView";
 // O arquivo registra a E6 ao carregar, como o índice faz na tela.
 import "../src/evidence/e6";
 
-const NF012: DuplicatesResponseDto = {
-  duplicates: [
+/** #160 A página única da API (`nextCursor` nulo): a lista cabe num bloco, e o contrato novo chama a lista de `items`. */
+const NF012: DuplicatesPageDto = {
+  items: [
     {
       duplicate: {
         accessKey: "35261100000000000000550010000894281000000012",
@@ -24,11 +25,13 @@ const NF012: DuplicatesResponseDto = {
       blockedAmount: "R$ 1.209,60",
     },
   ],
-  count: 1,
+  nextCursor: null,
+  total: 1,
+  aggregates: { blockedAmount: { cents: 120960, text: "R$ 1.209,60" }, byReason: { titulo_lancado: 1, ordem_sem_saldo: 0 } },
 };
 
-const NO_BALANCE: DuplicatesResponseDto = {
-  duplicates: [
+const NO_BALANCE: DuplicatesPageDto = {
+  items: [
     {
       duplicate: {
         accessKey: "35261100000000000000550010000895001000000099",
@@ -45,7 +48,9 @@ const NO_BALANCE: DuplicatesResponseDto = {
       blockedAmount: "R$ 450,00",
     },
   ],
-  count: 1,
+  nextCursor: null,
+  total: 1,
+  aggregates: { blockedAmount: { cents: 45000, text: "R$ 450,00" }, byReason: { titulo_lancado: 0, ordem_sem_saldo: 1 } },
 };
 
 function serve(body: unknown, status = 200) {
@@ -66,7 +71,7 @@ describe("#31/AC-6 o controller vê a nota duplicada, a original e o valor barra
     const fetchMock = serve(NF012);
     render(<NotasDuplicadas params={{}} />);
     expect(await screen.findByRole("button", { name: "Abrir a nota 89428" })).toBeTruthy();
-    expect(fetchMock).toHaveBeenCalledWith("/api/duplicates", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/duplicates?limite=30", expect.objectContaining({ method: "GET" }));
     expect(screen.getByText("NF 89410")).toBeTruthy();
     expect(screen.getByText("lançada")).toBeTruthy();
     expect(screen.getByText("mesma ordem e mesmo valor de um título já lançado")).toBeTruthy();
@@ -100,7 +105,7 @@ describe("#31/AC-6 o controller vê a nota duplicada, a original e o valor barra
   });
 
   it("#31/AC-6 lista vazia mostra o texto de vazio", async () => {
-    serve({ duplicates: [], count: 0 });
+    serve({ items: [], nextCursor: null, total: 0, aggregates: { blockedAmount: { cents: 0, text: "R$ 0,00" }, byReason: { titulo_lancado: 0, ordem_sem_saldo: 0 } } });
     render(<NotasDuplicadas params={{}} />);
     expect(await screen.findByText(/Nenhuma nota duplicada neste mês/)).toBeTruthy();
   });
@@ -165,9 +170,9 @@ describe("#31/AC-6 a evidência E6 desenha os dois motivos", () => {
 });
 
 describe("#31/AC-6 o selo do título segue o estado real do contas a pagar", () => {
-  function withState(titleState: TitleState | null): DuplicatesResponseDto {
-    const item: DuplicateDto = { ...NF012.duplicates[0]!, titleState };
-    return { duplicates: [item], count: 1 };
+  function withState(titleState: TitleState | null): DuplicatesPageDto {
+    const item: DuplicateDto = { ...NF012.items[0]!, titleState };
+    return { ...NF012, items: [item] };
   }
 
   async function openDrawer() {

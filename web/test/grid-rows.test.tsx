@@ -7,6 +7,7 @@ import NotasDuplicadas from "../src/routes/duplicadas";
 import Doca from "../src/routes/doca";
 import RecebimentoNaLoja from "../src/routes/recebimento-loja";
 import ReturnNotes from "../src/routes/devolucoes";
+import { isPaged, pagedBody } from "./paged-fixture";
 
 // #209 AC-1, AC-2 e AC-6: em cada grid, o clique na linha abre a gaveta da nota daquela linha (a da proposta, pela chave).
 
@@ -45,7 +46,9 @@ function serve(routes: Record<string, unknown>): string[] {
       asked.push(path);
       if (path.startsWith("/api/propostas/")) return Response.json({ error: "not_found" }, { status: 404 });
       const hit = Object.keys(routes).find((p) => path.startsWith(p));
-      return Response.json(hit ? routes[hit] : {});
+      const body = hit ? routes[hit] : {};
+      // #160 As listas chegam em blocos: o corpo "inteiro" da rota vira a página única da API.
+      return Response.json(isPaged(path) ? pagedBody(path, body) : body);
     }),
   );
   return asked;

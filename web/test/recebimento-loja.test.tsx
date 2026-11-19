@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Frame } from "../src/App";
+import { pagedBody } from "./paged-fixture";
 import { fallbackContext, NAVIGATION } from "../src/shell/context";
 
 // #135 A tela "Recebimento na loja" contra uma API falsa no formato de /api/recebimento-loja. Notas de loja do kit: LJ-012 em 2026-11-12.
@@ -40,7 +41,8 @@ const board = {
 };
 
 describe("#135 /recebimento/loja", () => {
-  const fetchMock = vi.fn(async (_input: RequestInfo | URL) => Response.json(board));
+  // #160 A API responde em blocos: a lista cabe num só (`nextCursor` nulo), e `awaiting` vem dos agregados.
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => Response.json(pagedBody(String(input), board)));
   beforeEach(() => vi.stubGlobal("fetch", fetchMock));
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -56,7 +58,7 @@ describe("#135 /recebimento/loja", () => {
     renderLoja();
     expect(await screen.findByRole("heading", { name: "Recebimento na loja" })).toBeTruthy();
     expect(await screen.findByText("NF 37452")).toBeTruthy();
-    expect(String(fetchMock.mock.calls[0]![0])).toBe("/api/recebimento-loja");
+    expect(String(fetchMock.mock.calls[0]![0])).toBe("/api/recebimento-loja?limite=30");
     const row = screen.getByText("NF 37452").closest("tr")!;
     expect(within(row).getByText("Receber")).toBeTruthy();
     expect(within(row).getByText("Receba tudo no app")).toBeTruthy();

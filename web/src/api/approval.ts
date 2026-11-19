@@ -2,7 +2,9 @@
  * #63 O fio da aprovação: a fila, a proposta, aprovar e alterar, e a lista do dia
  * (`api/src/http/approval.ts`). Dinheiro vem em centavos, com o texto já formatado pelo Worker.
  */
+import type { Block } from "../components/paged-list-state";
 import { apiGet, apiPost } from "./client";
+import { blockOf, getPage, type PageDto } from "./paged";
 import type {
   ApprovalLevel,
   Classification,
@@ -43,10 +45,22 @@ export interface QueueItemDto {
   canApprove: boolean;
 }
 
-export interface QueueDto {
-  approver: { email: string | null; level: PersonLevel | null };
-  items: QueueItemDto[];
+/** #160 Os números do topo da fila, da fila inteira e iguais com ou sem o filtro e em qualquer página. */
+export interface QueueAggregates {
+  /** #160 O chip "Todas". */
+  all: number;
+  /** #160 O chip "Minhas": as que a pessoa pode aprovar. */
+  approvable: number;
+  amountAtRisk: MoneyDto;
+  blocked: number;
 }
+
+/** #160 Uma página da fila (`GET /api/fila` com `limite`); `approver` é o contexto da lista. */
+export interface QueuePageDto extends PageDto<QueueItemDto, QueueAggregates> {
+  approver: { email: string | null; level: PersonLevel | null };
+}
+
+export type QueueRow = QueueItemDto & { key: string };
 
 export interface ApprovalDto {
   approver: string;
@@ -106,22 +120,35 @@ export interface TimelineStepDto {
   actor_name: string;
 }
 
-export interface TodayDto {
-  day: string;
-  items: {
-    invoiceAccessKey: string;
-    number: string;
-    supplierId: string;
-    amount: MoneyDto;
-    invoiceTotal: MoneyDto;
-    dueOn: string;
-    exceptionCode: Classification;
-    exceptionName: string;
-    dockAction: DockActionDto["kind"];
-    approver: string | null;
-  }[];
-  total: { cents: number };
+/** #160 Quem aprovou o título da lista do dia, como a API diz: a regra, o motor, uma pessoa; nulo sem aprovação. */
+export type ApprovedBy = "rule" | "engine" | "person" | null;
+
+export interface TodayItemDto {
+  invoiceAccessKey: string;
+  number: string;
+  supplierId: string;
+  amount: MoneyDto;
+  invoiceTotal: MoneyDto;
+  dueOn: string;
+  exceptionCode: Classification;
+  exceptionName: string;
+  dockAction: DockActionDto["kind"];
+  approver: string | null;
+  approvedBy: ApprovedBy;
 }
+
+/** #160 Os números do topo da lista do dia; `total` da resposta é a contagem de títulos. */
+export interface TodayAggregates {
+  toPay: MoneyDto;
+  approvedByRule: number;
+}
+
+/** #160 Uma página da lista do dia (`GET /api/hoje` com `limite`). */
+export interface TodayPageDto extends PageDto<TodayItemDto, TodayAggregates> {
+  day: string;
+}
+
+export type TodayRow = TodayItemDto & { key: string };
 
 export interface DecisionResultDto {
   approval: ApprovalDto;
@@ -129,13 +156,19 @@ export interface DecisionResultDto {
 }
 
 export const approvalApi = {
-  queue: (signal?: AbortSignal) => apiGet<QueueDto>("/api/fila", { signal }),
+  /** #160 Um bloco da fila; `approvableOnly` é o chip "Minhas" (D1), pedido à API e não filtrado na tela. */
+  queuePage: async (approvableOnly: boolean, cursor: string | null, signal: AbortSignal): Promise<Block<QueueRow, QueueAggregates>> => {
+    const filters: [string, string][] = approvableOnly ? [["pode_aprovar", "1"]] : []; // ADR-006
+    return blockOf(await getPage<QueuePageDto>("/api/fila", filters, cursor, signal), (item) => item.invoiceAccessKey); // ADR-004
+  },
   proposal: (key: string, signal?: AbortSignal) =>
     apiGet<ProposalDetailDto>(`/api/propostas/${encodeURIComponent(key)}`, { signal }),
   approve: (key: string) => apiPost<DecisionResultDto>(`/api/propostas/${encodeURIComponent(key)}/aprovar`, {}),
   alter: (key: string, dockAction: DockActionDto, justification: string) =>
     apiPost<DecisionResultDto>(`/api/propostas/${encodeURIComponent(key)}/alterar`, { dockAction, justification }),
-  today: (signal?: AbortSignal) => apiGet<TodayDto>("/api/hoje", { signal }),
+  /** #160 Um bloco da lista do dia. */
+  todayPage: async (cursor: string | null, signal: AbortSignal): Promise<Block<TodayRow, TodayAggregates>> =>
+    blockOf(await getPage<TodayPageDto>("/api/hoje", [], cursor, signal), (item) => item.invoiceAccessKey),
   requestDossier,
 };
 

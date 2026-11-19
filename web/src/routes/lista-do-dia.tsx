@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Stat, StatGrid } from "@barte-ai-services/barte-ui-kit";
-import { approvalApi, type TodayDto } from "../api/approval";
+import { approvalApi, type TodayAggregates, type TodayRow } from "../api/approval";
 import { InvoiceDrawer } from "../approval/InvoiceDrawer";
-import { RowTable } from "../components/RowTable";
+import { ScrollTable } from "../components/ScrollTable";
 import { ACTION_LABEL, ACTION_TONE, codeLabel } from "../approval/labels";
 import { AutomationIndicators } from "../components/AutomationIndicators";
 import { DecidedBy } from "../components/DecidedBy";
@@ -10,32 +10,25 @@ import { GridBadge } from "../components/GridBadge";
 import { InvoiceCell } from "../components/InvoiceCell";
 import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
-import { useLoad } from "../components/useLoad";
+import { usePagedList } from "../components/usePagedList";
 import type { RouteProps } from "./types";
 import { texts } from "../texts";
-
-const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-
-type Row = TodayDto["items"][number];
 
 /**
  * /pagar/hoje: a lista do dia (AC-13). Só os títulos liberados ou reduzidos hoje, pela regra ou por
  * uma pessoa; nenhum bloqueado e nenhum de nota sem decisão.
+ * #160 A lista chega em blocos por cursor, na ordem do servidor; os números do topo são o `total` e os agregados da resposta (AC-4).
  */
 export default function ListaDoDia(_props: RouteProps) {
-  const { state, data, retry } = useLoad(
-    (signal): Promise<TodayDto> => approvalApi.today(signal),
-    (today) => today.items.length === 0,
-  );
+  const list = usePagedList<TodayRow, TodayAggregates>((cursor, signal) => approvalApi.todayPage(cursor, signal), "hoje");
+  const { aggregates } = list;
   const [open, setOpen] = useState<string | null>(null);
-  const items = data?.items ?? [];
-  const byRule = items.filter((i) => i.approver === "regra").length;
   return (
     <Screen
       title={texts.listaDoDia.title}
       subtitle={texts.listaDoDia.subtitle}
-      state={state}
-      onRetry={retry}
+      state={list.state}
+      onRetry={list.retry}
       loadingLabel={texts.listaDoDia.loading}
       errorTitle={texts.listaDoDia.error}
       emptyLabel={texts.listaDoDia.empty}
@@ -50,18 +43,24 @@ export default function ListaDoDia(_props: RouteProps) {
       {() => (
         <>
           <StatGrid columns={3}>
-            <Stat caption={texts.listaDoDia.statTitles.caption} value={items.length} context={texts.listaDoDia.statTitles.context} />
-            <Stat caption={texts.listaDoDia.statToPay.caption} value={BRL.format((data?.total.cents ?? 0) / 100)} context={texts.listaDoDia.statToPay.context} />
-            <Stat caption={texts.listaDoDia.statByRule.caption} value={byRule} context={texts.listaDoDia.statByRule.context} tone="positive" />
+            <Stat caption={texts.listaDoDia.statTitles.caption} value={list.total} context={texts.listaDoDia.statTitles.context} />
+            <Stat caption={texts.listaDoDia.statToPay.caption} value={aggregates?.toPay.text ?? ""} context={texts.listaDoDia.statToPay.context} />
+            <Stat caption={texts.listaDoDia.statByRule.caption} value={aggregates?.approvedByRule ?? 0} context={texts.listaDoDia.statByRule.context} tone="positive" />
           </StatGrid>
           <AutomationIndicators />
-          <RowTable<Row>
-            data={items}
-            rowKey={(i) => i.invoiceAccessKey}
-            size="md"
+          <ScrollTable<TodayRow>
+            rows={list.rows}
+            total={list.total}
+            phase={list.phase}
+            skeletonRows={list.skeletonRows}
+            counterBusy={list.counterBusy}
+            restarted={list.restarted}
+            resetKey={list.scrollKey}
+            onNearEnd={list.loadNext}
+            onRetry={list.retryBlock}
+            label={texts.listaDoDia.title}
             onOpenRow={(i) => setOpen(i.invoiceAccessKey)}
             rowLabel={(i) => texts.grid.openInvoice(i.number)}
-            emptyText={texts.listaDoDia.tableEmpty}
             columns={[
               { key: "nota", title: texts.listaDoDia.columns.invoice, dataIndex: "number", render: (_, i) => <InvoiceCell number={i.number} bottom={i.supplierId} /> },
               {
@@ -85,7 +84,7 @@ export default function ListaDoDia(_props: RouteProps) {
                   </GridBadge>
                 ),
               },
-              { key: "quem", title: texts.listaDoDia.columns.approver, dataIndex: "approver", render: (_, i) => (i.approver === null ? "—" : <DecidedBy actor={i.approver === "regra" ? "rule" : "person"} name={i.approver === "regra" ? null : i.approver} />) },
+              { key: "quem", title: texts.listaDoDia.columns.approver, dataIndex: "approver", render: (_, i) => (i.approvedBy === null ? "—" : <DecidedBy actor={i.approvedBy} name={i.approvedBy === "person" ? i.approver : null} />) }, // #160 o motor não é pessoa: `approvedBy` o diz
               { key: "valor", title: texts.listaDoDia.columns.amount, dataIndex: "amount", align: "right", render: (_, i) => `${i.amount.text} de ${i.invoiceTotal.text}` },
             ]}
           />
