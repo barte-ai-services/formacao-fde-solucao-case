@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Frame } from "../src/App";
+import { pagedBody } from "./paged-fixture";
 import { fallbackContext } from "../src/shell/context";
 
 // #72 A tela da doca contra uma API falsa, no formato de api/src/dock/dock-board.ts. As notas são do kit (data/kit/notas.json): CD-03 em 2026-11-11; as ações são as do cenário de cada AC.
@@ -46,7 +47,8 @@ const board = {
 };
 
 describe("#72 /doca", () => {
-  const fetchMock = vi.fn(async (_input: RequestInfo | URL) => Response.json(board));
+  // #160 A API responde em blocos: a lista cabe num só (`nextCursor` nulo), e `awaiting` vem dos agregados.
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => Response.json(pagedBody(String(input), board)));
   beforeEach(() => vi.stubGlobal("fetch", fetchMock));
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -61,7 +63,7 @@ describe("#72 /doca", () => {
   it("#43/AC-4 lista as notas do dia do destino com a ação de cada uma", async () => {
     renderDoca();
     expect(await screen.findByText("NF 37452")).toBeTruthy();
-    expect(String(fetchMock.mock.calls[0]![0])).toBe("/api/doca");
+    expect(String(fetchMock.mock.calls[0]![0])).toBe("/api/doca?limite=30");
     const row = (n: string) => screen.getByText(`NF ${n}`).closest("tr")!;
     expect(within(row("37452")).getByText("Receber")).toBeTruthy();
     expect(within(row("37452")).getByText("Descarregue tudo")).toBeTruthy();

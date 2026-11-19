@@ -1,6 +1,7 @@
 // #72 A doca no fio: a resposta de `GET /api/doca`, nos DTOs do contrato da tela.
-import { apiGet } from "./client";
+import type { Block } from "../components/paged-list-state";
 import type { DockActionDto, QuantityDto } from "./contract";
+import { blockOf, getPage, type PageDto } from "./paged";
 
 export interface DockItemDto {
   sku: string | null;
@@ -23,24 +24,37 @@ export interface DockRowDto {
   decidedBy: { actor: "rule" | "person"; actor_name: string } | null;
 }
 
-export interface DockBoardDto {
+/** #160 Os números do topo da doca e o que a resposta diz do destino; `awaiting` é do destino inteiro. */
+export interface DockAggregates {
+  awaiting: number;
+}
+
+/** #160 Uma página da doca ou da loja (`GET /api/doca`, `GET /api/recebimento-loja` com `limite`); o destino e a data são o contexto da lista. */
+export interface DockPageDto extends PageDto<DockRowDto, DockAggregates> {
   destination: string | null;
   date: string;
   destinations: string[];
-  awaiting: number;
-  rows: DockRowDto[];
+}
+
+export type DockRow = DockRowDto & { key: string };
+
+/** #160 O que a tela lê do primeiro bloco além das linhas: os agregados e o destino com a lista de destinos (o seletor). */
+export interface DockBoardAggregates extends DockAggregates {
+  destination: string | null;
+  destinations: string[];
+}
+
+async function boardPage(path: string, filter: [string, string][], cursor: string | null, signal: AbortSignal): Promise<Block<DockRow, DockBoardAggregates>> {
+  const page = await getPage<DockPageDto>(path, filter, cursor, signal);
+  return { ...blockOf(page, (row) => row.invoiceAccessKey), aggregates: { ...page.aggregates, destination: page.destination, destinations: page.destinations } };
 }
 
 export const dockApi = {
   /** #135 O recebimento na loja: mesmo formato, lido de `/api/recebimento-loja?loja=LJ-…`. */
-  storeBoard(store: string | null, signal?: AbortSignal): Promise<DockBoardDto> {
-    const query = store ? `?loja=${encodeURIComponent(store)}` : "";
-    return apiGet<DockBoardDto>(`/api/recebimento-loja${query}`, { signal });
-  },
+  storePage: (store: string | null, cursor: string | null, signal: AbortSignal): Promise<Block<DockRow, DockBoardAggregates>> =>
+    boardPage("/api/recebimento-loja", store ? [["loja", store]] : [], cursor, signal),
 
   /** #72 Sem destino, a API abre no primeiro destino do dia; sem data, usa hoje. */
-  board(destination: string | null, signal?: AbortSignal): Promise<DockBoardDto> {
-    const query = destination ? `?destino=${encodeURIComponent(destination)}` : "";
-    return apiGet<DockBoardDto>(`/api/doca${query}`, { signal });
-  },
+  boardPage: (destination: string | null, cursor: string | null, signal: AbortSignal): Promise<Block<DockRow, DockBoardAggregates>> =>
+    boardPage("/api/doca", destination ? [["destino", destination]] : [], cursor, signal),
 };

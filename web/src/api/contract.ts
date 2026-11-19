@@ -174,10 +174,18 @@ export interface DuplicateDto {
   blockedAmount: string;
 }
 
-/** `GET /api/duplicates`. */
-export interface DuplicatesResponseDto {
-  duplicates: DuplicateDto[];
-  count: number;
+/** #160 Os números do topo das duplicadas, da lista inteira. */
+export interface DuplicatesAggregates {
+  blockedAmount: { cents: Cents; text: string };
+  byReason: Record<DuplicateReason, number>;
+}
+
+/** #160 `GET /api/duplicates` com `limite`: no modo paginado a lista se chama `items`, e a contagem é o `total`. */
+export interface DuplicatesPageDto {
+  items: DuplicateDto[];
+  nextCursor: string | null;
+  total: number;
+  aggregates: DuplicatesAggregates;
 }
 
 /**

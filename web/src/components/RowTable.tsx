@@ -18,6 +18,11 @@ export interface RowTableProps<T extends object> extends Omit<TableProps<T>, Fix
   onOpenRow: (row: T) => void;
   /** #209 O nome da linha para leitor de tela ("Abrir a nota 123"). */
   rowLabel: (row: T) => string;
+  /**
+   * #160 A linha que não é uma nota (o esqueleto da carga do próximo bloco): sem tabindex nem rótulo, `aria-hidden`, e nem o clique
+   * nem o teclado a abrem. Opcional: sem ele, toda linha é de nota, como na #209.
+   */
+  rowInert?: (row: T) => boolean;
 }
 
 /**
@@ -25,7 +30,7 @@ export interface RowTableProps<T extends object> extends Omit<TableProps<T>, Fix
  * e entra na ordem do Tab. O link da NF, um seletor ou um botão dentro da linha não abrem a gaveta.
  * O `Table` do DS só trata o clique; o teclado e o rótulo entram aqui, nas linhas que ele desenha.
  */
-export function RowTable<T extends object>({ onOpenRow, rowLabel, data, ...table }: RowTableProps<T>): ReactElement {
+export function RowTable<T extends object>({ onOpenRow, rowLabel, rowInert, data, ...table }: RowTableProps<T>): ReactElement {
   const box = useRef<HTMLDivElement>(null);
   /** O clique que nasceu num controle: lido em captura, antes de a linha tratar o seu. */
   const fromControl = useRef(false);
@@ -35,6 +40,11 @@ export function RowTable<T extends object>({ onOpenRow, rowLabel, data, ...table
     data.forEach((record, i) => {
       const tr = trs[i];
       if (!tr) return;
+      // #160 A linha inerte fica fora do Tab e da leitura.
+      if (rowInert?.(record)) {
+        tr.setAttribute("aria-hidden", "true");
+        return;
+      }
       tr.setAttribute("tabindex", "0");
       tr.setAttribute("aria-label", rowLabel(record));
     });
@@ -46,7 +56,7 @@ export function RowTable<T extends object>({ onOpenRow, rowLabel, data, ...table
     // Só a própria linha: Enter num botão ou seletor dentro dela é do controle.
     if (!tr || event.target !== tr) return;
     const record = data[Array.from(tr.parentElement?.children ?? []).indexOf(tr)];
-    if (!record) return;
+    if (!record || rowInert?.(record)) return;
     event.preventDefault();
     onOpenRow(record);
   };
@@ -61,12 +71,13 @@ export function RowTable<T extends object>({ onOpenRow, rowLabel, data, ...table
       }}
     >
       <Table<T>
+        // #160 O resto das props é `TableProps<T>` sem as de `Fixed`, com `columns` mais estreito (`sortable?: false`), o que ainda cabe em `TableProps<T>`; o TS não junta de volta um `Omit` sobre `T` genérico, então o cast a reabre (como em `ScrollTable`, em `columns`).
         {...(table as unknown as TableProps<T>)}
         data={data}
         onRowClick={(record) => {
           const ignore = fromControl.current;
           fromControl.current = false;
-          if (!ignore) onOpenRow(record);
+          if (!ignore && !rowInert?.(record)) onOpenRow(record);
         }}
       />
     </div>

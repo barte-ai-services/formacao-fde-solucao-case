@@ -1,23 +1,22 @@
-import { useState, type ReactNode } from "react";
+import { useState, type ReactElement, type ReactNode } from "react";
 import { Alert, Text } from "barte-design-system";
 import {
   DataList,
   ReconciliationDiff,
   Stat,
   StatGrid,
-  formatCurrency,
   formatIsoDate,
 } from "@barte-ai-services/barte-ui-kit";
-import { apiGet } from "../api";
-import type { DuplicateDto, DuplicateReason, DuplicatesResponseDto, TitleState } from "../api/contract";
+import type { DuplicateReason, DuplicatesAggregates, TitleState } from "../api/contract";
+import { duplicatesApi, type DuplicateRow } from "../api/duplicates";
 import { EmptyState } from "../components/EmptyState";
 import { GridBadge } from "../components/GridBadge";
 import { InvoiceCell } from "../components/InvoiceCell";
 import { Screen } from "../components/Screen";
 import { InvoiceDrawer } from "../approval/InvoiceDrawer";
 import { DecidedBy } from "../components/DecidedBy";
-import { RowTable } from "../components/RowTable";
-import { useLoad } from "../components/useLoad";
+import { ScrollTable } from "../components/ScrollTable";
+import { usePagedList } from "../components/usePagedList";
 import type { RouteProps } from "./types";
 import { texts } from "../texts";
 
@@ -73,24 +72,23 @@ function TwoLines({ top, bottom }: { top: ReactNode; bottom: ReactNode }) {
   );
 }
 
-/** /pagar/duplicadas: as notas duplicadas, cada uma ao lado da original, com o título bloqueado. */
-export default function NotasDuplicadas(_props: RouteProps) {
-  const { state, data, retry } = useLoad(
-    (signal) => apiGet<DuplicatesResponseDto>("/api/duplicates", { signal }),
-    (response) => response.count === 0,
-  );
-  const [openKey, setOpenKey] = useState<string | null>(null);
-  const duplicates = data?.duplicates ?? [];
-  const blockedCents = duplicates.reduce((sum, d) => sum + d.blockedAmountCents, 0);
-  const byReason = (reason: DuplicateReason) => duplicates.filter((d) => d.reason === reason).length;
-  const open = duplicates.find((d) => d.duplicate.accessKey === openKey);
+/**
+ * /pagar/duplicadas: as notas duplicadas, cada uma ao lado da original, com o título bloqueado.
+ * #160 A lista chega em blocos por cursor; os números do topo são o `total` e os agregados da resposta (AC-4).
+ */
+export default function NotasDuplicadas(_props: RouteProps): ReactElement {
+  const list = usePagedList<DuplicateRow, DuplicatesAggregates>((cursor, signal) => duplicatesApi.page(cursor, signal), "duplicadas");
+  const { aggregates } = list;
+  // #160 A gaveta guarda a linha aberta e lê a versão atual dela na lista: decidir a atualiza no lugar (D3) e a gaveta segue mostrando a decisão.
+  const [open, setOpen] = useState<DuplicateRow | null>(null);
+  const drawerRow = open === null ? null : (list.rows.find((row) => row.key === open.key) ?? open);
 
   return (
     <Screen
       title={texts.duplicadas.title}
       subtitle={texts.duplicadas.subtitle}
-      state={state}
-      onRetry={retry}
+      state={list.state}
+      onRetry={list.retry}
       loadingLabel={texts.duplicadas.loading}
       errorTitle={texts.duplicadas.error}
       emptyLabel={texts.duplicadas.empty}
@@ -105,19 +103,26 @@ export default function NotasDuplicadas(_props: RouteProps) {
       {() => (
         <>
           <StatGrid columns={3}>
-            <Stat caption={texts.duplicadas.statDuplicates.caption} value={duplicates.length} context={texts.duplicadas.statDuplicates.context} tone="negative" />
-            <Stat caption={texts.duplicadas.statBlocked.caption} value={formatCurrency(blockedCents / 100)} context={texts.duplicadas.statBlocked.context} tone="positive" />
+            <Stat caption={texts.duplicadas.statDuplicates.caption} value={list.total} context={texts.duplicadas.statDuplicates.context} tone="negative" />
+            <Stat caption={texts.duplicadas.statBlocked.caption} value={aggregates?.blockedAmount.text ?? ""} context={texts.duplicadas.statBlocked.context} tone="positive" />
             <Stat
               caption={texts.duplicadas.statWhy.caption}
-              value={`${byReason("titulo_lancado")} · ${byReason("ordem_sem_saldo")}`}
+              value={`${aggregates?.byReason.titulo_lancado ?? 0} · ${aggregates?.byReason.ordem_sem_saldo ?? 0}`}
               context={texts.duplicadas.statWhy.context}
             />
           </StatGrid>
-          <RowTable<DuplicateDto>
-            data={duplicates}
-            rowKey={(d) => d.duplicate.accessKey}
-            size="md"
-            onOpenRow={(d) => setOpenKey(d.duplicate.accessKey)}
+          <ScrollTable<DuplicateRow>
+            rows={list.rows}
+            total={list.total}
+            phase={list.phase}
+            skeletonRows={list.skeletonRows}
+            counterBusy={list.counterBusy}
+            restarted={list.restarted}
+            resetKey={list.scrollKey}
+            onNearEnd={list.loadNext}
+            onRetry={list.retryBlock}
+            label={texts.duplicadas.title}
+            onOpenRow={setOpen}
             rowLabel={(d) => texts.grid.openInvoice(d.duplicate.number)}
             columns={[
               {
@@ -130,7 +135,7 @@ export default function NotasDuplicadas(_props: RouteProps) {
                     issuedOn={d.duplicate.issuedOn}
                     bottom={`${d.duplicate.supplierId} · ${d.duplicate.total}`}
                     openLabel={texts.duplicadas.openInvoice(d.duplicate.number)}
-                    onOpen={() => setOpenKey(d.duplicate.accessKey)}
+                    onOpen={() => setOpen(d)}
                   />
                 ),
               },
@@ -179,7 +184,7 @@ export default function NotasDuplicadas(_props: RouteProps) {
               { key: "decidedBy", title: texts.decidedBy.column, dataIndex: "reason", render: (_, d) => (d.titleState === "bloqueado" ? <DecidedBy actor="system" /> : "—") },
             ]}
           />
-          {open !== undefined ? <DuplicateDrawer duplicate={open} onClose={() => setOpenKey(null)} onDecided={retry} /> : null}
+          {drawerRow !== null ? <DuplicateDrawer duplicate={drawerRow} onClose={() => setOpen(null)} onDecided={() => list.refresh(drawerRow.key)} /> : null}
         </>
       )}
     </Screen>
@@ -187,7 +192,7 @@ export default function NotasDuplicadas(_props: RouteProps) {
 }
 
 /** O detalhe de uma duplicidade: a original contra a duplicada, campo a campo. */
-function DuplicateDrawer({ duplicate: d, onClose, onDecided }: { duplicate: DuplicateDto; onClose: () => void; onDecided: () => void }) {
+function DuplicateDrawer({ duplicate: d, onClose, onDecided }: { duplicate: DuplicateRow; onClose: () => void; onDecided: () => void }) {
   const badge = titleBadge(d.titleState);
   return (
     <InvoiceDrawer invoiceAccessKey={d.duplicate.accessKey} title={() => texts.duplicadas.drawerTitle(d.duplicate.number)} onClose={onClose} onDecided={onDecided}>

@@ -1,0 +1,72 @@
+/* Só o que o wireframe acrescenta. A cara das telas é a do portal (web/src/app.css) e a do kit. */
+
+/* ---- A tabela rolável proposta (#160) ------------------------------------------------------------------------------- */
+.wf-list { display: grid; gap: var(--spacing-md); min-width: 0; --wf-sticky-z: 2; --wf-list-height: max(18rem, calc(100dvh - 24rem)); }
+.wf-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-md); flex-wrap: wrap; min-height: var(--sizes-3xl); }
+.wf-counter b { color: var(--content-primary); font-weight: var(--typography-label-sm-fontWeight, 600); }
+.wf-counter-loaded { color: var(--content-tertiary); }
+
+/* A caixa é quem rola e quem leva a borda: o `Table` do DS embrulha a tabela em dois `overflow` (tableWrapper e
+   tableContainer) que prendem o `position: sticky`; aqui os dois deixam de cortar e a caixa assume. */
+.wf-scroll {
+  max-height: var(--wf-list-height);
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: var(--border-width-sm) solid var(--stroke-primary);
+  border-radius: var(--border-radius-xl);
+  background: var(--bg-primary);
+}
+.wf-scroll [class*="Table-module__tableWrapper"] { overflow: visible; border: 0; border-radius: 0; }
+.wf-scroll [class*="Table-module__tableContainer"] { overflow: visible; }
+.wf-scroll .pagar-row-table { overflow: visible; }
+
+/* O cabeçalho fixo: preso ao topo da caixa. A linha de baixo é sombra, porque a borda do `border-collapse` rola embora. */
+.wf-scroll.wf-scroll .pagar-row-table thead th { position: sticky; top: 0; z-index: var(--wf-sticky-z); box-shadow: 0 var(--border-width-sm) 0 var(--stroke-primary); }
+/* O canto: a coluna da NF já fica fixa à esquerda (#222); no cabeçalho fica acima das duas. */
+.wf-scroll.wf-scroll .pagar-row-table thead th:first-child { z-index: calc(var(--wf-sticky-z) + 1); }
+
+/* A linha focada pelo teclado (#209), também no desenho estático. */
+.wf-scroll tbody tr[data-wf-focus] { outline: 2px solid var(--stroke-brand); outline-offset: -2px; background: var(--bg-secondary); }
+.wf-scroll tbody tr[data-wf-focus] td:first-child { background: var(--bg-secondary); }
+
+/* A linha de esqueleto: a mesma barra pulsante que o `ChartCard` do kit usa, só com tokens do DS. */
+.wf-skel {
+  display: block; height: var(--sizes-xs); border-radius: var(--border-radius-sm, 4px);
+  background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--bg-tertiary) 50%, var(--bg-secondary) 75%);
+  background-size: 200% 100%; animation: wf-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes wf-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .wf-skel { animation: none; } }
+
+.wf-end { display: flex; align-items: center; justify-content: center; gap: var(--spacing-sm); padding: var(--spacing-xl); border-top: var(--border-width-sm) solid var(--stroke-primary); }
+.wf-block-error { display: flex; align-items: center; gap: var(--spacing-md); padding: var(--spacing-xl) var(--spacing-xl); border-top: var(--border-width-sm) solid var(--stroke-primary); background: var(--accent-red-light); position: sticky; left: 0; }
+.wf-block-error > div { flex: 1; display: grid; gap: var(--spacing-2xs); min-width: 0; }
+.wf-sentinel { height: 1px; }
+
+/* ---- As anotações e o controle do wireframe: fora da tela, não fazem parte dela ---------------------------------------- */
+.wf-annot {
+  display: grid; gap: var(--spacing-2xs); margin-bottom: var(--spacing-xl); padding: var(--spacing-md) var(--spacing-xl);
+  border: 1px dashed var(--stroke-brand); border-radius: var(--border-radius-lg); background: var(--bg-primary);
+}
+.wf-annot-title { font-size: var(--typography-label-sm-fontSize, 12px); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--content-brand); }
+.wf-stack { display: grid; gap: var(--spacing-xl); min-width: 0; }
+.wf-flow { display: grid; gap: var(--spacing-xs); max-width: 44rem; }
+.wf-flow-side { grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); max-width: none; gap: var(--spacing-md); }
+.wf-step { display: flex; gap: var(--spacing-md); align-items: flex-start; padding: var(--spacing-md) var(--spacing-xl); border: var(--border-width-sm) solid var(--stroke-primary); border-radius: var(--border-radius-lg); background: var(--bg-primary); }
+.wf-step > div { display: grid; gap: var(--spacing-2xs); min-width: 0; }
+.wf-arrow { padding-left: var(--spacing-xl); color: var(--content-tertiary); font-size: var(--typography-body-xs-fontSize); display: flex; gap: var(--spacing-sm); align-items: center; }
+.wf-stack code { font-size: .9em; }
+
+div.wf-controls {
+  box-sizing: border-box; position: sticky; top: 0; z-index: 5;
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-md) var(--spacing-xl);
+  margin-bottom: var(--spacing-xl); padding: var(--spacing-md) var(--spacing-xl);
+  background: var(--bg-primary); color: var(--content-primary);
+  border: 1px dashed var(--stroke-brand); border-radius: var(--border-radius-lg);
+  font-family: var(--bsk-font-family);
+}
+.wf-controls label { display: flex; align-items: center; gap: var(--spacing-sm); }
+.wf-controls-title { font-size: var(--typography-label-sm-fontSize, 12px); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--content-brand, var(--content-secondary)); }
+.wf-controls-note { font-size: var(--typography-body-xs-fontSize); color: var(--content-tertiary); }
+.wf-controls select { width: 22rem; max-width: 100%; min-height: var(--sizes-4xl, 2rem); padding: 0 var(--spacing-sm); border: var(--border-width-sm) solid var(--stroke-secondary); border-radius: var(--border-radius-md, 8px); background: var(--bg-primary); color: var(--content-primary); font: inherit; }
+.wf-annot span:not(.wf-annot-title) { font-size: var(--typography-body-sm-fontSize, 14px); color: var(--content-secondary); }

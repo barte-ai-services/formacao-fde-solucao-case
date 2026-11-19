@@ -6,12 +6,14 @@ import NotasDuplicadas from "../src/routes/duplicadas";
 import ReturnNotes from "../src/routes/devolucoes";
 import Doca from "../src/routes/doca";
 import RecebimentoNaLoja from "../src/routes/recebimento-loja";
+import { isPaged, pagedBody } from "./paged-fixture";
 
 // #211 AC-3: a coluna "Decidido por", com o selo certo, nas grids que sabem quem decidiu.
 const money = (cents: number) => ({ cents, text: `R$ ${cents / 100}` });
 const params = { params: {} };
 function serve(body: unknown) {
-  vi.stubGlobal("fetch", vi.fn(async () => Response.json(body)));
+  // #160 As listas chegam em blocos: o corpo "inteiro" que o teste montou vira a página única da API.
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => Response.json(isPaged(String(input)) ? pagedBody(String(input), body) : body)));
 }
 afterEach(() => vi.unstubAllGlobals());
 

@@ -17,6 +17,18 @@ export const texts = {
     noteWord: (n: number) => (n === 1 ? "1 nota" : `${n} notas`),
   },
 
+  /** #160 A tabela rolável das grids: contador no topo, esqueleto, faixa de erro do bloco, fim da lista e o aviso de recomeço. */
+  scrollTable: {
+    counterBusy: "Carregando…",
+    loadingRow: "Carregando mais notas",
+    empty: "Nenhuma nota nesta lista",
+    blockErrorTitle: "Não consegui carregar as próximas notas",
+    blockErrorDescription: (loaded: number) => `As ${loaded} que já carregaram continuam aqui.`,
+    endOfList: (total: number) => (total === 1 ? "Você viu a única nota" : `Você viu todas as ${total} notas`),
+    // #160 As duas frases vão no título do Alert: a descrição do design system usa --content-tertiary (4,28:1 sobre o fundo do aviso, abaixo de 4,5:1).
+    restarted: "A lista mudou e voltou ao início. Recomeçamos do início; nada que você decidiu se perdeu.",
+  },
+
   /** #211 A faixa de automação no topo das telas, a gaveta das rodadas e os indicadores. */
   automation: {
     ok: (lastAt: string, ago: string, nextAt: string) => `Automático · última rodada às ${lastAt} (${ago}) · próxima às ${nextAt}`,
@@ -225,6 +237,7 @@ export const texts = {
   recebimento: {
     loading: (noun: string) => `Carregando as notas da ${noun}…`,
     error: (noun: string) => `Não consegui ler as notas desta ${noun} agora`,
+    changeDestination: (noun: string) => `Trocar a ${noun}`,
     awaitingTitle: (n: number) => `${n} ${n === 1 ? "nota aguarda" : "notas aguardam"} aprovação.`,
     tableEmpty: "Nenhuma nota.",
     columns: { invoice: "Nota fiscal", items: "Itens", whatToDo: "O que fazer" },

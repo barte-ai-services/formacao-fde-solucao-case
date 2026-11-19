@@ -1,0 +1,12 @@
+{
+  "pages": {
+    "wireframe-tabela-scroll-infinito": {
+      "file": "index.html",
+      "title": "Wireframe da tabela com scroll infinito",
+      "home": "team",
+      "links": {},
+      "capabilities": {}
+    }
+  },
+  "publishOrder": ["wireframe-tabela-scroll-infinito"]
+}
