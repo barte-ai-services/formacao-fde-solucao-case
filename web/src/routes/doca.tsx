@@ -217,7 +217,7 @@ export function ReceivingBoard({ title, subtitle, load, words, noun, emptyIn, wa
             ]}
           />
           {drawerRow !== null ? (
-            <InvoiceDrawer invoiceAccessKey={drawerRow.invoiceAccessKey} title={texts.fila.drawerTitle} onClose={() => setOpen(null)} onDecided={list.refresh}>
+            <InvoiceDrawer invoiceAccessKey={drawerRow.invoiceAccessKey} title={texts.fila.drawerTitle} onClose={() => setOpen(null)} onDecided={() => list.refresh(drawerRow.key)}>
               <DataList
                 items={[
                   {

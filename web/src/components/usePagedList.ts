@@ -30,11 +30,13 @@ export interface PagedList<T extends { key: string }, A> {
   /** #160 D3: depois de decidir uma nota na gaveta, tira a linha e relê o total e os agregados, sem voltar ao início. */
   remove: (key: string) => void;
   /**
-   * #160 D3 onde o servidor mantém a nota decidida: relê em segundo plano os blocos já carregados e troca as linhas no lugar (pela `key`),
-   * sem esvaziar a lista nem mexer na rolagem; o `total` e os agregados vêm da releitura. Vale só a releitura mais nova e só na geração
-   * atual da lista: trocar o filtro, recomeçar ou decidir outra nota depois a descarta.
+   * #160 D3 onde o servidor mantém a nota decidida: relê em segundo plano e troca as linhas no lugar (pela `key`), sem esvaziar a lista
+   * nem mexer na rolagem; o `total` e os agregados vêm da releitura. Regra de parada: lê enquanto houver cursor e (ainda faltarem linhas
+   * para cobrir as da tela OU a `key` decidida não tiver voltado), com teto de um bloco além dos já carregados; se a chave não voltou
+   * nem assim (sumiu do servidor), a linha fica como estava. Linha nova do servidor que não está na tela não entra. Vale só a releitura
+   * mais nova e só na geração atual da lista: trocar o filtro, recomeçar ou decidir outra nota depois a descarta.
    */
-  refresh: () => void;
+  refresh: (decidedKey: string) => void;
 }
 
 /**
@@ -56,6 +58,8 @@ export function usePagedList<T extends { key: string }, A>(fetchBlock: FetchBloc
   /** #160 D4: o último erro de bloco foi o cursor recusado: repetir o cursor nunca resolve, o "Tentar de novo" recomeça. */
   const cursorRefusedRef = useRef(false);
   const refreshSeq = useRef(0);
+  /** #160 D3: quantos blocos a geração atual já carregou; o teto da releitura é este número mais um. */
+  const loadedBlocks = useRef(0);
   // #160 Atualizados depois de cada desenho, não durante ele.
   useEffect(() => {
     fetchRef.current = fetchBlock;
@@ -70,12 +74,15 @@ export function usePagedList<T extends { key: string }, A>(fetchBlock: FetchBloc
     nextBusy.current = false;
     restartedRef.current = restart;
     cursorRefusedRef.current = false;
+    loadedBlocks.current = 0;
     refreshSeq.current += 1;
     dispatch({ type: "start-first", restart });
     fetchRef
       .current(null, controller.signal)
       .then((block) => {
-        if (!controller.signal.aborted) dispatch({ type: "first-loaded", block });
+        if (controller.signal.aborted) return;
+        loadedBlocks.current = 1;
+        dispatch({ type: "first-loaded", block });
       })
       .catch(() => {
         if (!controller.signal.aborted) dispatch({ type: "first-failed" });
@@ -99,6 +106,7 @@ export function usePagedList<T extends { key: string }, A>(fetchBlock: FetchBloc
         .then((block) => {
           if (controller.signal.aborted) return;
           restartedRef.current = false;
+          loadedBlocks.current += 1;
           dispatch({ type: "next-loaded", block });
         })
         .catch((error: unknown) => {
@@ -143,15 +151,17 @@ export function usePagedList<T extends { key: string }, A>(fetchBlock: FetchBloc
       });
   }, []);
 
-  const refresh = useCallback((): void => {
+  const refresh = useCallback((decidedKey: string): void => {
     const controller = controllerRef.current;
     if (!controller || stateRef.current.aggregates === undefined) return;
     const seq = ++refreshSeq.current;
     const wanted = stateRef.current.rows.length;
+    const ceiling = loadedBlocks.current + 1;
     void (async () => {
       const fresh: T[] = [];
       let first: Block<T, A> | undefined;
       let cursor: string | null = null;
+      let read = 0;
       try {
         do {
           const block: Block<T, A> = await fetchRef.current(cursor, controller.signal);
@@ -159,7 +169,8 @@ export function usePagedList<T extends { key: string }, A>(fetchBlock: FetchBloc
           first ??= block;
           fresh.push(...block.items);
           cursor = block.nextCursor;
-        } while (cursor !== null && fresh.length < wanted);
+          read += 1;
+        } while (cursor !== null && read < ceiling && (fresh.length < wanted || !fresh.some((row) => row.key === decidedKey)));
       } catch {
         // #160 Sem a releitura ficam as linhas e os números de antes; a próxima carga os acerta.
         return;

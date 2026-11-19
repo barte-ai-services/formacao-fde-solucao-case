@@ -228,7 +228,7 @@ describe("#160 usePagedList", () => {
       const block = await inner(cursor, signal);
       return { ...block, items: block.items.map((row) => (row.key === "k1" || row.key === "k45" ? { ...row, number: "decidida" } : row)), aggregates: { all: 99 } };
     });
-    act(() => result.current.refresh());
+    act(() => result.current.refresh("k1"));
     await waitFor(() => expect(result.current.rows[0]?.number).toBe("decidida"));
     expect(s.calls.slice(2)).toEqual([null, "m:30"]);
     expect(result.current.rows).toHaveLength(60);
@@ -238,6 +238,36 @@ describe("#160 usePagedList", () => {
     expect(result.current.total).toBe(70);
     expect(result.current.scrollKey).toBe(scrollKey);
     expect(result.current.phase).toBe("idle");
+  });
+
+  it("#160/AC-4: uma nota que ordena antes entra no servidor entre a carga e a decisão: a releitura anda até a chave decidida voltar, e a linha mostra o estado novo", async () => {
+    const s = server();
+    const { result } = renderHook(() => usePagedList(s.fetchBlock, "todas"));
+    await waitFor(() => expect(result.current.state).toBe("ready"));
+    expect(result.current.rows).toHaveLength(30);
+    // #160 O servidor ganha uma nota que ordena antes de todas; a decidida (k30, a última carregada) desce para o segundo bloco e já tem o estado novo.
+    const all: Row[] = [{ key: "nova", number: "nova" }, ...Array.from({ length: TOTAL }, (_, i) => ({ key: `k${i + 1}`, number: i === 29 ? "decidida" : String(i + 1) }))];
+    s.fetchBlock.mockImplementation(async (cursor): Promise<Block<Row, Agg>> => {
+      const at = cursor === null ? 0 : Number(cursor.split(":")[1]);
+      return { items: all.slice(at, at + SIZE), nextCursor: at + SIZE < all.length ? `m:${at + SIZE}` : null, total: all.length, aggregates: { all: all.length } };
+    });
+    act(() => result.current.refresh("k30"));
+    await waitFor(() => expect(result.current.rows[29]?.number).toBe("decidida"));
+    expect(result.current.rows).toHaveLength(30);
+    expect(result.current.rows.map((r) => r.key)).toEqual(Array.from({ length: 30 }, (_, i) => `k${i + 1}`));
+    expect(result.current.total).toBe(71);
+  });
+
+  it("#160/AC-4: o teto da releitura: chave que sumiu do servidor lê no máximo os blocos carregados mais um, e as linhas ficam intactas", async () => {
+    const s = server();
+    const { result } = renderHook(() => usePagedList(s.fetchBlock, "todas"));
+    await waitFor(() => expect(result.current.state).toBe("ready"));
+    const before = result.current.rows;
+    act(() => result.current.refresh("sumiu"));
+    await waitFor(() => expect(s.calls.slice(1)).toEqual([null, "m:30"]));
+    await waitFor(() => expect(result.current.phase).toBe("idle"));
+    expect(s.calls).toHaveLength(3);
+    expect(result.current.rows).toEqual(before);
   });
 
   it("#160/AC-4: a releitura que chega depois de trocar o filtro ou depois de outra releitura é descartada", async () => {
@@ -251,15 +281,15 @@ describe("#160 usePagedList", () => {
       const all = await new Promise<number>((resolve) => answers.push(resolve));
       return { ...block, aggregates: { all } };
     });
-    act(() => result.current.refresh());
-    act(() => result.current.refresh());
+    act(() => result.current.refresh("k1"));
+    act(() => result.current.refresh("k1"));
     await waitFor(() => expect(answers).toHaveLength(2));
     await act(async () => answers[1]!(2));
     await waitFor(() => expect(result.current.aggregates).toEqual({ all: 2 }));
     await act(async () => answers[0]!(1));
     expect(result.current.aggregates).toEqual({ all: 2 });
     // #160 Trocar o filtro aborta a releitura em voo: a resposta dela não suja a lista nova.
-    act(() => result.current.refresh());
+    act(() => result.current.refresh("k1"));
     await waitFor(() => expect(answers).toHaveLength(3));
     rerender({ key: "minhas" });
     await act(async () => answers[2]!(3));
@@ -273,7 +303,7 @@ describe("#160 usePagedList", () => {
     const { result } = renderHook(() => usePagedList(s.fetchBlock, "todas"));
     await waitFor(() => expect(result.current.state).toBe("ready"));
     s.hooks.failTotals = true;
-    act(() => result.current.refresh());
+    act(() => result.current.refresh("k1"));
     await waitFor(() => expect(s.calls).toHaveLength(2));
     expect(result.current.state).toBe("ready");
     expect(result.current.rows).toHaveLength(30);

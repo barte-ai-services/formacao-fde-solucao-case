@@ -184,7 +184,7 @@ export default function NotasDuplicadas(_props: RouteProps): ReactElement {
               { key: "decidedBy", title: texts.decidedBy.column, dataIndex: "reason", render: (_, d) => (d.titleState === "bloqueado" ? <DecidedBy actor="system" /> : "—") },
             ]}
           />
-          {drawerRow !== null ? <DuplicateDrawer duplicate={drawerRow} onClose={() => setOpen(null)} onDecided={list.refresh} /> : null}
+          {drawerRow !== null ? <DuplicateDrawer duplicate={drawerRow} onClose={() => setOpen(null)} onDecided={() => list.refresh(drawerRow.key)} /> : null}
         </>
       )}
     </Screen>
