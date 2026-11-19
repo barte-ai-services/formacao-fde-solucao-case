@@ -51,8 +51,8 @@ describe('#333 o scheduled despacha pelo cron que disparou', () => {
   it('#333/AC-2: os nomes dos crons são os do wrangler.jsonc, e o do auditor é deslocado do de 15 minutos', () => {
     const text = readFileSync(new URL('../../wrangler.jsonc', import.meta.url), 'utf8');
     const json = text.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
-    const config = JSON.parse(json) as { triggers: { crons: string[] } };
-    expect([...config.triggers.crons].sort()).toEqual([AUDIT_CRON, CLAUDE_CRON].sort());
+    const config: unknown = JSON.parse(json);
+    expect(config).toMatchObject({ triggers: { crons: [CLAUDE_CRON, AUDIT_CRON] } });
     expect(AUDIT_CRON).not.toBe(CLAUDE_CRON);
   });
 });
