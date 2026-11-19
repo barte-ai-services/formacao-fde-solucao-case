@@ -105,7 +105,7 @@ export function ScrollTable<T extends { key: string }>({
           {counterBusy ? texts.scrollTable.counterBusy : <b className="pagar-list-counter">{texts.common.noteWord(total)}</b>}
         </Text>
       </div>
-      {restarted ? <Alert variant="info" title={texts.scrollTable.restartedTitle} description={texts.scrollTable.restartedDescription} showCloseButton={false} /> : null}
+      {restarted ? <Alert variant="info" title={texts.scrollTable.restarted} showCloseButton={false} /> : null}
       <div className="pagar-scroll" ref={box} role="region" aria-label={label} tabIndex={-1}>
         <RowTable<T | SkeletonRow>
           data={data}

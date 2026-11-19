@@ -25,8 +25,8 @@ export const texts = {
     blockErrorTitle: "Não consegui carregar as próximas notas",
     blockErrorDescription: (loaded: number) => `As ${loaded} que já carregaram continuam aqui.`,
     endOfList: (total: number) => (total === 1 ? "Você viu a única nota" : `Você viu todas as ${total} notas`),
-    restartedTitle: "A lista mudou e voltou ao início",
-    restartedDescription: "Recomeçamos do início; nada que você decidiu se perdeu.",
+    // #160 As duas frases vão no título do Alert: a descrição do design system usa --content-tertiary (4,28:1 sobre o fundo do aviso, abaixo de 4,5:1).
+    restarted: "A lista mudou e voltou ao início. Recomeçamos do início; nada que você decidiu se perdeu.",
   },
 
   /** #211 A faixa de automação no topo das telas, a gaveta das rodadas e os indicadores. */

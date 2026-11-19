@@ -13,6 +13,8 @@ import { ScrollTable } from "./ScrollTable";
 
 type Row = { key: string; number: string };
 const rows = (n: number): Row[] => Array.from({ length: n }, (_, i) => ({ key: `k${i + 1}`, number: String(i + 1) }));
+/** #160 O aviso de recomeço inteiro, no título do Alert. */
+const RESTARTED = "A lista mudou e voltou ao início. Recomeçamos do início; nada que você decidiu se perdeu.";
 const columns = [{ key: "nota", title: "Nota", dataIndex: "number" as const, render: (_: unknown, r: Row) => `NF ${r.number}` }];
 
 class FakeObserver {
@@ -211,7 +213,7 @@ describe("#160 ScrollTable: fim da lista", () => {
 describe("#160 ScrollTable: aviso de cursor_invalido", () => {
   it("#160/AC-1: a lista que recomeçou leva um aviso de uma linha, sem o código do erro", () => {
     setup({ restarted: true });
-    const notice = screen.getByText("A lista mudou e voltou ao início");
+    const notice = screen.getByText(RESTARTED);
     expect(notice).toBeTruthy();
     expect(document.body.textContent).not.toMatch(/cursor_invalido/);
     // #160 o aviso fica acima da caixa: não rola junto com as linhas
@@ -220,7 +222,17 @@ describe("#160 ScrollTable: aviso de cursor_invalido", () => {
 
   it("#160/AC-1: sem recomeço não há aviso", () => {
     setup();
-    expect(screen.queryByText("A lista mudou e voltou ao início")).toBeNull();
+    expect(screen.queryByText(RESTARTED)).toBeNull();
+  });
+
+  it("#160/A11Y-1: as duas frases do aviso estão no título do Alert e a descrição não renderiza texto (a descrição do design system tem contraste 4,28:1)", () => {
+    setup({ restarted: true });
+    const notice = screen.getByText(RESTARTED);
+    // #160 o título do Alert usa --content-primary; a descrição, --content-tertiary, abaixo de 4,5:1 sobre o fundo do aviso
+    expect(notice.textContent).toBe(RESTARTED);
+    const alert = notice.closest('[role="alert"], [role="status"], div');
+    const rest = (alert?.parentElement?.textContent ?? "").replace(RESTARTED, "");
+    expect(rest).not.toContain("nada que você decidiu se perdeu");
   });
 });
 

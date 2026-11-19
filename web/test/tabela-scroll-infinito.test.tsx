@@ -334,7 +334,7 @@ describe("#160 fila de aprovação com scroll infinito", () => {
     await screen.findByText("NF 1");
     api.invalidOnce = true;
     await reachEnd();
-    expect(await screen.findByText("A lista mudou e voltou ao início")).toBeTruthy();
+    expect(await screen.findByText("A lista mudou e voltou ao início. Recomeçamos do início; nada que você decidiu se perdeu.")).toBeTruthy();
     // #160 Recomeçou: o último pedido não tem cursor, e a lista é o primeiro bloco de novo.
     await waitFor(() => expect(api.lists().at(-1)!.searchParams.get("cursor")).toBeNull());
     expectPaged(api.lists().at(-1)!);

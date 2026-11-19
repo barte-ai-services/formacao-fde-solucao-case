@@ -441,7 +441,7 @@ describe("#160 usePagedList dirigindo a ScrollTable", () => {
     expect(s.calls).toEqual([null, null]);
     s.hooks.invalidOnce = true;
     await reachEnd();
-    expect(await screen.findByText("A lista mudou e voltou ao início")).toBeTruthy();
+    expect(await screen.findByText("A lista mudou e voltou ao início. Recomeçamos do início; nada que você decidiu se perdeu.")).toBeTruthy();
     await waitFor(() => expect(s.calls).toEqual([null, null, "m:30", null]));
   });
 });
