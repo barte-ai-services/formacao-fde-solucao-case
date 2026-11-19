@@ -79,8 +79,9 @@ function TwoLines({ top, bottom }: { top: ReactNode; bottom: ReactNode }) {
 export default function NotasDuplicadas(_props: RouteProps): ReactElement {
   const list = usePagedList<DuplicateRow, DuplicatesAggregates>((cursor, signal) => duplicatesApi.page(cursor, signal), "duplicadas");
   const { aggregates } = list;
-  // #160 A gaveta guarda a linha aberta, e não a procura na lista: decidir tira a linha (D3) e a gaveta segue mostrando a decisão.
+  // #160 A gaveta guarda a linha aberta e lê a versão atual dela na lista: decidir a atualiza no lugar (D3) e a gaveta segue mostrando a decisão.
   const [open, setOpen] = useState<DuplicateRow | null>(null);
+  const drawerRow = open === null ? null : (list.rows.find((row) => row.key === open.key) ?? open);
 
   return (
     <Screen
@@ -183,7 +184,7 @@ export default function NotasDuplicadas(_props: RouteProps): ReactElement {
               { key: "decidedBy", title: texts.decidedBy.column, dataIndex: "reason", render: (_, d) => (d.titleState === "bloqueado" ? <DecidedBy actor="system" /> : "—") },
             ]}
           />
-          {open !== null ? <DuplicateDrawer duplicate={open} onClose={() => setOpen(null)} onDecided={() => list.remove(open.key)} /> : null}
+          {drawerRow !== null ? <DuplicateDrawer duplicate={drawerRow} onClose={() => setOpen(null)} onDecided={list.refresh} /> : null}
         </>
       )}
     </Screen>

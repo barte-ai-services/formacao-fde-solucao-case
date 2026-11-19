@@ -178,6 +178,108 @@ describe("#160 usePagedList", () => {
     expect(s.calls).toEqual([null, "m:30", null, "m:30"]);
   });
 
+  it("#160/AC-1: D4 uma vez por geração: depois que um bloco seguinte chega, um novo cursor_invalido recomeça de novo", async () => {
+    const s = server();
+    const { result } = renderHook(() => usePagedList(s.fetchBlock, "todas"));
+    await waitFor(() => expect(result.current.state).toBe("ready"));
+    s.hooks.invalidOnce = true;
+    act(() => result.current.loadNext());
+    await waitFor(() => expect(s.calls).toEqual([null, "m:30", null]));
+    await waitFor(() => expect(result.current.rows).toHaveLength(30));
+    act(() => result.current.loadNext());
+    await waitFor(() => expect(result.current.rows).toHaveLength(60));
+    s.hooks.invalidOnce = true;
+    act(() => result.current.loadNext());
+    await waitFor(() => expect(s.calls).toEqual([null, "m:30", null, "m:30", "m:60", null]));
+    await waitFor(() => expect(result.current.rows).toHaveLength(30));
+    expect(result.current.phase).toBe("idle");
+  });
+
+  it("#160/AC-1: D4 \"Tentar de novo\" depois de um cursor_invalido recomeça do início, não repete o cursor recusado", async () => {
+    const s = server();
+    const { result } = renderHook(() => usePagedList(s.fetchBlock, "todas"));
+    await waitFor(() => expect(result.current.state).toBe("ready"));
+    s.hooks.invalidOnce = true;
+    act(() => result.current.loadNext());
+    await waitFor(() => expect(s.calls).toEqual([null, "m:30", null]));
+    await waitFor(() => expect(result.current.phase).toBe("idle"));
+    s.hooks.invalidOnce = true;
+    act(() => result.current.loadNext());
+    await waitFor(() => expect(result.current.phase).toBe("error-next"));
+    const scrollKey = result.current.scrollKey;
+    act(() => result.current.retryBlock());
+    await waitFor(() => expect(s.calls.at(-1)).toBeNull());
+    await waitFor(() => expect(result.current.phase).toBe("idle"));
+    expect(s.calls).toEqual([null, "m:30", null, "m:30", null]);
+    expect(result.current.rows).toHaveLength(30);
+    expect(result.current.restarted).toBe(true);
+    expect(result.current.scrollKey).toBe(scrollKey + 1);
+  });
+
+  it("#160/AC-4: reler os blocos já carregados (D3, o servidor mantém a nota) troca as linhas no lugar, sem voltar ao início, e acerta o total e os números", async () => {
+    const s = server();
+    const { result } = renderHook(() => usePagedList(s.fetchBlock, "todas"));
+    await waitFor(() => expect(result.current.state).toBe("ready"));
+    act(() => result.current.loadNext());
+    await waitFor(() => expect(result.current.rows).toHaveLength(60));
+    const scrollKey = result.current.scrollKey;
+    const inner = s.fetchBlock.getMockImplementation()!;
+    s.fetchBlock.mockImplementation(async (cursor, signal) => {
+      const block = await inner(cursor, signal);
+      return { ...block, items: block.items.map((row) => (row.key === "k1" || row.key === "k45" ? { ...row, number: "decidida" } : row)), aggregates: { all: 99 } };
+    });
+    act(() => result.current.refresh());
+    await waitFor(() => expect(result.current.rows[0]?.number).toBe("decidida"));
+    expect(s.calls.slice(2)).toEqual([null, "m:30"]);
+    expect(result.current.rows).toHaveLength(60);
+    expect(result.current.rows.map((r) => r.key)).toEqual(Array.from({ length: 60 }, (_, i) => `k${i + 1}`));
+    expect(result.current.rows[44]?.number).toBe("decidida");
+    expect(result.current.aggregates).toEqual({ all: 99 });
+    expect(result.current.total).toBe(70);
+    expect(result.current.scrollKey).toBe(scrollKey);
+    expect(result.current.phase).toBe("idle");
+  });
+
+  it("#160/AC-4: a releitura que chega depois de trocar o filtro ou depois de outra releitura é descartada", async () => {
+    const s = server();
+    const { result, rerender } = renderHook(({ key }) => usePagedList(s.fetchBlock, key), { initialProps: { key: "todas" } });
+    await waitFor(() => expect(result.current.state).toBe("ready"));
+    const inner = s.fetchBlock.getMockImplementation()!;
+    const answers: ((a: number) => void)[] = [];
+    s.fetchBlock.mockImplementation(async (cursor, signal) => {
+      const block = await inner(cursor, signal);
+      const all = await new Promise<number>((resolve) => answers.push(resolve));
+      return { ...block, aggregates: { all } };
+    });
+    act(() => result.current.refresh());
+    act(() => result.current.refresh());
+    await waitFor(() => expect(answers).toHaveLength(2));
+    await act(async () => answers[1]!(2));
+    await waitFor(() => expect(result.current.aggregates).toEqual({ all: 2 }));
+    await act(async () => answers[0]!(1));
+    expect(result.current.aggregates).toEqual({ all: 2 });
+    // #160 Trocar o filtro aborta a releitura em voo: a resposta dela não suja a lista nova.
+    act(() => result.current.refresh());
+    await waitFor(() => expect(answers).toHaveLength(3));
+    rerender({ key: "minhas" });
+    await act(async () => answers[2]!(3));
+    await waitFor(() => expect(answers).toHaveLength(4));
+    await act(async () => answers[3]!(40));
+    await waitFor(() => expect(result.current.aggregates).toEqual({ all: 40 }));
+  });
+
+  it("#160/AC-4: se a releitura falha, as linhas ficam como estavam e a lista segue", async () => {
+    const s = server();
+    const { result } = renderHook(() => usePagedList(s.fetchBlock, "todas"));
+    await waitFor(() => expect(result.current.state).toBe("ready"));
+    s.hooks.failTotals = true;
+    act(() => result.current.refresh());
+    await waitFor(() => expect(s.calls).toHaveLength(2));
+    expect(result.current.state).toBe("ready");
+    expect(result.current.rows).toHaveLength(30);
+    expect(result.current.total).toBe(70);
+  });
+
   it("#160/AC-4: tirar uma linha (D3) não volta ao início: as outras ficam, o total desce e os números vêm de uma releitura do primeiro bloco", async () => {
     const s = server();
     const { result } = renderHook(() => usePagedList(s.fetchBlock, "todas"));

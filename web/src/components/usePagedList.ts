@@ -23,12 +23,18 @@ export interface PagedList<T extends { key: string }, A> {
   scrollKey: number;
   /** #160 `onNearEnd` da `ScrollTable`: pede o próximo bloco, uma vez por vez. */
   loadNext: () => void;
-  /** #160 `onRetry` da `ScrollTable`: repete o MESMO cursor do bloco que falhou. */
+  /** #160 `onRetry` da `ScrollTable`: repete o MESMO cursor do bloco que falhou; se o cursor foi recusado (D4), recomeça do primeiro bloco. */
   retryBlock: () => void;
   /** #160 `onRetry` do `Screen`: recarrega do primeiro bloco, depois que ele mesmo falhou. */
   retry: () => void;
   /** #160 D3: depois de decidir uma nota na gaveta, tira a linha e relê o total e os agregados, sem voltar ao início. */
   remove: (key: string) => void;
+  /**
+   * #160 D3 onde o servidor mantém a nota decidida: relê em segundo plano os blocos já carregados e troca as linhas no lugar (pela `key`),
+   * sem esvaziar a lista nem mexer na rolagem; o `total` e os agregados vêm da releitura. Vale só a releitura mais nova e só na geração
+   * atual da lista: trocar o filtro, recomeçar ou decidir outra nota depois a descarta.
+   */
+  refresh: () => void;
 }
 
 /**
@@ -45,7 +51,10 @@ export function usePagedList<T extends { key: string }, A>(fetchBlock: FetchBloc
   const controllerRef = useRef<AbortController | null>(null);
   /** #160 Um bloco já foi pedido e a tela ainda não desenhou a fase: barra o pedido duplicado do observador. */
   const nextBusy = useRef(false);
+  /** #160 D4: o recomeço por cursor recusado já foi gasto nesta geração; volta a `false` quando um bloco seguinte chega (o cursor andou) ou no filtro novo. */
   const restartedRef = useRef(false);
+  /** #160 D4: o último erro de bloco foi o cursor recusado: repetir o cursor nunca resolve, o "Tentar de novo" recomeça. */
+  const cursorRefusedRef = useRef(false);
   const refreshSeq = useRef(0);
   // #160 Atualizados depois de cada desenho, não durante ele.
   useEffect(() => {
@@ -60,6 +69,7 @@ export function usePagedList<T extends { key: string }, A>(fetchBlock: FetchBloc
     controllerRef.current = controller;
     nextBusy.current = false;
     restartedRef.current = restart;
+    cursorRefusedRef.current = false;
     refreshSeq.current += 1;
     dispatch({ type: "start-first", restart });
     fetchRef
@@ -82,17 +92,23 @@ export function usePagedList<T extends { key: string }, A>(fetchBlock: FetchBloc
       const controller = controllerRef.current;
       if (!controller || nextBusy.current) return;
       nextBusy.current = true;
+      cursorRefusedRef.current = false;
       dispatch({ type: "start-next" });
       fetchRef
         .current(cursor, controller.signal)
         .then((block) => {
-          if (!controller.signal.aborted) dispatch({ type: "next-loaded", block });
+          if (controller.signal.aborted) return;
+          restartedRef.current = false;
+          dispatch({ type: "next-loaded", block });
         })
         .catch((error: unknown) => {
           if (controller.signal.aborted) return;
-          // #160 D4: o cursor recusado recomeça do primeiro bloco, uma vez; a segunda recusa vira erro de bloco.
+          // #160 D4: o cursor recusado recomeça do primeiro bloco, uma vez por geração; a segunda recusa, sem bloco seguinte no meio, vira erro de bloco.
           if (error instanceof InvalidCursorError && !restartedRef.current) begin(true);
-          else dispatch({ type: "next-failed" });
+          else {
+            cursorRefusedRef.current = error instanceof InvalidCursorError;
+            dispatch({ type: "next-failed" });
+          }
         });
     },
     [begin],
@@ -105,8 +121,11 @@ export function usePagedList<T extends { key: string }, A>(fetchBlock: FetchBloc
 
   const retryBlock = useCallback((): void => {
     const s = stateRef.current;
-    if (s.failed === "next" && s.nextCursor !== null) runNext(s.nextCursor);
-  }, [runNext]);
+    if (s.failed !== "next" || s.nextCursor === null) return;
+    // #160 D4: o cursor que a API recusou ela recusa sempre; repetir seria um botão que nunca funciona.
+    if (cursorRefusedRef.current) begin(true);
+    else runNext(s.nextCursor);
+  }, [runNext, begin]);
 
   const remove = useCallback((key: string): void => {
     const controller = controllerRef.current;
@@ -124,7 +143,32 @@ export function usePagedList<T extends { key: string }, A>(fetchBlock: FetchBloc
       });
   }, []);
 
+  const refresh = useCallback((): void => {
+    const controller = controllerRef.current;
+    if (!controller || stateRef.current.aggregates === undefined) return;
+    const seq = ++refreshSeq.current;
+    const wanted = stateRef.current.rows.length;
+    void (async () => {
+      const fresh: T[] = [];
+      let first: Block<T, A> | undefined;
+      let cursor: string | null = null;
+      try {
+        do {
+          const block: Block<T, A> = await fetchRef.current(cursor, controller.signal);
+          if (controller.signal.aborted || seq !== refreshSeq.current) return;
+          first ??= block;
+          fresh.push(...block.items);
+          cursor = block.nextCursor;
+        } while (cursor !== null && fresh.length < wanted);
+      } catch {
+        // #160 Sem a releitura ficam as linhas e os números de antes; a próxima carga os acerta.
+        return;
+      }
+      if (first) dispatch({ type: "rows-refreshed", rows: fresh, total: first.total, aggregates: first.aggregates });
+    })();
+  }, []);
+
   const retry = useCallback((): void => begin(false), [begin]);
 
-  return { ...viewOf(state), rows: state.rows, total: state.total, aggregates: state.aggregates, restarted: state.restarted, scrollKey: state.resets, loadNext, retryBlock, retry, remove };
+  return { ...viewOf(state), rows: state.rows, total: state.total, aggregates: state.aggregates, restarted: state.restarted, scrollKey: state.resets, loadNext, retryBlock, retry, remove, refresh };
 }

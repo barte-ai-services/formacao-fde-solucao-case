@@ -1,13 +1,15 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Frame } from "../src/App";
+import { ACTION_LABEL } from "../src/approval/labels";
+import { texts } from "../src/texts";
 import { fallbackContext } from "../src/shell/context";
 
 /*
- * #160 D3 nas telas de duplicadas e de doca (a fila tem o seu caso no esqueleto, web/test/tabela-scroll-infinito.test.tsx): decidir na gaveta tira
- * a linha, o contador e os números do topo descem, e a lista não recomeça (a gaveta segue aberta com "Decisão registrada" e a rolagem fica).
- * O contrato não fixa como os números se atualizam; aqui a API fake responde o primeiro bloco de novo sem a nota decidida, e a tela só o lê
- * para `total` e `aggregates`.
+ * #160 D3 nas telas de duplicadas e de doca (a fila tem o seu caso no esqueleto, web/test/tabela-scroll-infinito.test.tsx): a intenção da D3 é não voltar
+ * ao início e mostrar os números certos, e a tela segue o servidor. Aqui o servidor falso faz o que o real faz (api/src/connectors/duplicates-reader.ts,
+ * api/src/dock/dock-board.ts): a nota decidida CONTINUA na lista, com o estado novo, e o `total` não muda; só os agregados da doca descem. A tela
+ * atualiza a linha no lugar, sem esqueleto nem volta ao início, e o contador e o rodapé batem com as linhas.
  */
 
 const money = (cents: number) => ({ cents, text: `R$ ${(cents / 100).toFixed(2).replace(".", ",")}` });
@@ -20,6 +22,7 @@ const detail = (key: string) => ({
   title: { state: "lancado", amount: money(100_000), dueOn: "2026-11-10" }, approval: null,
 });
 
+/** #160 O servidor mantém a nota decidida: ela só muda de estado, e `item` lê `decided` para isso. */
 function serve(path: string, total: number, body: (items: unknown[], count: number) => unknown, item: (n: number) => { key: string }) {
   const calls: URL[] = [];
   vi.stubGlobal(
@@ -39,8 +42,8 @@ function serve(path: string, total: number, body: (items: unknown[], count: numb
       calls.push(url);
       const cursor = url.searchParams.get("cursor");
       const at = cursor === null ? 0 : Number(cursor);
-      const items = Array.from({ length: Math.min(30, total - at) }, (_, k) => item(at + k + 1)).filter((row) => !decided.has(row.key));
-      return Response.json(body(items, total - decided.size) as object);
+      const items = Array.from({ length: Math.min(30, total - at) }, (_, k) => item(at + k + 1));
+      return Response.json({ ...(body(items, total) as object), nextCursor: at + 30 < total ? String(at + 30) : null });
     }),
   );
   return calls;
@@ -58,51 +61,95 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-const noteRows = () => Array.from(document.querySelectorAll("tbody tr")).filter((tr) => (tr.getAttribute("aria-label") ?? "").startsWith("Abrir"));
+const noteRows = () => Array.from(document.querySelectorAll<HTMLElement>("tbody tr")).filter((tr) => (tr.getAttribute("aria-label") ?? "").startsWith("Abrir"));
 const decide = async () => {
   fireEvent.click(await screen.findByRole("radio", { name: /^Recusar/ }));
   fireEvent.click(screen.getByRole("button", { name: "Registrar a decisão" }));
   expect(await screen.findByText("Decisão registrada")).toBeTruthy();
 };
 
-describe("#160 decidir na gaveta, nas duplicadas e na doca", () => {
-  it("#160/AC-4: duplicadas: a linha decidida sai, o total e o Stat descem e a gaveta segue aberta, sem recomeçar a lista", async () => {
-    const dupItem = (n: number) => ({
-      key: `d${n}`,
-      duplicate: { accessKey: `d${n}`, number: String(n), supplierId: "FORN-07", issuedOn: "2026-11-10", totalCents: 120_960, total: "R$ 1.209,60" },
-      original: { accessKey: `o${n}`, number: String(n + 1000), status: "lançada" },
-      reason: "titulo_lancado",
-      titleState: "bloqueado",
-      blockedAmountCents: 120_960,
-      blockedAmount: "R$ 1.209,60",
-    });
-    const calls = serve("/api/duplicates", 65, (items, count) => ({ items, nextCursor: items.length === 30 ? "30" : null, total: count, aggregates: { blockedAmount: money(7_862_400), byReason: { titulo_lancado: 65, ordem_sem_saldo: 0 } } }), dupItem);
+const dupItem = (n: number) => ({
+  key: `d${n}`,
+  duplicate: { accessKey: `d${n}`, number: String(n), supplierId: "FORN-07", issuedOn: "2026-11-10", totalCents: 120_960, total: "R$ 1.209,60" },
+  original: { accessKey: `o${n}`, number: String(n + 1000), status: "lançada" },
+  reason: "titulo_lancado",
+  titleState: decided.has(`d${n}`) ? "bloqueado" : "lancado",
+  blockedAmountCents: 120_960,
+  blockedAmount: "R$ 1.209,60",
+});
+const dupBody = (total: number) => (items: unknown[]) => ({ items, total, aggregates: { blockedAmount: money(120_960 * total), byReason: { titulo_lancado: total, ordem_sem_saldo: 0 } } });
+
+const dockItem = (n: number) => ({
+  key: `r${n}`,
+  invoiceAccessKey: `r${n}`,
+  number: String(n),
+  supplierId: "F08",
+  items: [{ sku: "SKU-1025", description: "Macarrão", quantity: { amount: 1, unit: "CX" } }],
+  status: decided.has(`r${n}`) ? { kind: "acao", action: { kind: "recusar" }, publishedAt: "2026-11-11T10:00:00Z" } : { kind: "aguardando_aprovacao", instrucao: "Aguardando aprovação, não descarregue" },
+  decidedBy: null,
+});
+const dockBody = (awaitingAtStart: number, total: number) => (items: unknown[]) => ({ destination: "CD-03", date: "2026-11-11", destinations: ["CD-03"], items, total, aggregates: { awaiting: awaitingAtStart - decided.size } });
+
+describe("#160 decidir na gaveta, nas duplicadas e na doca (o servidor mantém a nota decidida)", () => {
+  it("#160/AC-4: duplicadas: a linha decidida fica no lugar com o estado novo, o total não muda e a lista não recomeça", async () => {
+    const calls = serve("/api/duplicates", 65, dupBody(65), dupItem);
     window.history.replaceState(null, "", "/pagar/duplicadas"); // ADR-004
     render(<Frame context={fallbackContext("coordenacao@jachegou.test")} />);
     await waitFor(() => expect(noteRows()).toHaveLength(30));
+    expect(within(noteRows()[0]!).getByText(texts.duplicadas.badge.pendente)).toBeTruthy();
     fireEvent.click(screen.getByText("NF 1"));
     await decide();
-    await waitFor(() => expect(noteRows()).toHaveLength(29));
-    expect(screen.getByText("64 notas")).toBeTruthy();
+    await waitFor(() => expect(within(noteRows()[0]!).getByText(texts.duplicadas.badge.bloqueado)).toBeTruthy());
+    expect(noteRows()).toHaveLength(30);
+    expect(screen.getByText("65 notas")).toBeTruthy();
     // #160 Sem recomeço: nenhuma linha de esqueleto, e a gaveta continua mostrando a decisão
-    expect(document.querySelectorAll("tbody tr")).toHaveLength(29);
+    expect(document.querySelectorAll("tbody tr")).toHaveLength(30);
     expect(screen.getByText("Decisão registrada")).toBeTruthy();
-    // #160 Dois pedidos sem cursor: o primeiro bloco e a releitura de `total` e `aggregates` depois da decisão
-    expect(calls.filter((url) => url.searchParams.get("cursor") === null)).toHaveLength(2);
+    // #160 O primeiro bloco é pedido de novo, em segundo plano, para trocar a linha e reler `total` e `aggregates`
+    expect(calls.filter((url) => url.searchParams.get("cursor") === null).length).toBeGreaterThanOrEqual(2);
   });
 
-  it("#160/AC-4: doca: a nota decidida sai, o contador desce e o aviso de aguardando vem da releitura dos agregados", async () => {
-    const dockItem = (n: number) => ({ key: `r${n}`, invoiceAccessKey: `r${n}`, number: String(n), supplierId: "F08", items: [{ sku: "SKU-1025", description: "Macarrão", quantity: { amount: 1, unit: "CX" } }], status: { kind: "aguardando_aprovacao", instrucao: "Aguardando aprovação, não descarregue" }, decidedBy: null });
-    serve("/api/doca", 64, (items, count) => ({ destination: "CD-03", date: "2026-11-11", destinations: ["CD-03"], items, nextCursor: items.length >= 29 ? "30" : null, total: count, aggregates: { awaiting: 4 - decided.size } }), dockItem);
+  it("#160/AC-3: duplicadas: depois de decidir, o contador e o rodapé batem com as linhas na tela", async () => {
+    serve("/api/duplicates", 3, dupBody(3), dupItem);
+    window.history.replaceState(null, "", "/pagar/duplicadas"); // ADR-004
+    render(<Frame context={fallbackContext("coordenacao@jachegou.test")} />);
+    await waitFor(() => expect(noteRows()).toHaveLength(3));
+    expect(screen.getByText(texts.scrollTable.endOfList(3))).toBeTruthy();
+    fireEvent.click(screen.getByText("NF 1"));
+    await decide();
+    await waitFor(() => expect(within(noteRows()[0]!).getByText(texts.duplicadas.badge.bloqueado)).toBeTruthy());
+    expect(noteRows()).toHaveLength(3);
+    expect(screen.getByText("3 notas")).toBeTruthy();
+    expect(screen.getByText(texts.scrollTable.endOfList(3))).toBeTruthy();
+  });
+
+  it("#160/AC-4: doca: a nota decidida fica no lugar com a ação nova, o total não muda e o aviso de aguardando vem da releitura dos agregados", async () => {
+    serve("/api/doca", 64, dockBody(4, 64), dockItem);
     window.history.replaceState(null, "", "/doca"); // ADR-004
     render(<Frame context={fallbackContext("coordenacao@jachegou.test")} />);
     await waitFor(() => expect(noteRows()).toHaveLength(30));
     expect(screen.getByText("4 notas aguardam aprovação.")).toBeTruthy();
     fireEvent.click(screen.getByText("NF 1"));
     await decide();
-    await waitFor(() => expect(noteRows()).toHaveLength(29));
-    expect(screen.getByText("63 notas")).toBeTruthy();
+    await waitFor(() => expect(within(noteRows()[0]!).getByText(ACTION_LABEL.recusar)).toBeTruthy());
+    expect(noteRows()).toHaveLength(30);
+    expect(screen.getByText("64 notas")).toBeTruthy();
     await waitFor(() => expect(screen.getByText("3 notas aguardam aprovação.")).toBeTruthy());
-    expect(document.querySelectorAll("tbody tr")).toHaveLength(29);
+    expect(document.querySelectorAll("tbody tr")).toHaveLength(30);
+  });
+
+  it("#160/AC-3: doca: depois de decidir, o contador e o rodapé batem com as linhas na tela", async () => {
+    serve("/api/doca", 3, dockBody(3, 3), dockItem);
+    window.history.replaceState(null, "", "/doca"); // ADR-004
+    render(<Frame context={fallbackContext("coordenacao@jachegou.test")} />);
+    await waitFor(() => expect(noteRows()).toHaveLength(3));
+    expect(screen.getByText(texts.scrollTable.endOfList(3))).toBeTruthy();
+    fireEvent.click(screen.getByText("NF 1"));
+    await decide();
+    await waitFor(() => expect(within(noteRows()[0]!).getByText(ACTION_LABEL.recusar)).toBeTruthy());
+    expect(noteRows()).toHaveLength(3);
+    expect(screen.getByText("3 notas")).toBeTruthy();
+    expect(screen.getByText(texts.scrollTable.endOfList(3))).toBeTruthy();
+    await waitFor(() => expect(screen.getByText("2 notas aguardam aprovação.")).toBeTruthy());
   });
 });

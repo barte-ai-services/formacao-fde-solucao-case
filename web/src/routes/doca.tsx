@@ -105,7 +105,9 @@ export function ReceivingBoard({ title, subtitle, load, words, noun, emptyIn, wa
   const { aggregates } = list;
   // #72 A lista de destinos fica guardada entre as cargas: o seletor não some enquanto carrega (os agregados ficam até a resposta nova).
   const destinations = aggregates?.destinations ?? [];
+  // #160 A gaveta guarda a linha aberta e lê a versão atual dela na lista: decidir a atualiza no lugar (D3) e a gaveta mostra a ação nova.
   const [open, setOpen] = useState<DockRow | null>(null);
+  const drawerRow = open === null ? null : (list.rows.find((row) => row.key === open.key) ?? open);
   const shown = aggregates?.destination ?? destination;
   const awaiting = aggregates?.awaiting ?? 0;
   return (
@@ -214,14 +216,14 @@ export function ReceivingBoard({ title, subtitle, load, words, noun, emptyIn, wa
               },
             ]}
           />
-          {open !== null ? (
-            <InvoiceDrawer invoiceAccessKey={open.invoiceAccessKey} title={texts.fila.drawerTitle} onClose={() => setOpen(null)} onDecided={() => list.remove(open.key)}>
+          {drawerRow !== null ? (
+            <InvoiceDrawer invoiceAccessKey={drawerRow.invoiceAccessKey} title={texts.fila.drawerTitle} onClose={() => setOpen(null)} onDecided={list.refresh}>
               <DataList
                 items={[
                   {
                     key: "acao",
                     label: texts.recebimento.columns.whatToDo,
-                    value: open.status.kind === "aguardando_aprovacao" ? words.awaiting : instruction(open.status.action, words),
+                    value: drawerRow.status.kind === "aguardando_aprovacao" ? words.awaiting : instruction(drawerRow.status.action, words),
                   },
                 ]}
               />

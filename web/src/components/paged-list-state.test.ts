@@ -3,7 +3,7 @@ import { initialPagedState, pagedListReducer, viewOf, type Block, type PagedActi
 
 // #160 A máquina de estado da lista por cursor, sem React nem rede: o que cada passo faz com as linhas, os números e a fase.
 
-type Row = { key: string };
+type Row = { key: string; seen?: boolean };
 type Agg = { all: number };
 const row = (n: number): Row => ({ key: `k${n}` });
 const block = (from: number, count: number, nextCursor: string | null, total = 70, all = 70): Block<Row, Agg> => ({
@@ -84,5 +84,17 @@ describe("#160 estado da lista por cursor", () => {
     const refreshed = run([{ type: "totals-refreshed", total: 69, aggregates: { all: 69 } }], removed);
     expect(refreshed.aggregates).toEqual({ all: 69 });
     expect(refreshed.rows).toHaveLength(59);
+  });
+
+  it("#160/AC-4: a releitura das linhas troca cada uma pela versão nova na mesma posição, guarda o cursor e acerta o total e os agregados", () => {
+    const loaded = run([{ type: "first-loaded", block: block(1, 3, "c3") }]);
+    const fresh: Row[] = [{ key: "k2", seen: true }, { key: "k9", seen: true }];
+    const s = run([{ type: "rows-refreshed", rows: fresh, total: 70, aggregates: { all: 69 } }], loaded);
+    expect(s.rows.map((r) => r.key)).toEqual(["k1", "k2", "k3"]);
+    expect(s.rows[1]).toEqual({ key: "k2", seen: true });
+    expect(s.rows[0]).toBe(loaded.rows[0]);
+    expect(s.nextCursor).toBe("c3");
+    expect(s.total).toBe(70);
+    expect(s.aggregates).toEqual({ all: 69 });
   });
 });

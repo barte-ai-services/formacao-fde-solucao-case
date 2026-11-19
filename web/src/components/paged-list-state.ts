@@ -43,7 +43,8 @@ export type PagedAction<T extends { key: string }, A> =
   | { type: "next-loaded"; block: Block<T, A> }
   | { type: "next-failed" }
   | { type: "removed"; key: string }
-  | { type: "totals-refreshed"; total: number; aggregates: A };
+  | { type: "totals-refreshed"; total: number; aggregates: A }
+  | { type: "rows-refreshed"; rows: T[]; total: number; aggregates: A };
 
 export interface PagedView {
   state: LoadState;
@@ -78,6 +79,11 @@ export function pagedListReducer<T extends { key: string }, A>(state: PagedState
       const rows = state.rows.filter((row) => row.key !== action.key);
       // #160 D3: tira a linha e desce o total na hora; os agregados vêm da releitura (`totals-refreshed`).
       return rows.length === state.rows.length ? state : { ...state, rows, total: Math.max(0, state.total - 1) };
+    }
+    case "rows-refreshed": {
+      // #160 D3 onde o servidor mantém a nota: cada linha carregada vira a versão nova pela `key`, na mesma posição; linha sem versão nova fica, e o cursor não anda.
+      const fresh = new Map(action.rows.map((row) => [row.key, row]));
+      return { ...state, rows: state.rows.map((row) => fresh.get(row.key) ?? row), total: action.total, aggregates: action.aggregates };
     }
     case "totals-refreshed":
       return { ...state, total: action.total, aggregates: action.aggregates };
