@@ -30,6 +30,20 @@ export function tasksFor(rest: SupabaseRest): readonly ClaudeTask<unknown, unkno
     { ...supplierReplyReadingTask(reply), limit: SUPPLIER_REPLY_LIMIT }, // #157 leitura da resposta do fornecedor (#157); grava só a leitura e o status da mensagem
     { ...probableOrderTask(rest), limit: PROBABLE_ORDER_LIMIT }, // #157 ordem provável da nota sem ordem (E5); #157 de 5 para 1 por rodada (mais lento, para caber nas subrequests)
     supplierRequestDraftTask(supplierDeps(rest)), // #156 rascunho do pedido ao fornecedor (#156); não emite nem envia
-    invoiceAuditTask({ audits: new SupabaseInvoiceAudits(rest), reads: new SupabaseAuditReads(rest) }), // #230 auditor de notas (maxPerRun 1); por último: é a mais cara, com tool use
+    // #333 O auditor (#230) saiu deste laço: com ele a rodada media 58 subrequests, fora dos 50 do plano gratuito, e ele, o último, nunca rodava. Tem a lista e o cron próprios (auditTasksFor).
+  ] as readonly ClaudeTask<unknown, unknown>[];
+}
+
+/**
+ * #333 Notas auditadas por invocação do cron do auditor: 1. A conta de pior caso (tasks/invoice-audit.ts) é 4 fixas
+ * (2 leituras do laço e 2 do reparo dos níveis) + 18 por nota = 22 para 1 nota; 2 notas dariam 40, que ainda caberia nos 50,
+ * mas mudaria o teto `maxPerRun` da tarefa (#230), que os testes do auditor fixam e a #333 não toca (AC-6). Medido com a fila cheia: 8. São 4 invocações por hora.
+ */
+export const AUDIT_NOTES_PER_RUN = 1;
+
+/** #333 A lista do cron do auditor: só ele, com a própria invocação e, portanto, o próprio teto de 50 subrequests; a conta está em api/src/claude/cron.ts. */
+export function auditTasksFor(rest: SupabaseRest): readonly ClaudeTask<unknown, unknown>[] {
+  return [
+    { ...invoiceAuditTask({ audits: new SupabaseInvoiceAudits(rest), reads: new SupabaseAuditReads(rest) }), limit: AUDIT_NOTES_PER_RUN }, // #230 auditor de notas (maxPerRun 1), o mais caro, com tool use
   ] as readonly ClaudeTask<unknown, unknown>[];
 }

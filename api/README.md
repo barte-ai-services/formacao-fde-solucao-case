@@ -2,8 +2,16 @@
 
 O Worker `formacao-fde-solucao-case-api`, na Cloudflare. Por enquanto, responde
 `GET /health`, `GET /me` e `GET /api/valor-barrado` e a tela de `web/` (atrás do Cloudflare Access, #60; o
-painel está em `src/panel/README.md`) e tem um Cron a cada 15 minutos que só
-registra que rodou.
+painel está em `src/panel/README.md`) e tem dois Crons (`wrangler.jsonc`, `src/cron/schedule.ts`),
+cada um com o próprio teto de 50 subrequests do plano gratuito (#333):
+
+- a cada 15 minutos (`*/15 * * * *`): a captura, as publicações, a varredura do prazo, a rodada do Claude, o dossiê e o
+  motor. A rodada do Claude não tem o auditor; a varredura mais a rodada do Claude medem 50 subrequests
+  (`test/claude/budget.test.ts`);
+- nos minutos 7, 22, 37 e 52 (`7-59/15 * * * *`): só o auditor de notas, 1 nota por invocação, 8 subrequests medidos e
+  22 no pior caso (conta em `src/claude/tasks/invoice-audit.ts`).
+
+Um cron que não é nenhum dos dois não roda nada e registra uma linha.
 
 ## Rodar local
 

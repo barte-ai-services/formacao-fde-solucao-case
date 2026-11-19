@@ -3,13 +3,15 @@
 // #230 A tarefa nunca troca a ação da proposta nem aprova; só pode subir o nível de proposta à espera (domínio).
 // #230 Falha fechada: sem auditoria gravada, a nota fica "não auditada" com o motivo e a regra segue sozinha.
 //
-// #230 Subrequests (plano gratuito: 50 por invocação do Cron). O Cron já usa 27 (2 tarefas x 5 pedidos x 2 + 7
-// #230 leituras). Uma nota auditada custa, no pior caso: até MAX_TURNS = 6 chamadas à Messages API, 1 leitura da
-// #230 nota e da proposta, até MAX_READS = 8 leituras das tools (o 9º pedido volta recusado, sem chamar a porta;
-// #230 cada método de AuditReadsPort custa exatamente 1 subrequest), 2 escritas (a auditoria e o nível) e 1
-// #230 upsert do laço = 18; mais as 2 leituras de `pending` e das linhas existentes = 20, e o reparo dos níveis
-// #230 (até 2) = 22. 27 + 22 = 49, dentro de 50. Por isso
-// #230 `maxPerRun` é 1: o auditor audita uma nota por rodada e o resto fica para a próxima.
+// #230 Subrequests (plano gratuito: 50 por invocação). Desde a #333 o auditor tem o próprio cron trigger e a própria
+// #333 invocação (api/src/claude/cron.ts, runAuditRound), que só roda ele: não divide mais os 50 com a varredura nem com as
+// #333 outras tarefas do Claude (que mediam 50 sem ele e 58 com ele). Uma nota auditada custa, no pior caso: até
+// #230 MAX_TURNS = 6 chamadas à Messages API, 1 leitura da nota e da proposta, até MAX_READS = 8 leituras das tools (o 9º
+// #230 pedido volta recusado, sem chamar a porta; cada método de AuditReadsPort custa exatamente 1 subrequest), 2 escritas
+// #230 (a auditoria e o nível) e 1 upsert do laço = 18 por nota (AUDIT_PER_NOTE_WORST); mais, uma vez por invocação, as 2
+// #230 leituras de `pending` e das linhas existentes e o reparo dos níveis (até 2) = 4 (AUDIT_FIXED_WORST). Com 1 nota
+// #333 (AUDIT_NOTES_PER_RUN, tasks/index.ts) são 22 no pior caso, 8 medidos com a Messages API falsa de 2 voltas
+// #333 (api/test/claude/budget.test.ts), contra os 50 do teto.
 import { DEFAULT_MODEL, MAX_TURNS, type Converse, type Tool } from '../client.js';
 import type { Db } from '../db.js';
 import { isRecord, isString } from '../guards.js';
@@ -29,6 +31,10 @@ import {
 } from '../../domain/index.js';
 
 export const INVOICE_AUDIT_TASK = 'invoice-audit';
+
+/** #333 As partes da conta de pior caso acima, nomeadas para o teste de api/test/claude/budget.test.ts conferir que cabem nos 50. */
+export const AUDIT_FIXED_WORST = 4;
+export const AUDIT_PER_NOTE_WORST = 18;
 
 /** #230 A entrada guardada em claude_suggestions.input: só a chave; o texto da nota o modelo lê pelas tools. */
 export type InvoiceAuditInput = { readonly invoiceAccessKey: string };

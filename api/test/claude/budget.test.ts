@@ -1,9 +1,10 @@
-// #157: o guarda da conta de subrequests da rodada do Cron: mede a rodada de verdade, com as tarefas de tasksFor e a fila cheia de cada uma.
+// #157: o guarda da conta de subrequests das duas invocações agendadas (#333): mede cada rodada de verdade, com as tarefas de tasksFor (a rodada de 15 minutos) ou de auditTasksFor (a do auditor) e a fila cheia de cada uma.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FetchFn } from '../../src/claude/client.js';
-import { CRON_LIMIT, runClaudeRound } from '../../src/claude/cron.js';
+import { CRON_LIMIT, runAuditRound, runClaudeRound } from '../../src/claude/cron.js';
 import { restDb } from '../../src/claude/db.js';
-import { tasksFor } from '../../src/claude/tasks/index.js';
+import { AUDIT_NOTES_PER_RUN, auditTasksFor, tasksFor } from '../../src/claude/tasks/index.js';
+import { AUDIT_FIXED_WORST, AUDIT_PER_NOTE_WORST } from '../../src/claude/tasks/invoice-audit.js';
 import { sweepSupplierOverdue } from '../../src/cron/supplier-sweep.js';
 import { tick } from '../../src/cron/tick.js';
 import { queueRow, invoiceRow } from '../supplier/supabase-support.js';
@@ -101,17 +102,23 @@ async function fullWorld(): Promise<{ world: SupplierWorld; sweep: number }> {
 
 type Measure = { readonly sweep: number; readonly reads: number; readonly messages: number; readonly total: number };
 
-/** #157: a varredura no teto e a rodada do Claude, com a fila cheia de cada tarefa de tasksFor, contadas fetch a fetch. */
-async function measureRound(): Promise<Measure> {
-  const { world: w, sweep } = await fullWorld();
+/**
+ * #157/#333: a rodada de 15 minutos (a varredura no teto e a rodada do Claude, sem o auditor) ou a do auditor (só ele,
+ * sem varredura), com a fila cheia de cada tarefa, contadas fetch a fetch.
+ */
+async function measureRound(round: 'principal' | 'auditor' = 'principal'): Promise<Measure> {
+  const { world: w, sweep: swept } = await fullWorld();
+  const audit = round === 'auditor';
+  const sweep = audit ? 0 : swept;
+  const tasks = audit ? auditTasksFor(w.rest) : tasksFor(w.rest);
   // #157: a precondição: toda tarefa tem na fila ao menos o que a rodada atende, senão a medida não é o pior caso.
-  const queued = await Promise.all(tasksFor(w.rest).map(async (t) => [t.name, (await t.pending(restDb(w.rest))).requests.length, Math.min(t.limit ?? CRON_LIMIT, t.maxPerRun ?? CRON_LIMIT, CRON_LIMIT)] as const));
+  const queued = await Promise.all(tasks.map(async (t) => [t.name, (await t.pending(restDb(w.rest))).requests.length, Math.min(t.limit ?? CRON_LIMIT, t.maxPerRun ?? CRON_LIMIT, CRON_LIMIT)] as const));
   for (const [name, pending, limit] of queued) expect(pending, `fila de ${name}`).toBeGreaterThanOrEqual(limit);
   const api = messagesApi((key) => w.fake.rows('proposals').find((row) => row.invoice_access_key === key));
   const start = w.fake.requests.length;
-  const round = await runClaudeRound(w.rest, ENV, { fetch: api.fetch, log: () => {} });
+  const result = await (audit ? runAuditRound : runClaudeRound)(w.rest, ENV, { fetch: api.fetch, log: () => {} });
   const reads = w.fake.requests.length - start;
-  expect(round.failedTasks).toEqual([]);
+  expect(result.failedTasks).toEqual([]);
   expect(api.calls(), 'cada tarefa pergunta ao Claude até o limite dela').toBe(queued.reduce((sum, [name, , limit]) => sum + (name === 'invoice-audit' ? AUDIT_CALLS_PER_NOTE : 1) * limit, 0));
   return { sweep, reads, messages: api.calls(), total: sweep + reads + api.calls() };
 }
@@ -119,30 +126,42 @@ async function measureRound(): Promise<Measure> {
 /** #157: o gasto de antes da #157, com a tarefa da cobrança no Cron (varredura 4, PostgREST 47, Messages API 6). */
 const BEFORE_58 = 57;
 
-/** #157: o gasto medido hoje; quem acrescenta uma leitura ou uma tarefa muda este número e vê o teste cair. */
-const MEASURED_TOTAL = 58;
+/** #333: o gasto medido da rodada de 15 minutos (varredura 6 + rodada do Claude 44), sem o auditor; quem acrescenta uma leitura ou uma tarefa muda este número e vê o teste cair. */
+const MEASURED_TOTAL = 50;
 
-/** #230: o que o auditor soma ao gasto (2 chamadas à Messages API e 6 ao banco, medido): a conta de antes dele, só da #157 e da #157, era 50. */
+/** #333: o gasto medido da invocação do auditor (2 chamadas à Messages API e 6 ao banco), com a fila cheia e 1 nota por invocação (AUDIT_NOTES_PER_RUN). */
 const AUDITOR_SUBREQUESTS = 8;
 
 describe('#157 a conta das subrequests da rodada do Cron, medida na rodada de verdade', () => {
-  it('a varredura e a rodada do Claude, com a fila cheia de cada tarefa de tasksFor, gastam o que está medido, e uma leitura a mais ou uma tarefa nova faz o teste cair', async () => {
+  it('#333/AC-1: a varredura e a rodada do Claude, com a fila cheia de cada tarefa de tasksFor, gastam o que está medido, e uma leitura a mais ou uma tarefa nova faz o teste cair', async () => {
     const m = await measureRound();
     expect(m.total).toBe(MEASURED_TOTAL);
   });
 
-  it('#157: sem a tarefa da cobrança no Cron a conta cai: abaixo dos 57 de antes (sem o auditor, que a #230 acrescentou), e o Claude não é mais perguntado pela cobrança', async () => {
+  it('#333/AC-1: a rodada de 15 minutos não roda o auditor: 5 chamadas ao Claude, uma por tarefa do #157, e nenhuma delas é a auditoria', async () => {
     const m = await measureRound();
-    expect(m.total - AUDITOR_SUBREQUESTS).toBeLessThan(BEFORE_58);
-    expect(m.messages, '5 das tarefas do #157 e 2 do auditor').toBe(5 + AUDIT_CALLS_PER_NOTE);
+    expect(m.total).toBeLessThan(BEFORE_58);
+    expect(m.messages).toBe(5);
   });
 
-  // #155 (do fork Djegao/grupo-5-slucao, não o #155 da principal): a conta cabia nos 50 do plano gratuito desde a #157 (50), e o auditor da #230
-  // #155 (invoice-audit, maxPerRun 1, 8 subrequests) a leva a 58. Este teste volta a ser `it.fails`, a lacuna registrada: quando a rodada couber
-  // #155 nos 50 (menos leituras, ou o auditor fora do plano gratuito), o `it.fails` cai e vira `it`. A conta mede só a varredura e a rodada do Claude,
-  // #155 não a invocação inteira do Cron (api/src/claude/cron.ts).
-  it.fails('a varredura e a rodada do Claude cabem nos 50 subrequests do plano gratuito (#155: hoje 58, com o auditor)', async () => {
+  it('#333/AC-1, AC-3: a varredura e a rodada do Claude cabem nos 50 subrequests do plano gratuito', async () => {
     const m = await measureRound();
     expect(m.total).toBeLessThanOrEqual(SUBREQUEST_LIMIT);
+  });
+});
+
+describe('#333 a conta das subrequests da invocação do auditor, medida pelo mesmo método', () => {
+  it('#333/AC-2: a invocação do auditor, com a fila cheia, gasta o que está medido e cabe nos 50 subrequests', async () => {
+    const m = await measureRound('auditor');
+    expect(m.total).toBe(AUDITOR_SUBREQUESTS);
+    expect(m.total).toBeLessThanOrEqual(SUBREQUEST_LIMIT);
+    expect(m.messages).toBe(AUDIT_CALLS_PER_NOTE * AUDIT_NOTES_PER_RUN);
+  });
+
+  it('#333/AC-2: o pior caso do auditor (22 no primeiro, 18 por nota a mais, de invoice-audit.ts) cabe nos 50 com as notas por invocação escolhidas', () => {
+    const worstCase = AUDIT_FIXED_WORST + AUDIT_PER_NOTE_WORST * AUDIT_NOTES_PER_RUN;
+    expect(AUDIT_NOTES_PER_RUN).toBeGreaterThanOrEqual(1);
+    expect(worstCase).toBeLessThanOrEqual(SUBREQUEST_LIMIT);
+    expect(AUDIT_FIXED_WORST + AUDIT_PER_NOTE_WORST).toBe(22);
   });
 });
