@@ -196,7 +196,7 @@ const queueDetail = (key: string) => ({
 /** #160 70 notas em blocos de 30: 30, 30 e 10. Agregados da lista inteira: 70 aguardando, 12 bloqueadas, R$ 123.456 em risco. */
 function serveQueue(): Api {
   return serve({
-    path: "/api/fila",
+    path: "/api/fila", // ADR-004
     total: 70,
     item: queueItem,
     totalFor: (mode) => (mode === "mine" ? 40 : 70),

@@ -71,6 +71,7 @@ export function RowTable<T extends object>({ onOpenRow, rowLabel, rowInert, data
       }}
     >
       <Table<T>
+        // #160 O resto das props é `TableProps<T>` sem as de `Fixed`, com `columns` mais estreito (`sortable?: false`), o que ainda cabe em `TableProps<T>`; o TS não junta de volta um `Omit` sobre `T` genérico, então o cast a reabre (como em `ScrollTable`, em `columns`).
         {...(table as unknown as TableProps<T>)}
         data={data}
         onRowClick={(record) => {
