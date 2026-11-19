@@ -4,10 +4,10 @@
  * O Claude é um converse falso que roteiriza as chamadas de tool; as portas são dobles em memória.
  */
 import { describe, expect, it } from 'vitest';
-import { ClaudeError, type Converse, type ConverseOptions } from '../../src/claude/client.js';
+import { ClaudeClient, ClaudeError, type Converse, type ConverseOptions, type FetchFn } from '../../src/claude/client.js';
 import type { Db, Row } from '../../src/claude/db.js';
 import { runTasks, storedError } from '../../src/claude/runner.js';
-import { invoiceAuditTask, AUDIT_TOOL_NAMES, INVOICE_AUDIT_TASK, type InvoiceAuditInput } from '../../src/claude/tasks/invoice-audit.js';
+import { invoiceAuditTask, AUDIT_MAX_TURNS, AUDIT_TOOL_NAMES, INVOICE_AUDIT_TASK, type InvoiceAuditInput } from '../../src/claude/tasks/invoice-audit.js';
 import type { AuditReadsPort, AuditWriteContext, InvoiceAuditPort, AuditedNote } from '../../src/connectors/ports.js';
 import { Invoice, Money, Quantity, type AuditRefusal, type AuditResult, type NotAudited, type RuleProposal } from '../../src/domain/index.js';
 import { anInvoice } from '../domain/fixtures.js';
@@ -141,7 +141,7 @@ describe('invoice-audit: a tarefa e suas tools (#230)', () => {
     expect(seen?.system).toMatch(/regra 7|abaixo da régua/i);
     expect(seen?.prompt).toContain(KEY);
     expect(seen?.prompt).not.toContain('Arroz');
-    expect(seen?.maxTurns).toBeLessThanOrEqual(6);
+    expect(seen?.maxTurns).toBe(AUDIT_MAX_TURNS); // #333/AC-7: era `<= 6`; o teto de voltas é o próprio do auditor, que a AC-7 fez a exceção
   });
 
   it('#230/AC-2: record_audit só grava a nota auditada; outra chave é invalid_field e nada é gravado', async () => {
@@ -515,5 +515,49 @@ describe('invoice-audit: as recusas do record_audit seguem com a gravação (#23
       .catch(() => undefined);
     expect(d.notAuditedRows).toEqual([{ key: KEY, outcome: { audited: false, reason: 'claude_falhou' } }]);
     expect(d.notAuditedRefusals).toEqual([[{ refusal: 'routing_below_regua', minimumLevel: 'coordenacao' }]]);
+  });
+});
+
+/** #333/AC-7: o laço de tool use de verdade (ClaudeClient) com a Messages API falsa, que lê `reads` vezes, grava e responde. */
+function realLoop(reads: number): { converse: Converse; calls: () => number } {
+  let calls = 0;
+  const fetch: FetchFn = async () => {
+    calls += 1;
+    const use =
+      calls <= reads
+        ? { name: 'get_invoice', input: { invoice_access_key: KEY } }
+        : calls === reads + 1
+          ? { name: 'record_audit', input: validAudit() }
+          : { name: 'responder', input: { recorded: true } };
+    return new Response(JSON.stringify({ content: [{ type: 'tool_use', id: `tu_${calls}`, ...use }] }), { status: 200 });
+  };
+  const client = new ClaudeClient({ credentials: { kind: 'api-key', apiKey: 'chave-de-teste' }, fetch });
+  return { converse: (options) => client.converse(options), calls: () => calls };
+}
+
+describe('invoice-audit: o teto de voltas próprio do auditor (#333)', () => {
+  it('#333/AC-7: o teto do auditor é maior que as 6 voltas das outras tarefas', () => {
+    expect(AUDIT_MAX_TURNS).toBeGreaterThan(6);
+  });
+
+  it('#333/AC-7: uma auditoria que precisa de mais de 6 voltas, e não passa do teto novo, é gravada', async () => {
+    const reads = 7; // 7 leituras + record_audit + resposta final = 9 voltas
+    const loop = realLoop(reads);
+    const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
+    await expect(task(d).run(input, noAsk, loop.converse)).resolves.toEqual({ audited: true });
+    expect(loop.calls()).toBe(reads + 2);
+    expect(d.saved).toHaveLength(1);
+    expect(d.notAuditedRows).toEqual([]);
+    expect(reads + 2).toBeGreaterThan(6);
+    expect(reads + 2).toBeLessThanOrEqual(AUDIT_MAX_TURNS);
+  });
+
+  it('#333/AC-7: a auditoria que passa do teto novo continua falhando fechada: não auditada, claude_falhou', async () => {
+    const loop = realLoop(AUDIT_MAX_TURNS); // as leituras já gastam todas as voltas
+    const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
+    await expect(task(d).run(input, noAsk, loop.converse)).rejects.toMatchObject({ kind: 'format' });
+    expect(loop.calls()).toBe(AUDIT_MAX_TURNS);
+    expect(d.saved).toEqual([]);
+    expect(d.notAuditedRows).toEqual([{ key: KEY, outcome: { audited: false, reason: 'claude_falhou' } }]);
   });
 });

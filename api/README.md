@@ -8,8 +8,10 @@ cada um com o próprio teto de 50 subrequests do plano gratuito (#333):
 - a cada 15 minutos (`*/15 * * * *`): a captura, as publicações, a varredura do prazo, a rodada do Claude, o dossiê e o
   motor. A rodada do Claude não tem o auditor; a varredura mais a rodada do Claude medem 50 subrequests
   (`test/claude/budget.test.ts`);
-- nos minutos 7, 22, 37 e 52 (`7-59/15 * * * *`): só o auditor de notas, 1 nota por invocação, 8 subrequests medidos e
-  22 no pior caso (conta em `src/claude/tasks/invoice-audit.ts`).
+- nos minutos 7, 22, 37 e 52 (`7-59/15 * * * *`): só o auditor de notas, 1 nota por invocação, 8 subrequests medidos com
+  2 voltas do laço de tool use e, no pior caso do teto de voltas próprio do auditor (`AUDIT_MAX_TURNS` = 16, contra as 6
+  das outras tarefas), 30 medidos e 32 pela conta, contra os 50 (conta em `src/claude/tasks/invoice-audit.ts`). O prazo
+  do laço todo (`ASK_TIMEOUT_MS`, 45 s) deixa uns 2,8 s por volta em 16.
 
 Um cron que não é nenhum dos dois não roda nada e registra uma linha.
 
