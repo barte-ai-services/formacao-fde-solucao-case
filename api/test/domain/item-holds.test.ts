@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { supabaseConnectors } from '../../src/connectors/supabase-connectors.js';
 import { SupabaseRest } from '../../src/connectors/supabase-rest.js';
 import { CHECKS } from '../../src/domain/checks/index.js';
+import { storedUnregisteredItems } from '../../src/domain/checks/e8-item-sem-cadastro.js';
 import { draftForChecked, itemHolds } from '../../src/domain/draft-checked.js';
 import { Divergence, Invoice, type CheckContext } from '../../src/domain/index.js';
 import { FakePostgrest } from '../support/fake-postgrest.js';
@@ -84,5 +85,16 @@ describe('#338 itemHolds: os itens que a regra segura na E8 e na E2, e a ação 
     const holds = itemHolds(copy);
     expect(holds?.unregistered.length).toBeGreaterThan(0);
     expect(holds?.dockAction).toBeNull();
+  });
+
+  it('#338/AC-1: o item com SKU "" que o E8 marcou volta de storedUnregisteredItems, o SKU vazio guardado como o motor o escreve', async () => {
+    const { invoices, ctx } = await checkedKit();
+    const base = invoices.find((i) => i.classification === 'E8');
+    if (base === undefined) throw new Error('kit sem E8');
+    const emptySku = { ...base.items[0]!, sku: '', supplierCode: 'SEM-CADASTRO-338' };
+    const copy = withItems(base, [emptySku, ...base.items.slice(1)]);
+    copy.check(ctx);
+    expect(copy.divergences.some((d) => d.classification === 'E8' && d.skus.length === 0)).toBe(true);
+    expect(storedUnregisteredItems(copy).map((i) => i.supplierCode)).toContain('SEM-CADASTRO-338');
   });
 });

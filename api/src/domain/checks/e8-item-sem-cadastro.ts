@@ -47,6 +47,13 @@ export function unregisteredItems(invoice: InvoiceView, ctx: CheckContext): read
 /** #338 A referência da evidência de uma divergência E8: o fornecedor e o código do item, a chave que a leitura das divergências guardadas usa para achar o item. */
 export const e8Reference = (invoice: InvoiceView, item: InvoiceItem): string => `${invoice.supplierId}/${item.supplierCode}`;
 
+/** #338 Os `skus` de uma divergência E8: o SKU do item, ou vazio sem SKU (nulo ou ""); o verificador escreve e a leitura das divergências guardadas compara com esta mesma função. */
+export const e8Skus = (item: InvoiceItem): string[] => (item.sku ? [item.sku] : []);
+
+function sameSkus(stored: readonly string[], expected: readonly string[]): boolean {
+  return stored.length === expected.length && stored.every((sku, i) => sku === expected[i]);
+}
+
 /**
  * #338 Os itens que a verificação E8 desta nota achou sem cadastro, lidos das divergências E8 guardadas (uma por item: `skus` com o SKU do item, ou vazio sem SKU,
  * e a primeira evidência com a referência de e8Reference). Não refaz a conferência: ela correu com as sugestões de descrição da rodada (capture.ts, withDescriptionMatches),
@@ -58,7 +65,7 @@ export function storedUnregisteredItems(invoice: InvoiceView): readonly InvoiceI
     stored.some(
       (d) =>
         d.evidence[0]?.reference === e8Reference(invoice, item) &&
-        (item.sku === null ? d.skus.length === 0 : d.skus.length === 1 && d.skus[0] === item.sku),
+        sameSkus(d.skus, e8Skus(item)),
     ),
   );
 }
@@ -86,7 +93,7 @@ export const checkItemSemCadastro: Check = (invoice, ctx) => {
   return unregisteredItems(invoice, ctx).map((item) =>
     Divergence.of({
       classification: 'E8',
-      skus: item.sku ? [item.sku] : [],
+      skus: e8Skus(item),
       evidence: [
         {
           source: 'erp_cadastro',

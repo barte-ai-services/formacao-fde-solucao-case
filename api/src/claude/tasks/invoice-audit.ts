@@ -169,7 +169,7 @@ export const AUDITOR_SYSTEM = [
   // #337/AC-4 Com E5 também não: draftForChecked recusa toda nota classificada E5, qualquer que seja o resto, como a E8 (draft-checked.ts:148, que chama draftNotaSemOrdem, probable-order.ts:147); a ordem é a PRECEDENCE: E6, E7, E5.
   '3. Decida a ação na doca como a regra do domínio decide para cada classificação. Com várias divergências, junte os itens que cada uma segura: nenhum item segurado é receber, todos os itens da nota segurados é recusar, e o resto é receber_parcial. Se há E6, E7 ou E5, vale a ação dela sozinha, a da de maior precedência (E6, depois E7, depois E5):',
   ...[...PRECEDENCE, 'MATCH' as const].map(dockRuleLine),
-  // #338/AC-1, AC-2 itemHolds (draft-checked.ts:166): os itens que as divergências E8 e E2 guardadas da nota marcam (storedUnregisteredItems, e8-item-sem-cadastro.ts:55; swappedItems, draft-checked.ts:60),
+  // #338/AC-1, AC-2 itemHolds (draft-checked.ts:166): os itens que as divergências E8 e E2 guardadas da nota marcam (storedUnregisteredItems, e8-item-sem-cadastro.ts:62; swappedItems, draft-checked.ts:60),
   // #338 as linhas que partE8 (draft-checked.ts:79) e partE2 (:69) segurariam por eles, juntadas por mergeLines (:99) e decididas por actionOf (:112), a união do #56:
   // #338 nenhum item é receber, todos os itens da nota é recusar, o resto é receber_parcial. A tarefa calcula antes do laço, sem leitura nova, e entrega entre marcas
   // #338 como dado; a ação é null com E1 ou E3 junto, porque a união delas depende da contagem, e a marca não vem com E5, E6 ou E7, em que o motor não junta linhas (draft-checked.ts:127-128 e :148).
