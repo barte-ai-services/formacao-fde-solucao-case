@@ -123,8 +123,8 @@ const PLAIN: Readonly<Partial<Record<Classification, string>>> = {
   MATCH: 'a nota confere com a ordem',
   // #337/AC-4 draft-checked.ts:67 (partE4): "caixa cobrada como unidade; recebe", sem linha a segurar; o fator de caixa pesa no valor em risco.
   E4: 'sem item a segurar; o fator de caixa pesa no valor em risco, não na ação',
-  // #337/AC-4 approval.ts:294 (draftProposal, caso geral): a nota sem ordem não segura item; a falta da ordem vai para o encaminhamento.
-  E5: 'sem item a segurar; a falta da ordem pesa no encaminhamento, não na ação',
+  // #337/AC-4 probable-order.ts:147 (draftNotaSemOrdem, via draftForChecked, draft-checked.ts:143): a nota sem ordem recusa, com a nota inteira em risco; vai à coordenação (README, regra 3, l.242).
+  E5: 'sempre, com o valor da nota em risco e o encaminhamento coordenacao, ainda que não haja item a segurar',
   // #337/AC-4 approval.ts:263 e docs/domain/README.md, regra 3 (l.254): duplicidade leva sempre a recusar, no nível bloqueio, com o valor da nota em risco.
   E6: 'sempre, com o valor da nota em risco e o encaminhamento bloqueio',
   // #337/AC-4 approval.ts:270 (draftProposal, E7): a mercadoria já está na loja; o que corre risco é pagar a nota inteira de novo.

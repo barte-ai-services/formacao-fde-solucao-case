@@ -5,8 +5,8 @@ import type { DockAction } from './dock-action.js';
  * #337/AC-3: o que o domínio decide para a ação na doca de cada classificação. `usual` é a ação da classificação sozinha na nota;
  * `wholeInvoiceHeld` é a que vale quando a regra segura todos os itens da nota (actionOf, draft-checked.ts: segurar a nota inteira
  * é recusar); `nothingToHold` é a que vale quando a regra não acha linha a segurar (sem contagem do WMS, por exemplo): receber.
- * É o espelho de `draftProposal` (approval.ts) e `draftChecked` (draft-checked.ts); o teste
- * api/test/domain/dock-action-by-classification.test.ts confere a constante com a regra nas notas do kit.
+ * É o espelho do motor, `draftForChecked` (draft-checked.ts, o caminho de `proposeChecked`): `draftNotaSemOrdem` (E5), `draftProposal` (approval.ts) e `draftChecked`; o teste
+ * api/test/domain/dock-action-by-classification.test.ts roda o motor em toda nota do kit e confere a constante com o que ele propõe.
  */
 export type DockDecision = {
   readonly usual: DockAction['kind'];
@@ -27,8 +27,8 @@ export const DOCK_ACTION_BY_CLASSIFICATION: Readonly<Record<Classification, Dock
   E3: Object.freeze(HOLDS),
   // #337/AC-4 draft-checked.ts:67 (partE4): "caixa cobrada como unidade; recebe", sem linha a segurar.
   E4: Object.freeze({ usual: 'receber' }),
-  // #337/AC-4 approval.ts:294 (draftProposal, caso geral) e draft-checked.ts:79 (partOf não tem parte do E5): recebe, sem linha a segurar.
-  E5: Object.freeze({ usual: 'receber' }),
+  // #337/AC-4 probable-order.ts:147 (draftNotaSemOrdem, a que draftForChecked usa para E5, draft-checked.ts:143): a nota sem ordem recusa, com a nota inteira em risco; antes a constante dizia receber, lendo draftProposal, que a E5 não usa.
+  E5: Object.freeze({ usual: 'recusar' }),
   // #337/AC-4 approval.ts:263 (draftProposal, E6) e docs/domain/README.md, regra 3 (l.254): duplicidade leva sempre a recusar.
   E6: Object.freeze({ usual: 'recusar' }),
   // #337/AC-4 approval.ts:270 (draftProposal, E7): a mercadoria já está na loja; recebe com o valor da nota em risco.
