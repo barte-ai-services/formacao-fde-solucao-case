@@ -132,11 +132,11 @@ const BEFORE_58 = 57;
 /** #333: o gasto medido da rodada de 15 minutos (varredura 6 + rodada do Claude 44), sem o auditor; quem acrescenta uma leitura ou uma tarefa muda este número e vê o teste cair. */
 const MEASURED_TOTAL = 50;
 
-/** #333 #337/AC-6: o gasto medido da invocação do auditor (2 chamadas à Messages API e 9 ao banco: as 3 leituras de antes do laço entre elas), com a fila cheia e 1 nota por invocação (AUDIT_NOTES_PER_RUN). */
-const AUDITOR_SUBREQUESTS = 11;
+/** #333 #337/AC-6: o gasto medido da invocação do auditor (2 chamadas à Messages API e 10 ao banco: as 4 leituras de antes do laço entre elas, com a ordem citada), com a fila cheia e 1 nota por invocação (AUDIT_NOTES_PER_RUN). */
+const AUDITOR_SUBREQUESTS = 12;
 
-/** #333/AC-7, AC-9: o gasto medido da invocação do auditor no pior caso do teto de voltas dele (18 chamadas à Messages API, as 3 leituras de antes do laço, as 12 leituras que passam e 6 ao banco, da gravação e do laço; a conta de 41 fica acima dos 39 medidos). */
-const AUDITOR_WORST_MEASURED = 39;
+/** #333/AC-7, AC-9: o gasto medido da invocação do auditor no pior caso do teto de voltas dele (18 chamadas à Messages API, as 4 leituras de antes do laço, as 12 leituras que passam e 6 ao banco, da gravação e do laço; a conta de 42 fica acima dos 40 medidos). */
+const AUDITOR_WORST_MEASURED = 40;
 
 describe('#157 a conta das subrequests da rodada do Cron, medida na rodada de verdade', () => {
   it('#333/AC-1: a varredura e a rodada do Claude, com a fila cheia de cada tarefa de tasksFor, gastam o que está medido, e uma leitura a mais ou uma tarefa nova faz o teste cair', async () => {
@@ -164,13 +164,13 @@ describe('#333 a conta das subrequests da invocação do auditor, medida pelo me
     expect(m.messages).toBe(AUDIT_CALLS_PER_NOTE * AUDIT_NOTES_PER_RUN);
   });
 
-  it('#333/AC-2, AC-9: o pior caso do auditor (38 no primeiro, 34 por nota a mais, de invoice-audit.ts, com o teto de voltas e de leituras próprios da #333) cabe nos 50 com as notas por invocação escolhidas', () => {
+  it('#333/AC-2, AC-9: o pior caso do auditor (42 no primeiro, 38 por nota a mais, de invoice-audit.ts, com o teto de voltas e de leituras próprios da #333) cabe nos 50 com as notas por invocação escolhidas', () => {
     const worstCase = AUDIT_FIXED_WORST + AUDIT_PER_NOTE_WORST * AUDIT_NOTES_PER_RUN;
     expect(AUDIT_NOTES_PER_RUN).toBeGreaterThanOrEqual(1);
     expect(worstCase).toBeLessThanOrEqual(SUBREQUEST_LIMIT);
-    // #337/AC-6 38 da #333 mais as AUDIT_PRE_READS = 3 leituras de duplicidade e de pagamento fora do fluxo, feitas antes do laço.
-    expect(AUDIT_PRE_READS).toBe(3);
-    expect(AUDIT_FIXED_WORST + AUDIT_PER_NOTE_WORST).toBe(41);
+    // #337/AC-6 38 da #333 mais as AUDIT_PRE_READS = 4 leituras de antes do laço (duplicidade por número e por ordem, pagamento fora do fluxo e o saldo da ordem citada).
+    expect(AUDIT_PRE_READS).toBe(4);
+    expect(AUDIT_FIXED_WORST + AUDIT_PER_NOTE_WORST).toBe(42);
   });
 
   it('#333/AC-7: a invocação do auditor no pior caso do teto de voltas novo (todas as voltas, as 12 leituras e a gravação) gasta no máximo 50 subrequests e a nota é auditada', async () => {
@@ -185,8 +185,8 @@ describe('#333 a conta das subrequests da invocação do auditor, medida pelo me
     expect(AUDIT_MAX_TURNS).toBeGreaterThan(6);
     expect(AUDIT_PER_NOTE_WORST).toBe(AUDIT_MAX_TURNS + AUDIT_PRE_READS + AUDIT_MAX_READS + 4);
     expect(AUDIT_FIXED_WORST + AUDIT_PER_NOTE_WORST * AUDIT_NOTES_PER_RUN).toBeLessThanOrEqual(SUBREQUEST_LIMIT);
-    // #333/AC-9 #337/AC-6 O maior teto que ainda caberia seria 27 voltas (com 12 leituras e as 3 de antes do laço); o escolhido tem de ficar bem abaixo dele.
-    expect(SUBREQUEST_LIMIT - AUDIT_FIXED_WORST - (AUDIT_PRE_READS + AUDIT_MAX_READS + 4) * AUDIT_NOTES_PER_RUN).toBe(27);
-    expect(AUDIT_MAX_TURNS).toBeLessThanOrEqual(27 - 9);
+    // #333/AC-9 #337/AC-6 O maior teto que ainda caberia seria 26 voltas (com 12 leituras e as 4 de antes do laço); o escolhido (18, o que se mediu) deixa 8 de folga.
+    expect(SUBREQUEST_LIMIT - AUDIT_FIXED_WORST - (AUDIT_PRE_READS + AUDIT_MAX_READS + 4) * AUDIT_NOTES_PER_RUN).toBe(26);
+    expect(AUDIT_MAX_TURNS).toBeLessThanOrEqual(26 - 8);
   });
 });

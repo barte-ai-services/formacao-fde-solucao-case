@@ -167,8 +167,8 @@ describe('invoice-audit: a tarefa e suas tools (#230)', () => {
       await callTool(options, 'record_audit', validAudit());
       return { recorded: true };
     });
-    // #337/AC-1 As 3 primeiras leituras são as da tarefa, antes do laço; as outras, as que o modelo pediu.
-    expect(d.readCalls).toEqual(['searchPostedInvoices', 'searchPostedInvoices', 'searchOutOfFlowPayments', 'getReceipt', 'searchPurchaseOrders', 'getRegua']);
+    // #337/AC-1 As 4 primeiras leituras são as da tarefa, antes do laço (a nota cita OC-100: o saldo da ordem entra); as outras, as que o modelo pediu.
+    expect(d.readCalls).toEqual(['searchPostedInvoices', 'searchPostedInvoices', 'searchOutOfFlowPayments', 'getPurchaseOrder', 'getReceipt', 'searchPurchaseOrders', 'getRegua']);
   });
 
   it('#230/AC-1: grava a auditoria uma vez, com concordância, model e audited_at, e devolve audited', async () => {
