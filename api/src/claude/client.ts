@@ -65,6 +65,13 @@ export type Tool = {
 export type ConverseOptions = AskOptions & {
   readonly tools?: readonly Tool[];
   readonly maxTurns?: number;
+  /**
+   * #333 Opcional: chamado no começo de cada volta (a partir de 1). Devolve os nomes das tools a oferecer nesta
+   * volta, ou undefined para oferecer todas; a `responder` fica sempre. Sem ele, nada muda para as outras tarefas.
+   * #335/AC-1 O que a lista tira não roda: a tool pedida fora dela volta is_error (runTools). E com uma só tool da tarefa na lista o
+   * tool_choice força essa tool; com a lista vazia, força a `responder`; sem lista, segue `any`.
+   */
+  readonly beforeTurn?: (turn: number) => readonly string[] | undefined;
 };
 
 /** #230 O laço de tool use, injetável como o Ask: a tarefa que usa tools recebe um Converse e os testes passam um falso. */
@@ -204,16 +211,24 @@ export class ClaudeClient {
     const tools = options.tools ?? [];
     const maxTurns = options.maxTurns ?? (tools.length === 0 ? 1 : MAX_TURNS);
     const signal = AbortSignal.timeout(this.timeoutMs);
-    const toolDefs = [
-      ...tools.map(({ name, description, input_schema }) => ({ name, description, input_schema })),
-      { name: ANSWER_TOOL, description: 'Entrega a resposta final no formato pedido.', input_schema: options.schema },
+    const answerDef = { name: ANSWER_TOOL, description: 'Entrega a resposta final no formato pedido.', input_schema: options.schema };
+    const toolDefs = (offer: readonly string[] | undefined) => [
+      ...tools.filter((t) => offer === undefined || offer.includes(t.name)).map(({ name, description, input_schema }) => ({ name, description, input_schema })),
+      answerDef,
     ];
-    const toolChoice = tools.length === 0 ? { type: 'tool', name: ANSWER_TOOL } : { type: 'any' };
+    // #335/AC-1 Sem tools, ou com a volta reduzida a uma tool (ou a nenhuma), o modelo não escolhe: a API honra a tool forçada, e `any` deixava o modelo repetir a leitura que a lista tirou.
+    const toolChoiceFor = (offer: readonly string[] | undefined) => {
+      if (tools.length === 0) return { type: 'tool', name: ANSWER_TOOL };
+      const offered = offer === undefined ? undefined : tools.filter((t) => offer.includes(t.name));
+      if (offered === undefined || offered.length > 1) return { type: 'any' };
+      return { type: 'tool', name: offered[0]?.name ?? ANSWER_TOOL };
+    };
     const messages: Message[] = [{ role: 'user', content: options.prompt }];
     try {
       for (let turn = 0; turn < maxTurns; turn += 1) {
+        const offer = options.beforeTurn?.(turn + 1);
         const content = await this.post(
-          { model: options.model ?? DEFAULT_MODEL, max_tokens: MAX_TOKENS, system: this.system(options.system), tools: toolDefs, tool_choice: toolChoice, messages },
+          { model: options.model ?? DEFAULT_MODEL, max_tokens: MAX_TOKENS, system: this.system(options.system), tools: toolDefs(offer), tool_choice: toolChoiceFor(offer), messages },
           signal,
           record,
         );
@@ -222,7 +237,7 @@ export class ClaudeClient {
         if (answer) return { value: answer.input, usage };
         if (uses.length === 0) throw new ClaudeError('format', 'resposta sem tool_use');
         messages.push({ role: 'assistant', content });
-        messages.push({ role: 'user', content: await this.runTools(uses, tools) });
+        messages.push({ role: 'user', content: await this.runTools(uses, offer === undefined ? tools : tools.filter((t) => offer.includes(t.name))) });
       }
       throw new ClaudeError('format', `sem resposta final em ${maxTurns} voltas`);
     } catch (error) {
@@ -267,17 +282,24 @@ export class ClaudeClient {
     return parsed.content.filter(isRecord);
   }
 
-  /** #171 Roda cada tool pedida. A falha do handler volta ao modelo como erro genérico, sem o texto dela. */
+  /**
+   * #171 Roda cada tool pedida. A falha do handler volta ao modelo como erro genérico, sem o texto dela.
+   * #335/AC-1 `tools` são só as oferecidas na volta (converseWithUsage): a pedida fora delas não roda e volta is_error com os nomes das oferecidas (constantes da tarefa).
+   */
   private async runTools(uses: readonly Block[], tools: readonly Tool[]): Promise<Block[]> {
     const results: Block[] = [];
     for (const use of uses) {
       const tool = tools.find((t) => t.name === use.name);
       let result: Block;
-      try {
-        if (!tool) throw new Error('tool desconhecida');
-        result = { type: 'tool_result', tool_use_id: use.id, content: JSON.stringify(await tool.handler(use.input)) };
-      } catch {
-        result = { type: 'tool_result', tool_use_id: use.id, content: 'falha ao executar a tool', is_error: true };
+      if (!tool) {
+        const offered = [...tools.map((t) => t.name), ANSWER_TOOL].join(', ');
+        result = { type: 'tool_result', tool_use_id: use.id, content: `tool não oferecida nesta volta; chame: ${offered}`, is_error: true };
+      } else {
+        try {
+          result = { type: 'tool_result', tool_use_id: use.id, content: JSON.stringify(await tool.handler(use.input)) };
+        } catch {
+          result = { type: 'tool_result', tool_use_id: use.id, content: 'falha ao executar a tool', is_error: true };
+        }
       }
       results.push(result);
     }

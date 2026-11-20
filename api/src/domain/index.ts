@@ -3,6 +3,7 @@ export * from './money.js';
 export * from './quantity.js';
 export * from './classification.js';
 export * from './dock-action.js';
+export * from './dock-action-by-classification.js';
 export * from './approval-level.js';
 export * from './amount-at-risk.js';
 export * from './evidence.js';

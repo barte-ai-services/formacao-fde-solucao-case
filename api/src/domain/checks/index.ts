@@ -10,6 +10,8 @@ import { checkItemSemCadastro } from './e8-item-sem-cadastro.js';
 import { checkNaoCatalogada } from './nao-catalogada.js';
 
 export type { Check, NamedCheck } from './check.js';
+export { itemsWithoutBalance, type OrderBalances } from './e6-duplicidade.js'; // #337 o auditor calcula o sinal de ordem sem saldo pela mesma função da regra
+export { OUT_OF_FLOW_PAYMENT_WINDOW_DAYS } from './e7-pago-fora-do-fluxo.js'; // #337 a janela do E7 entra no prompt do auditor
 
 /** Regra 2 e decisão 1: a ordem em que a conferência roda as verificações. */
 export const CHECKS: readonly NamedCheck[] = Object.freeze([
