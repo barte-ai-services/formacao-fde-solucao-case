@@ -169,6 +169,18 @@ describe('#338/AC-1, AC-2: os itens segurados da E8 e da E2 chegam ao modelo ant
     expect(prompt).not.toContain('aprove');
   });
 
+  it('#338/AC-1, AC-3: a nota com E8 guardada cuja ordem citada está sem saldo recebe o <sinal_duplicidade> e não os <itens_segurados>: o sinal da E6 vence, como no motor', async () => {
+    const { rest, invoices } = await checkedKit();
+    const note = invoices.find((i) => i.classification === 'E8' && i.purchaseOrderRef !== null) as Invoice;
+    const real = new SupabaseAuditReads(rest);
+    const noBalance = (id: string) => ({ found: true, order: { id, items: note.items.map((i) => ({ codigo_fornecedor: i.supplierCode, sku: i.sku, balance: { amount: 0 } })) } });
+    const reads: AuditReadsPort = new Proxy(real, { get: (t, name: string) => (name === 'getPurchaseOrder' ? async (id: string) => noBalance(id) : Reflect.get(t, name).bind(t)) });
+    expect(itemHolds(note)).not.toBeNull();
+    const { prompt } = await audit(note, reads);
+    expect(prompt).toContain('<sinal_duplicidade>');
+    expect(prompt).not.toContain('<itens_segurados>');
+  });
+
   it('#338/AC-1: uma leitura de antes do laço que falha deixa a nota não auditada (erro de tool), sem o texto do erro', async () => {
     const { rest, invoices } = await checkedKit();
     const e8 = invoices.find((i) => i.classification === 'E8') as Invoice;
