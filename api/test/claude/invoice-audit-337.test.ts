@@ -173,8 +173,10 @@ describe('#337/AC-3: o prompt diz, classificação a classificação, a ação n
     expect(AUDITOR_SYSTEM).not.toMatch(/o mesmo número, ou que cobra a mesma ordem/);
   });
 
-  it('#337/AC-3: com E6 ou E7 vale a ação dela sozinha, e com as duas vale a da E6', () => {
-    expect(AUDITOR_SYSTEM).toContain('Se há E6 ou E7, vale a ação dela sozinha, e com as duas vale a da E6:');
+  it('#337/AC-3: com E6, E7 ou E5 vale a ação dela sozinha, a da de maior precedência (E6, depois E7, depois E5)', () => {
+    const step3 = AUDITOR_SYSTEM.split('\n').find((l) => l.startsWith('3. '));
+    expect(step3).toContain('Se há E6, E7 ou E5, vale a ação dela sozinha, a da de maior precedência (E6, depois E7, depois E5):');
+    expect(step3).not.toMatch(/Se há E6 ou E7,/);
   });
 
   it('#337/AC-3: a E7 do prompt diz a janela do domínio e que vale com ou sem ordem, com precedência sobre E5', () => {
@@ -317,11 +319,11 @@ describe('#337/AC-1: o sinal de duplicidade é o fato da regra do domínio, nas 
   });
 });
 
-describe('#337/AC-6: o prompt leva o modelo a ler a régua e o nível mínimo antes de gravar (a recusa do record_audit não muda)', () => {
+describe('#337/AC-8: o prompt leva o modelo a ler a régua e o nível mínimo antes de gravar (a recusa do record_audit não muda)', () => {
   const lines = AUDITOR_SYSTEM.split('\n');
   const stepOf = (re: RegExp): number => lines.findIndex((l) => re.test(l));
 
-  it('#337/AC-6: um passo numerado, antes do que grava, manda ler get_regua antes de gravar', () => {
+  it('#337/AC-8: um passo numerado, antes do que grava, manda ler get_regua antes de gravar', () => {
     const reguaStep = stepOf(/^\d+\. .*get_regua/);
     const recordStep = stepOf(/^\d+\. .*Chame record_audit/);
     expect(reguaStep).toBeGreaterThanOrEqual(0);
@@ -330,14 +332,14 @@ describe('#337/AC-6: o prompt leva o modelo a ler a régua e o nível mínimo an
     expect(lines[reguaStep]).toMatch(/nível mínimo/);
   });
 
-  it('#337/AC-6: o pedido, que é o que o modelo lê por último, repete: ler a régua antes de gravar', async () => {
+  it('#337/AC-8: o pedido, que é o que o modelo lê por último, repete: ler a régua antes de gravar', async () => {
     const w = world(fields(anInvoice(KEY), null));
     const m = fakeMessages();
     await w.task.run({ invoiceAccessKey: KEY }, noAsk, m.converse);
     expect(firstPrompt(m)).toMatch(/antes de gravar[^"]*get_regua/i);
   });
 
-  it('#337/AC-6: o prompt continua dizendo que abaixo da régua o record_audit recusa, e a ferramenta segue a mesma', () => {
+  it('#337/AC-8: o prompt continua dizendo que abaixo da régua o record_audit recusa, e a ferramenta segue a mesma', () => {
     expect(AUDITOR_SYSTEM).toMatch(/abaixo, record_audit recusa e informa o nível mínimo/);
   });
 });

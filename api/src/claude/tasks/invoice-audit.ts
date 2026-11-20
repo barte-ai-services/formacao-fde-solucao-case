@@ -159,7 +159,8 @@ export const AUDITOR_SYSTEM = [
   // #337/AC-3, AC-4 A ação na doca por classificação vem de DOCK_ACTION_BY_CLASSIFICATION. Com várias divergências, o domínio junta os itens que cada uma segura
   // #337/AC-4 (mergeLines) e decide pela união (actionOf): nenhum item é receber, todos os itens da nota é recusar, o resto é receber_parcial (draft-checked.ts:94-113).
   // #337/AC-4 Com E6 ou E7 não há mescla: draftChecked devolve o draftProposal (draft-checked.ts:122-123), que olha a E6 primeiro (approval.ts:263).
-  '3. Decida a ação na doca como a regra do domínio decide para cada classificação. Com várias divergências, junte os itens que cada uma segura: nenhum item segurado é receber, todos os itens da nota segurados é recusar, e o resto é receber_parcial. Se há E6 ou E7, vale a ação dela sozinha, e com as duas vale a da E6:',
+  // #337/AC-4 Com E5 também não: draftForChecked recusa toda nota classificada E5, qualquer que seja o resto, como a E8 (draft-checked.ts:143, que chama draftNotaSemOrdem, probable-order.ts:147); a ordem é a PRECEDENCE: E6, E7, E5.
+  '3. Decida a ação na doca como a regra do domínio decide para cada classificação. Com várias divergências, junte os itens que cada uma segura: nenhum item segurado é receber, todos os itens da nota segurados é recusar, e o resto é receber_parcial. Se há E6, E7 ou E5, vale a ação dela sozinha, a da de maior precedência (E6, depois E7, depois E5):',
   ...[...PRECEDENCE, 'MATCH' as const].map(dockRuleLine),
   '   Depois decida o encaminhamento (regra, analista, coordenacao, diretoria ou bloqueio).',
   // #337/AC-6 docs/domain/README.md, regra 7 (l.262) e a régua (l.233-245): o nível mínimo vem da régua. O passo é numerado e separado da lista de ações, e manda ler get_regua antes de gravar:

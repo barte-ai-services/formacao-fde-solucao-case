@@ -5,8 +5,9 @@ import { describe, expect, it } from 'vitest';
 import { supabaseConnectors } from '../../src/connectors/supabase-connectors.js';
 import { SupabaseRest } from '../../src/connectors/supabase-rest.js';
 import { draftForChecked } from '../../src/domain/draft-checked.js';
-import { DOCK_ACTION_BY_CLASSIFICATION, PRECEDENCE, type CheckContext, type Classification, type DockAction, type Invoice } from '../../src/domain/index.js';
+import { DOCK_ACTION_BY_CLASSIFICATION, Invoice, PRECEDENCE, type CheckContext, type Classification, type DockAction } from '../../src/domain/index.js';
 import { FakePostgrest } from '../support/fake-postgrest.js';
+import { kitDomain, kitInvoice } from '../support/kit-domain.js';
 import { kitTables } from '../support/kit.js';
 
 async function checkedKit(): Promise<{ invoice: Invoice; kind: DockAction['kind'] }[]> {
@@ -66,5 +67,19 @@ describe('#337/AC-3 a constante da ação na doca por classificação segue a re
       MATCH: 'receber', E1: 'receber_parcial', E2: 'receber_parcial', E3: 'receber_parcial', E4: 'receber',
       E5: 'recusar', E6: 'recusar', E7: 'receber', E8: 'receber_parcial', NAO_CATALOGADA: 'receber',
     });
+  });
+
+  // Caracterização: o comportamento do motor já existia; o teste prende o que o passo 3 do prompt do auditor diz (E5 vale sozinha, por precedência).
+  it('#337/AC-3: a nota sem ordem e com item sem cadastro (E5 e E8) é recusada pelo motor, e não segura só o item (receber_parcial)', async () => {
+    const kit = await kitDomain();
+    const nf009 = kitInvoice(kit, 'NF-009');
+    const semOrdem = Invoice.receive({
+      accessKey: nf009.accessKey, number: nf009.number, series: nf009.series, supplierId: nf009.supplierId, store: nf009.store,
+      issuedOn: nf009.issuedOn, purchaseOrderRef: null, entryChannel: nf009.entryChannel, items: nf009.items, total: nf009.total,
+    });
+    semOrdem.check(kit.ctx);
+    expect(semOrdem.divergences.map((d) => d.classification)).toEqual(expect.arrayContaining(['E5', 'E8']));
+    expect(semOrdem.classification).toBe('E5');
+    expect(draftForChecked(semOrdem, kit.ctx).dockAction.kind).toBe('recusar');
   });
 });
