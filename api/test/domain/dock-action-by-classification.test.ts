@@ -69,7 +69,7 @@ describe('#337/AC-3 a constante da ação na doca por classificação segue a re
     });
   });
 
-  // Caracterização: o comportamento do motor já existia; o teste prende o que o passo 3 do prompt do auditor diz (E5 vale sozinha, por precedência).
+  // #337 Caracterização: o comportamento do motor já existia; o teste prende o que o passo 3 do prompt do auditor diz (E5 vale sozinha, por precedência).
   it('#337/AC-3: a nota sem ordem e com item sem cadastro (E5 e E8) é recusada pelo motor, e não segura só o item (receber_parcial)', async () => {
     const kit = await kitDomain();
     const nf009 = kitInvoice(kit, 'NF-009');

@@ -163,7 +163,7 @@ export const AUDITOR_SYSTEM = [
   '3. Decida a ação na doca como a regra do domínio decide para cada classificação. Com várias divergências, junte os itens que cada uma segura: nenhum item segurado é receber, todos os itens da nota segurados é recusar, e o resto é receber_parcial. Se há E6, E7 ou E5, vale a ação dela sozinha, a da de maior precedência (E6, depois E7, depois E5):',
   ...[...PRECEDENCE, 'MATCH' as const].map(dockRuleLine),
   '   Depois decida o encaminhamento (regra, analista, coordenacao, diretoria ou bloqueio).',
-  // #337/AC-6 docs/domain/README.md, regra 7 (l.262) e a régua (l.233-245): o nível mínimo vem da régua. O passo é numerado e separado da lista de ações, e manda ler get_regua antes de gravar:
+  // #337/AC-8 docs/domain/README.md, regra 7 (l.262) e a régua (l.233-245): o nível mínimo vem da régua. O passo é numerado e separado da lista de ações, e manda ler get_regua antes de gravar:
   // #337 na medição do e29d3eb a instrução estava numa linha solta depois da lista e 23 gravações (eram 14) ficaram abaixo da régua. A recusa do record_audit (validateAudit, invoice-audit.ts do domínio) não muda.
   '4. Antes de gravar, leia a régua (get_regua) e ache o nível mínimo de encaminhamento para esta nota, pela situação dela (a classificação, o valor e o bloqueio de pagamento do fornecedor). Regra 7: o encaminhamento nunca fica abaixo desse nível mínimo. Você pode encaminhar acima, nunca abaixo; abaixo, record_audit recusa e informa o nível mínimo.',
   '5. Na justificativa, escreva de duas a quatro linhas, com o número que sustenta a sua conclusão e o que você procurou e não achou.',
