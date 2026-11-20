@@ -5,11 +5,11 @@ import { supabaseConnectors } from '../../src/connectors/supabase-connectors.js'
 import { SupabaseRest } from '../../src/connectors/supabase-rest.js';
 import { priceDifference } from '../../src/domain/checks/nao-catalogada.js';
 import { draftChecked } from '../../src/domain/draft-checked.js';
-import { DOCK_ACTION_BY_CLASSIFICATION, PRECEDENCE, type CheckContext, type Classification, type Invoice } from '../../src/domain/index.js';
+import { DOCK_ACTION_BY_CLASSIFICATION, PRECEDENCE, type CheckContext, type Classification, type DockAction, type Invoice } from '../../src/domain/index.js';
 import { FakePostgrest } from '../support/fake-postgrest.js';
 import { kitTables } from '../support/kit.js';
 
-async function checkedKit(): Promise<{ invoice: Invoice; kind: string }[]> {
+async function checkedKit(): Promise<{ invoice: Invoice; kind: DockAction['kind'] }[]> {
   const rest = new SupabaseRest({ url: 'https://fake.supabase.co', secretKey: 'sb_secret_fake', fetch: new FakePostgrest(kitTables()).fetch });
   const { captureDeps: d } = supabaseConnectors(rest);
   const [invoices, purchaseOrders, suppliers, products, postedInvoices, payments, receipts] = await Promise.all([
@@ -34,7 +34,7 @@ describe('#337/AC-3 a constante da ação na doca por classificação segue a re
     for (const { invoice, kind } of notes) {
       const rule = DOCK_ACTION_BY_CLASSIFICATION[invoice.classification];
       const allowed = [rule.usual, rule.wholeInvoiceHeld, rule.nothingToHold].filter((a) => a !== undefined);
-      expect([invoice.number, invoice.classification, allowed.includes(kind as never)]).toEqual([invoice.number, invoice.classification, true]);
+      expect([invoice.number, invoice.classification, allowed.includes(kind)]).toEqual([invoice.number, invoice.classification, true]);
       seen.set(invoice.classification, (seen.get(invoice.classification) ?? new Set()).add(kind));
     }
     // #337/AC-3: a classificação sem alternativa na constante só tem a ação usual; e a usual aparece no kit onde há nota.

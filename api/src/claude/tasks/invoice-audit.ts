@@ -13,7 +13,6 @@
 // #230 leituras de `pending` e das linhas existentes e o reparo dos níveis (até 2) = 4 (AUDIT_FIXED_WORST). Com 1 nota
 // #337 (AUDIT_NOTES_PER_RUN, tasks/index.ts) são 41 no pior caso, contra os 50 do teto (eram 38 na #333): com 12 leituras e as 3 de antes do laço o maior teto que caberia seria 27 voltas.
 // #337/AC-6 Medido com a Messages API falsa (api/test/claude/budget.test.ts): ver AUDITOR_SUBREQUESTS e AUDITOR_WORST_MEASURED lá; a conta (41) fica acima da medida.
-//
 // #337 As 3 leituras de antes do laço não gastam das 12 do modelo (AUDIT_MAX_READS): as 12 foram medidas na #333/AC-9 como o que uma auditoria cuidadosa precisa
 // #337 (ordem, cadastro, contagem), e tirar 3 delas de novo deixaria o modelo sem orçamento antes do cadastro. Elas têm teto e constante próprios (AUDIT_PRE_READS).
 //
@@ -151,12 +150,14 @@ export const AUDITOR_SYSTEM = [
   // #337/AC-4 PRECEDENCE (classification.ts:6, Decisão 1) e docs/domain/README.md, decisão 1 (l.290): a ordem sai da constante do domínio, não de texto copiado.
   `2. Classifique a nota: MATCH (confere), E1 falta física, E2 item trocado, E3 quantidade menor, E4 unidade de medida (fator de caixa), E5 nota sem ordem, E6 duplicidade, E7 pago fora do fluxo, E8 item sem cadastro, ou NAO_CATALOGADA (uma divergência que nenhuma das anteriores descreve). Com várias divergências, vale a de maior precedência: ${PRECEDENCE.join(', ')}.`,
   // #337/AC-1, AC-4 E6, como o domínio conta: mesma chave de um título lançado, ou mesma ordem e mesmo valor (e6-duplicidade.ts:48-56; docs/domain/README.md, regras 1, l.251, e 3, l.254),
-  // ou ordem sem saldo para os itens cobrados (e6-duplicidade.ts:76-100); outra nota da ordem, de valor diferente, é entrega parcial (README, regra 5, l.257-258). A duplicidade roda primeiro (e6-duplicidade.ts:14; README, regra 2, l.252-253).
+  // #337/AC-4 ou ordem sem saldo para os itens cobrados (e6-duplicidade.ts:76-100); outra nota da ordem, de valor diferente, é entrega parcial (README, regra 5, l.257-258). A duplicidade roda primeiro (e6-duplicidade.ts:14; README, regra 2, l.252-253).
   '   Duplicidade (E6): vale mais que qualquer outra. A nota é E6 se entre as <notas_lancadas> há uma com a mesma chave de acesso da nota auditada (reenvio) ou com a mesma ordem e o mesmo valor (reemissão), ou se a ordem citada está sem saldo para os itens cobrados. Outra nota da mesma ordem com valor diferente é entrega parcial, não é divergência.',
   // #337/AC-2, AC-3, AC-4 E7: a janela vem da constante do domínio; o domínio não olha a ordem (e7-pago-fora-do-fluxo.ts:26-31); E7 antes de E5: PRECEDENCE (classification.ts:8) e README, decisão 1 (l.290).
   `   Pagamento fora do fluxo (E7): um pagamento do mesmo fornecedor e da mesma loja, de valor igual ao da nota, sem título no contas a pagar e de 0 a ${OUT_OF_FLOW_PAYMENT_WINDOW_DAYS} dias antes da data de emissão da nota, está entre os <pagamentos_fora_do_fluxo>; com esse pagamento a nota é E7, com ou sem ordem de compra, e E7 tem precedência sobre E5.`,
-  // #337/AC-3, AC-4 A ação na doca por classificação: a regra do domínio, de DOCK_ACTION_BY_CLASSIFICATION; com várias divergências, a ação mais restritiva (draft-checked.ts:105, actionOf), salvo E6 e E7, que seguem o draftProposal sem a mescla (draft-checked.ts:120-121).
-  '3. Decida a ação na doca como a regra do domínio decide para cada classificação (com várias divergências, vale a ação mais restritiva entre elas, salvo quando há E6 ou E7: aí vale a ação da E6 ou da E7, sozinha):',
+  // #337/AC-3, AC-4 A ação na doca por classificação vem de DOCK_ACTION_BY_CLASSIFICATION. Com várias divergências, o domínio junta os itens que cada uma segura
+  // #337/AC-4 (mergeLines) e decide pela união (actionOf): nenhum item é receber, todos os itens da nota é recusar, o resto é receber_parcial (draft-checked.ts:92-111).
+  // #337/AC-4 Com E6 ou E7 não há mescla: draftChecked devolve o draftProposal (draft-checked.ts:120-121), que olha a E6 primeiro (approval.ts:263).
+  '3. Decida a ação na doca como a regra do domínio decide para cada classificação. Com várias divergências, junte os itens que cada uma segura: nenhum item segurado é receber, todos os itens da nota segurados é recusar, e o resto é receber_parcial. Se há E6 ou E7, vale a ação dela sozinha, e com as duas vale a da E6:',
   ...[...PRECEDENCE, 'MATCH' as const].map(dockRuleLine),
   '   Depois decida o encaminhamento (regra, analista, coordenacao, diretoria ou bloqueio). Consulte get_regua para os limites.',
   '4. Regra 7: o encaminhamento nunca fica abaixo do limite da régua para esta nota. Você pode encaminhar acima, nunca abaixo; abaixo, record_audit recusa e informa o nível mínimo.',

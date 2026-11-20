@@ -146,8 +146,9 @@ describe('#337/AC-3: o prompt diz, classificação a classificação, a ação n
     expect(AUDITOR_SYSTEM).toContain(`vale a de maior precedência: ${PRECEDENCE.join(', ')}`);
   });
 
-  it('#337/AC-3: o prompt diz que, com várias divergências, a ação é a mais restritiva, e que a regra segura itens, não a nota inteira, até todos ficarem segurados', () => {
-    expect(AUDITOR_SYSTEM).toMatch(/mais restritiva/);
+  it('#337/AC-3: com várias divergências o prompt manda juntar os itens segurados: nenhum é receber, todos é recusar, o resto é receber_parcial', () => {
+    expect(AUDITOR_SYSTEM).toContain('Com várias divergências, junte os itens que cada uma segura: nenhum item segurado é receber, todos os itens da nota segurados é recusar, e o resto é receber_parcial.');
+    expect(AUDITOR_SYSTEM).not.toMatch(/mais restritiva/);
   });
 
   it('#337/AC-3: a E6 do prompt é a do domínio: mesma chave, ou mesma ordem e mesmo valor, ou ordem sem saldo; outra nota da ordem com valor diferente é entrega parcial', () => {
@@ -158,8 +159,8 @@ describe('#337/AC-3: o prompt diz, classificação a classificação, a ação n
     expect(AUDITOR_SYSTEM).not.toMatch(/o mesmo número, ou que cobra a mesma ordem/);
   });
 
-  it('#337/AC-3: com E6 ou E7 a ação é a dessa classificação, sozinha, sem a mais restritiva entre várias', () => {
-    expect(AUDITOR_SYSTEM).toMatch(/salvo quando há E6 ou E7[^\n]*sozinha/);
+  it('#337/AC-3: com E6 ou E7 vale a ação dela sozinha, e com as duas vale a da E6', () => {
+    expect(AUDITOR_SYSTEM).toContain('Se há E6 ou E7, vale a ação dela sozinha, e com as duas vale a da E6:');
   });
 
   it('#337/AC-3: a E7 do prompt diz a janela do domínio e que vale com ou sem ordem, com precedência sobre E5', () => {
