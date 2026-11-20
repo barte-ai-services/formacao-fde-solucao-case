@@ -364,3 +364,24 @@ describe('runClaudeRound: o Cron falha fechado (#171)', () => {
     expect(text).not.toContain('corpo-com-dado');
   });
 });
+
+describe('#333/AC-8: beforeTurn opcional: o laço oferece só as tools que a tarefa pede, a cada volta', () => {
+  const lookup: Tool = { name: 'buscar_nota', description: 'busca', input_schema: { type: 'object' }, handler: async () => 1 };
+  it('#333/AC-8: sem beforeTurn, toda tool é oferecida em toda volta (as outras tarefas não mudam)', async () => {
+    const { fetch, calls } = scripted([() => json([{ type: 'tool_use', id: 't1', name: 'buscar_nota', input: {} }]), () => json([answer({ match: null })])]);
+    await new ClaudeClient({ credentials: KEY, fetch }).converse({ system: 's', prompt: 'p', schema: SCHEMA, tools: [lookup] });
+    for (const call of calls) expect((call.body.tools as { name: string }[]).map((t) => t.name)).toEqual(['buscar_nota', 'responder']);
+  });
+
+  it('#333/AC-8: com beforeTurn, a lista devolvida filtra as tools da volta (a responder fica) e a volta é informada', async () => {
+    const { fetch, calls } = scripted([() => json([{ type: 'tool_use', id: 't1', name: 'buscar_nota', input: {} }]), () => json([answer({ match: null })])]);
+    const turns: number[] = [];
+    await new ClaudeClient({ credentials: KEY, fetch }).converse({
+      system: 's', prompt: 'p', schema: SCHEMA, tools: [lookup],
+      beforeTurn: (turn) => (turns.push(turn), turn === 2 ? [] : undefined),
+    });
+    expect(turns).toEqual([1, 2]);
+    expect((calls[0]?.body.tools as { name: string }[]).map((t) => t.name)).toEqual(['buscar_nota', 'responder']);
+    expect((calls[1]?.body.tools as { name: string }[]).map((t) => t.name)).toEqual(['responder']);
+  });
+});
