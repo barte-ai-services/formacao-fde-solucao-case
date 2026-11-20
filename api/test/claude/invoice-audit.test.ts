@@ -699,7 +699,7 @@ describe('invoice-audit: uma linha de log por auditoria terminada (#333)', () =>
     return lines;
   };
 
-  it('#333/AC-11: a auditoria gravada deixa uma linha com voltas, leituras e recusas por motivo', async () => {
+  it('#333/AC-11: a auditoria não gravada (nao_auditada) deixa uma linha com voltas, leituras e recusas por motivo', async () => {
     const model = readingModel(validAudit({ justification: 'uma linha só' }));
     const lines = await runLogged(model.converse);
     // #333 a 1ª gravação é recusada (invalid_field.justification) e, esgotado o orçamento, o laço para de oferecer leituras
