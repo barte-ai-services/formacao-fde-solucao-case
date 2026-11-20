@@ -12,6 +12,9 @@ import type { AuditReadsPort, AuditWriteContext, InvoiceAuditPort, AuditedNote }
 import { Invoice, Money, Quantity, type AuditRefusal, type AuditResult, type NotAudited, type RuleProposal } from '../../src/domain/index.js';
 import { anInvoice } from '../domain/fixtures.js';
 
+/** #338 As leituras de antes do laço de uma nota sem item sem cadastro (E8): são as 4 de antes, sem a do cadastro, que só roda com E8 (AUDIT_PRE_READS = 5 é o teto). */
+const PRE_READS_WITHOUT_E8 = AUDIT_PRE_READS - 1;
+
 const KEY = '35261100000000000000550010000012341000012345';
 const OTHER_KEY = '35261100000000000000550010000099991000099999';
 const NOW = new Date('2026-11-15T18:30:00.000Z');
@@ -289,7 +292,7 @@ describe('invoice-audit: orçamento de leituras e reparo (#230)', () => {
       return { recorded: true };
     });
     // #337 As leituras de antes do laço não gastam o orçamento do modelo (AUDIT_PRE_READS, à parte).
-    expect(d.readCalls).toHaveLength(AUDIT_PRE_READS + AUDIT_MAX_READS);
+    expect(d.readCalls).toHaveLength(PRE_READS_WITHOUT_E8 + AUDIT_MAX_READS);
     expect(over).toMatchObject({ refusal: 'read_budget_exhausted' });
     expect(d.saved).toHaveLength(1);
   });
@@ -773,7 +776,7 @@ describe('invoice-audit: o caso (a) da #335, leituras recusadas até o fim das v
     expect(d.notAuditedRows).toEqual([]);
     expect(model.sent).toHaveLength(5);
     expect(model.sent.slice(3).map((s) => s.offered)).toEqual([['record_audit', 'responder'], ['responder']]);
-    expect(d.readCalls.length - AUDIT_PRE_READS).toBe(AUDIT_MAX_READS);
+    expect(d.readCalls.length - PRE_READS_WITHOUT_E8).toBe(AUDIT_MAX_READS);
   });
 
   it('#335/AC-1: o modelo teimoso, que pede leitura mesmo sem tê-la oferecida: ela não roda, volta is_error dizendo o que há para chamar, e a linha de log não conta recusa de leitura', async () => {
@@ -783,7 +786,7 @@ describe('invoice-audit: o caso (a) da #335, leituras recusadas até o fim das v
     await expect(
       invoiceAuditTask({ audits: d.audits, reads: d.reads, now: () => NOW, model: 'claude-teste', log: (l) => lines.push(l) }).run(input, noAsk, model.converse),
     ).rejects.toMatchObject({ kind: 'format' });
-    expect(d.readCalls.length - AUDIT_PRE_READS).toBe(AUDIT_MAX_READS);
+    expect(d.readCalls.length - PRE_READS_WITHOUT_E8).toBe(AUDIT_MAX_READS);
     // #335 o pedido da 5ª volta leva os resultados da 4ª, a primeira sem leitura oferecida
     const refused = model.sent[4]?.toolResults as { is_error?: boolean; content: string }[];
     expect(refused.every((r) => r.is_error === true && r.content.includes('record_audit') && !r.content.includes('read_budget_exhausted'))).toBe(true);

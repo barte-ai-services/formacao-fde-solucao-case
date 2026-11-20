@@ -14,6 +14,8 @@ export * from './proposal.js';
 export * from './title.js';
 export * from './checks/index.js';
 export * from './reconciliation.js';
+export { REGUA } from './approval-policy.js'; // #338 o teto da coordenação entra no prompt do auditor
+export { itemHolds, type ItemHolds } from './draft-checked.js'; // #338 o auditor calcula os itens segurados pela mesma função do motor
 export * from './description-match.js';
 export * from './probable-order.js';
 export * from './dossier.js';
