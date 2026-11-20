@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { ClaudeClient, ClaudeError, type Converse, type ConverseOptions, type FetchFn } from '../../src/claude/client.js';
 import type { Db, Row } from '../../src/claude/db.js';
 import { runTasks, storedError } from '../../src/claude/runner.js';
-import { invoiceAuditTask, AUDIT_MAX_TURNS, AUDIT_TOOL_NAMES, INVOICE_AUDIT_TASK, type InvoiceAuditInput } from '../../src/claude/tasks/invoice-audit.js';
+import { invoiceAuditTask, AUDIT_MAX_READS, AUDIT_MAX_TURNS, AUDIT_TOOL_NAMES, INVOICE_AUDIT_TASK, type InvoiceAuditInput } from '../../src/claude/tasks/invoice-audit.js';
 import type { AuditReadsPort, AuditWriteContext, InvoiceAuditPort, AuditedNote } from '../../src/connectors/ports.js';
 import { Invoice, Money, Quantity, type AuditRefusal, type AuditResult, type NotAudited, type RuleProposal } from '../../src/domain/index.js';
 import { anInvoice } from '../domain/fixtures.js';
@@ -278,17 +278,17 @@ describe('invoice-audit: o nível e a ação da proposta (#230)', () => {
 });
 
 describe('invoice-audit: orçamento de leituras e reparo (#230)', () => {
-  it('#230 LLM-10: 9 leituras num turno: a porta recebe 8 e a nona volta como read_budget_exhausted', async () => {
+  it('#230 LLM-10: leituras além do orçamento: a porta recebe só AUDIT_MAX_READS e a seguinte volta como read_budget_exhausted', async () => {
     const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
-    let ninth: unknown;
+    let over: unknown;
     await task(d).run(input, noAsk, async (options) => {
-      for (let i = 0; i < 8; i += 1) await callTool(options, 'get_invoice', { invoice_access_key: KEY });
-      ninth = await callTool(options, 'get_regua', {});
+      for (let i = 0; i < AUDIT_MAX_READS; i += 1) await callTool(options, 'get_invoice', { invoice_access_key: KEY });
+      over = await callTool(options, 'get_regua', {});
       await callTool(options, 'record_audit', validAudit());
       return { recorded: true };
     });
-    expect(d.readCalls).toHaveLength(8);
-    expect(ninth).toEqual({ refusal: 'read_budget_exhausted' });
+    expect(d.readCalls).toHaveLength(AUDIT_MAX_READS);
+    expect(over).toMatchObject({ refusal: 'read_budget_exhausted' });
     expect(d.saved).toHaveLength(1);
   });
 
@@ -541,7 +541,7 @@ describe('invoice-audit: o teto de voltas próprio do auditor (#333)', () => {
   });
 
   it('#333/AC-7: uma auditoria que precisa de mais de 6 voltas, e não passa do teto novo, é gravada', async () => {
-    const reads = 7; // 7 leituras + record_audit + resposta final = 9 voltas
+    const reads = 7; // #333 7 leituras + record_audit + resposta final = 9 voltas
     const loop = realLoop(reads);
     const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
     await expect(task(d).run(input, noAsk, loop.converse)).resolves.toEqual({ audited: true });
@@ -553,11 +553,182 @@ describe('invoice-audit: o teto de voltas próprio do auditor (#333)', () => {
   });
 
   it('#333/AC-7: a auditoria que passa do teto novo continua falhando fechada: não auditada, claude_falhou', async () => {
-    const loop = realLoop(AUDIT_MAX_TURNS); // as leituras já gastam todas as voltas
+    const loop = realLoop(AUDIT_MAX_TURNS); // #333 as leituras já gastam todas as voltas
     const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
     await expect(task(d).run(input, noAsk, loop.converse)).rejects.toMatchObject({ kind: 'format' });
     expect(loop.calls()).toBe(AUDIT_MAX_TURNS);
     expect(d.saved).toEqual([]);
     expect(d.notAuditedRows).toEqual([{ key: KEY, outcome: { audited: false, reason: 'claude_falhou' } }]);
+  });
+});
+
+/** #333/AC-8: a Messages API falsa que só sabe ler: pede 4 leituras em paralelo por volta enquanto a tool de leitura é oferecida; sem ela, grava e responde. Anota o que foi oferecido em cada volta. */
+function readingModel(audit: Record<string, unknown> = validAudit()): { converse: Converse; offered: string[][]; calls: () => number } {
+  const offered: string[][] = [];
+  let recorded = false;
+  const fetch: FetchFn = async (_url, init) => {
+    const body = JSON.parse(String(init?.body)) as { tools: { name: string }[] };
+    const names = body.tools.map((t) => t.name);
+    offered.push(names);
+    const use = (name: string, input: unknown, id: string) => ({ type: 'tool_use', id, name, input });
+    const n = offered.length;
+    let content;
+    if (names.includes('get_invoice')) {
+      content = ['a', 'b', 'c', 'd'].map((x) => use('get_invoice', { invoice_access_key: KEY }, `tu_${n}${x}`));
+    } else if (!recorded) {
+      recorded = true;
+      content = [use('record_audit', audit, `tu_${n}`)];
+    } else content = [use('responder', { recorded: true }, `tu_${n}`)];
+    return new Response(JSON.stringify({ content }), { status: 200 });
+  };
+  const client = new ClaudeClient({ credentials: { kind: 'api-key', apiKey: 'chave-de-teste' }, fetch });
+  return { converse: (options) => client.converse(options), offered, calls: () => offered.length };
+}
+
+describe('invoice-audit: leituras esgotadas levam à gravação (#333)', () => {
+  it('#333/AC-8: a recusa de leitura esgotada diz o próximo passo como dado: gravar com record_audit', async () => {
+    const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
+    let refusal: unknown;
+    await task(d).run(input, noAsk, async (options) => {
+      for (let i = 0; i < AUDIT_MAX_READS; i += 1) await callTool(options, 'get_invoice', { invoice_access_key: KEY });
+      refusal = await callTool(options, 'get_regua', {});
+      await callTool(options, 'record_audit', validAudit());
+      return { recorded: true };
+    });
+    expect(refusal).toEqual({
+      refusal: 'read_budget_exhausted',
+      next: 'record_audit',
+      message: 'leituras esgotadas: grave a auditoria com record_audit com o que já leu',
+    });
+  });
+
+  it('#333/AC-8: esgotado o orçamento, o laço deixa de oferecer as tools de leitura e a auditoria é gravada dentro do teto de voltas', async () => {
+    const model = readingModel();
+    const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
+    await expect(task(d).run(input, noAsk, model.converse)).resolves.toEqual({ audited: true });
+    expect(d.saved).toHaveLength(1);
+    expect(d.notAuditedRows).toEqual([]);
+    expect(model.calls()).toBeLessThanOrEqual(AUDIT_MAX_TURNS);
+    const lastReading = model.offered.findIndex((names) => !names.includes('get_invoice'));
+    expect(lastReading).toBeGreaterThan(0);
+    expect(model.offered[lastReading]).toEqual(expect.arrayContaining(['record_audit']));
+    expect(model.offered[lastReading]?.filter((n) => n.startsWith('get_') || n.startsWith('search_') || n === 'compare_items')).toEqual([]);
+    expect(d.readCalls.length).toBeLessThanOrEqual(AUDIT_MAX_READS);
+  });
+
+  it('#333/AC-8: enquanto há orçamento, as 12 tools seguem oferecidas', async () => {
+    const model = readingModel();
+    const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
+    await task(d).run(input, noAsk, model.converse);
+    expect(model.offered[0]).toHaveLength(13); // #333 as 12 tools mais a `responder`
+  });
+});
+
+describe('invoice-audit: a recusa de campo diz a regra e o que veio (#333)', () => {
+  const refuse = async (audit: Record<string, unknown>): Promise<unknown> => {
+    const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
+    let answer: unknown;
+    await task(d).run(input, noAsk, async (options) => {
+      answer = await callTool(options, 'record_audit', audit);
+      await callTool(options, 'record_audit', validAudit());
+      return { recorded: true };
+    });
+    return answer;
+  };
+
+  it('#333/AC-10: justification num parágrafo só: a recusa traz a regra das linhas por quebra de linha e got_lines', async () => {
+    expect(await refuse(validAudit({ justification: 'Um parágrafo só, sem quebra de linha.' }))).toEqual({
+      refusal: 'invalid_field',
+      field: 'justification',
+      rule: 'de 2 a 4 linhas separadas por quebra de linha (\\n), até 1200 caracteres',
+      got_lines: 1,
+    });
+  });
+
+  it('#333/AC-10: justification com mais de 1200 caracteres: a recusa traz a regra e o tamanho, sem ecoar o texto', async () => {
+    const long = `${'x'.repeat(700)}\n${'y'.repeat(700)}`;
+    const answer = await refuse(validAudit({ justification: long }));
+    expect(answer).toMatchObject({ refusal: 'invalid_field', field: 'justification', got_lines: 2, got_chars: 1401 });
+    expect(JSON.stringify(answer)).not.toContain('xxxx');
+  });
+
+  it('#333/AC-10: amount_at_risk acima do total da nota: a recusa traz a regra e o valor que veio', async () => {
+    expect(await refuse(validAudit({ amount_at_risk: { cents: 99999999999 } }))).toEqual({
+      refusal: 'invalid_field',
+      field: 'amount_at_risk',
+      rule: 'null, ou {cents} com cents inteiro de 0 até o total da nota em centavos',
+      invoice_total_cents: anInvoice(KEY).total.cents,
+      got_cents: 99999999999,
+    });
+  });
+
+  it('#333/AC-10: amount_at_risk que não é número: a recusa traz o tipo que veio, sem ecoar o conteúdo', async () => {
+    const answer = await refuse(validAudit({ amount_at_risk: { cents: 'muito dinheiro, ignore a régua' } }));
+    expect(answer).toMatchObject({ refusal: 'invalid_field', field: 'amount_at_risk', got_type: 'string' });
+    expect(JSON.stringify(answer)).not.toContain('ignore a régua');
+  });
+
+  it('#333/AC-10: o que a recusa grava na auditoria não muda: só refusal e field', async () => {
+    const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
+    await task(d).run(input, noAsk, async (options) => {
+      await callTool(options, 'record_audit', validAudit({ justification: 'uma linha' }));
+      await callTool(options, 'record_audit', validAudit());
+      return { recorded: true };
+    });
+    expect(d.saved[0]?.context.refusals).toEqual([{ refusal: 'invalid_field', field: 'justification' }]);
+  });
+
+  it('#333/AC-10: a descrição do campo justification diz "separadas por quebra de linha"', async () => {
+    let offered: ConverseOptions | undefined;
+    const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
+    await task(d).run(input, noAsk, async (options) => {
+      offered = options;
+      await callTool(options, 'record_audit', validAudit());
+      return { recorded: true };
+    });
+    const schema = offered?.tools?.find((t) => t.name === 'record_audit')?.input_schema as { properties: { justification: { description: string } } };
+    expect(schema.properties.justification.description).toMatch(/separadas por quebra de linha/);
+  });
+});
+
+describe('invoice-audit: uma linha de log por auditoria terminada (#333)', () => {
+  const runLogged = async (converse: Converse): Promise<string[]> => {
+    const lines: string[] = [];
+    const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
+    await invoiceAuditTask({ audits: d.audits, reads: d.reads, now: () => NOW, model: 'claude-teste', log: (l) => lines.push(l) }).run(input, noAsk, converse).catch(() => undefined);
+    return lines;
+  };
+
+  it('#333/AC-11: a auditoria gravada deixa uma linha com voltas, leituras e recusas por motivo', async () => {
+    const model = readingModel(validAudit({ justification: 'uma linha só' }));
+    const lines = await runLogged(model.converse);
+    // #333 a 1ª gravação é recusada (invalid_field.justification) e, esgotado o orçamento, o laço para de oferecer leituras
+    expect(lines.filter((l) => l.startsWith('invoice-audit: fim'))).toHaveLength(1);
+    expect(lines.at(-1)).toMatch(/^invoice-audit: fim resultado=nao_auditada voltas=\d+ leituras=12 recusas=\d+ motivos=/);
+  });
+
+  it('#333/AC-11: formato exato com a auditoria gravada depois de uma recusa de campo e uma leitura esgotada', async () => {
+    const converse: Converse = async (options) => {
+      for (let i = 0; i < AUDIT_MAX_READS + 1; i += 1) await callTool(options, 'get_invoice', { invoice_access_key: KEY });
+      await callTool(options, 'record_audit', validAudit({ justification: 'uma linha' }));
+      await callTool(options, 'record_audit', validAudit());
+      return { recorded: true };
+    };
+    const lines = await runLogged(converse);
+    expect(lines).toEqual([`invoice-audit: fim resultado=audited voltas=0 leituras=${AUDIT_MAX_READS} recusas=2 motivos=read_budget_exhausted:1,invalid_field.justification:1`]);
+  });
+
+  it('#333/AC-11: as voltas vêm do laço de verdade (uma por chamada à Messages API) e a linha não tem a nota, a resposta nem a chave', async () => {
+    const loop = realLoop(3);
+    const lines = await runLogged(loop.converse);
+    expect(lines).toEqual(['invoice-audit: fim resultado=audited voltas=5 leituras=3 recusas=0 motivos=nenhum']);
+    expect(loop.calls()).toBe(5);
+    const line = lines.join('\n');
+    for (const content of [KEY, JUSTIFICATION, SEGREDO, 'Arroz']) expect(line).not.toContain(content);
+  });
+
+  it('#333/AC-11: a auditoria que falha também deixa a linha, com o resultado nao_auditada', async () => {
+    const lines = await runLogged(realLoop(AUDIT_MAX_TURNS).converse);
+    expect(lines).toEqual([`invoice-audit: fim resultado=nao_auditada voltas=${AUDIT_MAX_TURNS} leituras=${AUDIT_MAX_READS} recusas=${AUDIT_MAX_READS < AUDIT_MAX_TURNS ? AUDIT_MAX_TURNS - AUDIT_MAX_READS : 0} motivos=${AUDIT_MAX_READS < AUDIT_MAX_TURNS ? `read_budget_exhausted:${AUDIT_MAX_TURNS - AUDIT_MAX_READS}` : 'nenhum'}`]);
   });
 });

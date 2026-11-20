@@ -36,8 +36,8 @@ export function tasksFor(rest: SupabaseRest): readonly ClaudeTask<unknown, unkno
 
 /**
  * #333 Notas auditadas por invocação do cron do auditor: 1. A conta de pior caso (tasks/invoice-audit.ts) é 4 fixas
- * (2 leituras do laço e 2 do reparo dos níveis) + 28 por nota (16 voltas, AUDIT_MAX_TURNS, + 12) = 32 para 1 nota; 2 notas dariam 60,
- * que não cabe nos 50, e mudariam o teto `maxPerRun` da tarefa (#230), que os testes do auditor fixam e a #333 não toca (AC-6). Medido com a fila cheia: 8 (2 voltas) e 30 (as 16 voltas do teto). São 4 invocações por hora.
+ * (2 leituras do laço e 2 do reparo dos níveis) + 34 por nota (18 voltas, AUDIT_MAX_TURNS, + 12 leituras + 4) = 38 para 1 nota; 2 notas dariam 60,
+ * que não cabe nos 50, e mudariam o teto `maxPerRun` da tarefa (#230), que os testes do auditor fixam e a #333 não toca (AC-6). Medido com a fila cheia: 8 (2 voltas) e 36 (as 18 voltas do teto e as 12 leituras). São 4 invocações por hora.
  */
 export const AUDIT_NOTES_PER_RUN = 1;
 

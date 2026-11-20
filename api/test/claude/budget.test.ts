@@ -4,7 +4,7 @@ import type { FetchFn } from '../../src/claude/client.js';
 import { CRON_LIMIT, runAuditRound, runClaudeRound } from '../../src/claude/cron.js';
 import { restDb } from '../../src/claude/db.js';
 import { AUDIT_NOTES_PER_RUN, auditTasksFor, tasksFor } from '../../src/claude/tasks/index.js';
-import { AUDIT_FIXED_WORST, AUDIT_MAX_TURNS, AUDIT_PER_NOTE_WORST } from '../../src/claude/tasks/invoice-audit.js';
+import { AUDIT_FIXED_WORST, AUDIT_MAX_READS, AUDIT_MAX_TURNS, AUDIT_PER_NOTE_WORST } from '../../src/claude/tasks/invoice-audit.js';
 import { sweepSupplierOverdue } from '../../src/cron/supplier-sweep.js';
 import { tick } from '../../src/cron/tick.js';
 import { queueRow, invoiceRow } from '../supplier/supabase-support.js';
@@ -36,7 +36,7 @@ function messagesApi(proposalOf: (key: string) => Record<string, unknown> | unde
     };
     // #230 O auditor (invoice-audit) conversa com tools: na 1ª volta grava a auditoria que concorda com a régua (record_audit), na 2ª entrega a resposta final.
     if (body.tools.some((t) => t.name === 'record_audit')) {
-      // #333 A volta é o que o laço já mandou: cada volta acrescenta 2 mensagens (a do modelo e a das tools). Com `auditTurns` > 2 o modelo lê antes de gravar, sempre a mesma nota (o pior caso passa do MAX_READS = 8: as leituras a mais voltam recusadas).
+      // #333 A volta é o que o laço já mandou: cada volta acrescenta 2 mensagens (a do modelo e a das tools). Com `auditTurns` > 2 o modelo lê antes de gravar, sempre a mesma nota (o pior caso passa do AUDIT_MAX_READS = 12: as leituras a mais voltam recusadas).
       const turn = (body.messages.length - 1) / 2 + 1;
       if (turn === auditTurns) return reply('responder', { audited: true });
       if (turn < auditTurns - 1) return reply('get_invoice', { invoice_access_key: /<chave>([^<]*)<\/chave>/.exec(JSON.stringify(body.messages[0]))?.[1] ?? '' });
@@ -135,8 +135,8 @@ const MEASURED_TOTAL = 50;
 /** #333: o gasto medido da invocação do auditor (2 chamadas à Messages API e 6 ao banco), com a fila cheia e 1 nota por invocação (AUDIT_NOTES_PER_RUN). */
 const AUDITOR_SUBREQUESTS = 8;
 
-/** #333/AC-7: o gasto medido da invocação do auditor no pior caso do teto de voltas dele (16 chamadas à Messages API, 8 leituras, a gravação e as do laço). */
-const AUDITOR_WORST_MEASURED = 30;
+/** #333/AC-7, AC-9: o gasto medido da invocação do auditor no pior caso do teto de voltas dele (18 chamadas à Messages API, 12 leituras que passam e 6 ao banco, da gravação e do laço). */
+const AUDITOR_WORST_MEASURED = 36;
 
 describe('#157 a conta das subrequests da rodada do Cron, medida na rodada de verdade', () => {
   it('#333/AC-1: a varredura e a rodada do Claude, com a fila cheia de cada tarefa de tasksFor, gastam o que está medido, e uma leitura a mais ou uma tarefa nova faz o teste cair', async () => {
@@ -164,14 +164,14 @@ describe('#333 a conta das subrequests da invocação do auditor, medida pelo me
     expect(m.messages).toBe(AUDIT_CALLS_PER_NOTE * AUDIT_NOTES_PER_RUN);
   });
 
-  it('#333/AC-2: o pior caso do auditor (32 no primeiro, 28 por nota a mais, de invoice-audit.ts, com o teto de voltas próprio da #333) cabe nos 50 com as notas por invocação escolhidas', () => {
+  it('#333/AC-2, AC-9: o pior caso do auditor (38 no primeiro, 34 por nota a mais, de invoice-audit.ts, com o teto de voltas e de leituras próprios da #333) cabe nos 50 com as notas por invocação escolhidas', () => {
     const worstCase = AUDIT_FIXED_WORST + AUDIT_PER_NOTE_WORST * AUDIT_NOTES_PER_RUN;
     expect(AUDIT_NOTES_PER_RUN).toBeGreaterThanOrEqual(1);
     expect(worstCase).toBeLessThanOrEqual(SUBREQUEST_LIMIT);
-    expect(AUDIT_FIXED_WORST + AUDIT_PER_NOTE_WORST).toBe(32);
+    expect(AUDIT_FIXED_WORST + AUDIT_PER_NOTE_WORST).toBe(38);
   });
 
-  it('#333/AC-7: a invocação do auditor no pior caso do teto de voltas novo (todas as voltas, as 8 leituras e a gravação) gasta no máximo 50 subrequests e a nota é auditada', async () => {
+  it('#333/AC-7: a invocação do auditor no pior caso do teto de voltas novo (todas as voltas, as 12 leituras e a gravação) gasta no máximo 50 subrequests e a nota é auditada', async () => {
     const m = await measureRound('auditor', AUDIT_MAX_TURNS);
     expect(m.messages).toBe(AUDIT_MAX_TURNS * AUDIT_NOTES_PER_RUN);
     expect(m.total).toBe(AUDITOR_WORST_MEASURED);
@@ -179,12 +179,12 @@ describe('#333 a conta das subrequests da invocação do auditor, medida pelo me
     expect(m.total).toBeLessThanOrEqual(SUBREQUEST_LIMIT);
   });
 
-  it('#333/AC-7: a conta de pior caso do auditor deriva do teto de voltas: voltas + 12 por nota e 4 fixas, e o teto escolhido deixa folga nos 50', () => {
+  it('#333/AC-7, AC-9: a conta de pior caso do auditor deriva dos tetos: voltas + leituras + 4 por nota e 4 fixas, e o teto escolhido deixa folga nos 50', () => {
     expect(AUDIT_MAX_TURNS).toBeGreaterThan(6);
-    expect(AUDIT_PER_NOTE_WORST).toBe(AUDIT_MAX_TURNS + 12);
+    expect(AUDIT_PER_NOTE_WORST).toBe(AUDIT_MAX_TURNS + AUDIT_MAX_READS + 4);
     expect(AUDIT_FIXED_WORST + AUDIT_PER_NOTE_WORST * AUDIT_NOTES_PER_RUN).toBeLessThanOrEqual(SUBREQUEST_LIMIT);
-    // O maior teto que ainda caberia seria 34 voltas; o escolhido tem de ficar bem abaixo dele.
-    expect(SUBREQUEST_LIMIT - AUDIT_FIXED_WORST - 12 * AUDIT_NOTES_PER_RUN).toBe(34);
-    expect(AUDIT_MAX_TURNS).toBeLessThanOrEqual(34 - 10);
+    // #333/AC-9 O maior teto que ainda caberia seria 30 voltas (com 12 leituras); o escolhido tem de ficar bem abaixo dele.
+    expect(SUBREQUEST_LIMIT - AUDIT_FIXED_WORST - (AUDIT_MAX_READS + 4) * AUDIT_NOTES_PER_RUN).toBe(30);
+    expect(AUDIT_MAX_TURNS).toBeLessThanOrEqual(30 - 10);
   });
 });

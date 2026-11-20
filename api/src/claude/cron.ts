@@ -31,7 +31,7 @@ import { auditTasksFor, tasksFor } from './tasks/index.js';
  * #157   varredura do prazo (SUPPLIER_SWEEP_PER_ROUND = 1, api/src/cron/supplier-sweep.ts): 6.
  * #333 Duas invocações agendadas, cada uma com o próprio teto de 50 (api/src/cron/schedule.ts):
  * #333   a de 15 minutos (runClaudeRound, tasksFor, sem o auditor): varredura 6 + rodada do Claude 44 = 50 medidos, no teto (eram 58 com o auditor, que era o último e nunca rodava);
- * #333   a do auditor (runAuditRound, auditTasksFor, deslocada: 7-59/15): 1 nota por invocação (AUDIT_NOTES_PER_RUN), 2 chamadas à Messages API e 6 ao banco = 8 medidos com 2 voltas; no pior caso, as 16 voltas do teto próprio do auditor (AUDIT_MAX_TURNS) e as 8 leituras = 30 medidos e 32 pela conta, contra os 50 (tasks/invoice-audit.ts).
+ * #333   a do auditor (runAuditRound, auditTasksFor, deslocada: 7-59/15): 1 nota por invocação (AUDIT_NOTES_PER_RUN), 2 chamadas à Messages API e 6 ao banco = 8 medidos com 2 voltas; no pior caso, as 18 voltas do teto próprio do auditor (AUDIT_MAX_TURNS) e as 12 leituras (AUDIT_MAX_READS) = 36 medidos e 38 pela conta, contra os 50 (tasks/invoice-audit.ts).
  * #157 Os 50 do plano gratuito contam só a rodada do Claude e a varredura, não a invocação inteira: a captura, proposeChecked, as
  * #157 publicações e as notas de devolução gastam subrequests antes (api/src/cron/tick.ts, runRound). O Worker é tratado como o plano
  * #157 gratuito (50 subrequests); a rodada de 15 minutos mede 50 e cabe (#333); a invocação inteira do Cron é do Spike #303.
