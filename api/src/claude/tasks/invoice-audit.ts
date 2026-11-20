@@ -20,7 +20,7 @@
 // #333/AC-10) = 16; as 2 voltas restantes são folga (eram 16 sem folga nenhuma nesse ritmo). Esgotadas as leituras, o laço oferece só
 // #333/AC-8 record_audit e a resposta. Mais que 18 não ajuda na prática: o prazo do laço todo é ASK_TIMEOUT_MS = 45 s (client.ts, vale para as outras
 // #333 tarefas e não muda aqui), que dá 2,5 s por volta em 18, e uma chamada com 12 tools e o modelo padrão leva de 1,5 a 3 s (estimativa, não medida): o que o
-// #333 prazo corta primeiro é uma questão aberta (#333).
+// #333 prazo corta primeiro é uma questão aberta (#334).
 import { DEFAULT_MODEL, type Converse, type Tool } from '../client.js';
 import type { Db } from '../db.js';
 import { isRecord, isString } from '../guards.js';
