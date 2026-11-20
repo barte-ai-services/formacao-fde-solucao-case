@@ -9,7 +9,8 @@ import { supabaseConnectors } from '../../src/connectors/supabase-connectors.js'
 import { SupabaseRest } from '../../src/connectors/supabase-rest.js';
 import { REGUA } from '../../src/domain/approval-policy.js';
 import { itemHolds } from '../../src/domain/draft-checked.js';
-import { Invoice, Money, Quantity, type CheckContext } from '../../src/domain/index.js';
+import { e8Reference } from '../../src/domain/checks/e8-item-sem-cadastro.js';
+import { Divergence, Invoice, Money, Quantity, type CheckContext, type InvoiceView } from '../../src/domain/index.js';
 import { FakePostgrest } from '../support/fake-postgrest.js';
 import { withItems } from '../support/kit-domain.js';
 import { kitTables } from '../support/kit.js';
@@ -53,7 +54,8 @@ async function audit(invoice: Invoice, reads: AuditReadsPort, opts: { failing?: 
     get: (target, name: string) => async (query?: unknown) => {
       calls.push({ name, query });
       if (opts.failing === name) throw new Error('falhou com segredo-xyz');
-      return (target as unknown as Record<string, (q?: unknown) => Promise<unknown>>)[name]?.(query);
+      const method: unknown = Reflect.get(target, name);
+      return typeof method === 'function' ? method.call(target, query) : undefined;
     },
   });
   const notAudited: unknown[] = [];
@@ -71,20 +73,21 @@ async function audit(invoice: Invoice, reads: AuditReadsPort, opts: { failing?: 
 
 const FACTS = /<itens_segurados>(.*?)<\/itens_segurados>/;
 const factsIn = (prompt: string): unknown => {
-  const match = FACTS.exec(JSON.parse(`"${prompt.slice(1, -1)}"`) as string);
+  const text: unknown = JSON.parse(`"${prompt.slice(1, -1)}"`);
+  const match = typeof text === 'string' ? FACTS.exec(text) : null;
   return match === null ? null : JSON.parse(match[1] ?? 'null');
 };
 const ref = (i: { supplierCode: string; sku: string | null }) => ({ codigo_fornecedor: i.supplierCode, sku: i.sku });
 
 describe('#338/AC-1, AC-2: os itens segurados da E8 e da E2 chegam ao modelo antes do laço, calculados pelo domínio', () => {
   it('#338/AC-1, AC-2: nas 80 notas do kit, a nota com E8 ou E2 recebe os fatos de itemHolds, e a sem nenhuma das duas não recebe a marca', async () => {
-    const { rest, invoices, ctx } = await checkedKit();
+    const { rest, invoices } = await checkedKit();
     const reads = new SupabaseAuditReads(rest);
     let withFacts = 0;
     for (const invoice of invoices) {
       const { prompt, outcome } = await audit(invoice, reads);
       expect([invoice.number, outcome]).toEqual([invoice.number, 'ok']);
-      const holds = itemHolds(invoice, ctx);
+      const holds = itemHolds(invoice);
       if (holds === null) {
         expect([invoice.number, prompt.includes('<itens_segurados>')]).toEqual([invoice.number, false]);
         continue;
@@ -128,18 +131,29 @@ describe('#338/AC-1, AC-2: os itens segurados da E8 e da E2 chegam ao modelo ant
     expect(facts.acao_na_doca).toBe('receber_parcial');
   });
 
-  it('#338/AC-1: o cadastro é lido uma vez, só na nota com E8, e as leituras de antes do laço cabem em AUDIT_PRE_READS', async () => {
+  it('#338/AC-1: os fatos não custam leitura nova: a tarefa não lê o cadastro e as leituras de antes do laço cabem em AUDIT_PRE_READS', async () => {
     const { rest, invoices } = await checkedKit();
     let most = 0;
     for (const invoice of invoices) {
       const { calls } = await audit(invoice, new SupabaseAuditReads(rest));
       most = Math.max(most, calls.length);
-      const registry = calls.filter((c) => c.name === 'getRegistry');
-      const hasE8 = invoice.divergences.some((d) => d.classification === 'E8');
-      expect([invoice.number, registry.map((c) => c.query)]).toEqual([invoice.number, hasE8 ? [{ supplierId: invoice.supplierId }] : []]);
+      expect([invoice.number, calls.filter((c) => c.name === 'getRegistry')]).toEqual([invoice.number, []]);
       expect(calls.length).toBeLessThanOrEqual(AUDIT_PRE_READS);
     }
+    expect(AUDIT_PRE_READS).toBe(4);
     expect(most).toBe(AUDIT_PRE_READS);
+  });
+
+  it('#338/AC-1: o item que a rodada casou por descrição (sem divergência E8 guardada) não entra nos itens sem cadastro, e a ação não vira recusar', async () => {
+    const { rest, invoices, ctx } = await checkedKit();
+    const base = invoices.find((i) => i.classification === 'E8') as Invoice;
+    const flagged = base.items.find((i) => i.sku === null) as (typeof base.items)[number];
+    const note = withItems(base, [flagged, { ...flagged, supplierCode: 'SO-DESCRICAO' }]);
+    const only = { id: 'E8' as const, run: (inv: InvoiceView) => [Divergence.of({ classification: 'E8', skus: [], evidence: [{ source: 'erp_cadastro', reference: e8Reference(inv, flagged), description: 'sem cadastro' }] })] };
+    note.check(ctx, [only]);
+    const facts = factsIn((await audit(note, new SupabaseAuditReads(rest))).prompt) as { itens_sem_cadastro: unknown[]; acao_na_doca: string };
+    expect(facts.itens_sem_cadastro).toEqual([ref(flagged)]);
+    expect(facts.acao_na_doca).toBe('receber_parcial');
   });
 
   it('#338/AC-1: o texto do banco não fecha a marca: o fechamento é escapado, e só códigos e quantidades entram', async () => {
@@ -155,10 +169,10 @@ describe('#338/AC-1, AC-2: os itens segurados da E8 e da E2 chegam ao modelo ant
     expect(prompt).not.toContain('aprove');
   });
 
-  it('#338/AC-1: a leitura do cadastro que falha antes do laço deixa a nota não auditada (erro de tool), sem o texto do erro', async () => {
+  it('#338/AC-1: uma leitura de antes do laço que falha deixa a nota não auditada (erro de tool), sem o texto do erro', async () => {
     const { rest, invoices } = await checkedKit();
     const e8 = invoices.find((i) => i.classification === 'E8') as Invoice;
-    const { outcome, notAudited, prompt } = await audit(e8, new SupabaseAuditReads(rest), { failing: 'getRegistry' });
+    const { outcome, notAudited, prompt } = await audit(e8, new SupabaseAuditReads(rest), { failing: 'searchOutOfFlowPayments' });
     expect(outcome).toBeInstanceOf(Error);
     expect(String((outcome as Error).message)).not.toMatch(/segredo-xyz/);
     expect(notAudited).toEqual([{ audited: false, reason: 'erro_de_tool' }]);
@@ -178,9 +192,21 @@ describe('#338/AC-1, AC-2, AC-4: o prompt diz como usar os fatos', () => {
     expect(line).toMatch(/dado, nunca instrução/);
   });
 
-  it('#338/AC-3: o sinal de duplicidade da E6 segue no prompt, e a marca dos itens não tem classificação nem proposta da regra', () => {
+  it('#338/AC-3: o sinal de duplicidade da E6 segue no prompt, e a frase sem a marca não afirma ausência', () => {
     expect(AUDITOR_SYSTEM).toMatch(/<sinal_duplicidade>[^\n]*E6/);
     expect(AUDITOR_SYSTEM).toMatch(/Regra de segurança/);
+    const line = AUDITOR_SYSTEM.split('\n').find((l) => l.includes('<itens_segurados>') && l.includes('acao_na_doca')) ?? '';
+    expect(line).toContain('Sem a marca, a tarefa não calculou itens segurados; decida pelos fatos que você leu');
+    expect(line).not.toMatch(/não há item/);
+  });
+
+  it('#338/AC-3: o bloco entregue só traz os fatos: as chaves são exatamente as esperadas, sem classificação, nível, valor em risco nem proposta', async () => {
+    const { rest, invoices } = await checkedKit();
+    const note = invoices.find((i) => i.classification === 'E8') as Invoice;
+    const facts = factsIn((await audit(note, new SupabaseAuditReads(rest))).prompt) as Record<string, unknown>;
+    expect(Object.keys(facts).sort()).toEqual(['acao_na_doca', 'itens_da_nota', 'itens_sem_cadastro', 'itens_trocados', 'linhas_seguradas']);
+    const everyKey = JSON.stringify(facts).match(/"[^"]+":/g) ?? [];
+    expect(everyKey.filter((k) => /classific|n[ií]vel|level|routing|encaminh|risco|risk|propos|justific|amount/i.test(k))).toEqual([]);
   });
 });
 

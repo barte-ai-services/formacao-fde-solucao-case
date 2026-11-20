@@ -3,7 +3,7 @@ import { priceDifference } from './checks/nao-catalogada.js';
 import { amountAtRiskItemTrocado } from './checks/e2-item-trocado.js';
 import { isShortLine, proposeE3 } from './checks/e3-quantidade-menor.js';
 import { e4AmountAtRisk } from './checks/e4-unidade-de-medida.js';
-import { amountAtRiskOfUnregistered, unregisteredItems } from './checks/e8-item-sem-cadastro.js';
+import { amountAtRiskOfUnregistered, storedUnregisteredItems, unregisteredItems } from './checks/e8-item-sem-cadastro.js';
 import type { Classification } from './classification.js';
 import type { CheckContext } from './context.js';
 import { DockAction, type PartialLine } from './dock-action.js';
@@ -150,9 +150,10 @@ export function draftForChecked(invoice: Invoice, ctx: CheckContext, suggestion?
 }
 
 /**
- * #338 Os itens que o motor segura nas notas E8 (sem cadastro) e E2 (trocado), e a ação na doca que decorre deles: o mesmo caminho de draftChecked
- * (partE8 e partE2 para as linhas, mergeLines para juntá-las, actionOf para a ação), sem o valor em risco, que o auditor não precisa.
- * Devolve null quando o motor não segue por esse caminho ou a nota não tem E8 nem E2: com E6 ou E7 vale o draftProposal (draftChecked) e com E5 a nota é recusada (draftForChecked);
+ * #338 Os fatos de E8 e E2 da nota conferida: os itens que as divergências guardadas dela marcam (sem cadastro, as E8; trocados, as E2), as linhas que partE8 e partE2 segurariam
+ * por esses itens, juntadas por mergeLines, e a ação que actionOf decide sobre elas, sem o valor em risco. Não relê o cadastro: os itens sem cadastro saem das divergências E8
+ * guardadas (storedUnregisteredItems), porque a verificação correu com as sugestões de descrição da rodada, que não ficam guardadas.
+ * Devolve null quando a nota não tem E8 nem E2, ou quando o motor não junta linhas por esse caminho: com E6 ou E7 vale o draftProposal (draftChecked) e com E5 a nota é recusada (draftForChecked);
  * `dockAction` é null quando E1 ou E3 também seguram linhas, porque a união delas depende da contagem do recebimento, que esta função não lê.
  */
 export type ItemHolds = {
@@ -162,12 +163,12 @@ export type ItemHolds = {
   readonly dockAction: DockAction | null;
 };
 
-export function itemHolds(invoice: Invoice, ctx: CheckContext): ItemHolds | null {
+export function itemHolds(invoice: Invoice): ItemHolds | null {
   const codes = new Set(invoice.divergences.map((d) => d.classification));
   if (codes.has('E6') || codes.has('E7') || invoice.classification === 'E5') return null;
   if (!codes.has('E8') && !codes.has('E2')) return null;
-  const unregistered = codes.has('E8') ? unregisteredItems(invoice, ctx) : [];
-  const swapped = codes.has('E2') ? swappedItems(invoice) : [];
+  const unregistered = storedUnregisteredItems(invoice);
+  const swapped = swappedItems(invoice);
   const parts: Part[] = [unregistered, swapped].map((items) => ({ lines: items.map(holdLine), risk: Money.zero(), why: '' }));
   const lines = mergeLines(invoice, parts);
   const dockAction = codes.has('E1') || codes.has('E3') ? null : actionOf(invoice, lines);

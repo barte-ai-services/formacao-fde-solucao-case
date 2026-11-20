@@ -44,6 +44,25 @@ export function unregisteredItems(invoice: InvoiceView, ctx: CheckContext): read
   });
 }
 
+/** #338 A referência da evidência de uma divergência E8: o fornecedor e o código do item, a chave que a leitura das divergências guardadas usa para achar o item. */
+export const e8Reference = (invoice: InvoiceView, item: InvoiceItem): string => `${invoice.supplierId}/${item.supplierCode}`;
+
+/**
+ * #338 Os itens que a verificação E8 desta nota achou sem cadastro, lidos das divergências E8 guardadas (uma por item: `skus` com o SKU do item, ou vazio sem SKU,
+ * e a primeira evidência com a referência de e8Reference). Não refaz a conferência: ela correu com as sugestões de descrição da rodada (capture.ts, withDescriptionMatches),
+ * que não ficam guardadas, e reler o cadastro sem elas poderia incluir um item que a regra casou por descrição.
+ */
+export function storedUnregisteredItems(invoice: InvoiceView): readonly InvoiceItem[] {
+  const stored = invoice.divergences.filter((d) => d.classification === 'E8');
+  return invoice.items.filter((item) =>
+    stored.some(
+      (d) =>
+        d.evidence[0]?.reference === e8Reference(invoice, item) &&
+        (item.sku === null ? d.skus.length === 0 : d.skus.length === 1 && d.skus[0] === item.sku),
+    ),
+  );
+}
+
 /** Regra 6 e #35, AC-3: o valor em risco do E8 é a soma dos itens sem cadastro. */
 export function amountAtRiskOfUnregistered(invoice: InvoiceView, ctx: CheckContext): AmountAtRisk {
   const sum = unregisteredItems(invoice, ctx).reduce((acc, item) => acc.add(item.total), Money.zero());
@@ -71,7 +90,7 @@ export const checkItemSemCadastro: Check = (invoice, ctx) => {
       evidence: [
         {
           source: 'erp_cadastro',
-          reference: `${invoice.supplierId}/${item.supplierCode}`,
+          reference: e8Reference(invoice, item),
           description:
             `O item "${item.description}" (código do fornecedor ${item.supplierCode}, ` +
             `${item.sku ? `SKU ${item.sku}` : 'SKU vazio'}, valor ${item.total.toString()}) não está no ` +
