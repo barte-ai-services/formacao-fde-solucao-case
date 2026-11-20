@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { ClaudeClient, ClaudeError, type Converse, type ConverseOptions, type FetchFn } from '../../src/claude/client.js';
 import type { Db, Row } from '../../src/claude/db.js';
 import { runTasks, storedError } from '../../src/claude/runner.js';
-import { invoiceAuditTask, AUDIT_MAX_READS, AUDIT_MAX_TURNS, AUDIT_TOOL_NAMES, INVOICE_AUDIT_TASK, type InvoiceAuditInput } from '../../src/claude/tasks/invoice-audit.js';
+import { invoiceAuditTask, AUDIT_MAX_READS, AUDIT_PRE_READS, AUDIT_MAX_TURNS, AUDIT_TOOL_NAMES, INVOICE_AUDIT_TASK, type InvoiceAuditInput } from '../../src/claude/tasks/invoice-audit.js';
 import type { AuditReadsPort, AuditWriteContext, InvoiceAuditPort, AuditedNote } from '../../src/connectors/ports.js';
 import { Invoice, Money, Quantity, type AuditRefusal, type AuditResult, type NotAudited, type RuleProposal } from '../../src/domain/index.js';
 import { anInvoice } from '../domain/fixtures.js';
@@ -167,7 +167,8 @@ describe('invoice-audit: a tarefa e suas tools (#230)', () => {
       await callTool(options, 'record_audit', validAudit());
       return { recorded: true };
     });
-    expect(d.readCalls).toEqual(['getReceipt', 'searchPurchaseOrders', 'getRegua']);
+    // #337/AC-1 As 3 primeiras leituras são as da tarefa, antes do laço; as outras, as que o modelo pediu.
+    expect(d.readCalls).toEqual(['searchPostedInvoices', 'searchPostedInvoices', 'searchOutOfFlowPayments', 'getReceipt', 'searchPurchaseOrders', 'getRegua']);
   });
 
   it('#230/AC-1: grava a auditoria uma vez, com concordância, model e audited_at, e devolve audited', async () => {
@@ -287,7 +288,8 @@ describe('invoice-audit: orçamento de leituras e reparo (#230)', () => {
       await callTool(options, 'record_audit', validAudit());
       return { recorded: true };
     });
-    expect(d.readCalls).toHaveLength(AUDIT_MAX_READS);
+    // #337 As leituras de antes do laço não gastam o orçamento do modelo (AUDIT_PRE_READS, à parte).
+    expect(d.readCalls).toHaveLength(AUDIT_PRE_READS + AUDIT_MAX_READS);
     expect(over).toMatchObject({ refusal: 'read_budget_exhausted' });
     expect(d.saved).toHaveLength(1);
   });
@@ -613,7 +615,7 @@ describe('invoice-audit: leituras esgotadas levam à gravação (#333)', () => {
     expect(lastReading).toBeGreaterThan(0);
     expect(model.offered[lastReading]).toEqual(expect.arrayContaining(['record_audit']));
     expect(model.offered[lastReading]?.filter((n) => n.startsWith('get_') || n.startsWith('search_') || n === 'compare_items')).toEqual([]);
-    expect(d.readCalls.length).toBeLessThanOrEqual(AUDIT_MAX_READS);
+    expect(d.readCalls.length - AUDIT_PRE_READS).toBeLessThanOrEqual(AUDIT_MAX_READS);
   });
 
   it('#333/AC-8: enquanto há orçamento, as 12 tools seguem oferecidas', async () => {
