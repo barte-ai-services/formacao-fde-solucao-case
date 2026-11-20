@@ -89,7 +89,7 @@ export type OrderBalances = {
 export function itemsWithoutBalance(invoice: Pick<InvoiceView, 'items'>, order: OrderBalances): InvoiceItem[] {
   return invoice.items.filter((i) => {
     const orderItem = orderItemFor(order, i);
-    // Só o número: Compras publica o saldo e ele nunca fica negativo (regra 5).
+    // #31/AC-3 Só o número: Compras publica o saldo e ele nunca fica negativo (regra 5).
     return orderItem !== undefined && orderItem.balance.amount <= 0;
   });
 }

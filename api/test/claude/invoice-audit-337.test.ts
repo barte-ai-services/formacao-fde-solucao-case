@@ -266,6 +266,15 @@ describe('#337/AC-3: a E5 do prompt é a do motor', () => {
     expect(line).toMatch(/^- E5: recusar/);
     expect(line).not.toMatch(/(?<![\w])receber(?![\w])/);
   });
+
+  it('#337/AC-4: a linha da E5 não fixa coordenacao e manda ler o encaminhamento mínimo da régua (diretoria acima de R$ 100 mil ou com o fornecedor bloqueado)', () => {
+    const line = AUDITOR_SYSTEM.split('\n').find((l) => l.startsWith('- E5: '));
+    expect(line).not.toMatch(/encaminhamento coordenacao/);
+    expect(line).toMatch(/régua/);
+    expect(line).toMatch(/diretoria/);
+    expect(line).toMatch(/R\$ 100 mil/);
+    expect(line).toMatch(/bloqueado/);
+  });
 });
 
 describe('#337/AC-1: o sinal de duplicidade é o fato da regra do domínio, nas 80 notas do kit, lido pelo conector de verdade', () => {

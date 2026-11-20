@@ -125,8 +125,8 @@ const PLAIN: Readonly<Partial<Record<Classification, string>>> = {
   MATCH: 'a nota confere com a ordem',
   // #337/AC-4 draft-checked.ts:69 (partE4): "caixa cobrada como unidade; recebe", sem linha a segurar; o fator de caixa pesa no valor em risco.
   E4: 'sem item a segurar; o fator de caixa pesa no valor em risco, não na ação',
-  // #337/AC-4 probable-order.ts:147 (draftNotaSemOrdem, via draftForChecked, draft-checked.ts:143): a nota sem ordem recusa, com a nota inteira em risco; vai à coordenação (README, regra 3, l.242).
-  E5: 'sempre, com o valor da nota em risco e o encaminhamento coordenacao, ainda que não haja item a segurar',
+  // #337/AC-4 probable-order.ts:147 (draftNotaSemOrdem, via draftForChecked, draft-checked.ts:143): a nota sem ordem recusa, com a nota inteira em risco; o encaminhamento é o da régua: coordenação (linha 3 da régua, docs/domain/README.md l.242), ou diretoria se a nota passa de R$ 100 mil ou o fornecedor está bloqueado (linha 2, l.241; approval-policy.ts:98-114).
+  E5: 'sempre, com o valor da nota em risco, ainda que não haja item a segurar; o encaminhamento mínimo é o da régua (coordenacao, ou diretoria acima de R$ 100 mil ou com o fornecedor bloqueado)',
   // #337/AC-4 approval.ts:263 e docs/domain/README.md, regra 3 (l.254): duplicidade leva sempre a recusar, no nível bloqueio, com o valor da nota em risco.
   E6: 'sempre, com o valor da nota em risco e o encaminhamento bloqueio',
   // #337/AC-4 approval.ts:270 (draftProposal, E7): a mercadoria já está na loja; o que corre risco é pagar a nota inteira de novo.
