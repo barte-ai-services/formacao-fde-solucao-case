@@ -46,6 +46,13 @@ const RELATIONS: Record<string, Record<string, { table: string; local: string; f
     invoices: { table: 'invoices', local: 'invoice_access_key', foreign: 'access_key', many: false },
   },
   invoices: { divergences: { table: 'divergences', local: 'access_key', foreign: 'invoice_access_key', many: true } },
+  // #337 A leitura da ordem do auditor (audit-reads.ts, getPurchaseOrder): os itens da ordem (com o produto) e as notas lançadas que a citam, com os itens delas.
+  kit_ordens: {
+    kit_ordem_itens: { table: 'kit_ordem_itens', local: 'ordem_id', foreign: 'ordem_id', many: true },
+    kit_notas_lancadas: { table: 'kit_notas_lancadas', local: 'ordem_id', foreign: 'pedido_referenciado', many: true },
+  },
+  kit_ordem_itens: { kit_produtos: { table: 'kit_produtos', local: 'sku', foreign: 'sku', many: false } },
+  kit_notas_lancadas: { kit_nota_lancada_itens: { table: 'kit_nota_lancada_itens', local: 'chave', foreign: 'chave', many: true } },
   // #157 O pedido ao fornecedor: o fornecedor (muitos-para-um) e as leituras da resposta (um-para-muitos, pela chave estrangeira do pedido).
   outbox_supplier_emails: {
     kit_fornecedores: { table: 'kit_fornecedores', local: 'supplier_id', foreign: 'fornecedor_id', many: false },

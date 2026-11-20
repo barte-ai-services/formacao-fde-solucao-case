@@ -18,8 +18,11 @@
   // o `wrangler deploy` da esteira já o publica a partir deste arquivo.
   "ai": { "binding": "ai" },
   "triggers": {
-    // O Cron roda a cada 15 minutos e, por enquanto, só registra que rodou.
-    "crons": ["*/15 * * * *"]
+    // Dois crons, cada um com o próprio teto de 50 subrequests do plano gratuito (#333); o `scheduled` despacha pelo
+    // `controller.cron` (src/cron/schedule.ts, que repete estas expressões, e um teste confere).
+    // 1. A cada 15 minutos: a captura, as publicações, a varredura do prazo, a rodada do Claude (sem o auditor), o dossiê e o motor.
+    // 2. Nos minutos 7, 22, 37 e 52, deslocado do primeiro: só o auditor de notas, 1 nota por invocação.
+    "crons": ["*/15 * * * *", "7-59/15 * * * *"]
   }
   // Segredos (BARTE_ACADEMY_*) não ficam aqui: em produção, `wrangler secret put`;
   // localmente, no `.dev.vars`, que o git ignora.

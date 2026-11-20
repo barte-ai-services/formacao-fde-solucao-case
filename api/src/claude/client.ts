@@ -65,6 +65,11 @@ export type Tool = {
 export type ConverseOptions = AskOptions & {
   readonly tools?: readonly Tool[];
   readonly maxTurns?: number;
+  /**
+   * #333 Opcional: chamado no começo de cada volta (a partir de 1). Devolve os nomes das tools a oferecer nesta
+   * volta, ou undefined para oferecer todas; a `responder` fica sempre. Sem ele, nada muda para as outras tarefas.
+   */
+  readonly beforeTurn?: (turn: number) => readonly string[] | undefined;
 };
 
 /** #230 O laço de tool use, injetável como o Ask: a tarefa que usa tools recebe um Converse e os testes passam um falso. */
@@ -204,16 +209,18 @@ export class ClaudeClient {
     const tools = options.tools ?? [];
     const maxTurns = options.maxTurns ?? (tools.length === 0 ? 1 : MAX_TURNS);
     const signal = AbortSignal.timeout(this.timeoutMs);
-    const toolDefs = [
-      ...tools.map(({ name, description, input_schema }) => ({ name, description, input_schema })),
-      { name: ANSWER_TOOL, description: 'Entrega a resposta final no formato pedido.', input_schema: options.schema },
+    const answerDef = { name: ANSWER_TOOL, description: 'Entrega a resposta final no formato pedido.', input_schema: options.schema };
+    const toolDefs = (offer: readonly string[] | undefined) => [
+      ...tools.filter((t) => offer === undefined || offer.includes(t.name)).map(({ name, description, input_schema }) => ({ name, description, input_schema })),
+      answerDef,
     ];
     const toolChoice = tools.length === 0 ? { type: 'tool', name: ANSWER_TOOL } : { type: 'any' };
     const messages: Message[] = [{ role: 'user', content: options.prompt }];
     try {
       for (let turn = 0; turn < maxTurns; turn += 1) {
+        const offer = options.beforeTurn?.(turn + 1);
         const content = await this.post(
-          { model: options.model ?? DEFAULT_MODEL, max_tokens: MAX_TOKENS, system: this.system(options.system), tools: toolDefs, tool_choice: toolChoice, messages },
+          { model: options.model ?? DEFAULT_MODEL, max_tokens: MAX_TOKENS, system: this.system(options.system), tools: toolDefs(offer), tool_choice: toolChoice, messages },
           signal,
           record,
         );

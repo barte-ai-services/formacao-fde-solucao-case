@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { CRON_LIMIT, runClaudeRound } from '../../../src/claude/cron.js';
+import { CRON_LIMIT, runAuditRound, runClaudeRound } from '../../../src/claude/cron.js';
 import { MAX_PER_RUN } from '../../../src/claude/runner.js';
-import { tasksFor } from '../../../src/claude/tasks/index.js';
+import { AUDIT_NOTES_PER_RUN, auditTasksFor, tasksFor } from '../../../src/claude/tasks/index.js';
 import type { Db } from '../../../src/claude/db.js';
 import { PROBABLE_ORDER_TASK } from '../../../src/connectors/probable-order-suggestions.js';
 import { SUPPLIER_DRAFT_TASK, type SupplierDraftInput } from '../../../src/supplier/draft-task.js';
@@ -51,7 +51,7 @@ describe('#156 a tarefa do rascunho entra no registro das tarefas do Claude', ()
 });
 
 describe('#157 o teto efetivo de cada tarefa numa rodada do Cron é o menor entre o da tarefa e o da rodada', () => {
-  it('#157: a conta de subrequests de api/src/claude/cron.ts vale: 1, 1, 2, 1, 1 (#157: a cobrança saiu do Cron; #230: o auditor, maxPerRun 1)', () => {
+  it('#157: a conta de subrequests de api/src/claude/cron.ts vale: 1, 1, 2, 1 (#157: a cobrança saiu do Cron; #333: o auditor saiu do laço de 15 minutos)', () => {
     const { rest } = harness();
     const effective = Object.fromEntries(tasksFor(rest).map((t) => [t.name, Math.min(t.limit ?? MAX_PER_RUN, t.maxPerRun ?? MAX_PER_RUN, CRON_LIMIT)]));
     expect(effective).toEqual({
@@ -59,7 +59,6 @@ describe('#157 o teto efetivo de cada tarefa numa rodada do Cron é o menor entr
       [PROBABLE_ORDER_TASK]: 1,
       [SUPPLIER_DRAFT_TASK]: 2,
       'supplier-reply-reading': 1,
-      'invoice-audit': 1, // #230 maxPerRun 1
     });
   });
 
@@ -78,7 +77,6 @@ describe('#157 o teto efetivo de cada tarefa numa rodada do Cron é o menor entr
       'supplier-reply-reading',
       PROBABLE_ORDER_TASK,
       SUPPLIER_DRAFT_TASK,
-      'invoice-audit', // #230 por último: a mais cara, com tool use
     ]);
   });
 });
@@ -87,5 +85,28 @@ describe('#157 a cobrança é montada pela regra na varredura, e a tarefa do Cla
   it('#157: o registro não tem a tarefa supplier-follow-up-draft', () => {
     const { rest } = harness();
     expect(tasksFor(rest).map((t) => t.name)).not.toContain('supplier-follow-up-draft');
+  });
+});
+
+describe('#333 o auditor tem a própria lista de tarefas, fora do laço de 15 minutos', () => {
+  it('#333/AC-1: o laço de 15 minutos não tem o auditor', () => {
+    const { rest } = harness();
+    expect(tasksFor(rest).map((t) => t.name)).not.toContain('invoice-audit');
+  });
+
+  it('#333/AC-2: a lista do auditor tem só ele, com o teto de notas por invocação escolhido', () => {
+    const { rest } = harness();
+    const tasks = auditTasksFor(rest);
+    expect(tasks.map((t) => t.name)).toEqual(['invoice-audit']);
+    expect(Math.min(tasks[0]?.limit ?? MAX_PER_RUN, tasks[0]?.maxPerRun ?? MAX_PER_RUN, CRON_LIMIT)).toBe(AUDIT_NOTES_PER_RUN);
+  });
+
+  it('#333/AC-2: sem credencial do Claude a rodada do auditor não faz nenhum pedido ao banco (falha fechada, como a do laço)', async () => {
+    const { fake, rest } = harness(seed());
+    const lines: string[] = [];
+    const round = await runAuditRound(rest, {}, { log: (l) => lines.push(l) });
+    expect(round.ran).toBe(false);
+    expect(fake.requests).toEqual([]);
+    expect(lines.join('\n')).toContain('sem credencial do Claude');
   });
 });

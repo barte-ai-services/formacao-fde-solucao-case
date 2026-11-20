@@ -94,6 +94,30 @@ export function validateAudit(raw: unknown, ctx: AuditContext): AuditValidation 
   };
 }
 
+const JUSTIFICATION_RULE = `de ${MIN_JUSTIFICATION_LINES} a ${MAX_JUSTIFICATION_LINES} linhas separadas por quebra de linha (\\n), até ${MAX_JUSTIFICATION_CHARS} caracteres`;
+const AMOUNT_RULE = 'null, ou {cents} com cents inteiro de 0 até o total da nota em centavos';
+
+/**
+ * #333 A recusa como o modelo a lê: a de `invalid_field` em justification e amount_at_risk ganha a regra e o que veio
+ * (contagens, tipo e o valor numérico curto; nunca o texto). O que se grava na auditoria segue sendo a recusa simples.
+ */
+export function explainRefusal(refusal: AuditRefusal, raw: unknown, ctx: Pick<AuditContext, 'invoiceTotalCents'>): Record<string, unknown> {
+  if (refusal.refusal !== 'invalid_field' || !isRecord(raw)) return { ...refusal };
+  if (refusal.field === 'justification') {
+    const value = raw.justification;
+    if (typeof value !== 'string') return { ...refusal, rule: JUSTIFICATION_RULE, got_type: typeof value };
+    const lines = value.split('\n').filter((line) => line.trim() !== '').length;
+    return { ...refusal, rule: JUSTIFICATION_RULE, got_lines: lines, ...(value.length > MAX_JUSTIFICATION_CHARS ? { got_chars: value.length } : {}) };
+  }
+  if (refusal.field === 'amount_at_risk') {
+    const amount = raw.amount_at_risk;
+    const cents = isRecord(amount) ? amount.cents : undefined;
+    const got = typeof cents === 'number' ? { got_cents: cents } : { got_type: isRecord(amount) ? (cents === undefined ? 'cents ausente' : typeof cents) : typeof amount };
+    return { ...refusal, rule: AMOUNT_RULE, invoice_total_cents: ctx.invoiceTotalCents, ...got };
+  }
+  return { ...refusal };
+}
+
 /** #230 A proposta da regra como a auditoria a lê. */
 export type RuleProposal = {
   readonly classification: Classification;

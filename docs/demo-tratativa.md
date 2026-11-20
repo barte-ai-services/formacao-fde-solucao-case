@@ -63,7 +63,7 @@ A ordem da rodada está em `api/src/cron/tick.ts` (`runRound`): captura, propost
 devolução, duplicadas, **varredura do prazo**, a rodada do Claude (`runClaudeRound`,
 `api/src/claude/cron.ts`) e, depois dela, o dossiê e o motor de decisão. As tarefas estão em
 `api/src/claude/tasks/index.ts` e rodam nesta ordem: casamento de descrição, leitura da resposta, ordem
-provável, rascunho do pedido e auditor de notas. A cobrança não é tarefa do Claude (#157): a varredura do prazo a monta pela regra.
+provável e rascunho do pedido. O auditor de notas não roda nesta rodada: tem cron próprio, `7-59/15 * * * *`. A cobrança não é tarefa do Claude (#157): a varredura do prazo a monta pela regra.
 
 O contrato das rotas está escrito no cabeçalho de `api/src/http/supplier-requests.ts`. A persistência está
 descrita em `supabase/persistence-supplier-request.md` e `supabase/persistence-supplier-reply.md`, com as
@@ -138,6 +138,7 @@ Com `--test-scheduled`, o wrangler expõe `/__scheduled`. Cada chamada é uma ro
 
 ```bash
 curl "http://localhost:8787/__scheduled?cron=*/15+*+*+*+*"
+curl "http://localhost:8787/__scheduled?cron=7-59/15+*+*+*+*"
 ```
 
 Rodado aqui sem `.dev.vars`, o endpoint respondeu `Ran scheduled event` e o log mostrou

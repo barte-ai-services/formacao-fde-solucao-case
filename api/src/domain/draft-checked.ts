@@ -1,4 +1,5 @@
 import { draftProposal, type Draft } from './approval.js';
+import { priceDifference } from './checks/nao-catalogada.js';
 import { amountAtRiskItemTrocado } from './checks/e2-item-trocado.js';
 import { isShortLine, proposeE3 } from './checks/e3-quantidade-menor.js';
 import { e4AmountAtRisk } from './checks/e4-unidade-de-medida.js';
@@ -8,6 +9,7 @@ import type { CheckContext } from './context.js';
 import { DockAction, type PartialLine } from './dock-action.js';
 import type { Invoice, InvoiceItem } from './invoice.js';
 import { Money } from './money.js';
+import { draftNotaSemOrdem, resolveProbableOrder, type ProbableOrderSuggestion } from './probable-order.js';
 import { Quantity } from './quantity.js';
 import { amountAtRiskOfMissing, assessCount, missingItems } from './reconciliation.js';
 
@@ -130,4 +132,14 @@ export function draftChecked(invoice: Invoice, ctx: CheckContext, overcharge: Mo
     justification:
       why.length > 0 ? why.join('; ') : `Divergência ${invoice.classification}: a ação e o valor ficam com quem aprova`,
   };
+}
+
+/**
+ * #337/AC-3: a proposta que o motor determinístico faz para uma nota conferida, a mesma que `proposeChecked` (propose-checked.ts) grava: a nota sem ordem (E5)
+ * recusa com a nota inteira em risco (draftNotaSemOrdem, #34/#65); as demais seguem draftChecked, com a diferença de preço (priceDifference) quando há.
+ * A sugestão do Claude só muda a justificativa da E5, não a ação.
+ */
+export function draftForChecked(invoice: Invoice, ctx: CheckContext, suggestion?: ProbableOrderSuggestion): Draft {
+  if (invoice.classification === 'E5') return draftNotaSemOrdem(invoice, resolveProbableOrder(invoice, ctx, suggestion));
+  return draftChecked(invoice, ctx, priceDifference(invoice, ctx)?.overcharge ?? null);
 }
