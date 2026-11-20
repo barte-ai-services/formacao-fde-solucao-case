@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { ClaudeError, type Converse, type ConverseOptions } from '../../src/claude/client.js';
 import { invoiceAuditTask } from '../../src/claude/tasks/invoice-audit.js';
-import { tasksFor } from '../../src/claude/tasks/index.js';
+import { auditTasksFor, tasksFor } from '../../src/claude/tasks/index.js';
 import { SupabaseAuditReads } from '../../src/connectors/audit-reads.js';
 import { SupabaseInvoiceAudits } from '../../src/connectors/invoice-audit-store.js';
 import { scripted, type Call } from '../support/scripted-postgrest.js';
@@ -56,13 +56,14 @@ describe('invoice-audit com os adaptadores (#230)', () => {
   it('#230/AC-1 e AC-3: auditada, grava a linha uma vez e sobe o nível da proposta que aguarda', async () => {
     const { task, calls } = build();
     await task.run({ invoiceAccessKey: KEY }, noAsk, async (o) => { await call(o, 'record_audit', audit); return { recorded: true }; });
-    expect(calls.map((c) => `${c.method} ${c.table}`)).toEqual(['GET proposals', 'POST invoice_audits', 'POST rpc/raise_proposal_level']);
+    expect(calls.map((c) => `${c.method} ${c.table}`)).toEqual(['GET proposals', 'GET kit_notas_lancadas', 'GET kit_pagamentos', 'POST invoice_audits', 'POST rpc/raise_proposal_level']); // #337 as leituras de antes do laço (a nota não cita ordem: só a busca por número)
   });
 
-  it('#230: a tarefa vem registrada, depois das existentes', () => {
+  it('#333/AC-2: a tarefa vem registrada na lista do cron do auditor, e não no laço de 15 minutos (#230)', () => {
     const { rest } = scripted();
+    expect(auditTasksFor(rest).map((t) => t.name)).toEqual(['invoice-audit']);
     const names = tasksFor(rest).map((t) => t.name);
-    expect(names.at(-1)).toBe('invoice-audit');
+    expect(names).not.toContain('invoice-audit');
     expect(names.slice(0, 2)).toEqual(['description-match', 'supplier-reply-reading']);
     expect(names).toContain('probable-order');
   });

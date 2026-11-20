@@ -1,4 +1,4 @@
-import type { CheckContext, PostedInvoice, PurchaseOrder, PurchaseOrderItem } from '../context.js';
+import type { CheckContext, PostedInvoice } from '../context.js';
 import { Divergence } from '../divergence.js';
 import { DomainError } from '../errors.js';
 import type { Evidence } from '../evidence.js';
@@ -73,17 +73,34 @@ function postedDuplicate(invoice: InvoiceView, postedInvoices: readonly PostedIn
   return Divergence.of({ classification: 'E6', skus: skusOf(invoice.items), evidence });
 }
 
+/**
+ * #337: o que a regra 5 lê da ordem: o código e o SKU de cada item e o saldo que Compras publica. É o que a regra precisa de `PurchaseOrder`
+ * (a ordem do domínio cabe aqui) e o que a tarefa do auditor tira da leitura da ordem, sem montar a ordem inteira.
+ */
+export type OrderBalances = {
+  readonly id: string;
+  readonly items: readonly { readonly supplierCode: string; readonly sku: string | null; readonly balance: { readonly amount: number } }[];
+};
+
+/**
+ * regra 5, #31/AC-3: os itens da nota cobrados de uma ordem que não tem saldo para eles; saldo parcial não conta.
+ * #337: a regra do `orderWithoutBalance`, extraída sem mudar o que decide, para o auditor chamar a mesma função.
+ */
+export function itemsWithoutBalance(invoice: Pick<InvoiceView, 'items'>, order: OrderBalances): InvoiceItem[] {
+  return invoice.items.filter((i) => {
+    const orderItem = orderItemFor(order, i);
+    // #31/AC-3 Só o número: Compras publica o saldo e ele nunca fica negativo (regra 5).
+    return orderItem !== undefined && orderItem.balance.amount <= 0;
+  });
+}
+
 // regra 5, #31/AC-3: cobrar um item de ordem sem saldo é duplicidade suspeita; saldo parcial, não.
 function orderWithoutBalance(invoice: InvoiceView, ctx: CheckContext): Divergence | null {
   const ref = invoice.purchaseOrderRef;
   if (ref === null) return null;
   const order = ctx.purchaseOrders.find((o) => o.id === ref);
   if (!order) return null; // sem ordem é E5, de outro plano
-  const charged = invoice.items.filter((i) => {
-    const orderItem = orderItemFor(order, i);
-    // Só o número: Compras publica o saldo e ele nunca fica negativo (regra 5).
-    return orderItem !== undefined && orderItem.balance.amount <= 0;
-  });
+  const charged = itemsWithoutBalance(invoice, order);
   if (charged.length === 0) return null;
   const what = charged.map((i) => `${i.description} (${i.supplierCode})`).join(', ');
   return Divergence.of({
@@ -99,7 +116,7 @@ function orderWithoutBalance(invoice: InvoiceView, ctx: CheckContext): Divergenc
   });
 }
 
-function orderItemFor(order: PurchaseOrder, item: InvoiceItem): PurchaseOrderItem | undefined {
+function orderItemFor(order: OrderBalances, item: InvoiceItem): OrderBalances['items'][number] | undefined {
   return (
     order.items.find((o) => o.supplierCode === item.supplierCode) ??
     order.items.find((o) => o.sku !== null && item.sku !== null && o.sku === item.sku)
