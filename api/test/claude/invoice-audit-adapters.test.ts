@@ -56,7 +56,7 @@ describe('invoice-audit com os adaptadores (#230)', () => {
   it('#230/AC-1 e AC-3: auditada, grava a linha uma vez e sobe o nível da proposta que aguarda', async () => {
     const { task, calls } = build();
     await task.run({ invoiceAccessKey: KEY }, noAsk, async (o) => { await call(o, 'record_audit', audit); return { recorded: true }; });
-    expect(calls.map((c) => `${c.method} ${c.table}`)).toEqual(['GET proposals', 'POST invoice_audits', 'POST rpc/raise_proposal_level']);
+    expect(calls.map((c) => `${c.method} ${c.table}`)).toEqual(['GET proposals', 'GET kit_notas_lancadas', 'GET kit_pagamentos', 'POST invoice_audits', 'POST rpc/raise_proposal_level']); // #337 as leituras de antes do laço (a nota não cita ordem: só a busca por número)
   });
 
   it('#333/AC-2: a tarefa vem registrada na lista do cron do auditor, e não no laço de 15 minutos (#230)', () => {

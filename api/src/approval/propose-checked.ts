@@ -4,10 +4,8 @@ import type { PurchasingPort, RegistryPort, WmsCountPort } from '../connectors/p
 import type { ProbableOrderSuggestions } from '../connectors/probable-order-suggestions.js';
 import type { SupabaseRest } from '../connectors/supabase-rest.js';
 import { propose } from '../domain/approval.js';
-import { draftChecked } from '../domain/draft-checked.js';
+import { draftForChecked } from '../domain/draft-checked.js';
 import { ApprovalPolicy } from '../domain/approval-policy.js';
-import { priceDifference } from '../domain/checks/nao-catalogada.js';
-import { draftNotaSemOrdem, resolveProbableOrder } from '../domain/probable-order.js';
 import type { CheckContext } from '../domain/context.js';
 import type { InvoiceView } from '../domain/invoice.js';
 import { Title } from '../domain/title.js';
@@ -73,10 +71,7 @@ export async function proposeChecked(deps: ProposeDeps): Promise<ProposeResult> 
     // #63 A nota da SEFAZ não traz vencimento: o título nasce com o valor da nota e vence na emissão.
     const title = Title.post({ invoiceAccessKey: invoice.accessKey, amount: invoice.total, dueOn: invoice.issuedOn });
     // #65 AC-2 e AC-3: a nota sem ordem leva a ordem provável que a regra confirmou, ou nenhuma.
-    const draft =
-      invoice.classification === 'E5'
-        ? draftNotaSemOrdem(invoice, resolveProbableOrder(invoice, ctx, suggestions.get(invoice.accessKey)))
-        : draftChecked(invoice, ctx, priceDifference(invoice, ctx)?.overcharge ?? null);
+    const draft = draftForChecked(invoice, ctx, suggestions.get(invoice.accessKey));
     const result = propose(invoice, title, { route, ...draft, today });
     return { invoice, title, route, ...result };
   });

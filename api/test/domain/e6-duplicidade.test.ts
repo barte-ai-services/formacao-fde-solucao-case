@@ -3,6 +3,7 @@ import {
   blockDuplicateTitle,
   checkDuplicidade,
   duplicateReason,
+  itemsWithoutBalance,
 } from '../../src/domain/checks/e6-duplicidade.js';
 import {
   CHECKS,
@@ -447,5 +448,20 @@ describe('Desfecho da duplicidade', () => {
     const title = titleFor(invoice.accessKey, invoice);
     expect(() => blockDuplicateTitle(invoice, title)).toThrow(DomainError);
     expect(title.state).toBe('lancado');
+  });
+});
+
+// #337: a regra 5 extraída de orderWithoutBalance, que o auditor chama para o sinal de duplicidade; mesmo resultado, só os itens.
+describe('#337 itemsWithoutBalance: os itens da nota cobrados de uma ordem sem saldo para eles', () => {
+  const order = { id: 'OC-100', items: [{ supplierCode: 'A1', sku: 'SKU-1', balance: { amount: 0 } }, { supplierCode: 'B2', sku: null, balance: { amount: 3 } }] };
+
+  it('#337: o item com saldo zero entra; o com saldo parcial, não; o que a ordem não tem, também não', () => {
+    const invoice = { items: [item('A1', 'SKU-1', 'Arroz', 1, 100), item('B2', null, 'Feijão', 1, 100), item('Z9', null, 'Sal', 1, 100)] };
+    expect(itemsWithoutBalance(invoice, order).map((i) => i.supplierCode)).toEqual(['A1']);
+  });
+
+  it('#337: acha o item da ordem pelo SKU quando o código do fornecedor não bate', () => {
+    const invoice = { items: [item('OUTRO', 'SKU-1', 'Arroz', 1, 100)] };
+    expect(itemsWithoutBalance(invoice, order).map((i) => i.supplierCode)).toEqual(['OUTRO']);
   });
 });
