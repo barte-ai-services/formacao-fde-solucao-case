@@ -227,15 +227,33 @@ type Attempt = {
   /** #333/AC-11 Voltas do laço (uma por chamada à Messages API, pelo `beforeTurn` do client) e as recusas de qualquer tool, por motivo. */
   turns: number;
   refused: Map<string, number>;
+  /** #335/AC-2 A classe (só o nome) do primeiro erro que a tentativa viu: o de uma leitura, da gravação, de dentro do record_audit ou o do próprio laço. */
+  errorName?: string;
+  /** #333/AC-11, #335/AC-1 O nome da última tool nossa chamada em cada volta, na ordem das voltas; "-" na volta em que nenhuma rodou (a resposta final, por exemplo). */
+  lastTools: string[];
 };
+
+/** #335/AC-2 Só o nome da classe do erro, no formato que storedError (runner.ts) aceita; o texto e o conteúdo do erro nunca entram. */
+const errorNameOf = (error: unknown): string => {
+  const name = error instanceof Error ? error.constructor.name : '';
+  if (/^\w{1,64}$/.test(name) && name !== 'Error') return name;
+  return error instanceof Error && /^\w{1,64}$/.test(error.name) ? error.name : 'Error';
+};
+
+/** #335/AC-2 O primeiro erro vale: o que veio depois (o record_audit recusado por "erro de sistema anterior") é consequência dele. */
+const markError = (attempt: Attempt, error: unknown): void => void (attempt.errorName ??= errorNameOf(error));
 
 const countRefusal = (attempt: Attempt, reason: string): void => void attempt.refused.set(reason, (attempt.refused.get(reason) ?? 0) + 1);
 
-/** #333/AC-11 Só contagens e os motivos fixos das recusas: nada da nota, da resposta nem de segredo. */
-function auditLogLine(attempt: Attempt, audited: boolean): string {
+/**
+ * #333/AC-11 Só contagens e os motivos fixos das recusas: nada da nota, da resposta nem de segredo.
+ * #335/AC-2, #333/AC-11 Acrescenta, depois dos campos de antes e na ordem: `erro` (a classe do erro de origem ou `nenhum`), `causa` (#335/AC-2: o motivo da nota não auditada, uma palavra fixa do enum NotAuditedReason, nunca texto de erro,
+ * ou `nenhuma` se foi gravada) e `ultimas` (a última tool de cada volta). Só nomes: de classe, de motivo fixo e de tool nossa.
+ */
+function auditLogLine(attempt: Attempt, audited: boolean, cause: NotAuditedReason | null): string {
   const total = [...attempt.refused.values()].reduce((sum, n) => sum + n, 0);
   const reasons = [...attempt.refused].map(([reason, n]) => `${reason}:${n}`).join(',') || 'nenhum';
-  return `invoice-audit: fim resultado=${audited ? 'audited' : 'nao_auditada'} voltas=${attempt.turns} leituras=${attempt.reads} recusas=${total} motivos=${reasons}`;
+  return `invoice-audit: fim resultado=${audited ? 'audited' : 'nao_auditada'} voltas=${attempt.turns} leituras=${attempt.reads} recusas=${total} motivos=${reasons} erro=${attempt.errorName ?? 'nenhum'} causa=${audited ? 'nenhuma' : (cause ?? 'nenhuma')} ultimas=${attempt.lastTools.join(',') || 'nenhuma'}`;
 }
 
 function readArgs(input: unknown, spec: ToolSpec): Args | { refusal: 'invalid_field'; field: string } {
@@ -262,9 +280,12 @@ function buildTools(deps: InvoiceAuditDeps, key: string, note: NonNullable<Await
       return await work();
     } catch (error) {
       attempt.systemError = true;
+      markError(attempt, error);
       throw error;
     }
   };
+  /** #333/AC-11, #335/AC-1 A tool chamada na volta que está rodando; sem volta (chamada direta nos testes), nada a anotar. */
+  const noteTool = (name: string): void => void (attempt.lastTools.length > 0 && (attempt.lastTools[attempt.lastTools.length - 1] = name));
   const reads = readSpecs(deps.reads).map<Tool>((spec) => ({
     name: spec.name,
     description: spec.description,
@@ -274,6 +295,7 @@ function buildTools(deps: InvoiceAuditDeps, key: string, note: NonNullable<Await
       required: [...spec.required],
     },
     handler: async (input) => {
+      noteTool(spec.name);
       const args = readArgs(input, spec);
       if ('refusal' in args) {
         countRefusal(attempt, `${args.refusal}.${args.field}`);
@@ -287,31 +309,40 @@ function buildTools(deps: InvoiceAuditDeps, key: string, note: NonNullable<Await
       return guarded(() => spec.call(args));
     },
   }));
+  const record = async (input: unknown): Promise<unknown> => {
+    // #230 Depois de um erro de sistema a nota fica não auditada: nada é gravado.
+    if (attempt.systemError) throw new Error('invoice-audit: erro de sistema anterior');
+    if (attempt.recorded) return { recorded: true };
+    const validation = validateAudit(input, {
+      invoiceAccessKey: key,
+      ruleLevel: note.proposal.level,
+      invoiceTotalCents: note.invoice.total.cents,
+      model,
+      auditedAt: now().toISOString(),
+    });
+    if (!validation.ok) {
+      attempt.refusals.push(validation.refusal);
+      countRefusal(attempt, validation.refusal.refusal === 'invalid_field' ? `invalid_field.${validation.refusal.field}` : validation.refusal.refusal);
+      // #333/AC-10 O modelo lê a regra e o que veio; o que se grava segue sendo a recusa simples.
+      return explainRefusal(validation.refusal, input, { invoiceTotalCents: note.invoice.total.cents });
+    }
+    const result = applyAudit(validation.audit, note.proposal, injectionFlagOf(note.invoice));
+    await guarded(() => deps.audits.save(key, result, { refusals: attempt.refusals, fromLevel: note.proposal.level }));
+    attempt.recorded = true;
+    return { recorded: true };
+  };
   const recordAudit: Tool = {
     name: 'record_audit',
     description: 'Grava a auditoria da nota, uma vez. Recusa encaminhamento abaixo da régua (routing_below_regua, com o nível mínimo) e campo inválido (invalid_field). É a única ferramenta que escreve.',
     input_schema: RECORD_AUDIT_SCHEMA,
     handler: async (input) => {
-      // #230 Depois de um erro de sistema a nota fica não auditada: nada é gravado.
-      if (attempt.systemError) throw new Error('invoice-audit: erro de sistema anterior');
-      if (attempt.recorded) return { recorded: true };
-      const validation = validateAudit(input, {
-        invoiceAccessKey: key,
-        ruleLevel: note.proposal.level,
-        invoiceTotalCents: note.invoice.total.cents,
-        model,
-        auditedAt: now().toISOString(),
-      });
-      if (!validation.ok) {
-        attempt.refusals.push(validation.refusal);
-        countRefusal(attempt, validation.refusal.refusal === 'invalid_field' ? `invalid_field.${validation.refusal.field}` : validation.refusal.refusal);
-        // #333/AC-10 O modelo lê a regra e o que veio; o que se grava segue sendo a recusa simples.
-        return explainRefusal(validation.refusal, input, { invoiceTotalCents: note.invoice.total.cents });
+      noteTool('record_audit');
+      try {
+        return await record(input);
+      } catch (error) {
+        markError(attempt, error); // #335/AC-2 O erro de dentro do record_audit que a leitura e a gravação (guarded) não pegam: validar e aplicar.
+        throw error;
       }
-      const result = applyAudit(validation.audit, note.proposal, injectionFlagOf(note.invoice));
-      await guarded(() => deps.audits.save(key, result, { refusals: attempt.refusals, fromLevel: note.proposal.level }));
-      attempt.recorded = true;
-      return { recorded: true };
     },
   };
   return [...reads, recordAudit];
@@ -387,6 +418,7 @@ async function readBeforeLoop(reads: AuditReadsPort, invoice: Invoice, attempt: 
     return { postedByNumber, postedByOrder, outOfFlowPayments, duplicateSignal: duplicateSignalOf(invoice, orderRead) };
   } catch (error) {
     attempt.systemError = true;
+    markError(attempt, error);
     throw error;
   }
 }
@@ -427,7 +459,7 @@ export const invoiceAuditTask = (deps: InvoiceAuditDeps): ClaudeTask<InvoiceAudi
     const key = input.invoiceAccessKey;
     const note = await deps.audits.loadNote(key);
     if (note === null) throw new InvoiceAuditError('sem_auditoria');
-    const attempt: Attempt = { recorded: false, systemError: false, reads: 0, refusals: [], turns: 0, refused: new Map() };
+    const attempt: Attempt = { recorded: false, systemError: false, reads: 0, refusals: [], turns: 0, refused: new Map(), lastTools: [] };
     let failure: unknown;
     try {
       if (!converse) throw new Error('invoice-audit: sem laço de tool use');
@@ -440,19 +472,26 @@ export const invoiceAuditTask = (deps: InvoiceAuditDeps): ClaudeTask<InvoiceAudi
         tools: buildTools(deps, key, note, attempt),
         maxTurns: AUDIT_MAX_TURNS,
         // #333/AC-8 Esgotado o orçamento, só record_audit é oferecida (a `responder` o client mantém). #333/AC-11 A volta que chega é a contagem.
+        // #335/AC-1 O client só roda a tool oferecida e, com uma só, força o tool_choice nela (client.ts, converseWithUsage): a leitura que o modelo pede
+        // #335 sem tê-la oferecida não chega ao handler. Gravada a auditoria, não se oferece mais nada: o tool_choice força a `responder`.
+        // #335/AC-1, AC-2 O mesmo com o erro de sistema: toda gravação já recusaria, então forçar `record_audit` gastaria voltas que não podem dar certo.
         beforeTurn: (turn) => {
           attempt.turns = turn;
+          attempt.lastTools.push('-');
+          if (attempt.recorded || attempt.systemError) return [];
           return attempt.reads >= MAX_READS ? ['record_audit'] : undefined;
         },
       });
     } catch (error) {
       failure = error;
     }
-    // #333/AC-11 Uma linha por auditoria terminada, gravada ou não.
-    (deps.log ?? console.log)(auditLogLine(attempt, attempt.recorded));
+    // #335/AC-2 A falha do laço (ClaudeError, por exemplo) entra depois: o erro de uma tool ou da gravação, que veio antes, é o de origem.
+    if (failure !== undefined) markError(attempt, failure);
+    const reason: NotAuditedReason = failure !== undefined && !attempt.systemError ? 'claude_falhou' : attempt.systemError ? 'erro_de_tool' : 'sem_auditoria';
+    // #333/AC-11 Uma linha por auditoria terminada, gravada ou não. #335/AC-2 Com a classe do erro e o motivo (a causa da nota não auditada).
+    (deps.log ?? console.log)(auditLogLine(attempt, attempt.recorded, attempt.recorded ? null : reason));
     // #230 A auditoria gravada vale, ainda que a resposta final tenha falhado depois.
     if (attempt.recorded) return { audited: true };
-    const reason: NotAuditedReason = failure !== undefined && !attempt.systemError ? 'claude_falhou' : attempt.systemError ? 'erro_de_tool' : 'sem_auditoria';
     try {
       await deps.audits.saveNotAudited(key, notAudited(reason), attempt.refusals);
     } catch {

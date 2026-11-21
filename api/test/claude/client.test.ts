@@ -365,6 +365,44 @@ describe('runClaudeRound: o Cron falha fechado (#171)', () => {
   });
 });
 
+describe('#335/AC-1: o laço só roda a tool oferecida na volta e força a única que a tarefa deixou', () => {
+  const lookup: Tool = { name: 'buscar_nota', description: 'busca', input_schema: { type: 'object' }, handler: async () => 1 };
+  const record: Tool = { name: 'gravar', description: 'grava', input_schema: { type: 'object' }, handler: async () => 2 };
+  const use = (name: string, id: string) => ({ type: 'tool_use', id, name, input: {} });
+  const choiceOf = (call: Call | undefined) => call?.body.tool_choice;
+
+  it('#335/AC-1: a tool que não foi oferecida na volta não roda: volta is_error dizendo as oferecidas, e o handler fica sem chamada', async () => {
+    let ran = 0;
+    const counted: Tool = { ...lookup, handler: async () => void (ran += 1) };
+    const { fetch, calls } = scripted([() => json([use('buscar_nota', 'a')]), () => json([answer({ match: null })])]);
+    await new ClaudeClient({ credentials: KEY, fetch }).converse({
+      system: 's', prompt: 'p', schema: SCHEMA, tools: [counted, record],
+      beforeTurn: () => ['gravar'],
+    });
+    expect(ran).toBe(0);
+    const results = (calls[1]?.body.messages as { content: unknown }[]).at(-1)?.content as { type: string; is_error?: boolean; content: string }[];
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({ type: 'tool_result', is_error: true });
+    expect(results[0]?.content).toContain('gravar');
+    expect(results[0]?.content).toContain('responder');
+    expect(results[0]?.content).not.toContain('buscar_nota');
+  });
+
+  it('#335/AC-1: com uma só tool da tarefa oferecida, o tool_choice força essa tool; com nenhuma, força a responder; sem lista, segue any', async () => {
+    const { fetch, calls } = scripted([
+      () => json([use('buscar_nota', 'a')]),
+      () => json([use('gravar', 'b')]),
+      () => json([use('gravar', 'c')]),
+      () => json([answer({ match: null })]),
+    ]);
+    await new ClaudeClient({ credentials: KEY, fetch }).converse({
+      system: 's', prompt: 'p', schema: SCHEMA, tools: [lookup, record],
+      beforeTurn: (turn) => (turn === 1 ? undefined : turn === 2 ? ['gravar'] : turn === 3 ? ['buscar_nota', 'gravar'] : []),
+    });
+    expect(calls.map(choiceOf)).toEqual([{ type: 'any' }, { type: 'tool', name: 'gravar' }, { type: 'any' }, { type: 'tool', name: 'responder' }]);
+  });
+});
+
 describe('#333/AC-8: beforeTurn opcional: o laço oferece só as tools que a tarefa pede, a cada volta', () => {
   const lookup: Tool = { name: 'buscar_nota', description: 'busca', input_schema: { type: 'object' }, handler: async () => 1 };
   it('#333/AC-8: sem beforeTurn, toda tool é oferecida em toda volta (as outras tarefas não mudam)', async () => {

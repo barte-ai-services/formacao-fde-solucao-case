@@ -717,13 +717,13 @@ describe('invoice-audit: uma linha de log por auditoria terminada (#333)', () =>
       return { recorded: true };
     };
     const lines = await runLogged(converse);
-    expect(lines).toEqual([`invoice-audit: fim resultado=audited voltas=0 leituras=${AUDIT_MAX_READS} recusas=2 motivos=read_budget_exhausted:1,invalid_field.justification:1`]);
+    expect(lines).toEqual([`invoice-audit: fim resultado=audited voltas=0 leituras=${AUDIT_MAX_READS} recusas=2 motivos=read_budget_exhausted:1,invalid_field.justification:1 erro=nenhum causa=nenhuma ultimas=nenhuma`]); // #335 sem laço, sem volta: nada em ultimas
   });
 
   it('#333/AC-11: as voltas vêm do laço de verdade (uma por chamada à Messages API) e a linha não tem a nota, a resposta nem a chave', async () => {
     const loop = realLoop(3);
     const lines = await runLogged(loop.converse);
-    expect(lines).toEqual(['invoice-audit: fim resultado=audited voltas=5 leituras=3 recusas=0 motivos=nenhum']);
+    expect(lines).toEqual(['invoice-audit: fim resultado=audited voltas=5 leituras=3 recusas=0 motivos=nenhum erro=nenhum causa=nenhuma ultimas=get_invoice,get_invoice,get_invoice,record_audit,-']);
     expect(loop.calls()).toBe(5);
     const line = lines.join('\n');
     for (const content of [KEY, JUSTIFICATION, SEGREDO, 'Arroz']) expect(line).not.toContain(content);
@@ -731,6 +731,165 @@ describe('invoice-audit: uma linha de log por auditoria terminada (#333)', () =>
 
   it('#333/AC-11: a auditoria que falha também deixa a linha, com o resultado nao_auditada', async () => {
     const lines = await runLogged(realLoop(AUDIT_MAX_TURNS).converse);
-    expect(lines).toEqual([`invoice-audit: fim resultado=nao_auditada voltas=${AUDIT_MAX_TURNS} leituras=${AUDIT_MAX_READS} recusas=${AUDIT_MAX_READS < AUDIT_MAX_TURNS ? AUDIT_MAX_TURNS - AUDIT_MAX_READS : 0} motivos=${AUDIT_MAX_READS < AUDIT_MAX_TURNS ? `read_budget_exhausted:${AUDIT_MAX_TURNS - AUDIT_MAX_READS}` : 'nenhum'}`]);
+    // #335/AC-1 O modelo que lê em toda volta, sem parar: as leituras além das 12 não são oferecidas nem rodam, então não há recusa de leitura (eram AUDIT_MAX_TURNS - AUDIT_MAX_READS);
+    // #335 o que fecha a nota é o teto de voltas, com a classe do erro do laço (ClaudeError, claude_falhou).
+    expect(lines).toEqual([
+      `invoice-audit: fim resultado=nao_auditada voltas=${AUDIT_MAX_TURNS} leituras=${AUDIT_MAX_READS} recusas=0 motivos=nenhum erro=ClaudeError causa=claude_falhou ultimas=${[...Array(AUDIT_MAX_READS).fill('get_invoice'), ...Array(AUDIT_MAX_TURNS - AUDIT_MAX_READS).fill('-')].join(',')}`,
+    ]);
+  });
+});
+
+/**
+ * #335/AC-1: a Messages API falsa do caso (a) da issue: lê `parallel` vezes por volta, o que for oferecido, enquanto o tool_choice não força
+ * uma tool (a API de verdade honra a tool forçada). Com `honour` falso, ignora até o tool_choice: o modelo teimoso do pior caso.
+ */
+function stubbornReader(parallel: number, honour = true): { converse: Converse; sent: { offered: string[]; choice: { type: string; name?: string }; toolResults: unknown[] }[] } {
+  const sent: { offered: string[]; choice: { type: string; name?: string }; toolResults: unknown[] }[] = [];
+  const fetch: FetchFn = async (_url, init) => {
+    const body = JSON.parse(String(init?.body)) as { tools: { name: string }[]; tool_choice: { type: string; name?: string }; messages: { content: unknown }[] };
+    const last = body.messages.at(-1)?.content;
+    sent.push({ offered: body.tools.map((t) => t.name), choice: body.tool_choice, toolResults: Array.isArray(last) ? last : [] });
+    const n = sent.length;
+    const use = (name: string, input: unknown, id: string) => ({ type: 'tool_use', id, name, input });
+    const forced = honour && body.tool_choice.type === 'tool' ? body.tool_choice.name : undefined;
+    const content =
+      forced === 'record_audit'
+        ? [use('record_audit', validAudit(), `tu_${n}`)]
+        : forced === 'responder'
+          ? [use('responder', { recorded: true }, `tu_${n}`)]
+          : Array.from({ length: parallel }, (_, i) => use('get_invoice', { invoice_access_key: KEY }, `tu_${n}_${i}`));
+    return new Response(JSON.stringify({ content }), { status: 200 });
+  };
+  const client = new ClaudeClient({ credentials: { kind: 'api-key', apiKey: 'chave-de-teste' }, fetch });
+  return { converse: (options) => client.converse(options), sent };
+}
+
+describe('invoice-audit: o caso (a) da #335, leituras recusadas até o fim das voltas', () => {
+  it('#335/AC-1: 5 leituras em paralelo por volta cruzam o orçamento na 3ª volta (2 passam, 3 recusadas); da 4ª em diante só record_audit e responder são oferecidas, e a auditoria é gravada', async () => {
+    const model = stubbornReader(5);
+    const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
+    await expect(task(d).run(input, noAsk, model.converse)).resolves.toEqual({ audited: true });
+    expect(d.saved).toHaveLength(1);
+    expect(d.notAuditedRows).toEqual([]);
+    expect(model.sent).toHaveLength(5);
+    expect(model.sent.slice(3).map((s) => s.offered)).toEqual([['record_audit', 'responder'], ['responder']]);
+    expect(d.readCalls.length - AUDIT_PRE_READS).toBe(AUDIT_MAX_READS);
+  });
+
+  it('#335/AC-1: o modelo teimoso, que pede leitura mesmo sem tê-la oferecida: ela não roda, volta is_error dizendo o que há para chamar, e a linha de log não conta recusa de leitura', async () => {
+    const model = stubbornReader(4, false);
+    const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
+    const lines: string[] = [];
+    await expect(
+      invoiceAuditTask({ audits: d.audits, reads: d.reads, now: () => NOW, model: 'claude-teste', log: (l) => lines.push(l) }).run(input, noAsk, model.converse),
+    ).rejects.toMatchObject({ kind: 'format' });
+    expect(d.readCalls.length - AUDIT_PRE_READS).toBe(AUDIT_MAX_READS);
+    // #335 o pedido da 5ª volta leva os resultados da 4ª, a primeira sem leitura oferecida
+    const refused = model.sent[4]?.toolResults as { is_error?: boolean; content: string }[];
+    expect(refused.every((r) => r.is_error === true && r.content.includes('record_audit') && !r.content.includes('read_budget_exhausted'))).toBe(true);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('recusas=0 motivos=nenhum');
+  });
+
+  it('#335/AC-1, AC-2: a leitura que falha com o orçamento esgotado: nada mais a gravar, só responder é oferecida e o laço termina na volta seguinte, com erro=<classe> causa=erro_de_tool', async () => {
+    class PortUnavailable extends Error {}
+    const model = stubbornReader(5);
+    const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
+    d.reads.getInvoice = async () => {
+      throw new PortUnavailable(`caiu ${SEGREDO}`);
+    };
+    const lines: string[] = [];
+    await expect(
+      invoiceAuditTask({ audits: d.audits, reads: d.reads, now: () => NOW, model: 'claude-teste', log: (l) => lines.push(l) }).run(input, noAsk, model.converse),
+    ).rejects.toMatchObject({ reason: 'erro_de_tool' });
+    // #335 a 1ª volta lê e o erro de sistema aparece; a 2ª oferece só `responder` e o laço fecha ali, sem as ~12 voltas que não gravariam nada
+    expect(model.sent).toHaveLength(2);
+    expect(model.sent.at(-1)?.offered).toEqual(['responder']);
+    expect(d.saved).toEqual([]);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain(' resultado=nao_auditada ');
+    expect(lines[0]).toContain(' erro=PortUnavailable causa=erro_de_tool');
+    expect(lines.join('\n')).not.toContain(SEGREDO);
+  });
+});
+
+describe('invoice-audit: a linha de fim leva a classe do erro de origem, o desfecho e a última tool de cada volta (#335)', () => {
+  class PortUnavailable extends Error {}
+  const endLine = async (d: Doubles, converse: Converse | undefined, now: () => Date = () => NOW): Promise<{ line: string; all: string[] }> => {
+    const lines: string[] = [];
+    await invoiceAuditTask({ audits: d.audits, reads: d.reads, now, model: 'claude-teste', log: (l) => lines.push(l) }).run(input, noAsk, converse).catch(() => undefined);
+    return { line: lines.find((l) => l.startsWith('invoice-audit: fim')) ?? '', all: lines };
+  };
+
+  it('#335/AC-2: uma leitura da tool que falha: erro=<classe> causa=erro_de_tool, sem o texto do erro', async () => {
+    const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
+    d.reads.getReceipt = async () => {
+      throw new PortUnavailable(`caiu ${SEGREDO}`);
+    };
+    const { line, all } = await endLine(d, async (options) => {
+      await callTool(options, 'get_receipt', { invoice_access_key: KEY });
+      await callTool(options, 'record_audit', validAudit());
+      return { recorded: true };
+    });
+    expect(line).toContain(' erro=PortUnavailable causa=erro_de_tool');
+    expect(all.join('\n')).not.toContain(SEGREDO);
+  });
+
+  it('#335/AC-2: a gravação da auditoria que falha: erro=<classe> causa=erro_de_tool', async () => {
+    const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
+    d.audits.save = async () => {
+      throw new PortUnavailable(`insert ${SEGREDO}`);
+    };
+    const { line, all } = await endLine(d, auditing());
+    expect(line).toContain(' erro=PortUnavailable causa=erro_de_tool');
+    expect(all.join('\n')).not.toContain(SEGREDO);
+  });
+
+  it('#335/AC-2: uma leitura de antes do laço que falha: erro=<classe> causa=erro_de_tool', async () => {
+    const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
+    d.reads.searchOutOfFlowPayments = async () => {
+      throw new PortUnavailable(`caiu ${SEGREDO}`);
+    };
+    const { line } = await endLine(d, auditing());
+    expect(line).toContain(' erro=PortUnavailable causa=erro_de_tool');
+  });
+
+  it('#335/AC-2: o erro fora das leituras e da gravação, dentro do record_audit (o relógio que falha): erro=<classe> causa=sem_auditoria', async () => {
+    const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
+    const { line } = await endLine(d, auditing(), () => {
+      throw new PortUnavailable(`relógio ${SEGREDO}`);
+    });
+    expect(line).toContain(' erro=PortUnavailable causa=sem_auditoria');
+    expect(line).not.toContain(SEGREDO);
+  });
+
+  it('#335/AC-2: a falha do próprio laço (ClaudeError) aparece com a classe dela e causa=claude_falhou', async () => {
+    const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
+    const { line } = await endLine(d, async () => {
+      throw new ClaudeError('timeout', 'sem resposta em 45 s');
+    });
+    expect(line).toContain(' erro=ClaudeError causa=claude_falhou');
+  });
+
+  it('#335/AC-2: sem erro nenhum, a conversa que termina sem gravar é causa=sem_auditoria e erro=nenhum; a gravada é causa=nenhuma', async () => {
+    const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
+    expect((await endLine(d, async () => ({ recorded: true }))).line).toBe('invoice-audit: fim resultado=nao_auditada voltas=0 leituras=0 recusas=0 motivos=nenhum erro=nenhum causa=sem_auditoria ultimas=nenhuma');
+    expect((await endLine(doubles({ invoice: anInvoice(KEY), proposal: proposal() }), auditing())).line).toBe('invoice-audit: fim resultado=audited voltas=0 leituras=1 recusas=0 motivos=nenhum erro=nenhum causa=nenhuma ultimas=nenhuma');
+  });
+
+  it('#335/AC-2: a classe é só o nome (letras, números e _, até 64): um nome com outra coisa vira Error', async () => {
+    const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
+    d.audits.save = async () => {
+      throw new (class extends Error { constructor() { super('x'); this.name = `com espaço ${SEGREDO}`; } })();
+    };
+    const { line } = await endLine(d, auditing());
+    expect(line).toMatch(/ erro=\w{1,64} causa=erro_de_tool/);
+    expect(line).not.toContain(SEGREDO);
+  });
+
+  it('#333/AC-11, #335/AC-1: a última tool de cada volta, só o nome da tool, na ordem das voltas, "-" na volta sem tool nossa (a resposta final)', async () => {
+    const d = doubles({ invoice: anInvoice(KEY), proposal: proposal() });
+    const { line } = await endLine(d, realLoop(3).converse);
+    expect(line).toBe('invoice-audit: fim resultado=audited voltas=5 leituras=3 recusas=0 motivos=nenhum erro=nenhum causa=nenhuma ultimas=get_invoice,get_invoice,get_invoice,record_audit,-');
   });
 });
