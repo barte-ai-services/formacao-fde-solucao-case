@@ -3,7 +3,7 @@ import { priceDifference } from './checks/nao-catalogada.js';
 import { amountAtRiskItemTrocado } from './checks/e2-item-trocado.js';
 import { isShortLine, proposeE3 } from './checks/e3-quantidade-menor.js';
 import { e4AmountAtRisk } from './checks/e4-unidade-de-medida.js';
-import { amountAtRiskOfUnregistered, unregisteredItems } from './checks/e8-item-sem-cadastro.js';
+import { amountAtRiskOfUnregistered, storedUnregisteredItems, unregisteredItems } from './checks/e8-item-sem-cadastro.js';
 import type { Classification } from './classification.js';
 import type { CheckContext } from './context.js';
 import { DockAction, type PartialLine } from './dock-action.js';
@@ -56,13 +56,18 @@ function partE3(invoice: Invoice, ctx: CheckContext): Part {
   return { lines, risk: props.amountAtRisk.amount, why: props.justification };
 }
 
+/** #338 Os itens que a E2 troca: os da nota cujo SKU consta nas divergências E2 (o SKU do produto cadastrado que veio no lugar do pedido). */
+function swappedItems(invoice: Invoice): readonly InvoiceItem[] {
+  const skus = new Set(invoice.divergences.filter((d) => d.classification === 'E2').flatMap((d) => d.skus));
+  return invoice.items.filter((i) => i.sku !== null && skus.has(i.sku));
+}
+
+/** #338 A linha de segurar de um item inteiro (a de partE2 e partE8). */
+const holdLine = (item: InvoiceItem): PartialLine => ({ sku: keyOf(item), quantity: item.quantity, disposition: 'segurar' });
+
 /** #56 E2 (#70): segura o item trocado; valor em risco igual ao valor dele (amountAtRiskItemTrocado). */
 function partE2(invoice: Invoice, ctx: CheckContext): Part {
-  const skus = new Set(invoice.divergences.filter((d) => d.classification === 'E2').flatMap((d) => d.skus));
-  const lines = invoice.items
-    .filter((i) => i.sku !== null && skus.has(i.sku))
-    .map((i) => ({ sku: keyOf(i), quantity: i.quantity, disposition: 'segurar' as const }));
-  return { lines, risk: amountAtRiskItemTrocado(invoice, ctx).amount, why: 'E2: item trocado segurado' };
+  return { lines: swappedItems(invoice).map(holdLine), risk: amountAtRiskItemTrocado(invoice, ctx).amount, why: 'E2: item trocado segurado' };
 }
 
 /** #56 E4 (#67): recebe; o valor em risco é o que a verificação do E4 calcula. */
@@ -73,7 +78,7 @@ function partE4(invoice: Invoice, ctx: CheckContext): Part {
 /** #56 E8 (#66): segura os itens sem cadastro, pela chave do item; valor pelo amountAtRiskOfUnregistered. */
 function partE8(invoice: Invoice, ctx: CheckContext): Part {
   const items = unregisteredItems(invoice, ctx);
-  const lines = items.map((i) => ({ sku: keyOf(i), quantity: i.quantity, disposition: 'segurar' as const }));
+  const lines = items.map(holdLine);
   const risk = amountAtRiskOfUnregistered(invoice, ctx).amount;
   return { lines, risk, why: `E8: ${items.length} item(ns) sem cadastro, segurados` };
 }
@@ -142,4 +147,30 @@ export function draftChecked(invoice: Invoice, ctx: CheckContext, overcharge: Mo
 export function draftForChecked(invoice: Invoice, ctx: CheckContext, suggestion?: ProbableOrderSuggestion): Draft {
   if (invoice.classification === 'E5') return draftNotaSemOrdem(invoice, resolveProbableOrder(invoice, ctx, suggestion));
   return draftChecked(invoice, ctx, priceDifference(invoice, ctx)?.overcharge ?? null);
+}
+
+/**
+ * #338 Os fatos de E8 e E2 da nota conferida: os itens que as divergências guardadas dela marcam (sem cadastro, as E8; trocados, as E2), as linhas que partE8 e partE2 segurariam
+ * por esses itens, juntadas por mergeLines, e a ação que actionOf decide sobre elas, sem o valor em risco. Não relê o cadastro: os itens sem cadastro saem das divergências E8
+ * guardadas (storedUnregisteredItems), porque a verificação correu com as sugestões de descrição da rodada, que não ficam guardadas.
+ * Devolve null quando a nota não tem E8 nem E2, ou quando o motor não junta linhas por esse caminho: com E6 ou E7 vale o draftProposal (draftChecked) e com E5 a nota é recusada (draftForChecked);
+ * `dockAction` é null quando E1 ou E3 também seguram linhas, porque a união delas depende da contagem do recebimento, que esta função não lê.
+ */
+export type ItemHolds = {
+  readonly unregistered: readonly InvoiceItem[];
+  readonly swapped: readonly InvoiceItem[];
+  readonly lines: readonly PartialLine[];
+  readonly dockAction: DockAction | null;
+};
+
+export function itemHolds(invoice: Invoice): ItemHolds | null {
+  const codes = new Set(invoice.divergences.map((d) => d.classification));
+  if (codes.has('E6') || codes.has('E7') || invoice.classification === 'E5') return null;
+  if (!codes.has('E8') && !codes.has('E2')) return null;
+  const unregistered = storedUnregisteredItems(invoice);
+  const swapped = swappedItems(invoice);
+  const parts: Part[] = [unregistered, swapped].map((items) => ({ lines: items.map(holdLine), risk: Money.zero(), why: '' }));
+  const lines = mergeLines(invoice, parts);
+  const dockAction = codes.has('E1') || codes.has('E3') ? null : actionOf(invoice, lines);
+  return { unregistered, swapped, lines, dockAction };
 }
