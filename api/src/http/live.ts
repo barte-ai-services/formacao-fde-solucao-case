@@ -1,4 +1,4 @@
-// #354 GET /api/ao-vivo: os passos da automação, do mais novo ao mais velho, e os indicadores do dia.
+// #354 GET /api/live: os passos da automação, do mais novo ao mais velho, e os indicadores do dia.
 import { SupabaseApprovalStore } from '../approval/supabase-store.js';
 import {
   decisionEvent,
@@ -83,7 +83,7 @@ export async function live(_identity: Identity, request: Request, env: Env): Pro
     return Response.json(body);
   } catch (error) {
     if (!(error instanceof SupabaseRestError)) throw error;
-    console.error(`ao-vivo: ${error.operation} em ${error.table} falhou (HTTP ${error.status})`);
+    console.error(`live: ${error.operation} em ${error.table} falhou (HTTP ${error.status})`);
     return Response.json({ error: 'supabase_indisponivel' }, { status: 502 });
   }
 }

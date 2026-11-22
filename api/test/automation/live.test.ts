@@ -1,4 +1,4 @@
-// #354 GET /api/ao-vivo: os passos da automação do mais novo ao mais velho e os indicadores do dia.
+// #354 GET /api/live: os passos da automação do mais novo ao mais velho e os indicadores do dia.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { proposeChecked } from '../../src/approval/propose-checked.js';
 import { SupabaseApprovalStore } from '../../src/approval/supabase-store.js';
@@ -27,7 +27,7 @@ const KEY_A = '35261100000000000100550010000000011000000011';
 const KEY_B = '35261100000000000100550010000000021000000022';
 const KEY_C = '35261100000000000100550010000000031000000033';
 
-const call = (fake: FakePostgrest, path = '/api/ao-vivo', token: string | null = 'ana@jachegou.test', e: Env = env) => {
+const call = (fake: FakePostgrest, path = '/api/live', token: string | null = 'ana@jachegou.test', e: Env = env) => {
   vi.stubGlobal('fetch', fake.fetch);
   const headers = new Headers();
   if (token) headers.set('Cf-Access-Jwt-Assertion', token);
@@ -73,7 +73,7 @@ const world = () => ({
 
 type Body = { events: Record<string, unknown>[]; since: string | null; indicators: { day: Record<string, unknown>; month: Record<string, unknown> }; awaiting: number };
 
-describe('#354/AC-1 GET /api/ao-vivo devolve os passos, do mais novo ao mais velho', () => {
+describe('#354/AC-1 GET /api/live devolve os passos, do mais novo ao mais velho', () => {
   it('#354/AC-1 Dado rodada, decisões do motor e aprovação de pessoa, os eventos vêm do mais novo ao mais velho, cada um com kind, hora, quem fez e a nota', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-11-16T15:00:00Z'));
@@ -129,7 +129,7 @@ describe('#354/AC-1 GET /api/ao-vivo devolve os passos, do mais novo ao mais vel
 describe('#354/AC-2 since devolve só o que foi gravado depois', () => {
   it('#354/AC-2 Dado que a tela tem os eventos até T, pedir since=T traz só os mais novos, e o filtro vai na consulta', async () => {
     const fake = new FakePostgrest(world());
-    const res = await call(fake, `/api/ao-vivo?since=${encodeURIComponent('2026-11-16T13:16:00.000Z')}`);
+    const res = await call(fake, `/api/live?since=${encodeURIComponent('2026-11-16T13:16:00.000Z')}`);
     const body = (await res.json()) as Body;
     expect(res.status).toBe(200);
     expect(body.events.map((e) => e.at)).toEqual(['2026-11-16T13:20:00.000Z', '2026-11-16T13:17:00.000Z']);
@@ -140,7 +140,7 @@ describe('#354/AC-2 since devolve só o que foi gravado depois', () => {
   });
 
   it('#354/AC-2 sem nada novo, os eventos vêm vazios e since devolve o mesmo cursor', async () => {
-    const body = (await (await call(new FakePostgrest(world()), `/api/ao-vivo?since=${encodeURIComponent('2026-11-16T13:20:00.000Z')}`)).json()) as Body;
+    const body = (await (await call(new FakePostgrest(world()), `/api/live?since=${encodeURIComponent('2026-11-16T13:20:00.000Z')}`)).json()) as Body;
     expect(body.events).toEqual([]);
     expect(body.since).toBe('2026-11-16T13:20:00.000Z');
   });
@@ -172,7 +172,7 @@ describe('#354/AC-2 since devolve só o que foi gravado depois', () => {
     '2026-11-22T10:00+00:00',
     '2026-11-22',
   ])('#354/AC-2 since inválido (%j) responde 400 since_invalido', async (since) => {
-    const res = await call(new FakePostgrest(world()), `/api/ao-vivo?since=${encodeURIComponent(since)}`);
+    const res = await call(new FakePostgrest(world()), `/api/live?since=${encodeURIComponent(since)}`);
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: 'since_invalido' });
   });
@@ -180,7 +180,7 @@ describe('#354/AC-2 since devolve só o que foi gravado depois', () => {
   it.each(['2026-11-16T13:20:00.123456Z', '2026-11-16T13:20:00.123456+00:00', '2026-11-16T13:20:00Z', '2026-11-16T13:20:00.5+00:00'])(
     '#354/AC-2 since com o formato do cursor (%j) passa e volta sem mudar',
     async (since) => {
-      const res = await call(new FakePostgrest(world()), `/api/ao-vivo?since=${encodeURIComponent(since)}`);
+      const res = await call(new FakePostgrest(world()), `/api/live?since=${encodeURIComponent(since)}`);
       expect(res.status).toBe(200);
       expect(((await res.json()) as Body).since).toBe(since);
     },
@@ -197,7 +197,7 @@ describe('#354/AC-2 com mais de 50 passos depois de since, a tela não perde nen
     const seen: string[] = [];
     let since = micro(0);
     for (let poll = 0; poll < 3; poll += 1) {
-      const body = (await (await call(fake, `/api/ao-vivo?since=${encodeURIComponent(since)}`)).json()) as Body;
+      const body = (await (await call(fake, `/api/live?since=${encodeURIComponent(since)}`)).json()) as Body;
       expect(body.events.length).toBeLessThanOrEqual(50);
       expect(body.events.map((e) => String(e.at))).toEqual([...body.events.map((e) => String(e.at))].sort().reverse());
       seen.push(...body.events.map((e) => String(e.at)));
@@ -206,7 +206,7 @@ describe('#354/AC-2 com mais de 50 passos depois de since, a tela não perde nen
     expect(new Set(seen).size).toBe(seen.length);
     expect(seen).toHaveLength(120);
     expect(seen.sort()).toEqual(runs.map((r) => new Date(r.started_at).toISOString()).sort());
-    const last = (await (await call(fake, `/api/ao-vivo?since=${encodeURIComponent(since)}`)).json()) as Body;
+    const last = (await (await call(fake, `/api/live?since=${encodeURIComponent(since)}`)).json()) as Body;
     expect(last.events).toEqual([]);
   });
 
@@ -217,7 +217,7 @@ describe('#354/AC-2 com mais de 50 passos depois de since, a tela não perde nen
     const seen: string[] = [];
     let since = micro(0);
     for (let poll = 0; poll < 6; poll += 1) {
-      const body = (await (await call(fake, `/api/ao-vivo?since=${encodeURIComponent(since)}`)).json()) as Body;
+      const body = (await (await call(fake, `/api/live?since=${encodeURIComponent(since)}`)).json()) as Body;
       seen.push(...body.events.map((e) => String(e.at)));
       since = body.since ?? since;
     }
@@ -226,12 +226,12 @@ describe('#354/AC-2 com mais de 50 passos depois de since, a tela não perde nen
 
   it('#354/AC-2 na borda: o passo do mesmo milissegundo do cursor mas de microssegundo maior ainda sai, e o do cursor não repete', async () => {
     const fake = new FakePostgrest({ automation_runs: [run(1, micro(1, 100)), run(2, micro(1, 300))] });
-    const first = (await (await call(fake, `/api/ao-vivo?since=${encodeURIComponent(micro(0))}`)).json()) as Body;
+    const first = (await (await call(fake, `/api/live?since=${encodeURIComponent(micro(0))}`)).json()) as Body;
     expect(first.events).toHaveLength(2);
     expect(first.since).toBe(micro(1, 300));
-    const afterFirst = (await (await call(fake, `/api/ao-vivo?since=${encodeURIComponent(micro(1, 100))}`)).json()) as Body;
+    const afterFirst = (await (await call(fake, `/api/live?since=${encodeURIComponent(micro(1, 100))}`)).json()) as Body;
     expect(afterFirst.events).toHaveLength(1);
-    const repeated = (await (await call(fake, `/api/ao-vivo?since=${encodeURIComponent(first.since ?? '')}`)).json()) as Body;
+    const repeated = (await (await call(fake, `/api/live?since=${encodeURIComponent(first.since ?? '')}`)).json()) as Body;
     expect(repeated.events).toEqual([]);
     expect(repeated.since).toBe(micro(1, 300));
   });
@@ -267,7 +267,7 @@ describe('#354/AC-3 os indicadores são os de /api/automacao', () => {
     const get = async (path: string) =>
       worker.fetch(new Request(`https://worker.test${path}`, { headers: { 'Cf-Access-Jwt-Assertion': 'ana@jachegou.test' } }), env, ctx);
     const queue = (await (await get('/api/fila?limite=25')).json()) as { total: number };
-    const live = (await (await get('/api/ao-vivo')).json()) as Body;
+    const live = (await (await get('/api/live')).json()) as Body;
     expect(queue.total).toBeGreaterThan(0);
     expect(live.awaiting).toBe(queue.total);
   });
@@ -275,11 +275,11 @@ describe('#354/AC-3 os indicadores são os de /api/automacao', () => {
 
 describe('#354/AC-4 sem credenciais 503, Supabase fora 502, sem Access 401', () => {
   it('#354/AC-4 sem o Access, 401', async () => {
-    expect((await call(new FakePostgrest({}), '/api/ao-vivo', null)).status).toBe(401);
+    expect((await call(new FakePostgrest({}), '/api/live', null)).status).toBe(401);
   });
 
   it('#354/AC-4 sem as credenciais do Supabase, 503 supabase_nao_configurado', async () => {
-    const res = await call(new FakePostgrest({}), '/api/ao-vivo', 'ana@jachegou.test', { ACCESS_AUD: 'aud', ACCESS_TEAM_DOMAIN: 'time.cloudflareaccess.com' });
+    const res = await call(new FakePostgrest({}), '/api/live', 'ana@jachegou.test', { ACCESS_AUD: 'aud', ACCESS_TEAM_DOMAIN: 'time.cloudflareaccess.com' });
     expect(res.status).toBe(503);
     expect(await res.json()).toEqual({ error: 'supabase_nao_configurado' });
   });
@@ -289,14 +289,14 @@ describe('#354/AC-4 sem credenciais 503, Supabase fora 502, sem Access 401', () 
     vi.stubGlobal('fetch', () => Promise.resolve(new Response(`{"message":"${secret}"}`, { status: 500 })));
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     const res = await createWorker({ verifier }).fetch(
-      new Request('https://worker.test/api/ao-vivo', { headers: { 'Cf-Access-Jwt-Assertion': 'ana@jachegou.test' } }), env, ctx);
+      new Request('https://worker.test/api/live', { headers: { 'Cf-Access-Jwt-Assertion': 'ana@jachegou.test' } }), env, ctx);
     expect(res.status).toBe(502);
     const text = await res.text();
     expect(JSON.parse(text)).toEqual({ error: 'supabase_indisponivel' });
     expect(text).not.toContain(secret);
     expect(log).toHaveBeenCalledTimes(1);
     const logged = String(log.mock.calls[0]?.join(' '));
-    expect(logged).toMatch(/ao-vivo: select em \w+ falhou \(HTTP 500\)/);
+    expect(logged).toMatch(/live: select em \w+ falhou \(HTTP 500\)/);
     expect(logged).not.toContain(secret);
     expect(logged).not.toContain(ENV.BARTE_ACADEMY_SUPABASE_SECRET_KEY);
   });

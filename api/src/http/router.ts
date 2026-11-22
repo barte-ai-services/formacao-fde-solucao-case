@@ -37,7 +37,7 @@ function protectedRoutes(deps: RouterDeps): Record<string, Record<string, Protec
     "/me": { GET: me },
     "/api/valor-barrado": { GET: barredAmount },
     "/api/automacao": { GET: automation },
-    "/api/ao-vivo": { GET: live },
+    "/api/live": { GET: live },
     "/api/motor/acerto": { GET: engineAgreement },
     "/api/doca": { GET: (_identity, request, env) => dock(request, env) },
     "/api/recebimento-loja": { GET: (_identity, request, env) => storeReceiving(request, env) },

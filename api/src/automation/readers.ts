@@ -62,7 +62,7 @@ export async function readDecisionRecords(rest: SupabaseRest, monthStart: string
   });
 }
 
-/** #211 Os indicadores do dia e do mês, da rodada e da lista: a mesma leitura para `/api/automacao` e `/api/ao-vivo` (#354). */
+/** #211 Os indicadores do dia e do mês, da rodada e da lista: a mesma leitura para `/api/automacao` e `/api/live` (#354). */
 export async function readIndicators(rest: SupabaseRest, now: Date): Promise<Indicators> {
   return computeIndicators(await readDecisionRecords(rest, `${todayInBrasilia(now).slice(0, 7)}-01`), now);
 }

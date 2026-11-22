@@ -26,7 +26,7 @@ export type LiveHumanDecisionEvent = LiveBase & { kind: 'human_decision'; invoic
 /** #354 A união por `kind`. Um passo novo (ex.: o pedido de devolução automático da #353) entra como mais um membro. */
 export type LiveEvent = LiveRunEvent | LiveDecisionEvent | LiveHumanDecisionEvent;
 
-/** #354 A resposta de `GET /api/ao-vivo`. `since` é o cursor: o instante, no texto do banco, do passo mais novo, que a tela devolve no próximo pedido. */
+/** #354 A resposta de `GET /api/live`. `since` é o cursor: o instante, no texto do banco, do passo mais novo, que a tela devolve no próximo pedido. */
 export type LiveBody = {
   events: LiveEvent[];
   since: string | null;
