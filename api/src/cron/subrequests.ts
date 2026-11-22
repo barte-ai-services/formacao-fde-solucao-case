@@ -5,25 +5,62 @@ import type { FetchFn } from '../connectors/supabase-rest.js';
 /** #311 O teto de subrequests por invocação do plano gratuito. O Worker é tratado como esse plano (claude/cron.ts). */
 export const SUBREQUEST_CAP = 50;
 
+/** #311 O erro de uma chamada recusada aqui, sem chamar o fetch: a invocação já gastou o que podia gastar fora da reserva. */
+export class SubrequestBudgetError extends Error {
+  constructor() {
+    super('orçamento de subrequests esgotado');
+    this.name = 'SubrequestBudgetError';
+  }
+}
+
+/** #311 O orçamento que o contador defende: o teto da invocação e quantas chamadas ficam guardadas para a gravação da rodada. */
+export type SubrequestBudget = { readonly cap: number; readonly reserve: number };
+
 export type SubrequestCounter = {
-  /** #311 O fetch que o PostgREST e a Messages API recebem: conta cada chamada tentada (as que lançam também) e repassa. */
+  /** #311 O fetch que o PostgREST e a Messages API recebem: conta cada chamada e repassa; com orçamento, recusa ao invadir a reserva. */
   readonly fetch: FetchFn;
+  /** #311 O fetch da gravação da rodada: o único que gasta a reserva, ainda dentro do teto. */
+  readonly reservedFetch: FetchFn;
   count(): number;
+  /** #311 Quantas chamadas ainda cabem antes do teto (a reserva incluída); nulo sem orçamento. */
+  remaining(): number | null;
+  /** #311 Quantas chamadas, ou passos inteiros, foram recusados por falta de orçamento. */
+  refused(): number;
+  /** #311 true quando o que resta é só a reserva (e registra a recusa de quem perguntou, para o passo que será pulado). */
+  deny(): boolean;
 };
 
 /**
  * #311 Conta só o que passa por este fetch: o PostgREST (SupabaseRest) e a Messages API (ClaudeClient). O binding do Workers AI do
  * motor não passa por fetch e não entra na conta; o runtime o contabiliza à parte, e o número daqui é o piso.
- * Sem `inner`, repassa ao `fetch` global resolvido a cada chamada.
+ * Sem `inner`, repassa ao `fetch` global resolvido a cada chamada. Sem `budget`, só conta; com ele, `fetch` recusa localmente (sem
+ * subrequest) a chamada que invadiria a reserva, e `reservedFetch` recusa só a que passaria do teto.
  */
-export function countSubrequests(inner?: FetchFn): SubrequestCounter {
+export function countSubrequests(inner?: FetchFn, budget?: SubrequestBudget): SubrequestCounter {
   let calls = 0;
-  return {
-    fetch: (input, init) => {
+  let refusals = 0;
+  const through =
+    (limit: number | undefined): FetchFn =>
+    (input, init) => {
+      if (limit !== undefined && calls >= limit) {
+        refusals += 1;
+        return Promise.reject(new SubrequestBudgetError());
+      }
       calls += 1;
       return inner ? inner(input, init) : fetch(input, init);
-    },
+    };
+  const spendable = budget ? budget.cap - budget.reserve : undefined;
+  return {
+    fetch: through(spendable),
+    reservedFetch: through(budget?.cap),
     count: () => calls,
+    remaining: () => (budget ? budget.cap - calls : null),
+    refused: () => refusals,
+    deny: () => {
+      if (spendable === undefined || calls < spendable) return false;
+      refusals += 1;
+      return true;
+    },
   };
 }
 

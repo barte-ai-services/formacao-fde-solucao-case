@@ -13,7 +13,8 @@ import { FakePostgrest } from '../support/fake-postgrest.js';
 import { kitTables } from '../support/kit.js';
 import { countSubrequests } from '../support/subrequest-counter.js';
 import { awaitingKeys, eventSuggestions, kitAwaitingPeople, runDossierCron, SUPABASE_ENV, WITH_CLAUDE } from '../support/dossier-world.js';
-import { SUBREQUEST_CAP } from '../support/subrequest-counter.js';
+import { SUBREQUEST_CAP, UNCAPPED } from '../support/subrequest-counter.js';
+import { tick } from '../../src/cron/tick.js';
 
 afterEach(() => {
   vi.useRealTimers();
@@ -28,7 +29,7 @@ describe('#311 a causa: o tick de 15 minutos já gasta o teto antes do dossiê',
     vi.stubGlobal('fetch', counter.fetch);
     vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    await dispatchScheduled({ cron: CLAUDE_CRON }, WITH_CLAUDE);
+    await tick({ cron: CLAUDE_CRON }, WITH_CLAUDE, UNCAPPED);
 
     // #311 Medido em 22/11 sobre o kit inteiro: 172 subrequests no tick sem o dossiê (141 até o ponto onde o dossiê rodava). O teto é 50.
     expect(counter.count()).toBeGreaterThan(SUBREQUEST_CAP);

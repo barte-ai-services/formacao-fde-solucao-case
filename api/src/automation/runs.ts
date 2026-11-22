@@ -1,6 +1,6 @@
 // #211 AC-1 Cada rodada do Cron fica em automation_runs: só números e a classe do erro, nada sensível.
 import { arrayOf, isInteger, isString, nullable, oneOf, optional, parseRows, shaped, type Shape } from '../connectors/guards.js';
-import type { SupabaseRest } from '../connectors/supabase-rest.js';
+import { SupabaseRestError, type SupabaseRest } from '../connectors/supabase-rest.js';
 
 const TABLE = 'automation_runs';
 
@@ -74,21 +74,26 @@ export async function recordRun(
   },
 ): Promise<void> {
   const f = run.figures;
-  await rest.insert(TABLE, [
-    {
-      started_at: run.startedAt.toISOString(),
-      finished_at: run.finishedAt.toISOString(),
-      status: run.status,
-      seen: f.seen, inserted: f.inserted, checked: f.checked, failed: f.failed, proposed: f.proposed,
-      approved_by_rule: f.approvedByRule, cadastro_e8: f.cadastroE8, dock_published: f.dockPublished,
-      store_published: f.storePublished, duplicates_blocked: f.duplicatesBlocked,
-      engine_evaluated: f.engineEvaluated,
-      engine_approved: f.engineApproved,
-      error: run.error ?? null,
-      failed_steps: run.failedSteps ?? [],
-      subrequests: run.subrequests ?? null,
-    },
-  ]);
+  const row = {
+    started_at: run.startedAt.toISOString(),
+    finished_at: run.finishedAt.toISOString(),
+    status: run.status,
+    seen: f.seen, inserted: f.inserted, checked: f.checked, failed: f.failed, proposed: f.proposed,
+    approved_by_rule: f.approvedByRule, cadastro_e8: f.cadastroE8, dock_published: f.dockPublished,
+    store_published: f.storePublished, duplicates_blocked: f.duplicatesBlocked,
+    engine_evaluated: f.engineEvaluated,
+    engine_approved: f.engineApproved,
+    error: run.error ?? null,
+  };
+  try {
+    await rest.insert(TABLE, [{ ...row, failed_steps: run.failedSteps ?? [], subrequests: run.subrequests ?? null }]);
+  } catch (error) {
+    // #311 O deploy do Worker e a migração das colunas novas correm em paralelo (deploy-api.yml e supabase-base-do-kit.yml): se o
+    // #311 Worker sobe antes, o PostgREST recusa o insert com PGRST204 (coluna fora do cache do esquema). Refaz sem elas, para a
+    // #311 rodada não se perder; é por isso que a gravação reserva dois subrequests (o insert e este reenvio).
+    if (!(error instanceof SupabaseRestError) || error.code !== 'PGRST204') throw error;
+    await rest.insert(TABLE, [row]);
+  }
 }
 
 /** #211 As últimas rodadas, da mais nova para a mais velha. */

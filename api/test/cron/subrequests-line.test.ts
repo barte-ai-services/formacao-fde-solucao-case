@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { tick } from '../../src/cron/tick.js';
 import { FakePostgrest } from '../support/fake-postgrest.js';
 import { kitTables } from '../support/kit.js';
-import { countSubrequests } from '../support/subrequest-counter.js';
+import { countSubrequests, UNCAPPED } from '../support/subrequest-counter.js';
 import { kitAwaitingPeople, runDossierCron, WITH_CLAUDE, SUPABASE_ENV } from '../support/dossier-world.js';
 
 afterEach(() => {
@@ -56,11 +56,11 @@ describe('#311 a conta de subrequests no fim de cada invocação', () => {
     const fake = new FakePostgrest(kitTables());
     vi.stubGlobal('fetch', fake.fetch);
     vi.spyOn(console, 'log').mockImplementation(() => {});
-    await tick({ cron: '*/15 * * * *' }, SUPABASE_ENV);
+    await tick({ cron: '*/15 * * * *' }, SUPABASE_ENV, UNCAPPED);
     const counter = countSubrequests(fake.fetch, 1000);
     vi.stubGlobal('fetch', counter.fetch);
 
-    await tick({ cron: '*/15 * * * *' }, SUPABASE_ENV);
+    await tick({ cron: '*/15 * * * *' }, SUPABASE_ENV, UNCAPPED);
 
     expect(counter.count()).toBe(67);
     expect(counter.count()).toBeGreaterThan(50);

@@ -22,13 +22,19 @@ import { todayInBrasilia } from "../http/approval";
 import { SupabaseEngineStore } from "../engine/supabase-store";
 import { sweepSupplierOverdue } from "./supplier-sweep";
 import { SupplierStoreError } from "../supplier/supabase-store";
-import { countSubrequests, subrequestsLine } from "./subrequests";
+import { countSubrequests, SUBREQUEST_CAP, subrequestsLine, type SubrequestCounter } from "./subrequests";
 
 /** #66 A janela, em dias, das decisões que o Cron manda ao Cadastro; ver `lastDaysUtc`. */
 const PUBLISH_WINDOW_DAYS = 7;
 
 /** #156 O teto de devoluções publicadas por rodada, para caber nas ~50 subrequisições do plano gratuito. */
 const RETURN_NOTES_PER_ROUND = 20;
+
+/**
+ * #311 Os subrequests guardados para a gravação da rodada: só ela os gasta. São dois porque o insert pode ser refeito sem as colunas
+ * novas (recordRun, PGRST204) quando o Worker sobe antes da migração.
+ */
+const RECORD_RESERVE = 2;
 
 /** #174 O que uma rodada fez, para a reconferência devolver. Nulo quando a rodada foi pulada. */
 export interface TickSummary {
@@ -44,15 +50,17 @@ export interface TickSummary {
  * #311 O dossiê não roda aqui: este tick já passa dos 50 subrequests antes de chegar nele; o dossiê tem a própria
  * invocação (cron/dossier-round.ts, o cron de schedule.ts).
  * #311 Só a captura é o caminho crítico: falha nela é rodada `failed` e o erro sobe. Todo passo depois dela falha sozinho (`guarded` ou o
- * próprio try/catch do passo), entra em failed_steps e a rodada segue; a linha de automation_runs é sempre tentada. No plano gratuito,
- * passado o teto de 50 todo fetch falha (status 0) e a própria gravação também; a linha `subrequests n/50` no log é o rastro que resta.
+ * próprio try/catch do passo), entra em failed_steps e a rodada segue; a linha de automation_runs é sempre gravada.
+ * #311 O teto de 50 subrequests é do plano gratuito, e o runtime recusa do 51º em diante, a gravação inclusive. Por isso o contador
+ * guarda a reserva (RECORD_RESERVE) para a gravação: o fetch dos passos recusa localmente, sem subrequest, a chamada que a invadiria, o
+ * passo vira falho e o que não coube fica para a próxima rodada; só a gravação usa o fetch da reserva.
  * Medido sobre a base do kit (api/test/cron/subrequests-line.test.ts): a rodada quieta (sem nota nova) faz 67 chamadas sem o Claude e 90 com
- * duas tarefas dele; a 50ª cai dentro de proposeChecked (a leitura por proposta que espera: invoices, divergences, titles, approvals e
- * fornecedores). Em produção o teto cai antes da doca, da loja, das devoluções e dos títulos duplicados, como o log de 22/11 mostrou.
+ * duas tarefas dele; com o orçamento ela para dentro de proposeChecked (a leitura por proposta que espera) e os passos seguintes são pulados.
  */
 export async function tick(
   controller: Pick<ScheduledController, "cron">,
   env: Env,
+  cap: number = SUBREQUEST_CAP,
 ): Promise<TickSummary | null> {
   const startedAt = new Date();
   const url = env.BARTE_ACADEMY_SUPABASE_URL;
@@ -61,22 +69,27 @@ export async function tick(
     console.log(`cron: execução agendada (${controller.cron}); sem credenciais do Supabase, captura pulada`);
     return null;
   }
-  // #311 O fetch por invocação conta os subrequests (PostgREST e Messages API); a linha final diz quantos foram contra os 50.
-  const counter = countSubrequests();
+  // #311 O fetch por invocação conta os subrequests (PostgREST e Messages API) e guarda a reserva; a linha final diz quantos foram contra os 50.
+  const counter = countSubrequests(undefined, { cap, reserve: RECORD_RESERVE });
   const rest = new SupabaseRest({ url, secretKey, fetch: counter.fetch });
+  // #311 A gravação da rodada é a única que gasta a reserva (o fetch dela só recusa o que passaria do teto).
+  const recorder = new SupabaseRest({ url, secretKey, fetch: counter.reservedFetch });
   const failedSteps: string[] = [];
   // #311 A gravação da rodada é mais um subrequest e já entra no número que ela grava.
   const runCount = () => counter.count() + 1;
   try {
-    const { summary, figures } = await runRound(controller, env, rest, counter.fetch, failedSteps);
+    const { summary, figures } = await runRound(controller, env, rest, counter, failedSteps);
     // #311 Passo periférico falho não muda o status: a rodada fica `ok` e failed_steps diz o que falhou (o enum de status não muda).
-    await recordRunSafely(rest, { startedAt, status: "ok", figures, failedSteps, subrequests: runCount() });
+    await recordRunSafely(recorder, { startedAt, status: "ok", figures, failedSteps, subrequests: runCount() });
     return summary;
   } catch (error) {
     // #211 AC-1 A rodada que falha (a captura, o caminho crítico) também fica gravada, só com a classe do erro.
-    await recordRunSafely(rest, { startedAt, status: "failed", figures: NO_FIGURES, error: errorClass(error), failedSteps, subrequests: runCount() });
+    await recordRunSafely(recorder, { startedAt, status: "failed", figures: NO_FIGURES, error: errorClass(error), failedSteps, subrequests: runCount() });
     throw error;
   } finally {
+    if (counter.refused() > 0) {
+      console.log(`cron: orçamento de subrequests esgotado (${counter.refused()} chamadas ou passos recusados, ${RECORD_RESERVE} guardados para a gravação); passos com falha [${failedSteps.join(", ")}]`);
+    }
     console.log(subrequestsLine(counter.count(), `tick ${controller.cron}`));
   }
 }
@@ -102,23 +115,24 @@ async function runRound(
   controller: Pick<ScheduledController, "cron">,
   env: Env,
   rest: SupabaseRest,
-  fetch: FetchFn,
+  counter: SubrequestCounter,
   failedSteps: string[],
 ): Promise<{ summary: TickSummary; figures: RunFigures }> {
   const fail: Fail = (step) => {
-    failedSteps.push(step);
+    if (!failedSteps.includes(step)) failedSteps.push(step);
   };
+  const round: Round = { fail, counter };
   const { captureDeps, registryCorrections } = supabaseConnectors(rest);
   const descriptions = await storedSuggestions(rest, fail);
   // #311 A captura é o caminho crítico: se ela falha, a rodada falha. Tudo depois dela é periférico e falha sozinho (`guarded`).
   const result = await captureInvoices(descriptions ? { ...captureDeps, descriptions } : captureDeps);
-  const unreconciled = await guarded(fail, "unreconciled", "recebimentos sem nota", () => findUnreconciledReceipts(captureDeps), {
+  const unreconciled = await guarded(round, "unreconciled", "recebimentos sem nota", () => findUnreconciledReceipts(captureDeps), {
     noKey: [] as string[],
     keyWithoutInvoice: [] as string[],
   });
   // #63 Depois de conferir, propõe e encaminha pela régua; o match vai sozinho para a lista do dia.
   const proposals = await guarded<{ proposed: number; approvedByRule: number }>(
-    fail,
+    round,
     "proposals",
     "propostas",
     () => proposeChecked({ rest, purchasing: captureDeps.purchasing, registry: captureDeps.registry, wms: captureDeps.wms }),
@@ -131,20 +145,23 @@ async function runRound(
   // #156 A devolução das decisões da regra e das que falharam na rota entra na fila das notas de devolução.
   const returnNotes = await publishReturnNotes(rest, fail);
   // #31/AC-5: o título da E6 fica bloqueado já na detecção.
-  const duplicates = await guarded(fail, "duplicate-titles", "títulos duplicados", () => blockDuplicateTitles(rest), { blocked: 0, failed: 0 });
+  const duplicates = await guarded(round, "duplicate-titles", "títulos duplicados", () => blockDuplicateTitles(rest), { blocked: 0, failed: 0 });
   // #157 (#157) O pedido ao fornecedor sem resposta depois do prazo vira no_reply, sem o Claude: a regra roda mesmo sem credencial.
   // #157 Vai antes da rodada do Claude; a cobrança é montada pela própria varredura (#157).
   const overdueRequests = await markOverdueRequests(rest, fail);
   // #171 O Claude vai por último: é periférico, e a captura (o caminho crítico) fica com os subrequests da
   // invocação. As sugestões que ele grava aqui a próxima rodada lê. Falha fechada: a regra decide sozinha.
   // #311 Recebe o fetch contado da invocação; a rodada com alguma tarefa falha (ou que desistiu de todas) conta como passo falho.
-  await guarded(fail, "claude", "rodada do Claude", async () => {
-    const round = await runClaudeRound(rest, env, { fetch });
+  await guarded(round, "claude", "rodada do Claude", async () => {
+    const round = await runClaudeRound(rest, env, { fetch: counter.fetch });
     if (round.failedTasks.length > 0) fail("claude");
   }, undefined);
   // #41 O motor de decisão também é periférico e falha sozinho. #42 Com a delegação do analista ligada, aprova; a
   // ação aprovada pelo motor chega à doca na varredura da próxima rodada (`publishDock`), como a que falhou agora.
+  const refusedBeforeEngine = counter.refused();
   const engine = await runEngine(rest, env, fail);
+  // #311 O motor guarda o erro da avaliação e segue: uma chamada recusada por falta de orçamento é passo falho do mesmo jeito.
+  if (counter.refused() > refusedBeforeEngine) fail("engine");
   const engineEvaluated = engine.evaluated;
   console.log(
     `cron: execução agendada (${controller.cron}); notas vistas ${result.seen}, novas ${result.inserted}, conferidas ${result.checked}, com erro ${result.failed}, propostas ${proposals.proposed}, aprovadas pela regra ${proposals.approvedByRule}, cadastro E8 ${cadastroE8}, ações publicadas na doca ${dock}, ações publicadas no app da loja ${storeActions}, devoluções publicadas ${returnNotes}, pedidos ao fornecedor atrasados ${overdueRequests}, títulos duplicados bloqueados ${duplicates.blocked}, com falha ${duplicates.failed}, avaliadas pelo motor ${engineEvaluated}, aprovadas pelo motor ${engine.approved}; recebimentos sem nota [${unreconciled.noKey.join(", ")}], com chave sem nota [${unreconciled.keyWithoutInvoice.join(", ")}]; passos com falha [${failedSteps.join(", ")}]`,
@@ -316,6 +333,9 @@ async function markOverdueRequests(rest: SupabaseRest, fail: Fail): Promise<numb
 /** #311 Registra o passo periférico que falhou (o nome fixo vai para automation_runs.failed_steps). */
 type Fail = (step: string) => void;
 
+/** #311 O que um passo periférico recebe da rodada: onde registrar a falha e o contador, que diz se ainda há orçamento. */
+type Round = { fail: Fail; counter: SubrequestCounter };
+
 /** #311 O que o log e a gravação dizem de um erro: só o status do banco ou a classe, nunca a mensagem (pode trazer a resposta do banco). */
 function reasonOf(error: unknown): string {
   return error instanceof SupabaseRestError ? `HTTP ${error.status}` : errorClass(error);
@@ -323,13 +343,23 @@ function reasonOf(error: unknown): string {
 
 /**
  * #311 Roda um passo periférico da rodada: se lança, registra o nome em `fail` e uma linha só com a classe ou o status, devolve o
- * `fallback` e a rodada segue para os passos seguintes. A captura não passa por aqui: ela é o caminho crítico.
+ * `fallback` e a rodada segue para os passos seguintes. Sem orçamento de subrequests (só a reserva da gravação restou), o passo nem
+ * começa: entra em failed_steps com a linha de log. Um passo que engole a chamada recusada por dentro (guarda o erro e segue) também
+ * conta como falho. A captura não passa por aqui: ela é o caminho crítico.
  */
-async function guarded<T>(fail: Fail, step: string, what: string, run: () => Promise<T>, fallback: T): Promise<T> {
+async function guarded<T>(round: Round, step: string, what: string, run: () => Promise<T>, fallback: T): Promise<T> {
+  if (round.counter.deny()) {
+    round.fail(step);
+    console.log(`cron: ${what}: passo pulado (sem orçamento de subrequests); a próxima rodada repete`);
+    return fallback;
+  }
+  const refusedBefore = round.counter.refused();
   try {
-    return await run();
+    const result = await run();
+    if (round.counter.refused() > refusedBefore) round.fail(step);
+    return result;
   } catch (error) {
-    fail(step);
+    round.fail(step);
     console.log(`cron: ${what} indisponível (${reasonOf(error)}); a próxima rodada repete`);
     return fallback;
   }

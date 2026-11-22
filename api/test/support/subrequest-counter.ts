@@ -4,6 +4,9 @@ import type { FetchFn } from '../../src/connectors/supabase-rest.js';
 
 export const SUBREQUEST_CAP = 50;
 
+/** #311 O teto que o tick recebe quando o teste mede ou exercita a rodada inteira, sem o orçamento dos 50 a cortá-la. */
+export const UNCAPPED = 10_000;
+
 export type SubrequestCounter = {
   readonly fetch: FetchFn;
   /** #311 As subrequests tentadas até agora (inclui as que passaram do teto e lançaram). */

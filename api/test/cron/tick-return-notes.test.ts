@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { tick } from '../../src/cron/tick.js';
+import { UNCAPPED } from '../support/subrequest-counter.js';
 import { DockAction } from '../../src/domain/index.js';
 import { FakePostgrest } from '../support/fake-postgrest.js';
 import { kitTables } from '../support/kit.js';
@@ -22,8 +23,8 @@ async function afterFirstRound() {
   vi.stubGlobal('fetch', fake.fetch);
   const log = vi.spyOn(console, 'log').mockImplementation(() => {});
   const error = vi.spyOn(console, 'error').mockImplementation(() => {});
-  await tick(CRON, ENV);
-  return { fake, log, error, round: () => tick(CRON, ENV), queued: () => fake.rows('outbox_return_notes') };
+  await tick(CRON, ENV, UNCAPPED);
+  return { fake, log, error, round: () => tick(CRON, ENV, UNCAPPED), queued: () => fake.rows('outbox_return_notes') };
 }
 
 const keyOf = (p: Row): string => String(p.invoice_access_key);
