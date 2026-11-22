@@ -19,11 +19,21 @@ import type { Env } from '../env.js';
 import type { Identity } from './access.js';
 
 /** #354 O cursor é um instante ISO 8601 com fuso, o que `at` devolve. */
-const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
+const ISO_INSTANT = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(?:Z|[+-](\d{2}):(\d{2}))$/;
+
+/** #354 Só passa o que o Postgres aceita: o dia existe no calendário e hora, minuto, segundo e fuso estão na faixa. */
+function isValidSince(text: string): boolean {
+  const m = ISO_INSTANT.exec(text);
+  if (m === null) return false;
+  const field = (index: number): number => Number(m[index] ?? 0);
+  const [year, month, day, hour, minute, second, offsetHour, offsetMinute] = [1, 2, 3, 4, 5, 6, 7, 8].map(field) as [number, number, number, number, number, number, number, number];
+  const existsOnCalendar = month >= 1 && month <= 12 && day >= 1 && day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return existsOnCalendar && hour <= 23 && minute <= 59 && second <= 59 && offsetHour <= 23 && offsetMinute <= 59 && !Number.isNaN(Date.parse(text));
+}
 
 export async function live(_identity: Identity, request: Request, env: Env): Promise<Response> {
   const raw = new URL(request.url).searchParams.get('since');
-  if (raw !== null && (!ISO_INSTANT.test(raw) || Number.isNaN(Date.parse(raw)))) {
+  if (raw !== null && !isValidSince(raw)) {
     return Response.json({ error: 'since_invalido' }, { status: 400 });
   }
   // #354 O cursor segue como a tela o mandou (o texto do banco, com microssegundos): normalizar em milissegundos pularia passos.

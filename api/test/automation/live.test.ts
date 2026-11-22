@@ -150,7 +150,18 @@ describe('#354/AC-2 since devolve só o que foi gravado depois', () => {
     expect(body).toMatchObject({ events: [], since: null });
   });
 
-  it.each(['ontem', '2026-11-16', '2026-13-45T10:00:00Z', ''])('#354/AC-2 since inválido (%j) responde 400 since_invalido', async (since) => {
+  it.each([
+    'ontem',
+    '2026-11-16',
+    '2026-13-45T10:00:00Z',
+    '2026-04-31T10:00:00Z',
+    '2026-02-30T10:00:00Z',
+    '2026-11-22T25:00:00Z',
+    '2026-11-22T10:60:00Z',
+    '2026-11-22T10:00:60Z',
+    '2026-11-22T10:00:00+24:00',
+    '',
+  ])('#354/AC-2 since inválido (%j) responde 400 since_invalido', async (since) => {
     const res = await call(new FakePostgrest(world()), `/api/ao-vivo?since=${encodeURIComponent(since)}`);
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: 'since_invalido' });
