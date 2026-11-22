@@ -1,6 +1,6 @@
 // #311 A invocação própria do dossiê (o terceiro cron de api/wrangler.jsonc, src/cron/schedule.ts). O dossiê saiu do tick de
 // 15 minutos porque o tick já passa dos 50 subrequests antes de chegar nele (a causa da #311): aqui ele tem o teto só para si.
-import { credentialsFromEnv } from '../claude/client.js';
+import { credentialsFromEnv, type ClaudeCredentials } from '../claude/client.js';
 import { restDb } from '../claude/db.js';
 import { keyStates } from '../claude/runner.js';
 import { needsDossier } from '../claude/tasks/dossier.js';
@@ -79,7 +79,7 @@ export async function dispatchDossiers(env: Env, rest: SupabaseRest, captureDeps
       console.log(`cron: dossiês não gerados (no_credentials): sem credencial do Claude no Worker; ${batch.length} pedidos registrados em erro`);
       return;
     }
-    await generateBatch(env, rest, captureDeps, requests, batch, pendingIds, busy);
+    await generateBatch({ credentials, secretKey: env.BARTE_ACADEMY_SUPABASE_SECRET_KEY, rest, captureDeps, requests }, batch, pendingIds, busy);
   } catch (error) {
     const status = error instanceof SupabaseRestError ? `HTTP ${error.status}` : 'falha na leitura';
     console.log(`cron: dossiês não disparados nesta invocação (${status}); a próxima tenta de novo`);
@@ -105,23 +105,26 @@ async function settleMootPending(
   await requests.closePending(gone, now, { status: 'done', reason: 'not_needed' });
 }
 
+type BatchDeps = {
+  readonly credentials: ClaudeCredentials;
+  readonly secretKey: string | undefined;
+  readonly rest: SupabaseRest;
+  readonly captureDeps: CaptureDeps;
+  readonly requests: SupabaseDossierRequests;
+};
+
 /** #38 O mesmo Claude do sob demanda, com o uso de tokens que vai para a coluna usage; um disparo por vez, parando no primeiro erro global. */
 async function generateBatch(
-  env: Env,
-  rest: SupabaseRest,
-  captureDeps: CaptureDeps,
-  requests: SupabaseDossierRequests,
+  { credentials, secretKey, rest, captureDeps, requests }: BatchDeps,
   batch: readonly InvoiceView[],
   pendingIds: ReadonlyMap<string, number>,
   busy: ReadonlySet<string>,
 ): Promise<void> {
-  const credentials = credentialsFromEnv(env);
-  if (!credentials) return;
   const secret = credentials.kind === 'api-key' ? credentials.apiKey : credentials.token;
-  const secrets = [secret, env.BARTE_ACADEMY_SUPABASE_SECRET_KEY ?? ''];
+  const secrets = [secret, secretKey ?? ''];
   const askWithUsage = onDemandAskWithUsage(credentials);
   const db = restDb(rest);
-  // Um contexto só por invocação (sete leituras), lido no primeiro disparo: cada nota sai da própria lista de capturadas.
+  // Um contexto só por invocação (13 leituras), lido no primeiro disparo: cada nota sai da própria lista de capturadas.
   let shared: ReturnType<typeof loadDossierContext> | undefined;
   const context = async (key: string) => {
     shared ??= loadDossierContext(captureDeps, '');

@@ -144,7 +144,7 @@ export class SupabaseDossierRequests implements DossierRequests {
   }
 
   async open(request: NewRequest): Promise<number> {
-    const rows = await this.rest.insert(TABLE, [{ ...request, trigger: triggerOf(request as DossierRequest), status: 'running', finished_at: null }], {
+    const rows = await this.rest.insert(TABLE, [{ ...request, trigger: request.trigger ?? 'on_demand', status: 'running', finished_at: null }], {
       ignoreDuplicates: false,
     });
     // #130 return=representation: a linha volta com o id da identidade.
