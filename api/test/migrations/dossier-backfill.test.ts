@@ -1,6 +1,6 @@
 // #311 AC-4 A migração de backfill, lida como texto: não há Postgres no `make check` (a prova num banco de verdade é
-// scripts/testar_migracoes_postgres.sh, que o CI não roda). Aqui só o que dá para garantir sem banco: o formato que a torna idempotente
-// e os mesmos critérios de `needsDossier`.
+// #311 scripts/testar_migracoes_postgres.sh, que o CI não roda). Aqui só o que dá para garantir sem banco: o formato que a torna idempotente
+// #311 e os mesmos critérios de `needsDossier`.
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 

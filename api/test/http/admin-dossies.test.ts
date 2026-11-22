@@ -1,5 +1,5 @@
 // #311 GET /api/admin/dossies: o que o administrador precisa para ver o dossiê automático sem acesso ao banco: as contagens
-// por gatilho e status e os pedidos pendentes ou com erro. Sem e-mail de quem pediu, sem a saída do Claude.
+// #311 por gatilho e status e os pedidos pendentes ou com erro. Sem e-mail de quem pediu, sem a saída do Claude.
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createWorker } from '../../src/index.js';
 import type { Env } from '../../src/env.js';
@@ -109,8 +109,8 @@ describe('#311 GET /api/admin/dossies', () => {
 
   it('sem a variável de administradores, ninguém passa (fail-closed)', async () => {
     serve();
-    const { BARTE_ACADEMY_ADMIN_EMAILS: _omit, ...semAdmin } = env;
-    expect((await call({ env: semAdmin })).status).toBe(403);
+    const { BARTE_ACADEMY_ADMIN_EMAILS: _omit, ...withoutAdmins } = env;
+    expect((await call({ env: withoutAdmins })).status).toBe(403);
   });
 
   it('método errado: 405 com Allow GET', async () => {
@@ -122,8 +122,8 @@ describe('#311 GET /api/admin/dossies', () => {
 
   it('sem as credenciais do Supabase: 503', async () => {
     serve();
-    const { BARTE_ACADEMY_SUPABASE_URL: _u, BARTE_ACADEMY_SUPABASE_SECRET_KEY: _k, ...semSupabase } = env;
-    expect((await call({ env: semSupabase })).status).toBe(503);
+    const { BARTE_ACADEMY_SUPABASE_URL: _u, BARTE_ACADEMY_SUPABASE_SECRET_KEY: _k, ...withoutSupabase } = env;
+    expect((await call({ env: withoutSupabase })).status).toBe(503);
   });
 
   it('erro do Supabase: 502 genérico, sem o texto do erro na resposta e só operação, tabela e status no log', async () => {

@@ -1,5 +1,5 @@
 // #311 O mundo dos testes do dossiê agendado: o kit inteiro já capturado e proposto (o tick sem credencial do Claude),
-// o Claude falso e a invocação do cron do dossiê com o fetch que conta as subrequests.
+// #311 o Claude falso e a invocação do cron do dossiê com o fetch que conta as subrequests.
 import { vi } from 'vitest';
 import { CLAUDE_CRON, DOSSIER_CRON, dispatchScheduled } from '../../src/cron/schedule.js';
 import type { Env } from '../../src/env.js';

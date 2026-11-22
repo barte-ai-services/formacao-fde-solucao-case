@@ -1,5 +1,5 @@
 // #311 O teto de subrequests de uma invocação do Worker (plano gratuito: 50): o fetch que conta cada chamada, PostgREST e
-// Messages API juntas, e lança a partir da 51ª, como o runtime faz.
+// #311 Messages API juntas, e lança a partir da 51ª, como o runtime faz.
 import type { FetchFn } from '../../src/connectors/supabase-rest.js';
 
 export const SUBREQUEST_CAP = 50;

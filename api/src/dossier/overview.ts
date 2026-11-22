@@ -1,6 +1,6 @@
 // #311 O que o administrador vê do dossiê automático em GET /api/admin/dossies: as contagens das sugestões por gatilho e status e os
-// pedidos que ainda esperam (pending) ou que falharam (error). Só colunas nomeadas: nada de saída do Claude, entrada, texto do erro nem
-// quem pediu (requested_by é e-mail).
+// #311 pedidos que ainda esperam (pending) ou que falharam (error). Só colunas nomeadas: nada de saída do Claude, entrada, texto do erro nem
+// #311 quem pediu (requested_by é e-mail).
 import { isString, nullable, oneOf, parseRows, shaped, type Shape } from '../connectors/guards.js';
 import type { SupabaseRest } from '../connectors/supabase-rest.js';
 import { DOSSIER_TASK } from './source.js';

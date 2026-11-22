@@ -15,16 +15,16 @@ import type { Identity } from './access.js';
 const RECONFERIR_PATH = '/api/admin/reconferir';
 const CONFIRMATION = 'RECONFERIR';
 
-const DOSSIES_PATH = '/api/admin/dossies';
+const DOSSIERS_PATH = '/api/admin/dossies';
 
 const fail = (status: number, error: string, headers?: HeadersInit) => Response.json({ error }, { status, headers });
 
 /** Devolve nulo quando o caminho não é de administração, para o roteador seguir. */
 export async function adminRoutes(request: Request, identity: Identity, env: Env): Promise<Response | null> {
   const path = new URL(request.url).pathname;
-  if (path !== RECONFERIR_PATH && path !== DOSSIES_PATH) return null;
+  if (path !== RECONFERIR_PATH && path !== DOSSIERS_PATH) return null;
   if (!isAdmin(env.BARTE_ACADEMY_ADMIN_EMAILS, identity.email)) return fail(403, 'forbidden');
-  if (path === DOSSIES_PATH) return dossiesRoute(request, env);
+  if (path === DOSSIERS_PATH) return dossiersRoute(request, env);
   if (request.method !== 'POST') return fail(405, 'method_not_allowed', { Allow: 'POST' });
   // Muda estado e o Access também aceita o cookie: só JSON, que força o preflight de CORS que o Worker não responde.
   if (!request.headers.get('Content-Type')?.toLowerCase().startsWith('application/json')) {
@@ -61,7 +61,7 @@ export async function adminRoutes(request: Request, identity: Identity, env: Env
 }
 
 /** #311 GET /api/admin/dossies: 405 com Allow GET, 503 sem Supabase, 502 genérico quando o banco falha (o log leva só a operação, a tabela e o status). */
-async function dossiesRoute(request: Request, env: Env): Promise<Response> {
+async function dossiersRoute(request: Request, env: Env): Promise<Response> {
   if (request.method !== 'GET') return fail(405, 'method_not_allowed', { Allow: 'GET' });
   const url = env.BARTE_ACADEMY_SUPABASE_URL;
   const secretKey = env.BARTE_ACADEMY_SUPABASE_SECRET_KEY;

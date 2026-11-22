@@ -242,7 +242,6 @@ describe('#130 #38 AC-1 o evento abre o pedido que a gaveta lê como Gerando', (
   it('abre a linha com trigger event e requested_by claude antes do Claude, e a fecha no fim', async () => {
     const { invoice, db, context, requests, fake } = await setup();
     let during: unknown[] = [];
-    // #311 dublê: só o contrato usado (a pergunta ao Claude), não o AskWithUsage inteiro.
     const ask = vi.fn(async () => {
       during = (fake.tables.get('dossier_requests') ?? []).map((r) => ({ ...r }));
       return { value: kitGoodRaw(), usage: null };
@@ -363,10 +362,11 @@ describe('#311/AC-4 o pedido pending é reivindicado pelo disparo, no lugar do o
     const { invoice, db, context, requests, fake } = await setup();
     fake.tables.set('dossier_requests', [pendingRow(41)]);
     let during: unknown;
+    // #311 dublê: só o contrato usado (a pergunta ao Claude), não o AskWithUsage inteiro.
     const ask = vi.fn(async () => {
       during = { ...(fake.tables.get('dossier_requests') ?? [])[0] };
       return { value: kitGoodRaw(), usage: null };
-    }) as unknown as AskWithUsage;
+    }) as unknown as AskWithUsage; // #311 dublê: só o contrato usado (a pergunta ao Claude), não o AskWithUsage inteiro.
     const now = new Date('2026-11-22T12:00:00.000Z');
     await generateOnEvent({ db, askWithUsage: ask, context, requests, now: () => now }, invoice, 41);
     expect(during).toMatchObject({ id: 41, status: 'running', requested_at: now.toISOString(), finished_at: null });

@@ -169,7 +169,7 @@ async function callAndStore(
   }
   await deps.db.upsert(TABLE, [suggestionRow(deps, key, input, result, usage, prev, clock, started)], {
     // #38 AC-6 Sem linha: ignore, para que uma corrida com outro disparo não sobrescreva. Com linha de erro:
-    // merge, a retentativa refaz a mesma linha.
+    // #38 merge, a retentativa refaz a mesma linha.
     onConflict: 'task,input_key',
     resolution: prev ? 'merge' : 'ignore',
   });
