@@ -404,7 +404,13 @@ export class FakePostgrest {
     // #156 is.null: a coluna sem valor.
     if (expr === 'is.null') return row[col] === null || row[col] === undefined;
     // #157 gt.: maior que, para ids numéricos (a mensagem mais nova); a coluna sem valor nunca é maior.
-    if (expr.startsWith('gt.')) return typeof row[col] === 'number' && row[col] > Number(expr.slice(3));
+    if (expr.startsWith('gt.')) {
+      if (typeof row[col] === 'number') return row[col] > Number(expr.slice(3));
+      // #354 gt. em instante (started_at, decided_at, approved_at): o cursor do ao vivo; a coluna sem valor nunca é maior.
+      return typeof row[col] === 'string' && Date.parse(row[col]) > Date.parse(expr.slice(3));
+    }
+    // #354 neq.: diferente (a coluna sem valor também é diferente, como no PostgREST para texto não nulo).
+    if (expr.startsWith('neq.')) return String(row[col]) !== expr.slice(4);
     if (expr.startsWith('gte.')) return !(Date.parse(String(row[col])) < Date.parse(expr.slice(4)));
     // #156 lt.: menor que, em instantes (a coluna sem valor nunca é menor).
     if (expr.startsWith('lt.')) return row[col] !== null && row[col] !== undefined && Date.parse(String(row[col])) < Date.parse(expr.slice(3));

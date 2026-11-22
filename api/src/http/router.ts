@@ -13,6 +13,7 @@ import { adminRoutes } from "./admin";
 import { automation } from "./automation";
 import { barredAmount } from "./barred-amount";
 import { engineAgreement } from "./engine";
+import { live } from "./live";
 import { returnNoteRoutes, type ReturnNotesDeps } from "./return-notes";
 import { supplierRequestRoutes, type SupplierRequestsDeps } from "./supplier-requests";
 
@@ -36,6 +37,7 @@ function protectedRoutes(deps: RouterDeps): Record<string, Record<string, Protec
     "/me": { GET: me },
     "/api/valor-barrado": { GET: barredAmount },
     "/api/automacao": { GET: automation },
+    "/api/ao-vivo": { GET: live },
     "/api/motor/acerto": { GET: engineAgreement },
     "/api/doca": { GET: (_identity, request, env) => dock(request, env) },
     "/api/recebimento-loja": { GET: (_identity, request, env) => storeReceiving(request, env) },

@@ -3,7 +3,8 @@ import { isInteger, isString, nullable, oneOf, optional, parseRows, shaped, type
 import { ENGINE_APPROVER } from '../domain/approval.js';
 import type { SupabaseRest } from '../connectors/supabase-rest.js';
 import type { DossierSource } from '../dossier/source.js';
-import type { DecidedBy, DecisionRecord } from './indicators.js';
+import { computeIndicators, type DecidedBy, type DecisionRecord } from './indicators.js';
+import { todayInBrasilia } from '../http/approval.js';
 import type { TimelineTimes } from './timeline.js';
 
 const ACCESS_KEY = /^[A-Za-z0-9-]+$/;
@@ -59,6 +60,65 @@ export async function readDecisionRecords(rest: SupabaseRest, monthStart: string
     if (capturedAt === undefined) return [];
     return [{ capturedAt, decidedAt: a.approved_at, by: decidedBy(a) }];
   });
+}
+
+/** #211 Os indicadores do dia e do mês, da rodada e da lista: a mesma leitura para `/api/automacao` e `/api/ao-vivo` (#354). */
+export async function readIndicators(rest: SupabaseRest, now: Date) {
+  return computeIndicators(await readDecisionRecords(rest, `${todayInBrasilia(now).slice(0, 7)}-01`), now);
+}
+
+/** #354 Uma aprovação de pessoa, do mais novo ao mais velho. */
+export type PersonApproval = { readonly proposalId: number; readonly approver: string; readonly approvedAt: string };
+
+/**
+ * #354 As aprovações em que uma pessoa decidiu (nem a regra, nem o motor), depois de `afterIso` quando vem. O filtro
+ * de quem decidiu vai na consulta; `decidedBy` confere de novo, com a coluna `approved_by` quando ela existe.
+ */
+export async function readPersonApprovals(rest: SupabaseRest, limit: number, afterIso?: string): Promise<PersonApproval[]> {
+  const rows = await rest.select('approvals', {
+    select: '*',
+    filters: { approver_level: 'neq.regra', approver: `neq.${ENGINE_APPROVER}`, ...(afterIso !== undefined && { approved_at: `gt.${afterIso}` }) },
+    order: 'approved_at.desc',
+    limit,
+  });
+  return parseRows(rows, isDecisionApproval, 'approvals')
+    .filter((a) => decidedBy(a) === 'person')
+    .map((a) => ({ proposalId: a.proposal_id, approver: a.approver, approvedAt: a.approved_at }));
+}
+
+/** #354 A nota que o passo cita: a chave de acesso (por onde a gaveta abre) e o número, quando a nota está no banco. */
+export type InvoiceRef = { readonly access_key: string; readonly number: string | null };
+
+/** #354 As notas dos passos, de uma vez: pela chave de acesso e pelo id da proposta. A chave fora do formato fica de fora. */
+export async function readInvoiceRefs(
+  rest: SupabaseRest,
+  keys: readonly string[],
+  proposalIds: readonly number[],
+): Promise<{ byKey: Map<string, InvoiceRef>; byProposal: Map<number, InvoiceRef> }> {
+  const proposals =
+    proposalIds.length === 0
+      ? []
+      : parseRows(
+          await rest.select('proposals', { select: 'id,invoice_access_key', filters: { id: `in.(${[...new Set(proposalIds)].join(',')})` } }),
+          shaped<{ id: number; invoice_access_key: string }>({ id: isInteger, invoice_access_key: isString }),
+          'proposals',
+        );
+  const keyOf = new Map(proposals.map((p) => [p.id, p.invoice_access_key]));
+  const all = [...new Set([...keys, ...keyOf.values()])].filter((k) => ACCESS_KEY.test(k));
+  const invoices =
+    all.length === 0
+      ? []
+      : parseRows(
+          await rest.select('invoices', { select: 'access_key,number', filters: { access_key: `in.(${all.map((k) => `"${k}"`).join(',')})` } }),
+          shaped<{ access_key: string; number: string }>({ access_key: isString, number: isString }),
+          'invoices',
+        );
+  const numbers = new Map(invoices.map((i) => [i.access_key, i.number]));
+  const refOf = (key: string): InvoiceRef => ({ access_key: key, number: numbers.get(key) ?? null });
+  return {
+    byKey: new Map(all.map((k) => [k, refOf(k)])),
+    byProposal: new Map([...keyOf].filter(([, k]) => ACCESS_KEY.test(k)).map(([id, k]) => [id, refOf(k)])),
+  };
 }
 
 /** #211 AC-4 De onde a proposta tira os horários da linha do tempo. */

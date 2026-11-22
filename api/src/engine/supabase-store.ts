@@ -337,6 +337,21 @@ export class SupabaseEngineStore implements EngineStore, EngineReader {
     return parseRows(rows, isDecisionRow, 'engine_decisions').map(decisionFromRow);
   }
 
+  /**
+   * #354 Os passos mais novos da cascata (regra ou Clef), nos dois modos, do mais novo ao mais velho; com `afterIso`,
+   * só os decididos depois dele. A linha que a cascata deixou para a pessoa (`decided_by = person`) não entra: a
+   * decisão da pessoa está em approvals.
+   */
+  async recentCascade(limit: number, afterIso?: string): Promise<StoredDecision[]> {
+    const rows = await this.rest.select('engine_decisions', {
+      select: DECISION_COLUMNS,
+      filters: { role: 'eq.cascade', decided_by: 'in.(rule,clef)', ...(afterIso !== undefined && { decided_at: `gt.${afterIso}` }) },
+      order: 'decided_at.desc',
+      limit,
+    });
+    return parseRows(rows, isDecisionRow, 'engine_decisions').map(decisionFromRow);
+  }
+
   /** #41 AC-5 A classificação e o estado das propostas, em leituras de até 100 notas. */
   async proposals(invoiceAccessKeys: readonly string[]): Promise<ProposalOutcomeRow[]> {
     const keys = [...new Set(invoiceAccessKeys)].filter(isAccessKey);
