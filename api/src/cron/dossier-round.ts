@@ -2,7 +2,7 @@
 // 15 minutos porque o tick já passa dos 50 subrequests antes de chegar nele (a causa da #311): aqui ele tem o teto só para si.
 import { credentialsFromEnv, type ClaudeCredentials } from '../claude/client.js';
 import { restDb } from '../claude/db.js';
-import { keyStates } from '../claude/runner.js';
+import { keyStates, type KeyState } from '../claude/runner.js';
 import { needsDossier } from '../claude/tasks/dossier.js';
 import { SupabaseApprovalStore } from '../approval/supabase-store.js';
 import type { CaptureDeps } from './capture.js';
@@ -20,7 +20,7 @@ import type { Env } from '../env.js';
  * leituras 8 (os pedidos da janela 1, as sugestões do dossiê 1, as propostas que esperam 6) + o contexto do dossiê 13 (lido uma vez, no primeiro
  * disparo; medido, eram 13 leituras dos conectores e não as 7 que o comentário antigo dizia) + por disparo 5 (a linha anterior, a reivindicação ou
  * o `open` do pedido, a pergunta ao Claude, a gravação da linha, o fim do pedido). A pergunta ao Claude é uma volta só (sem tools, `maxTurns` 1 em
- * claude/client.ts). Com 5: 8 + 13 + 25 = 46; fechar pendentes que perderam o sentido custa até 2 PATCH, 48. Com 6 seriam 51 e passariam do teto.
+ * claude/client.ts). Com 5: 8 + 13 + 25 = 46; fechar pendentes que perderam o sentido custa até 3 PATCH, 49. Com 6 seriam 52 e passariam do teto.
  * Cada leitura de lista passa de 1000 linhas ganha uma página a mais (supabase-rest): a conta vale enquanto a tabela lida tem menos que isso.
  * O que passar do teto não fica esquecido: a próxima invocação (a cada 15 minutos) pega.
  */
@@ -50,7 +50,7 @@ function activeBackoff(window: readonly DossierRequest[], now: Date, hasCredenti
  * (`running`, #130). No máximo DOSSIER_EVENT_LIMIT por invocação: sem loop.
  *
  * Sem credencial do Claude no Worker: uma linha `error`/`no_credentials` por chave do lote, num insert só, e nenhuma chamada.
- * Falha de leitura aqui é registrada, só com o status, e não quebra a invocação.
+ * Falha de leitura ou de escrita aqui é registrada, só com o status ou a classe do erro, e não quebra a invocação.
  */
 export async function dispatchDossiers(env: Env, rest: SupabaseRest, captureDeps: CaptureDeps): Promise<void> {
   try {
@@ -81,19 +81,21 @@ export async function dispatchDossiers(env: Env, rest: SupabaseRest, captureDeps
     }
     await generateBatch({ credentials, secretKey: env.BARTE_ACADEMY_SUPABASE_SECRET_KEY, rest, captureDeps, requests }, batch, pendingIds, busy);
   } catch (error) {
-    const status = error instanceof SupabaseRestError ? `HTTP ${error.status}` : 'falha na leitura';
-    console.log(`cron: dossiês não disparados nesta invocação (${status}); a próxima tenta de novo`);
+    // #311 Só o status ou a classe do erro vão para o log, nunca o texto (pode trazer a resposta do banco).
+    const status = error instanceof SupabaseRestError ? `HTTP ${error.status}` : error instanceof Error ? error.name : 'unknown';
+    console.log(`cron: dossiês não disparados nesta invocação (falha ${status}); a próxima tenta de novo`);
   }
 }
 
 /**
- * #311 AC-4 Fecha, em até dois PATCH, os `pending` que já não têm o que fazer: o da nota com dossiê ok (done) e o da proposta
- * que deixou de esperar uma pessoa (done, `not_needed`). Sem isso o pendente do backfill ficaria na lista do administrador para sempre.
+ * #311 AC-4 Fecha, em até três PATCH, os `pending` que já não têm o que fazer: o da nota com dossiê ok (done), o da proposta
+ * que deixou de esperar uma pessoa (done, `not_needed`) e o da chave esgotada (MAX_ATTEMPTS erros: error, `claude_failed`,
+ * porque ela nunca mais entra no lote). Sem isso o pendente do backfill ficaria na lista do administrador para sempre.
  */
 async function settleMootPending(
   requests: SupabaseDossierRequests,
   window: readonly DossierRequest[],
-  states: ReadonlyMap<string, 'ok' | 'skip' | 'retry'>,
+  states: ReadonlyMap<string, KeyState>,
   needing: readonly InvoiceView[],
   now: Date,
 ): Promise<void> {
@@ -101,8 +103,10 @@ async function settleMootPending(
   const needed = new Set(needing.map((i) => i.accessKey));
   const ready = pending.filter((key) => states.get(key) === 'ok');
   const gone = pending.filter((key) => states.get(key) !== 'ok' && !needed.has(key));
+  const exhausted = pending.filter((key) => states.get(key) === 'exhausted' && needed.has(key));
   await requests.closePending(ready, now, { status: 'done' });
   await requests.closePending(gone, now, { status: 'done', reason: 'not_needed' });
+  await requests.closePending(exhausted, now, { status: 'error', reason: 'claude_failed' });
 }
 
 type BatchDeps = {
@@ -124,7 +128,7 @@ async function generateBatch(
   const secrets = [secret, secretKey ?? ''];
   const askWithUsage = onDemandAskWithUsage(credentials);
   const db = restDb(rest);
-  // Um contexto só por invocação (13 leituras), lido no primeiro disparo: cada nota sai da própria lista de capturadas.
+  // #311 Um contexto só por invocação (13 leituras), lido no primeiro disparo: cada nota sai da própria lista de capturadas.
   let shared: ReturnType<typeof loadDossierContext> | undefined;
   const context = async (key: string) => {
     shared ??= loadDossierContext(captureDeps, '');

@@ -57,7 +57,7 @@ O dossiê das propostas que esperam uma pessoa tem o próprio cron (`11-59/15 * 
 subrequests da invocação só para ele. Antes ele rodava no fim do tick de 15 minutos, que já passa dos 50 antes de chegar
 lá (172 no kit inteiro), e o disparo caía no teto sem deixar rastro.
 
-- **Orçamento:** 8 leituras + 13 do contexto + 5 por disparo, no máximo 5 disparos: 46 subrequests, 48 se fechar pendentes
+- **Orçamento:** 8 leituras + 13 do contexto + 5 por disparo, no máximo 5 disparos: 46 subrequests, 49 se fechar pendentes (até 3 PATCH: dossiê já ok, proposta que não espera mais e chave esgotada, que fecha em `error`/`claude_failed`)
   (`test/cron/dossier-budget.test.ts` mede). O que passa do teto fica para a invocação seguinte.
 - **Rastro:** cada pedido em `dossier_requests` tem `status` (`pending`, `running`, `done`, `error`) e `reason`, um código
   (`no_credentials`, `rate_limited`, `auth_refused`, `claude_failed`, `storage_failed`, `not_needed`), nunca texto livre.

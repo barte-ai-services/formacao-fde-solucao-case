@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AUDIT_CRON, CLAUDE_CRON, DOSSIER_CRON, auditTick, dispatchScheduled, dossierTick } from '../../src/cron/schedule.js';
+import { isRecord } from '../../src/connectors/guards.js';
 import type { Env } from '../../src/env.js';
 import { harness } from '../supplier/supabase-support.js';
 
@@ -66,11 +67,12 @@ describe('#333 o scheduled despacha pelo cron que disparou', () => {
   it('#333/AC-2: os nomes dos crons são os do wrangler.jsonc, e o do auditor é deslocado do de 15 minutos', () => {
     const text = readFileSync(new URL('../../wrangler.jsonc', import.meta.url), 'utf8');
     const json = text.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
-    const config = JSON.parse(json) as { triggers: { crons: string[] } };
+    const config: unknown = JSON.parse(json);
     expect(config).toMatchObject({ triggers: { crons: [CLAUDE_CRON, AUDIT_CRON, DOSSIER_CRON] } });
     expect(new Set([CLAUDE_CRON, AUDIT_CRON, DOSSIER_CRON]).size).toBe(3);
     // #311 O plano gratuito permite 5 cron triggers por conta (docs da Cloudflare): este Worker usa 3.
-    expect(config.triggers.crons.length).toBeLessThanOrEqual(5);
+    const crons = isRecord(config) && isRecord(config.triggers) && Array.isArray(config.triggers.crons) ? config.triggers.crons : [];
+    expect(crons.length).toBeLessThanOrEqual(5);
   });
 });
 

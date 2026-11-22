@@ -301,6 +301,28 @@ end
 $$;
 SQL
 
+echo "== #311 o backfill não enfileira a nota de dossiê esgotado, e os índices do dossiê existem"
+psql <<'SQL'
+insert into public.invoices (access_key, number, series, supplier_id, store, issued_on, entry_channel, total_cents, items, state)
+values (repeat('9', 44), '9', '1', 'F1', 'L1', '2026-11-18', 'sefaz', 1000, '[]', 'com_proposta');
+insert into public.proposals (invoice_access_key, classification, dock_action, approval_level, amount_at_risk_cents, justification, state)
+values (repeat('9', 44), 'E5', '{"kind":"receber"}', 'analista', 0, 'esgotada', 'aguardando_aprovacao');
+insert into public.claude_suggestions (task, input_key, input, status, model, error, attempts)
+values ('dossier', repeat('9', 44), '{}', 'error', 'm', 'x', 3);
+SQL
+psql -f - < "$MIGRACOES/20261122110000_dossier_backfill.sql"
+psql <<'SQL'
+do $$
+begin
+  assert (select count(*) from public.dossier_requests where input_key = repeat('9', 44)) = 0, '(#311) o backfill enfileirou a nota de dossiê esgotado';
+  assert (select count(*) from public.dossier_requests where input_key = repeat('1', 44) and status = 'pending') = 1, '(#311) o backfill perdeu o pendente da nota que ainda pode gerar';
+  assert exists (select 1 from pg_indexes where indexname = 'dossier_requests_requested_at_idx'), '(#311) falta o índice de requested_at';
+  assert exists (select 1 from pg_indexes where indexname = 'dossier_requests_open_requested_at_idx' and indexdef like '%WHERE%'), '(#311) falta o índice parcial de pending e error';
+  raise notice '(#311) ok: nota esgotada fora do backfill; índices de dossier_requests criados';
+end
+$$;
+SQL
+
 echo "== sem versão repetida"
 repetidas="$(ls "$MIGRACOES" | sed 's/_.*//' | sort | uniq -d)"
 if [ -n "$repetidas" ]; then echo "versão repetida: $repetidas" >&2; exit 1; fi

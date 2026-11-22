@@ -102,7 +102,7 @@ export async function generateOnEvent(deps: EventDossierDeps, invoice: InvoiceVi
     if (deps.busy?.has(key)) return undefined;
     const prev = await previousRow(deps.db, key);
     if (prev) {
-      if (prev.status === 'ok') return undefined; // AC-6: já há dossiê pronto.
+      if (prev.status === 'ok') return undefined; // #38 AC-6: já há dossiê pronto.
       if (prev.attempts >= MAX_ATTEMPTS) return undefined;
       if (inBackoff(prev, clock())) return undefined;
     }
@@ -168,7 +168,7 @@ async function callAndStore(
     return { closing: { status: 'error', reason }, ...(isGlobalReason(reason) ? { stop: reason } : {}) };
   }
   await deps.db.upsert(TABLE, [suggestionRow(deps, key, input, result, usage, prev, clock, started)], {
-    // Sem linha: ignore, para que uma corrida com outro disparo não sobrescreva (AC-6). Com linha de erro:
+    // #38 AC-6 Sem linha: ignore, para que uma corrida com outro disparo não sobrescreva. Com linha de erro:
     // merge, a retentativa refaz a mesma linha.
     onConflict: 'task,input_key',
     resolution: prev ? 'merge' : 'ignore',

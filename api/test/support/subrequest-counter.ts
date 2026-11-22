@@ -6,9 +6,9 @@ export const SUBREQUEST_CAP = 50;
 
 export type SubrequestCounter = {
   readonly fetch: FetchFn;
-  /** As subrequests tentadas até agora (inclui as que passaram do teto e lançaram). */
+  /** #311 As subrequests tentadas até agora (inclui as que passaram do teto e lançaram). */
   count(): number;
-  /** Método, tabela ou host de cada subrequest, na ordem, sem corpo nem cabeçalho. */
+  /** #311 Método, tabela ou host de cada subrequest, na ordem, sem corpo nem cabeçalho. */
   trail(): string[];
 };
 

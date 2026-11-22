@@ -57,4 +57,4 @@ export async function runDossierCron(
   return { counter, claudeCalls: () => claudeCalls };
 }
 
-export const eventSuggestions = (fake: FakePostgrest) => fake.rows('claude_suggestions').filter((r) => r.task === 'dossier' && r.trigger === 'event');
+export const eventSuggestions = (fake: FakePostgrest): Record<string, unknown>[] => fake.rows('claude_suggestions').filter((r) => r.task === 'dossier' && r.trigger === 'event');

@@ -12,5 +12,10 @@ alter table public.dossier_requests
 -- #311 As linhas que já existem: fechadas (finished_at) viram done, as abertas seguem running.
 update public.dossier_requests set status = 'done' where finished_at is not null;
 
--- #311 Um pendente por nota: o backfill é idempotente por este índice (insert ... on conflict do nothing).
+-- #311 Um pendente por nota: o backfill é idempotente por este índice (insert ... on conflict do nothing). Ele precisa existir
+-- antes da migração do backfill (20261122110000), que o usa no `on conflict`.
+-- #311 Por que `create unique index` sem `concurrently`: dossier_requests é pequena (dezenas de linhas, um pedido por nota) e o
+-- índice é parcial (só status = 'pending', que nesta migração ainda não tem nenhuma linha), então o lock de escrita dura milissegundos.
+-- `concurrently` não roda dentro de transação, e o `supabase db push` manda o arquivo inteiro de uma vez, que o Postgres executa como
+-- uma transação só; separar o índice em arquivo próprio não garante a saída dela.
 create unique index dossier_requests_pending_input_key_idx on public.dossier_requests (input_key) where status = 'pending';

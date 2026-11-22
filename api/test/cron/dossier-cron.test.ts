@@ -4,8 +4,11 @@
  * dossiê gera, dentro do teto, deixa rastro quando falha e dá conta das propostas que já existiam.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DOSSIER_EVENT_LIMIT } from '../../src/cron/dossier-round.js';
-import { CLAUDE_CRON, dispatchScheduled } from '../../src/cron/schedule.js';
+import { MAX_ATTEMPTS } from '../../src/claude/runner.js';
+import { dispatchDossiers, DOSSIER_EVENT_LIMIT } from '../../src/cron/dossier-round.js';
+import { CLAUDE_CRON, DOSSIER_CRON, dispatchScheduled } from '../../src/cron/schedule.js';
+import { SupabaseRest } from '../../src/connectors/supabase-rest.js';
+import { supabaseConnectors } from '../../src/connectors/supabase-connectors.js';
 import { FakePostgrest } from '../support/fake-postgrest.js';
 import { kitTables } from '../support/kit.js';
 import { countSubrequests } from '../support/subrequest-counter.js';
@@ -27,7 +30,7 @@ describe('#311 a causa: o tick de 15 minutos já gasta o teto antes do dossiê',
 
     await dispatchScheduled({ cron: CLAUDE_CRON }, WITH_CLAUDE);
 
-    // Medido em 22/11 sobre o kit inteiro: 172 subrequests no tick sem o dossiê (141 até o ponto onde o dossiê rodava). O teto é 50.
+    // #311 Medido em 22/11 sobre o kit inteiro: 172 subrequests no tick sem o dossiê (141 até o ponto onde o dossiê rodava). O teto é 50.
     expect(counter.count()).toBeGreaterThan(SUBREQUEST_CAP);
     expect(counter.trail().some((t) => t.includes('dossier_requests'))).toBe(false);
   });
@@ -129,5 +132,36 @@ describe('#311 as propostas que já existiam sem dossiê', () => {
 
     expect(fake.rows('dossier_requests').find((r) => r.id === 9100)).toMatchObject({ status: 'done', finished_at: expect.any(String) });
     expect(eventSuggestions(fake).map((r) => r.input_key)).not.toContain(key);
+  });
+
+  it('#311/AC-4: o pending de chave esgotada (error com MAX_ATTEMPTS tentativas) fecha em error/claude_failed e não fica na janela', async () => {
+    const fake = await kitAwaitingPeople();
+    const [key] = awaitingKeys(fake);
+    fake.tables.set('claude_suggestions', [{ task: 'dossier', input_key: key, input: {}, output: null, status: 'error', error: 'x', attempts: MAX_ATTEMPTS, model: 'm', updated_at: '2026-11-22T09:00:00.000Z', trigger: 'event' }]);
+    fake.tables.set('dossier_requests', [{ id: 9200, input_key: key, requested_by: 'backfill', requested_at: '2026-11-22T10:00:00.000Z', finished_at: null, trigger: 'event', status: 'pending', reason: null }]);
+
+    await runDossierCron(fake, WITH_CLAUDE);
+
+    expect(fake.rows('dossier_requests').find((r) => r.id === 9200)).toMatchObject({ status: 'error', reason: 'claude_failed', finished_at: expect.any(String) });
+    expect(eventSuggestions(fake).find((r) => r.input_key === key)).toMatchObject({ status: 'error', attempts: MAX_ATTEMPTS });
+  });
+});
+
+describe('#311 a falha que não é do Supabase aparece no log com a classe', () => {
+  it('#311/AC-3: um TypeError na invocação é logado com a classe, sem o texto do erro nem segredo', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    class BrokenRest extends SupabaseRest {
+      override select(): Promise<unknown[]> {
+        return Promise.reject(new TypeError('segredo-no-texto fake-oauth-token'));
+      }
+    }
+    const rest = new BrokenRest({ url: SUPABASE_ENV.BARTE_ACADEMY_SUPABASE_URL ?? '', secretKey: 'sb_secret_fake' });
+
+    await dispatchDossiers(WITH_CLAUDE, rest, supabaseConnectors(rest).captureDeps);
+
+    const lines = log.mock.calls.map((c) => String(c[0]));
+    expect(lines.some((l) => l.includes('TypeError') && l.includes('falha'))).toBe(true);
+    expect(lines.join('\n')).not.toContain('segredo-no-texto');
+    expect(lines.join('\n')).not.toContain('fake-oauth-token');
   });
 });

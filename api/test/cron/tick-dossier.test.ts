@@ -75,7 +75,7 @@ describe('#38 AC-1: o cron do dossiê gera o dossiê das propostas que esperam u
     expect(dossierRows(fake)).toHaveLength(DOSSIER_EVENT_LIMIT);
     await runDossierCron(fake, WITH_CLAUDE);
 
-    // As 5 do primeiro ciclo estão ok e não voltam; a segunda invocação cobre mais 5 das que esperam.
+    // #311 As 5 do primeiro ciclo estão ok e não voltam; a segunda invocação cobre mais 5 das que esperam.
     const keys = dossierRows(fake).map((r) => r.input_key);
     expect(new Set(keys).size).toBe(keys.length);
     expect(keys).toHaveLength(2 * DOSSIER_EVENT_LIMIT);

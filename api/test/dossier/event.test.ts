@@ -242,6 +242,7 @@ describe('#130 #38 AC-1 o evento abre o pedido que a gaveta lê como Gerando', (
   it('abre a linha com trigger event e requested_by claude antes do Claude, e a fecha no fim', async () => {
     const { invoice, db, context, requests, fake } = await setup();
     let during: unknown[] = [];
+    // #311 dublê: só o contrato usado (a pergunta ao Claude), não o AskWithUsage inteiro.
     const ask = vi.fn(async () => {
       during = (fake.tables.get('dossier_requests') ?? []).map((r) => ({ ...r }));
       return { value: kitGoodRaw(), usage: null };
@@ -322,6 +323,7 @@ describe('#38 #130 duas propostas no mesmo disparo: cada linha com o próprio us
 
 describe('#311 o pedido do evento fecha com o status e o motivo, no mesmo PATCH', () => {
   const requestsOf = (fake: FakePostgrest) => fake.tables.get('dossier_requests') ?? [];
+  // #311 dublê: só o contrato usado (a pergunta ao Claude), não o AskWithUsage inteiro.
   const failing = (error: Error) => vi.fn(async () => { throw error; }) as unknown as AskWithUsage;
 
   it('#311/AC-2 dossiê gravado: o pedido fecha em done, sem motivo', async () => {

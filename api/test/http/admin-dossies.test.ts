@@ -3,9 +3,11 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createWorker } from '../../src/index.js';
 import type { Env } from '../../src/env.js';
+import { isRecord } from '../../src/connectors/guards.js';
 import { FakePostgrest } from '../support/fake-postgrest.js';
 import { accessEnv, accessKit, type AccessKit } from '../support/access-token.js';
 
+// #311 dublê: só o contrato usado (o ExecutionContext que o Worker lê).
 const ctx = { waitUntil: () => {}, passThroughOnException: () => {}, props: {} } as unknown as ExecutionContext;
 const ADMIN = 'cfo@jachegou.test';
 const ANALYST_EMAIL = 'analista@jachegou.test';
@@ -60,8 +62,8 @@ describe('#311 GET /api/admin/dossies', () => {
     serve();
     const response = await call();
     expect(response.status).toBe(200);
-    const body = (await response.json()) as { suggestions: unknown[] };
-    expect(body.suggestions).toEqual([
+    const body: unknown = await response.json();
+    expect(isRecord(body) ? body.suggestions : undefined).toEqual([
       { trigger: 'event', status: 'error', count: 1 },
       { trigger: 'event', status: 'ok', count: 2 },
       { trigger: 'on_demand', status: 'ok', count: 1 },
@@ -72,9 +74,10 @@ describe('#311 GET /api/admin/dossies', () => {
     const fake = serve();
     const response = await call();
     const text = await response.text();
-    const body = JSON.parse(text) as { requests: Record<string, unknown>[] };
-    expect(body.requests.map((r) => r.input_key).sort()).toEqual(['a', 'b']);
-    expect(body.requests.find((r) => r.input_key === 'b')).toEqual({
+    const body: unknown = JSON.parse(text);
+    const requests = isRecord(body) && Array.isArray(body.requests) ? body.requests.filter(isRecord) : [];
+    expect(requests.map((r) => r.input_key).sort()).toEqual(['a', 'b']);
+    expect(requests.find((r) => r.input_key === 'b')).toEqual({
       input_key: 'b',
       trigger: 'event',
       status: 'error',
@@ -84,7 +87,7 @@ describe('#311 GET /api/admin/dossies', () => {
     });
     expect(text).not.toContain(ANALYST_EMAIL);
     expect(text).not.toContain('SEGREDO-DA-SAIDA');
-    // As colunas lidas são as nomeadas, não a linha inteira.
+    // #311 As colunas lidas são as nomeadas, não a linha inteira.
     const selects = fake.requests.map((r) => new URL(r.url).searchParams.get('select'));
     expect(selects).toEqual(expect.arrayContaining(['trigger,status']));
     expect(selects.every((s) => s !== null && s !== '*' && !/output|input,|error|requested_by/.test(s))).toBe(true);
