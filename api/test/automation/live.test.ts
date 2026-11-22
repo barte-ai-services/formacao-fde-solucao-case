@@ -161,11 +161,30 @@ describe('#354/AC-2 since devolve só o que foi gravado depois', () => {
     '2026-11-22T10:00:60Z',
     '2026-11-22T10:00:00+24:00',
     '',
+    // #354 Só o formato do cursor que a rota devolve: fuso zero (Z ou +00:00), segundos presentes, ano real.
+    '2026-11-22T10:00:00+16:00',
+    '2026-11-22T10:00:00-23:59',
+    '2026-11-22T10:00:00+03:00',
+    '2026-11-22T10:00:00+00:30',
+    '0000-01-01T00:00:00Z',
+    '0000-01-01T00:00:00+00:00',
+    '2026-11-22T10:00Z',
+    '2026-11-22T10:00+00:00',
+    '2026-11-22',
   ])('#354/AC-2 since inválido (%j) responde 400 since_invalido', async (since) => {
     const res = await call(new FakePostgrest(world()), `/api/ao-vivo?since=${encodeURIComponent(since)}`);
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: 'since_invalido' });
   });
+
+  it.each(['2026-11-16T13:20:00.123456Z', '2026-11-16T13:20:00.123456+00:00', '2026-11-16T13:20:00Z', '2026-11-16T13:20:00.5+00:00'])(
+    '#354/AC-2 since com o formato do cursor (%j) passa e volta sem mudar',
+    async (since) => {
+      const res = await call(new FakePostgrest(world()), `/api/ao-vivo?since=${encodeURIComponent(since)}`);
+      expect(res.status).toBe(200);
+      expect(((await res.json()) as Body).since).toBe(since);
+    },
+  );
 });
 
 /** #354 O banco guarda microssegundos; o cursor devolvido é o texto do próprio banco, sem arredondar. */
