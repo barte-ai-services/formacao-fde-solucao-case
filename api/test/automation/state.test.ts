@@ -37,7 +37,7 @@ describe('#356/AC-5 nextRunAt no ritmo do modo', () => {
     expect(nextRunAt(at('10:59'), 1).toISOString()).toBe('2026-11-16T11:00:00.000Z');
   });
   it('sem o intervalo, segue em 15 minutos como hoje', () => {
-    expect(nextRunAt(at('10:03'), 15).toISOString()).toBe('2026-11-16T10:15:00.000Z');
+    expect(nextRunAt(at('10:03')).toISOString()).toBe('2026-11-16T10:15:00.000Z');
   });
 });
 

@@ -27,6 +27,10 @@ export function automationState(
 
 type ExecutedStatus = 'ok' | 'failed';
 
+function isExecuted<T extends { readonly status: string }>(r: T): r is T & { readonly status: ExecutedStatus } {
+  return r.status === 'ok' || r.status === 'failed';
+}
+
 /**
  * #356 AC-5 A rodada mais recente que rodou de fato (ok ou failed), da lista da mais nova à mais velha.
  * A pulada (`skipped`, a trava estava tomada) não é rodada que mede estado: ela não esconde uma
@@ -34,7 +38,7 @@ type ExecutedStatus = 'ok' | 'failed';
  */
 export function lastExecutedRun<T extends { readonly status: string }>(
   newestFirst: readonly T[],
-): (Omit<T, 'status'> & { readonly status: ExecutedStatus }) | null {
-  const found = newestFirst.find((r) => r.status === 'ok' || r.status === 'failed');
-  return (found as (Omit<T, 'status'> & { readonly status: ExecutedStatus }) | undefined) ?? null;
+): (T & { readonly status: ExecutedStatus }) | null {
+  const found = newestFirst.find(isExecuted);
+  return found ?? null;
 }

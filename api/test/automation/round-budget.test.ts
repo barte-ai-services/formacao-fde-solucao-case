@@ -20,7 +20,7 @@ const names = (steps: readonly RoundStep[]) => steps.map((s) => s.name);
 describe('#356/AC-4 o teto por invocação', () => {
   it('o orçamento dos passos é o teto de 50 menos a reserva da rodada', () => {
     expect(SUBREQUEST_LIMIT).toBe(50);
-    expect(ROUND_RESERVE).toBeGreaterThanOrEqual(4); // modo, tomar e soltar a trava, gravar a rodada
+    expect(ROUND_RESERVE).toBeGreaterThanOrEqual(4); // #356 AC-4 modo, tomar e soltar a trava, gravar a rodada
     expect(STEP_BUDGET).toBe(SUBREQUEST_LIMIT - ROUND_RESERVE);
   });
 });
@@ -54,11 +54,16 @@ describe('#356/AC-4 planRound', () => {
     const third = planRound(steps, second.deferred);
     expect(names(third.run)).toEqual(['a', 'c']);
   });
-  it('o caminho crítico nunca perde a vez para um adiado', () => {
-    const steps = [step('captura', STEP_BUDGET - 5, { critical: true }), step('b', 10)];
+  it('o caminho crítico entra primeiro e o adiado passa à frente do que não esperou', () => {
+    const steps = [step('a', 20), step('captura', 20, { critical: true }), step('b', 24)];
     const plan = planRound(steps, ['b']);
-    expect(names(plan.run)).toEqual(['captura']);
-    expect(plan.deferred).toEqual(['b']);
+    expect(names(plan.run)).toEqual(['captura', 'b']);
+    expect(plan.deferred).toEqual(['a']);
+  });
+  it('um periférico que não cabe junto dos críticos nunca rodaria: é erro de quem declarou', () => {
+    const steps = [step('captura', STEP_BUDGET - 5, { critical: true }), step('b', 10)];
+    expect(() => planRound(steps, [])).toThrow(/b/);
+    expect(() => planRound([step('captura', 30, { critical: true }), step('b', STEP_BUDGET - 30)], [])).not.toThrow();
   });
   it('todo passo roda em alguma rodada: a lista toda é vista em poucas rodadas', () => {
     const steps = [
@@ -97,8 +102,22 @@ describe('#356/AC-4 executeRound', () => {
     });
     const out = await executeRound([ok('a'), broken, ok('c')], []);
     expect(order).toEqual(['a', 'c']);
-    expect(out.failed).toEqual(['quebrado']);
+    expect(out.failed).toEqual([{ name: 'quebrado', error: 'Error' }]);
     expect(out.ran).toEqual(['a', 'c']);
+    expect(JSON.stringify(out)).not.toContain('segredo');
+  });
+  it('a falha diz a classe do erro, nunca a mensagem, e um valor lançado que não é Error diz o tipo', async () => {
+    const thrower = (name: string, value: unknown) =>
+      step(name, 5, {
+        run: async () => {
+          throw value;
+        },
+      });
+    const out = await executeRound([thrower('tipo', new TypeError('segredo')), thrower('texto', 'segredo')], []);
+    expect(out.failed).toEqual([
+      { name: 'tipo', error: 'TypeError' },
+      { name: 'texto', error: 'string' },
+    ]);
     expect(JSON.stringify(out)).not.toContain('segredo');
   });
   it('um passo adiado roda na rodada seguinte', async () => {

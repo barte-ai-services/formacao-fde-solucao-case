@@ -1,16 +1,16 @@
-// #356 AC-1 O ritmo da rodada. O Cron da rodada dispara a cada minuto (wrangler.jsonc); com o modo
-// demonstração desligado a rodada só roda no ritmo de sempre, a cada 15 minutos.
+/* #356 AC-1 O ritmo da rodada. O Cron da rodada dispara a cada minuto (wrangler.jsonc); com o modo
+   demonstração desligado a rodada só roda no ritmo de sempre, a cada 15 minutos. */
 export const DEFAULT_INTERVAL_MINUTES = 15;
 export const DEMO_INTERVAL_MINUTES = 1;
 
 export type RoundRhythm = {
-  /** A rodada deste disparo roda? */
+  /** #356 AC-1 A rodada deste disparo roda? */
   readonly runs: boolean;
-  /** O intervalo do modo, em minutos: o que a tela mostra e o que mede a próxima rodada. */
+  /** #356 AC-1 O intervalo do modo, em minutos: o que a tela mostra e o que mede a próxima rodada. */
   readonly intervalMinutes: number;
 };
 
-/** O intervalo do modo: 1 minuto ligado, 15 desligado. */
+/** #356 AC-1 O intervalo do modo: 1 minuto ligado, 15 desligado. */
 export function modeIntervalMinutes(demoEnabled: boolean): number {
   return demoEnabled ? DEMO_INTERVAL_MINUTES : DEFAULT_INTERVAL_MINUTES;
 }
