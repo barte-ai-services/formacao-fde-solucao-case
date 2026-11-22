@@ -232,11 +232,11 @@ tables:
         serves: o ramo requested_at.gte da janela de pedidos que o cron lê a cada invocação
       - name: dossier_requests_open_requested_at_idx
         serves: a rota GET /api/admin/dossies (pending e error, do mais novo ao mais velho)
-    # #311 Os índices foram criados sem CONCURRENTLY, por decisão: a tabela tem dezenas de linhas (um pedido por nota), o
-    # #311 lock de escrita dura milissegundos, e o índice único precisa existir antes do on conflict do backfill. Sobre a
-    # #311 transação: o deploy roda `supabase db push --remote --yes --include-all` (.github/workflows/supabase-base-do-kit.yml,
-    # #311 passo "Aplicar as migrações"), e o repositório não mostra se a CLI 3.1.0 aplica cada arquivo numa transação; se aplica,
-    # #311 CONCURRENTLY não roda ali. A decisão não depende disso: o tamanho da tabela basta.
+    # #311 Os índices foram criados sem CONCURRENTLY, exceção à IDX-4 registrada em docs/adr/ADR-008-indices-de-dossier-requests-sem-concurrently.md:
+    # #311 a tabela tem dezenas de linhas (um pedido por nota), o lock de escrita dura milissegundos e fica aceito, e o índice
+    # #311 único precisa existir antes do on conflict do backfill. O deploy roda `supabase db push --remote --yes --include-all`
+    # #311 (.github/workflows/supabase-base-do-kit.yml, passo "Aplicar as migrações"), que não garante rodar fora de transação,
+    # #311 e CONCURRENTLY não roda dentro de uma.
     # RLS ligado e sem política (20261117140000_dossier_sob_demanda.sql): só a chave secreta do Worker lê e grava.
 
   # Base do kit (#52, ADR-001): espelho dos JSON de data/kit/, que é a fonte versionada.
