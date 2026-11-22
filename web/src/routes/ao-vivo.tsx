@@ -71,9 +71,9 @@ export default function AoVivo(_props: RouteProps): ReactElement {
                 return note ? texts.grid.openInvoice(numberOf(note)) : "";
               }}
               columns={[
-                { key: "hora", title: t.columns.time, dataIndex: "event", render: (_, row) => clock(row.event.at) },
+                { key: "time", title: t.columns.time, dataIndex: "event", render: (_, row) => clock(row.event.at) },
                 {
-                  key: "nota",
+                  key: "invoice",
                   title: t.columns.invoice,
                   dataIndex: "event",
                   render: (_, row) => {
@@ -82,12 +82,12 @@ export default function AoVivo(_props: RouteProps): ReactElement {
                   },
                 },
                 {
-                  key: "decididoPor",
+                  key: "decidedBy",
                   title: texts.decidedBy.column,
                   dataIndex: "event",
                   render: (_, row) => <DecidedBy actor={row.event.actor} name={row.event.actor_name} />,
                 },
-                { key: "passo", title: t.columns.step, dataIndex: "event", render: (_, row) => row.event.step },
+                { key: "step", title: t.columns.step, dataIndex: "event", render: (_, row) => row.event.step },
               ]}
             />
             {open !== null ? <InvoiceDrawer invoiceAccessKey={open} title={texts.fila.drawerTitle} onClose={() => setOpen(null)} /> : null}
