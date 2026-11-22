@@ -5,9 +5,11 @@
  * PONTO DE EXTENSÃO (#349, #351): para acrescentar um passo à rodada, acrescente um `RoundStep` à
  * lista que o tick monta, na posição em que ele deve rodar, e declare em `maxSubrequests` o MAIOR
  * número de fetch que ele faz numa rodada com a fila cheia (meça como `test/claude/budget.test.ts`:
- * fetch falso contando requisições). Um custo declarado a menos deixa o Worker estourar o teto; a
- * mais, só adia o passo à toa. Marque `critical` só o que não pode esperar (a captura). Nenhum outro
- * código precisa mudar: o planejador adia o que não couber e o executor isola a falha do passo.
+ * fetch falso contando requisições). Um custo declarado a menos deixa o Worker estourar o teto; a mais,
+ * adia o passo, e se ele não couber junto dos críticos (STEP_BUDGET menos a soma dos críticos) o planRound
+ * lança erro e a rodada inteira não roda. O mesmo vale para críticos que somados passam do orçamento.
+ * Marque `critical` só o que não pode esperar (a captura). Nenhum outro código precisa mudar: o executor
+ * isola a falha do passo.
  */
 
 /** #356 AC-4 O teto de subrequests de uma invocação do Worker. */

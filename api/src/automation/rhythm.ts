@@ -16,13 +16,11 @@ export function modeIntervalMinutes(demoEnabled: boolean): number {
 }
 
 /**
- * #356 AC-1 Decide se o disparo do Cron roda a rodada. Ligado, roda sempre. Desligado, só quando o
- * minuto UTC de `scheduledTime` (ms desde a época, o `controller.scheduledTime`) é múltiplo de 15;
- * os outros disparos saem sem gravar linha. Função pura: a leitura do modo é de quem chama.
+ * #356 AC-1 Decide se o disparo do Cron roda a rodada: só quando o minuto UTC de `scheduledTime` (ms
+ * desde a época, o `controller.scheduledTime`) é múltiplo do intervalo do modo (`modeIntervalMinutes`).
+ * Com 1 minuto todo minuto é múltiplo, então ligado roda sempre; com 15, os outros disparos saem sem
+ * gravar linha. Função pura: a leitura do modo é de quem chama.
  */
-export function roundRhythm(demoEnabled: boolean, scheduledTime: number): RoundRhythm {
-  const intervalMinutes = modeIntervalMinutes(demoEnabled);
-  if (demoEnabled) return { runs: true, intervalMinutes };
-  const minute = new Date(scheduledTime).getUTCMinutes();
-  return { runs: minute % DEFAULT_INTERVAL_MINUTES === 0, intervalMinutes };
+export function roundRhythm(intervalMinutes: number, scheduledTime: number): RoundRhythm {
+  return { runs: new Date(scheduledTime).getUTCMinutes() % intervalMinutes === 0, intervalMinutes };
 }

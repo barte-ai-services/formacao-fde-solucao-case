@@ -31,40 +31,40 @@ describe('#211 automationState', () => {
   });
 });
 
-describe('#356/AC-5 nextRunAt no ritmo do modo', () => {
-  it('ligado, é o próximo minuto cheio', () => {
+describe('#356/AC-5 nextRunAt no ritmo do modo', () => { // ADR-002
+  it('ligado, é o próximo minuto cheio', () => { // ADR-002
     expect(nextRunAt(at('10:03'), 1).toISOString()).toBe('2026-11-16T10:04:00.000Z');
     expect(nextRunAt(at('10:59'), 1).toISOString()).toBe('2026-11-16T11:00:00.000Z');
   });
-  it('sem o intervalo, segue em 15 minutos como hoje', () => {
+  it('sem o intervalo, segue em 15 minutos como hoje', () => { // ADR-002
     expect(nextRunAt(at('10:03')).toISOString()).toBe('2026-11-16T10:15:00.000Z');
   });
 });
 
-describe('#356/AC-5 automationState sem falso alarme', () => {
+describe('#356/AC-5 automationState sem falso alarme', () => { // ADR-002
   const run = (startedAt: string, status: 'ok' | 'failed') => ({ startedAt: at(startedAt).toISOString(), status });
 
-  it('com o ritmo de 1 minuto, uma rodada de 3 minutos atrás não é parada', () => {
+  it('com o ritmo de 1 minuto, uma rodada de 3 minutos atrás não é parada', () => { // ADR-002
     expect(automationState(run('10:15', 'ok'), at('10:18'))).toBe('ok');
   });
-  it('a medida é a mesma em qualquer modo: 3 intervalos de 15 minutos', () => {
+  it('a medida é a mesma em qualquer modo: 3 intervalos de 15 minutos', () => { // ADR-002
     expect(automationState(run('09:45', 'ok'), at('10:29'))).toBe('ok');
     expect(automationState(run('09:45', 'ok'), at('10:31'))).toBe('stalled');
   });
 });
 
-describe('#356/AC-5 lastExecutedRun ignora as rodadas puladas', () => {
+describe('#356/AC-5 lastExecutedRun ignora as rodadas puladas', () => { // ADR-002
   const row = (startedAt: string, status: 'ok' | 'failed' | 'skipped') => ({ startedAt: at(startedAt).toISOString(), status });
 
-  it('devolve a rodada mais recente que rodou de fato, ok ou failed', () => {
+  it('devolve a rodada mais recente que rodou de fato, ok ou failed', () => { // ADR-002
     const newestFirst = [row('10:20', 'skipped'), row('10:19', 'skipped'), row('10:15', 'failed'), row('10:00', 'ok')];
     expect(lastExecutedRun(newestFirst)).toEqual({ startedAt: at('10:15').toISOString(), status: 'failed' });
   });
-  it('só puladas ou nenhuma: não há rodada executada', () => {
+  it('só puladas ou nenhuma: não há rodada executada', () => { // ADR-002
     expect(lastExecutedRun([row('10:20', 'skipped')])).toBeNull();
     expect(lastExecutedRun([])).toBeNull();
   });
-  it('as puladas não escondem a parada: a última executada é a que mede o stalled', () => {
+  it('as puladas não escondem a parada: a última executada é a que mede o stalled', () => { // ADR-002
     const last = lastExecutedRun([row('10:40', 'skipped'), row('09:00', 'ok')]);
     expect(automationState(last, at('10:41'))).toBe('stalled');
   });
