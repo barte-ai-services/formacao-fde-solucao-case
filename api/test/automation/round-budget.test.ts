@@ -65,6 +65,11 @@ describe('#356/AC-4 planRound', () => {
     expect(() => planRound(steps, [])).toThrow(/b/);
     expect(() => planRound([step('captura', 30, { critical: true }), step('b', STEP_BUDGET - 30)], [])).not.toThrow();
   });
+  it('os críticos cujo custo somado passa do orçamento são erro de quem declarou: a captura nunca perde a vez', () => {
+    const steps = [step('captura', 30, { critical: true }), step('dossie', 30, { critical: true })]; // #356 AC-4 soma 60 > 44
+    expect(() => planRound(steps, [])).toThrow(/cr[ií]ticos/);
+    expect(() => planRound([step('captura', 30, { critical: true }), step('dossie', STEP_BUDGET - 30, { critical: true })], [])).not.toThrow();
+  });
   it('todo passo roda em alguma rodada: a lista toda é vista em poucas rodadas', () => {
     const steps = [
       step('captura', 20, { critical: true }),

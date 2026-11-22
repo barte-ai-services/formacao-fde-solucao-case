@@ -13,8 +13,10 @@
 /** #356 AC-4 O teto de subrequests de uma invocação do Worker. */
 export const SUBREQUEST_LIMIT = 50;
 /**
- * #356 AC-4 O que a rodada gasta fora dos passos: ler o modo (1), tomar a trava (1), soltá-la (1) e gravar a
- * rodada (1), mais 2 de folga para a atualização da linha e para o log que vai a um serviço.
+ * #356 AC-4 A reserva fora do orçamento dos passos: a linha de automation_runs e a trava precisam ser gravadas
+ * mesmo quando o orçamento dos passos acaba, e o gasto real pode vir de fetch não contado. Cobre ler o modo (1),
+ * tomar a trava (1), soltá-la (1) e gravar a rodada (1), mais 2 de folga para a atualização da linha e para o
+ * log que vai a um serviço.
  */
 export const ROUND_RESERVE = 6;
 /** #356 AC-4 O que sobra para os passos. */
@@ -55,6 +57,8 @@ export function planRound(steps: readonly RoundStep[], deferredBefore: readonly 
   const tooBig = steps.find((s) => s.maxSubrequests > STEP_BUDGET);
   if (tooBig) throw new Error(`passo ${tooBig.name} declara ${tooBig.maxSubrequests} subrequests, mais que o orçamento ${STEP_BUDGET}`);
   const criticalCost = steps.filter((s) => s.critical).reduce((n, s) => n + s.maxSubrequests, 0);
+  // #356 AC-4 a captura nunca perde a vez: os críticos juntos têm de caber, senão é erro de quem declarou.
+  if (criticalCost > STEP_BUDGET) throw new Error(`os passos críticos declaram ${criticalCost} subrequests juntos, mais que o orçamento ${STEP_BUDGET}`);
   const starved = steps.find((s) => !s.critical && criticalCost + s.maxSubrequests > STEP_BUDGET);
   if (starved) throw new Error(`passo ${starved.name} não cabe junto dos críticos (${criticalCost}) no orçamento ${STEP_BUDGET}`);
   let left = STEP_BUDGET;
