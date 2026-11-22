@@ -103,9 +103,13 @@ describe('#211 GET /api/automacao', () => {
     vi.setSystemTime(new Date('2026-11-16T10:18:00Z'));
     const fresh = { ...run(2, '2026-11-16T10:15:00Z', 'ok'), failed_steps: ['dock', 'claude'], subrequests: 52 };
     const old = run(1, '2026-11-16T10:00:00Z', 'ok');
-    const body = (await (await call(new FakePostgrest({ automation_runs: [fresh, old] }))).json()) as Record<string, any>;
-    expect(body.runs[0]).toMatchObject({ id: 2, status: 'ok', failedSteps: ['dock', 'claude'], subrequests: 52 });
-    expect(body.runs[1]).toMatchObject({ id: 1, failedSteps: [], subrequests: null });
+    const body: unknown = await (await call(new FakePostgrest({ automation_runs: [fresh, old] }))).json();
+    expect(body).toMatchObject({
+      runs: [
+        { id: 2, status: 'ok', failedSteps: ['dock', 'claude'], subrequests: 52 },
+        { id: 1, failedSteps: [], subrequests: null },
+      ],
+    });
   });
 
   it('failed quando a última falhou e stalled quando nada roda há mais de 2 rodadas', async () => {

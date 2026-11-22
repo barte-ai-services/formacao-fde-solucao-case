@@ -53,9 +53,11 @@ export interface TickSummary {
  * próprio try/catch do passo), entra em failed_steps e a rodada segue; a linha de automation_runs é sempre gravada.
  * #311 O teto de 50 subrequests é do plano gratuito, e o runtime recusa do 51º em diante, a gravação inclusive. Por isso o contador
  * guarda a reserva (RECORD_RESERVE) para a gravação: o fetch dos passos recusa localmente, sem subrequest, a chamada que a invadiria, o
- * passo vira falho e o que não coube fica para a próxima rodada; só a gravação usa o fetch da reserva.
+ * passo vira falho e a rodada segue; só a gravação usa o fetch da reserva.
  * Medido sobre a base do kit (api/test/cron/subrequests-line.test.ts): a rodada quieta (sem nota nova) faz 67 chamadas sem o Claude e 90 com
  * duas tarefas dele; com o orçamento ela para dentro de proposeChecked (a leitura por proposta que espera) e os passos seguintes são pulados.
+ * #311 Enquanto houver proposta esperando, esses passos são pulados em toda rodada, não só na seguinte: reduzir o custo do tick é
+ * outra issue, e este tick só garante que a rodada termina e grava a linha.
  */
 export async function tick(
   controller: Pick<ScheduledController, "cron">,
@@ -350,7 +352,7 @@ function reasonOf(error: unknown): string {
 async function guarded<T>(round: Round, step: string, what: string, run: () => Promise<T>, fallback: T): Promise<T> {
   if (round.counter.deny()) {
     round.fail(step);
-    console.log(`cron: ${what}: passo pulado (sem orçamento de subrequests); a próxima rodada repete`);
+    console.log(`cron: ${what}: passo pulado (sem orçamento de subrequests)`);
     return fallback;
   }
   const refusedBefore = round.counter.refused();
