@@ -285,6 +285,25 @@ export const texts = {
     rankingPanel: "Valor em risco por exceção",
   },
 
+  /** #355 A tela Ao vivo: os passos da automação, do mais novo ao mais velho. */
+  aoVivo: {
+    title: "Ao vivo",
+    subtitle: "Os passos da automação, do mais novo ao mais velho.",
+    loading: "Buscando os passos da automação…",
+    error: "Não consegui buscar os passos agora",
+    empty: "Nenhum passo da automação ainda.",
+    emptyTitle: "Nenhum passo da automação ainda",
+    emptyDescription: "Os passos aparecem aqui assim que a automação rodar.",
+    refreshFailed: "Não consegui atualizar agora. Tentando de novo.",
+    statWithoutPerson: {
+      caption: "Resolvidas sem pessoa hoje",
+      context: (decided: number, byRule: number) => `${decided} decididas hoje, ${byRule} pela regra`,
+    },
+    statAwaiting: { caption: "Na fila de uma pessoa", context: "propostas esperando uma decisão" },
+    columns: { time: "Hora", invoice: "Nota", step: "Passo" },
+    noInvoice: "—",
+  },
+
   duplicadas: {
     title: "Notas duplicadas",
     subtitle: "Notas cobradas em dobro. O título fica bloqueado até a coordenação decidir.",
