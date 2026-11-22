@@ -1,6 +1,6 @@
 // #311 A invocação própria do dossiê (o terceiro cron de api/wrangler.jsonc, src/cron/schedule.ts). O dossiê saiu do tick de
 // 15 minutos porque o tick já passa dos 50 subrequests antes de chegar nele (a causa da #311): aqui ele tem o teto só para si.
-import { credentialsFromEnv, type ClaudeCredentials } from '../claude/client.js';
+import { credentialsFromEnv, type ClaudeCredentials, type FetchFn } from '../claude/client.js';
 import { restDb } from '../claude/db.js';
 import { keyStates, type KeyState } from '../claude/runner.js';
 import { needsDossier } from '../claude/tasks/dossier.js';
@@ -52,7 +52,7 @@ function activeBackoff(window: readonly DossierRequest[], now: Date, hasCredenti
  * Sem credencial do Claude no Worker: uma linha `error`/`no_credentials` por chave do lote, num insert só, e nenhuma chamada.
  * Falha de leitura ou de escrita aqui é registrada, só com o status ou a classe do erro, e não quebra a invocação.
  */
-export async function dispatchDossiers(env: Env, rest: SupabaseRest, captureDeps: CaptureDeps): Promise<void> {
+export async function dispatchDossiers(env: Env, rest: SupabaseRest, captureDeps: CaptureDeps, fetch?: FetchFn): Promise<void> {
   try {
     const now = new Date();
     const credentials = credentialsFromEnv(env);
@@ -79,7 +79,7 @@ export async function dispatchDossiers(env: Env, rest: SupabaseRest, captureDeps
       console.log(`cron: dossiês não gerados (no_credentials): sem credencial do Claude no Worker; ${batch.length} pedidos registrados em erro`);
       return;
     }
-    await generateBatch({ credentials, secretKey: env.BARTE_ACADEMY_SUPABASE_SECRET_KEY, rest, captureDeps, requests }, batch, pendingIds, busy);
+    await generateBatch({ credentials, secretKey: env.BARTE_ACADEMY_SUPABASE_SECRET_KEY, rest, captureDeps, requests, fetch }, batch, pendingIds, busy);
   } catch (error) {
     // #311 Só o status ou a classe do erro vão para o log, nunca o texto (pode trazer a resposta do banco).
     const status = error instanceof SupabaseRestError ? `HTTP ${error.status}` : error instanceof Error ? error.name : 'unknown';
@@ -115,18 +115,20 @@ type BatchDeps = {
   readonly rest: SupabaseRest;
   readonly captureDeps: CaptureDeps;
   readonly requests: SupabaseDossierRequests;
+  /** #311 O fetch contado da invocação, para a Messages API entrar na conta de subrequests; sem ele, o global. */
+  readonly fetch?: FetchFn;
 };
 
 /** #38 O mesmo Claude do sob demanda, com o uso de tokens que vai para a coluna usage; um disparo por vez, parando no primeiro erro global. */
 async function generateBatch(
-  { credentials, secretKey, rest, captureDeps, requests }: BatchDeps,
+  { credentials, secretKey, rest, captureDeps, requests, fetch }: BatchDeps,
   batch: readonly InvoiceView[],
   pendingIds: ReadonlyMap<string, number>,
   busy: ReadonlySet<string>,
 ): Promise<void> {
   const secret = credentials.kind === 'api-key' ? credentials.apiKey : credentials.token;
   const secrets = [secret, secretKey ?? ''];
-  const askWithUsage = onDemandAskWithUsage(credentials);
+  const askWithUsage = onDemandAskWithUsage(credentials, { fetch });
   const db = restDb(rest);
   // #311 Um contexto só por invocação (13 leituras), lido no primeiro disparo: cada nota sai da própria lista de capturadas.
   let shared: ReturnType<typeof loadDossierContext> | undefined;

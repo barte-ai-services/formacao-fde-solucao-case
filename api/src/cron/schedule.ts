@@ -4,6 +4,7 @@ import { supabaseConnectors } from "../connectors/supabase-connectors";
 import { SupabaseRest } from "../connectors/supabase-rest";
 import type { Env } from "../env";
 import { dispatchDossiers } from "./dossier-round";
+import { countSubrequests, subrequestsLine } from "./subrequests";
 import { tick, type TickSummary } from "./tick";
 
 /** #333 O cron de 15 minutos: a captura, as publicações, a varredura do prazo, a rodada do Claude sem o auditor e o motor (tick; #311 sem o dossiê). Igual ao de api/wrangler.jsonc. */
@@ -62,6 +63,7 @@ export async function auditTick(controller: Pick<ScheduledController, "cron">, e
  * #311 A invocação do dossiê: só a geração do dossiê das propostas que esperam uma pessoa (dispatchDossiers), com o mesmo fail-closed:
  * sem as credenciais do Supabase, uma linha e volta. Não grava automation_runs, como a do auditor: a linha de rodada (#211) descreve a captura.
  * O rastro desta invocação é dossier_requests (status, motivo) e claude_suggestions.
+ * #311 Termina sempre com a linha `cron: subrequests n/50 (dossiê <cron>)`, o n contado pelo fetch da invocação (PostgREST e Messages API).
  */
 export async function dossierTick(controller: Pick<ScheduledController, "cron">, env: Env): Promise<void> {
   const url = env.BARTE_ACADEMY_SUPABASE_URL;
@@ -70,6 +72,12 @@ export async function dossierTick(controller: Pick<ScheduledController, "cron">,
     console.log(`cron: execução agendada do dossiê (${controller.cron}); sem credenciais do Supabase, dossiê pulado`);
     return;
   }
-  const rest = new SupabaseRest({ url, secretKey });
-  await dispatchDossiers(env, rest, supabaseConnectors(rest).captureDeps);
+  // #311 O fetch por invocação conta o PostgREST e a Messages API; a linha final diz quantos subrequests foram contra os 50.
+  const counter = countSubrequests();
+  const rest = new SupabaseRest({ url, secretKey, fetch: counter.fetch });
+  try {
+    await dispatchDossiers(env, rest, supabaseConnectors(rest).captureDeps, counter.fetch);
+  } finally {
+    console.log(subrequestsLine(counter.count(), `dossiê ${controller.cron}`));
+  }
 }

@@ -1,5 +1,5 @@
 // #211 AC-1 Cada rodada do Cron fica em automation_runs: só números e a classe do erro, nada sensível.
-import { isInteger, isString, nullable, oneOf, parseRows, shaped, type Shape } from '../connectors/guards.js';
+import { arrayOf, isInteger, isString, nullable, oneOf, optional, parseRows, shaped, type Shape } from '../connectors/guards.js';
 import type { SupabaseRest } from '../connectors/supabase-rest.js';
 
 const TABLE = 'automation_runs';
@@ -38,6 +38,13 @@ export type AutomationRun = {
   figures: RunFigures;
   /** #211 A classe do erro (ex.: `SupabaseRestError`), nunca a mensagem. */
   error: string | null;
+  /**
+   * #311 Os passos periféricos que falharam na rodada (nomes fixos, ex.: `dock`, `claude`). A rodada com passo falho continua `ok` no status:
+   * o enum não muda, e quem lê procura aqui. Vazio nas linhas antigas e nas rodadas sem falha.
+   */
+  failedSteps: string[];
+  /** #311 Os subrequests que a invocação gastou, contra os 50 do plano; nulo nas linhas anteriores à contagem. */
+  subrequests: number | null;
 };
 
 type Row = {
@@ -45,6 +52,8 @@ type Row = {
   seen: number; inserted: number; checked: number; failed: number; proposed: number;
   approved_by_rule: number; cadastro_e8: number; dock_published: number; store_published: number;
   duplicates_blocked: number; engine_evaluated: number; engine_approved: number; error: string | null;
+  // #311 Opcionais na leitura: antes da migração 20261122130000 a coluna não vem.
+  failed_steps?: string[]; subrequests?: number | null;
 };
 
 const isRow = shaped<Row>({
@@ -52,12 +61,17 @@ const isRow = shaped<Row>({
   seen: isInteger, inserted: isInteger, checked: isInteger, failed: isInteger, proposed: isInteger,
   approved_by_rule: isInteger, cadastro_e8: isInteger, dock_published: isInteger, store_published: isInteger,
   duplicates_blocked: isInteger, engine_evaluated: isInteger, engine_approved: isInteger, error: nullable(isString),
+  failed_steps: optional(arrayOf(isString)), subrequests: optional(nullable(isInteger)),
 } satisfies Shape<Row>);
 
 /** #211 Grava a rodada. Quem chama não deixa a falha daqui derrubar o Cron. */
 export async function recordRun(
   rest: SupabaseRest,
-  run: { startedAt: Date; finishedAt: Date; status: RunStatus; figures: RunFigures; error?: string | null },
+  run: {
+    startedAt: Date; finishedAt: Date; status: RunStatus; figures: RunFigures; error?: string | null;
+    /** #311 Os passos periféricos que falharam e os subrequests da invocação (a própria gravação incluída). */
+    failedSteps?: readonly string[]; subrequests?: number;
+  },
 ): Promise<void> {
   const f = run.figures;
   await rest.insert(TABLE, [
@@ -71,6 +85,8 @@ export async function recordRun(
       engine_evaluated: f.engineEvaluated,
       engine_approved: f.engineApproved,
       error: run.error ?? null,
+      failed_steps: run.failedSteps ?? [],
+      subrequests: run.subrequests ?? null,
     },
   ]);
 }
@@ -84,6 +100,8 @@ export async function listRuns(rest: SupabaseRest, limit: number): Promise<Autom
     finishedAt: r.finished_at,
     status: r.status,
     error: r.error,
+    failedSteps: r.failed_steps ?? [],
+    subrequests: r.subrequests ?? null,
     figures: {
       seen: r.seen, inserted: r.inserted, checked: r.checked, failed: r.failed, proposed: r.proposed,
       approvedByRule: r.approved_by_rule, cadastroE8: r.cadastro_e8, dockPublished: r.dock_published,
