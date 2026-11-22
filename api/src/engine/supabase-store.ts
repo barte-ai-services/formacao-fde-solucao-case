@@ -339,14 +339,14 @@ export class SupabaseEngineStore implements EngineStore, EngineReader {
 
   /**
    * #354 Os passos mais novos da cascata (regra ou Clef), nos dois modos, do mais novo ao mais velho; com `afterIso`,
-   * só os decididos depois dele. A linha que a cascata deixou para a pessoa (`decided_by = person`) não entra: a
+   * só os decididos depois dele; `asc` os devolve do mais velho ao mais novo. A linha que a cascata deixou para a pessoa (`decided_by = person`) não entra: a
    * decisão da pessoa está em approvals.
    */
-  async recentCascade(limit: number, afterIso?: string): Promise<StoredDecision[]> {
+  async recentCascade(limit: number, afterIso?: string, direction: 'asc' | 'desc' = 'desc'): Promise<StoredDecision[]> {
     const rows = await this.rest.select('engine_decisions', {
       select: DECISION_COLUMNS,
       filters: { role: 'eq.cascade', decided_by: 'in.(rule,clef)', ...(afterIso !== undefined && { decided_at: `gt.${afterIso}` }) },
-      order: 'decided_at.desc',
+      order: `decided_at.${direction}`,
       limit,
     });
     return parseRows(rows, isDecisionRow, 'engine_decisions').map(decisionFromRow);

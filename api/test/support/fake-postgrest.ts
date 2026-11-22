@@ -11,6 +11,13 @@ type SelectItem = { name: string; embed?: SelectItem[] };
 /** #157 O PostgREST escolhe a chave estrangeira pelo nome depois de `!` (`rel!fk_name(cols)`); o fake só tem uma por relação. */
 const relationName = (name: string): string => name.split('!')[0] ?? name;
 
+/** #354 O instante em microssegundos, como o PostgreSQL compara: `Date.parse` só guarda milissegundos. */
+function microseconds(value: string): number {
+  const fraction = /\.(\d+)/.exec(value)?.[1] ?? '';
+  const sub = Number(fraction.padEnd(6, '0').slice(3, 6));
+  return Date.parse(value.replace(/(\.\d{3})\d+/, '$1')) * 1000 + sub;
+}
+
 /** #157 Compara duas células da ordenação: números como números (10 depois de 9), texto como texto, nulo por último. */
 function compare(a: unknown, b: unknown): number {
   if (a === null || a === undefined) return b === null || b === undefined ? 0 : 1;
@@ -407,7 +414,7 @@ export class FakePostgrest {
     if (expr.startsWith('gt.')) {
       if (typeof row[col] === 'number') return row[col] > Number(expr.slice(3));
       // #354 gt. em instante (started_at, decided_at, approved_at): o cursor do ao vivo; a coluna sem valor nunca é maior.
-      return typeof row[col] === 'string' && Date.parse(row[col]) > Date.parse(expr.slice(3));
+      return typeof row[col] === 'string' && microseconds(row[col]) > microseconds(expr.slice(3));
     }
     // #354 neq.: diferente (a coluna sem valor também é diferente, como no PostgREST para texto não nulo).
     if (expr.startsWith('neq.')) return String(row[col]) !== expr.slice(4);

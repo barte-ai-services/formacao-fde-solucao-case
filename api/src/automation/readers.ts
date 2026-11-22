@@ -3,7 +3,7 @@ import { isInteger, isString, nullable, oneOf, optional, parseRows, shaped, type
 import { ENGINE_APPROVER } from '../domain/approval.js';
 import type { SupabaseRest } from '../connectors/supabase-rest.js';
 import type { DossierSource } from '../dossier/source.js';
-import { computeIndicators, type DecidedBy, type DecisionRecord } from './indicators.js';
+import { computeIndicators, type DecidedBy, type DecisionRecord, type Indicators } from './indicators.js';
 import { todayInBrasilia } from '../http/approval.js';
 import type { TimelineTimes } from './timeline.js';
 
@@ -63,27 +63,42 @@ export async function readDecisionRecords(rest: SupabaseRest, monthStart: string
 }
 
 /** #211 Os indicadores do dia e do mês, da rodada e da lista: a mesma leitura para `/api/automacao` e `/api/ao-vivo` (#354). */
-export async function readIndicators(rest: SupabaseRest, now: Date) {
+export async function readIndicators(rest: SupabaseRest, now: Date): Promise<Indicators> {
   return computeIndicators(await readDecisionRecords(rest, `${todayInBrasilia(now).slice(0, 7)}-01`), now);
 }
 
-/** #354 Uma aprovação de pessoa, do mais novo ao mais velho. */
+/** #354 Uma aprovação de pessoa. */
 export type PersonApproval = { readonly proposalId: number; readonly approver: string; readonly approvedAt: string };
 
+/** #354 A leitura das aprovações de pessoa e o `horizon` dela: ver `Page` em live.ts. */
+export type PersonApprovalsRead = { readonly approvals: PersonApproval[]; readonly horizon: string | null };
+
 /**
- * #354 As aprovações em que uma pessoa decidiu (nem a regra, nem o motor), depois de `afterIso` quando vem. O filtro
- * de quem decidiu vai na consulta; `decidedBy` confere de novo, com a coluna `approved_by` quando ela existe.
+ * #354 As aprovações em que uma pessoa decidiu (nem a regra, nem o motor), depois de `afterIso` quando vem, do mais novo
+ * ao mais velho (`desc`) ou do mais velho ao mais novo (`asc`, para a tela esvaziar o atraso). O filtro de quem decidiu
+ * vai na consulta; `decidedBy` confere de novo, com a coluna `approved_by` quando ela existe. O `horizon` é o instante da
+ * última linha lida quando a consulta voltou cheia (pode haver mais atrás dele), senão nulo.
  */
-export async function readPersonApprovals(rest: SupabaseRest, limit: number, afterIso?: string): Promise<PersonApproval[]> {
-  const rows = await rest.select('approvals', {
-    select: '*',
-    filters: { approver_level: 'neq.regra', approver: `neq.${ENGINE_APPROVER}`, ...(afterIso !== undefined && { approved_at: `gt.${afterIso}` }) },
-    order: 'approved_at.desc',
-    limit,
-  });
-  return parseRows(rows, isDecisionApproval, 'approvals')
-    .filter((a) => decidedBy(a) === 'person')
-    .map((a) => ({ proposalId: a.proposal_id, approver: a.approver, approvedAt: a.approved_at }));
+export async function readPersonApprovals(
+  rest: SupabaseRest,
+  limit: number,
+  afterIso?: string,
+  direction: 'asc' | 'desc' = 'desc',
+): Promise<PersonApprovalsRead> {
+  const rows = parseRows(
+    await rest.select('approvals', {
+      select: '*',
+      filters: { approver_level: 'neq.regra', approver: `neq.${ENGINE_APPROVER}`, ...(afterIso !== undefined && { approved_at: `gt.${afterIso}` }) },
+      order: `approved_at.${direction}`,
+      limit,
+    }),
+    isDecisionApproval,
+    'approvals',
+  );
+  return {
+    approvals: rows.filter((a) => decidedBy(a) === 'person').map((a) => ({ proposalId: a.proposal_id, approver: a.approver, approvedAt: a.approved_at })),
+    horizon: rows.length === limit ? (rows.at(-1)?.approved_at ?? null) : null,
+  };
 }
 
 /** #354 A nota que o passo cita: a chave de acesso (por onde a gaveta abre) e o número, quando a nota está no banco. */

@@ -13,6 +13,7 @@ import { kitTables } from '../support/kit.js';
 
 const ENV = { BARTE_ACADEMY_SUPABASE_URL: 'https://fake.supabase.co', BARTE_ACADEMY_SUPABASE_SECRET_KEY: 'sb_secret_fake' };
 const env: Env = { ...ENV, ACCESS_AUD: 'aud', ACCESS_TEAM_DOMAIN: 'time.cloudflareaccess.com' };
+// #354 O Worker só lê `waitUntil` do contexto; o resto do ExecutionContext não entra no que estes testes exercitam.
 const ctx = { waitUntil: () => {}, passThroughOnException: () => {}, props: {} } as unknown as ExecutionContext;
 const verifier: AccessVerifier = { verify: async (token) => ({ ok: true, identity: { email: token } }) };
 
@@ -44,7 +45,7 @@ const decision = (key: string, decidedAt: string, over: Record<string, unknown> 
   decided_at: decidedAt, ...over,
 });
 
-/** O mundo do cenário: uma rodada, três decisões do motor/regra e uma decisão de pessoa, em horas diferentes. */
+/** #354 O mundo do cenário: uma rodada, três decisões do motor/regra e uma decisão de pessoa, em horas diferentes. */
 const world = () => ({
   automation_runs: [run(1, '2026-11-16T13:15:00.000Z')],
   engine_decisions: [
@@ -132,7 +133,7 @@ describe('#354/AC-2 since devolve só o que foi gravado depois', () => {
     const body = (await res.json()) as Body;
     expect(res.status).toBe(200);
     expect(body.events.map((e) => e.at)).toEqual(['2026-11-16T13:20:00.000Z', '2026-11-16T13:17:00.000Z']);
-    // As três leituras dos passos são as que pedem o teto de 50 e a ordem do mais novo; cada uma leva o gt no banco.
+    // #354 As três leituras dos passos são as que pedem o teto de 50 e a ordem do mais novo; cada uma leva o gt no banco.
     const reads = fake.requests.filter((r) => r.method === 'GET' && r.url.includes('limit=50'));
     expect(reads.map((r) => new URL(r.url).pathname.split('/').pop()).sort()).toEqual(['approvals', 'automation_runs', 'engine_decisions']);
     expect(reads.every((r) => /(started_at|decided_at|approved_at)=gt\./.test(decodeURIComponent(r.url)))).toBe(true);
@@ -153,6 +154,63 @@ describe('#354/AC-2 since devolve só o que foi gravado depois', () => {
     const res = await call(new FakePostgrest(world()), `/api/ao-vivo?since=${encodeURIComponent(since)}`);
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: 'since_invalido' });
+  });
+});
+
+/** #354 O banco guarda microssegundos; o cursor devolvido é o texto do próprio banco, sem arredondar. */
+const micro = (minute: number, us = 0) => `2026-11-16T${String(10 + Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}:00.${String(us).padStart(6, '0')}+00:00`;
+
+describe('#354/AC-2 com mais de 50 passos depois de since, a tela não perde nenhum', () => {
+  it('#354/AC-2 120 rodadas depois do cursor saem em três consultas seguidas, todas, sem repetir e sem buraco', async () => {
+    const runs = Array.from({ length: 120 }, (_, i) => run(i + 1, micro(i + 1)));
+    const fake = new FakePostgrest({ automation_runs: runs });
+    const seen: string[] = [];
+    let since = micro(0);
+    for (let poll = 0; poll < 3; poll += 1) {
+      const body = (await (await call(fake, `/api/ao-vivo?since=${encodeURIComponent(since)}`)).json()) as Body;
+      expect(body.events.length).toBeLessThanOrEqual(50);
+      expect(body.events.map((e) => String(e.at))).toEqual([...body.events.map((e) => String(e.at))].sort().reverse());
+      seen.push(...body.events.map((e) => String(e.at)));
+      since = body.since ?? since;
+    }
+    expect(new Set(seen).size).toBe(seen.length);
+    expect(seen).toHaveLength(120);
+    expect(seen.sort()).toEqual(runs.map((r) => new Date(r.started_at).toISOString()).sort());
+    const last = (await (await call(fake, `/api/ao-vivo?since=${encodeURIComponent(since)}`)).json()) as Body;
+    expect(last.events).toEqual([]);
+  });
+
+  it('#354/AC-2 o atraso mistura as três fontes: nenhum passo se perde entre as consultas', async () => {
+    const runs = Array.from({ length: 60 }, (_, i) => run(i + 1, micro(2 * (i + 1))));
+    const decisions = Array.from({ length: 60 }, (_, i) => decision(KEY_A, micro(2 * (i + 1) + 1), { decided_by: 'rule', mode: 'delegated' }));
+    const fake = new FakePostgrest({ automation_runs: runs, engine_decisions: decisions, invoices: [{ access_key: KEY_A, number: '101', captured_at: 'x' }] });
+    const seen: string[] = [];
+    let since = micro(0);
+    for (let poll = 0; poll < 6; poll += 1) {
+      const body = (await (await call(fake, `/api/ao-vivo?since=${encodeURIComponent(since)}`)).json()) as Body;
+      seen.push(...body.events.map((e) => String(e.at)));
+      since = body.since ?? since;
+    }
+    expect(new Set(seen).size).toBe(120);
+  });
+
+  it('#354/AC-2 na borda: o passo do mesmo milissegundo do cursor mas de microssegundo maior ainda sai, e o do cursor não repete', async () => {
+    const fake = new FakePostgrest({ automation_runs: [run(1, micro(1, 100)), run(2, micro(1, 300))] });
+    const first = (await (await call(fake, `/api/ao-vivo?since=${encodeURIComponent(micro(0))}`)).json()) as Body;
+    expect(first.events).toHaveLength(2);
+    expect(first.since).toBe(micro(1, 300));
+    const afterFirst = (await (await call(fake, `/api/ao-vivo?since=${encodeURIComponent(micro(1, 100))}`)).json()) as Body;
+    expect(afterFirst.events).toHaveLength(1);
+    const repeated = (await (await call(fake, `/api/ao-vivo?since=${encodeURIComponent(first.since ?? '')}`)).json()) as Body;
+    expect(repeated.events).toEqual([]);
+    expect(repeated.since).toBe(micro(1, 300));
+  });
+
+  it('#354/AC-2 sem since, a tela recebe os 50 mais novos, e o cursor é o texto do banco', async () => {
+    const runs = Array.from({ length: 60 }, (_, i) => run(i + 1, micro(i + 1, 7)));
+    const body = (await (await call(new FakePostgrest({ automation_runs: runs }))).json()) as Body;
+    expect(body.events).toHaveLength(50);
+    expect(body.since).toBe(micro(60, 7));
   });
 });
 

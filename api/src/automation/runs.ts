@@ -75,10 +75,10 @@ export async function recordRun(
   ]);
 }
 
-/** #211 As últimas rodadas, da mais nova para a mais velha. #354 Com `afterIso`, só as iniciadas depois dele. */
-export async function listRuns(rest: SupabaseRest, limit: number, afterIso?: string): Promise<AutomationRun[]> {
+/** #211 As últimas rodadas, da mais nova para a mais velha. #354 Com `afterIso`, só as iniciadas depois dele; `asc` as devolve da mais velha à mais nova. */
+export async function listRuns(rest: SupabaseRest, limit: number, afterIso?: string, direction: 'asc' | 'desc' = 'desc'): Promise<AutomationRun[]> {
   const filters = afterIso === undefined ? undefined : { started_at: `gt.${afterIso}` };
-  const rows = parseRows(await rest.select(TABLE, { order: 'started_at.desc', limit, ...(filters && { filters }) }), isRow, TABLE);
+  const rows = parseRows(await rest.select(TABLE, { order: `started_at.${direction}`, limit, ...(filters && { filters }) }), isRow, TABLE);
   return rows.map((r) => ({
     id: r.id,
     startedAt: r.started_at,
