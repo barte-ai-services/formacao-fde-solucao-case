@@ -143,7 +143,7 @@ describe('#130 POST /api/propostas/:chave/dossie', () => {
   });
 
   it('AC-6 com uma geração em andamento, 409 em_andamento', async () => {
-    const open = { input_key: KIT_ACCESS_KEY, requested_by: 'outra@jachegou.test', requested_at: '2026-11-15T12:58:00.000Z', finished_at: null };
+    const open = { id: 1, status: 'running', reason: null, input_key: KIT_ACCESS_KEY, requested_by: 'outra@jachegou.test', requested_at: '2026-11-15T12:58:00.000Z', finished_at: null };
     const claude = answering(kitGoodRaw());
     const { ask, fake } = await setup({ ask: claude, requests: [open] });
     const res = await ask();
@@ -154,7 +154,7 @@ describe('#130 POST /api/propostas/:chave/dossie', () => {
   });
 
   it('#130 um pedido aberto há mais de 5 min é abandonado e não bloqueia', async () => {
-    const stale = { input_key: KIT_ACCESS_KEY, requested_by: 'outra@jachegou.test', requested_at: '2026-11-15T12:50:00.000Z', finished_at: null };
+    const stale = { id: 1, status: 'running', reason: null, input_key: KIT_ACCESS_KEY, requested_by: 'outra@jachegou.test', requested_at: '2026-11-15T12:50:00.000Z', finished_at: null };
     const { ask } = await setup({ ask: answering(kitGoodRaw()), requests: [stale] });
     expect((await ask()).status).toBe(202);
   });
@@ -324,14 +324,14 @@ describe('#130 GET /api/propostas/:chave enquanto o Claude trabalha', () => {
   });
 
   it('#130 um pedido abandonado não deixa a gaveta presa em generating', async () => {
-    const stale = { input_key: KIT_ACCESS_KEY, requested_by: ANALISTA, requested_at: '2026-11-15T12:00:00.000Z', finished_at: null };
+    const stale = { id: 1, status: 'running', reason: null, input_key: KIT_ACCESS_KEY, requested_by: ANALISTA, requested_at: '2026-11-15T12:00:00.000Z', finished_at: null };
     const { drawer } = await setup({ requests: [stale] });
     expect(await drawer()).toMatchObject({ status: 'unavailable', reason: 'pending' });
   });
 });
 
 describe('#130 #38 o pedido aberto pelo evento', () => {
-  const eventRow = () => ({ input_key: KIT_ACCESS_KEY, requested_by: 'claude', requested_at: '2026-11-15T12:59:00.000Z', finished_at: null, trigger: 'event' });
+  const eventRow = () => ({ id: 1, status: 'running', reason: null, input_key: KIT_ACCESS_KEY, requested_by: 'claude', requested_at: '2026-11-15T12:59:00.000Z', finished_at: null, trigger: 'event' });
 
   it('#38 AC-1 a gaveta mostra generating com trigger event enquanto o evento roda', async () => {
     const { drawer } = await setup({ ask: answering(kitGoodRaw()), requests: [eventRow()] });
@@ -347,11 +347,21 @@ describe('#130 #38 o pedido aberto pelo evento', () => {
     expect(requests(fake)).toHaveLength(1);
   });
 
+  it('#311/AC-4 o pedido pending do backfill não trava a gaveta: o clique gera (202) e a gaveta não mostra Gerando', async () => {
+    const pending = { id: 7, input_key: KIT_ACCESS_KEY, requested_by: 'backfill', requested_at: '2026-11-15T12:59:00.000Z', finished_at: null, trigger: 'event', status: 'pending', reason: null };
+    const claude = answering(kitGoodRaw());
+    const { ask, settle, drawer } = await setup({ ask: claude, requests: [pending] });
+    expect(await drawer()).toMatchObject({ status: 'unavailable', reason: 'pending' });
+    expect((await ask()).status).toBe(202);
+    await settle();
+    expect(claude).toHaveBeenCalledTimes(1);
+  });
+
   it('#130 a linha do evento não conta no limite de pedidos da pessoa', async () => {
-    const done = (at: string, trigger: string) => ({ input_key: KIT_ACCESS_KEY, requested_by: 'x', requested_at: at, finished_at: at, trigger });
+    const done = (at: string, trigger: string, id: number) => ({ id, status: 'done', reason: null, input_key: KIT_ACCESS_KEY, requested_by: 'x', requested_at: at, finished_at: at, trigger });
     const { ask } = await setup({
       ask: answering(kitGoodRaw()),
-      requests: [done('2026-11-15T12:10:00.000Z', 'event'), done('2026-11-15T12:20:00.000Z', 'on_demand'), done('2026-11-15T12:30:00.000Z', 'on_demand')],
+      requests: [done('2026-11-15T12:10:00.000Z', 'event', 1), done('2026-11-15T12:20:00.000Z', 'on_demand', 2), done('2026-11-15T12:30:00.000Z', 'on_demand', 3)],
     });
     expect((await ask()).status).toBe(202);
   });

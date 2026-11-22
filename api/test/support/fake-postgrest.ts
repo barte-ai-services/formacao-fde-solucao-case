@@ -349,7 +349,8 @@ export class FakePostgrest {
     // #230 invoice_audits.id é identidade: o save() lê o id da linha devolvida.
     if (table === 'invoice_audits') return { id: this.nextId++ };
     // #130 dossier_requests.id é identidade: o open() lê o id da linha devolvida.
-    if (table === 'dossier_requests') return { id: this.nextId++ };
+    // #311 status nasce running e reason, nulo, como as colunas da migração.
+    if (table === 'dossier_requests') return { id: this.nextId++, status: 'running', reason: null };
     // #41 engine_decisions: a hora da decisão, o papel da linha e as tentativas têm default na migração.
     if (table === 'engine_decisions') {
       return { id: this.nextId++, role: 'cascade', decided_at: now, similar_cases: [], delegation_id: null, attempts: 1, last_attempt_at: now };

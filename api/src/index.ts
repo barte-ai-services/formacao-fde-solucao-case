@@ -32,8 +32,8 @@ export function createWorker(deps: RouterDeps): Worker {
       return withCorrelationId(request, () => route(request, env, deps, ctx));
     },
     async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-      // #38 O dossiê do evento roda fora da resposta do Cron, pelo waitUntil do Worker (AC-1, AC-5).
-      await dispatchScheduled(controller, env, (work) => ctx.waitUntil(work));
+      // #311 O dossiê tem a própria invocação (o cron do dossiê), que espera cada disparo: nada fica para o waitUntil.
+      await dispatchScheduled(controller, env);
     },
   } satisfies ExportedHandler<Env>;
 }

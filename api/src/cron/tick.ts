@@ -1,27 +1,16 @@
 import { listDescriptionSuggestions, storedDescriptionSuggester } from "../connectors/claude-suggestions";
 import { blockDuplicateTitles } from "../connectors/duplicate-settler";
 import { runClaudeRound } from "../claude/cron";
-import { credentialsFromEnv } from "../claude/client";
-import { onDemandAskWithUsage } from "../dossier/on-demand";
-import { restDb } from "../claude/db";
 import { supabaseConnectors } from "../connectors/supabase-connectors";
-import type { CaptureDeps } from "./capture";
 import { SupabaseRest, SupabaseRestError } from "../connectors/supabase-rest";
 import type { RegistryCorrectionOutbox } from "../connectors/ports";
 import type { DescriptionSuggester } from "../domain/description-match";
-import type { InvoiceView } from "../domain/invoice";
 import type { Env } from "../env";
 import { captureInvoices } from "./capture";
 import { findUnreconciledReceipts } from "./unreconciled-receipts";
 import { proposeChecked } from "../approval/propose-checked";
 import { SupabaseApprovalStore } from "../approval/supabase-store";
 import { publishDecidedDockActions, publishDecidedStoreActions } from "../dock/publish-decided";
-import { loadDossierContext } from "../dossier/context";
-import { busyKeys, generateOnEvent } from "../dossier/event";
-import { SupabaseDossierRequests } from "../dossier/requests";
-import { DOSSIER_TASK } from "../dossier/source";
-import { needsDossier } from "../claude/tasks/dossier";
-import { keyStates } from "../claude/runner";
 import { NO_FIGURES, recordRun, type RunFigures } from "../automation/runs";
 import { erpReturnNoteOutbox } from "../connectors/erp-return-note";
 import { SupabaseDecidedReturnSource } from "../returns/supabase-decided-source";
@@ -37,17 +26,6 @@ import { SupplierStoreError } from "../supplier/supabase-store";
 /** #66 A janela, em dias, das decisões que o Cron manda ao Cadastro; ver `lastDaysUtc`. */
 const PUBLISH_WINDOW_DAYS = 7;
 
-/**
- * #38 Teto de disparos do dossiê por rodada, no mesmo espírito do CRON_LIMIT de claude/cron.ts: o Worker tem um
- * teto de subrequests por invocação, e a captura (o caminho crítico) não pode disputar com o dossiê. O que
- * passar do teto não fica esquecido: a proposta abre na gaveta sem dossiê, e a pessoa pede pelo botão (#130).
- * Orçamento por disparo: ler a linha da sugestão, abrir e fechar o pedido em dossier_requests (+2, #130/#38 AC-1),
- * chamar o Claude e gravar a linha: 5 subrequests, 25 no teto, além das leituras do contexto da rodada.
- */
-export const DOSSIER_EVENT_LIMIT = 5;
-
-/** #38 Agenda o trabalho que segue depois da resposta do Cron (o waitUntil do Worker), como em http/approval.ts. */
-export type Defer = (work: Promise<unknown>) => void;
 /** #156 O teto de devoluções publicadas por rodada, para caber nas ~50 subrequisições do plano gratuito. */
 const RETURN_NOTES_PER_ROUND = 20;
 
@@ -62,13 +40,12 @@ export interface TickSummary {
 
 /**
  * Execução agendada: captura e confere as notas (#59). Registra uma linha, sem dado sensível.
- * #38 `defer` agenda o que roda depois da resposta do Cron (o dossiê do evento): o padrão é só disparar sem
- * esperar (como em http/approval.ts); quem chama de um Worker real passa `(work) => ctx.waitUntil(work)`.
+ * #311 O dossiê não roda aqui: este tick já passa dos 50 subrequests antes de chegar nele; o dossiê tem a própria
+ * invocação (cron/dossier-round.ts, o cron de schedule.ts).
  */
 export async function tick(
   controller: Pick<ScheduledController, "cron">,
   env: Env,
-  defer: Defer = (work) => void work,
 ): Promise<TickSummary | null> {
   const startedAt = new Date();
   const url = env.BARTE_ACADEMY_SUPABASE_URL;
@@ -79,7 +56,7 @@ export async function tick(
   }
   const rest = new SupabaseRest({ url, secretKey });
   try {
-    const { summary, figures } = await runRound(controller, env, rest, defer);
+    const { summary, figures } = await runRound(controller, env, rest);
     await recordRunSafely(rest, { startedAt, status: "ok", figures });
     return summary;
   } catch (error) {
@@ -110,7 +87,6 @@ async function runRound(
   controller: Pick<ScheduledController, "cron">,
   env: Env,
   rest: SupabaseRest,
-  defer: Defer,
 ): Promise<{ summary: TickSummary; figures: RunFigures }> {
   const { captureDeps, registryCorrections } = supabaseConnectors(rest);
   const descriptions = await storedSuggestions(rest);
@@ -136,9 +112,6 @@ async function runRound(
   // #171 O Claude vai por último: é periférico, e a captura (o caminho crítico) fica com os subrequests da
   // invocação. As sugestões que ele grava aqui a próxima rodada lê. Falha fechada: a regra decide sozinha.
   await runClaudeRound(rest, env);
-  // #38 O dossiê vai por último também: depois da captura, da publicação e do Claude da rodada. Se o orçamento de
-  // subrequests da invocação acabar, quem perde é o dossiê, nunca a doca nem a loja.
-  await dispatchDossiers(env, rest, captureDeps, proposals.awaitingApproval, defer);
   // #41 O motor de decisão também é periférico e falha sozinho. #42 Com a delegação do analista ligada, aprova; a
   // ação aprovada pelo motor chega à doca na varredura da próxima rodada (`publishDock`), como a que falhou agora.
   const engine = await runEngine(rest, env);
@@ -164,59 +137,6 @@ async function runRound(
     engineApproved: engine.approved,
   };
   return { summary, figures };
-}
-
-/**
- * #38 AC-1 e AC-5: dispara o agente do dossiê para as propostas que esperam uma pessoa e ainda não têm dossiê pronto,
- * fora da resposta do Cron (`defer`). Primeiro as que esta rodada acabou de encaminhar (o evento); depois as que
- * ficaram de fora antes, por teto cheio ou por erro com retentativa liberada (a rede de segurança, que substitui a
- * tarefa de varredura removida do laço). Não dispara o que tem linha ok, esgotada ou em espera do backoff, nem o que
- * tem pedido da gaveta em andamento (#130). Teto de DOSSIER_EVENT_LIMIT chamadas por rodada.
- *
- * Sem credencial do Claude no Worker, não dispara nada: a proposta segue sem dossiê e a regra decide sozinha.
- * Falha de leitura aqui é registrada e não quebra a rodada.
- */
-async function dispatchDossiers(
-  env: Env,
-  rest: SupabaseRest,
-  captureDeps: CaptureDeps,
-  newlyAwaiting: readonly InvoiceView[],
-  defer: Defer,
-): Promise<void> {
-  const credentials = credentialsFromEnv(env);
-  if (!credentials) return;
-  try {
-    const now = new Date();
-    const db = restDb(rest);
-    const requests = new SupabaseDossierRequests(rest);
-    const [states, busy, awaiting] = await Promise.all([
-      keyStates(db, DOSSIER_TASK, now),
-      busyKeys(requests, now),
-      new SupabaseApprovalStore(rest).listAwaiting(),
-    ]);
-    const newKeys = new Set(newlyAwaiting.map((i) => i.accessKey));
-    const others = awaiting.filter(needsDossier).map((f) => f.invoice).filter((i) => !newKeys.has(i.accessKey));
-    const eligible = [...newlyAwaiting, ...others].filter(
-      (i) => !busy.has(i.accessKey) && (!states.has(i.accessKey) || states.get(i.accessKey) === 'retry'),
-    );
-    const batch = eligible.slice(0, DOSSIER_EVENT_LIMIT);
-    if (batch.length === 0) return;
-
-    // #38 O mesmo Claude do sob demanda, com o uso de tokens que vai para a coluna usage.
-    const askWithUsage = onDemandAskWithUsage(credentials);
-    const secret = credentials.kind === 'api-key' ? credentials.apiKey : credentials.token;
-    const secrets = [secret, env.BARTE_ACADEMY_SUPABASE_SECRET_KEY ?? ''];
-    // Um contexto só por rodada (sete leituras), como a tarefa antiga: cada nota sai da própria lista de capturadas.
-    const shared = loadDossierContext(captureDeps, '');
-    const context = (key: string) =>
-      shared.then((ctx) => ({ ...ctx, capturedInvoices: ctx.capturedInvoices.filter((i) => i.accessKey !== key) }));
-    for (const invoice of batch) {
-      defer(generateOnEvent({ db, askWithUsage, secrets, busy, context, requests }, invoice));
-    }
-  } catch (error) {
-    const status = error instanceof SupabaseRestError ? `HTTP ${error.status}` : "falha na leitura";
-    console.log(`cron: dossiês não disparados nesta rodada (${status}); a próxima rodada tenta de novo`);
-  }
 }
 
 /**

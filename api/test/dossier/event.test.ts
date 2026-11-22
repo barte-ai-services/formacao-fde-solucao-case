@@ -112,7 +112,7 @@ describe('#38 do evento à gaveta, sem rodada agendada', () => {
 
   it('sem credencial (sem `ask`) não grava linha e não lança: a próxima rodada tenta de novo (auth é global)', async () => {
     const { fake, db, context, invoice, requests } = await setup();
-    await expect(generateOnEvent({ db, askWithUsage: undefined, context, requests }, invoice)).resolves.toBeUndefined();
+    await expect(generateOnEvent({ db, askWithUsage: undefined, context, requests }, invoice)).resolves.toBe('no_credentials');
     expect(sugestoes(fake)).toHaveLength(0);
   });
 
@@ -194,14 +194,17 @@ describe('#38 do evento à gaveta, sem rodada agendada', () => {
     const requests = {
       open: vi.fn(async () => 1),
       finish: vi.fn(async () => {}),
+      claim: vi.fn(async () => true),
       since: vi.fn(async () => []),
-      openSince: vi.fn(async () => []),
+      window: vi.fn(async () => []),
+      closePending: vi.fn(async () => {}),
+      recordFailures: vi.fn(async () => {}),
     } satisfies DossierRequests;
     await expect(
       generateOnEvent({ db, askWithUsage: answering(kitGoodRaw()), context: async () => ctx, requests }, invoice),
     ).resolves.toBeUndefined();
     // O pedido aberto fecha mesmo com a escrita final falhando.
-    expect(requests.finish).toHaveBeenCalledWith(1, expect.any(Date));
+    expect(requests.finish).toHaveBeenCalledWith(1, expect.any(Date), { status: 'error', reason: 'storage_failed' });
   });
 });
 
@@ -314,5 +317,78 @@ describe('#38 #130 duas propostas no mesmo disparo: cada linha com o próprio us
     const reqs = fake.tables.get('dossier_requests') ?? [];
     expect(reqs).toHaveLength(2);
     expect(reqs.every((r) => r.finished_at !== null)).toBe(true);
+  });
+});
+
+describe('#311 o pedido do evento fecha com o status e o motivo, no mesmo PATCH', () => {
+  const requestsOf = (fake: FakePostgrest) => fake.tables.get('dossier_requests') ?? [];
+  const failing = (error: Error) => vi.fn(async () => { throw error; }) as unknown as AskWithUsage;
+
+  it('#311/AC-2 dossiê gravado: o pedido fecha em done, sem motivo', async () => {
+    const { run, fake } = await setup();
+    await run(answering(kitGoodRaw()));
+    expect(requestsOf(fake)[0]).toMatchObject({ status: 'done', reason: null, finished_at: expect.any(String) });
+  });
+
+  it.each([
+    ['429', new ClaudeError('rate_limit', 'HTTP 429'), 'rate_limited'],
+    ['401', new ClaudeError('auth', 'HTTP 401'), 'auth_refused'],
+  ])('#311/AC-3 erro global (%s): o pedido fecha em error com o motivo %s e o motivo volta a quem despacha', async (_name, error, reason) => {
+    const { run, fake } = await setup();
+    await expect(run(failing(error))).resolves.toBe(reason);
+    expect(requestsOf(fake)[0]).toMatchObject({ status: 'error', reason, finished_at: expect.any(String) });
+    expect(sugestoes(fake)).toHaveLength(0);
+  });
+
+  it('#311/AC-3 sem credencial no Worker: error/no_credentials', async () => {
+    const { fake, db, context, invoice, requests } = await setup();
+    await expect(generateOnEvent({ db, askWithUsage: undefined, context, requests }, invoice)).resolves.toBe('no_credentials');
+    expect(requestsOf(fake)[0]).toMatchObject({ status: 'error', reason: 'no_credentials' });
+  });
+
+  it('#311/AC-3 erro que não é global (timeout): o pedido fecha em error/claude_failed e o lote segue (nada volta)', async () => {
+    const { run, fake } = await setup();
+    await expect(run(failing(new ClaudeError('timeout', 'sem resposta')))).resolves.toBeUndefined();
+    expect(requestsOf(fake)[0]).toMatchObject({ status: 'error', reason: 'claude_failed' });
+    expect(sugestoes(fake)[0]).toMatchObject({ status: 'error', reason: 'timeout' });
+  });
+});
+
+describe('#311/AC-4 o pedido pending é reivindicado pelo disparo, no lugar do open', () => {
+  const pendingRow = (id: number) => ({ id, input_key: KIT_ACCESS_KEY, requested_by: 'backfill', requested_at: '2026-11-22T10:00:00.000Z', finished_at: null, trigger: 'event', status: 'pending', reason: null });
+
+  it('reivindica (running, requested_at agora), gera o dossiê e fecha o mesmo pedido em done, sem abrir outro', async () => {
+    const { invoice, db, context, requests, fake } = await setup();
+    fake.tables.set('dossier_requests', [pendingRow(41)]);
+    let during: unknown;
+    const ask = vi.fn(async () => {
+      during = { ...(fake.tables.get('dossier_requests') ?? [])[0] };
+      return { value: kitGoodRaw(), usage: null };
+    }) as unknown as AskWithUsage;
+    const now = new Date('2026-11-22T12:00:00.000Z');
+    await generateOnEvent({ db, askWithUsage: ask, context, requests, now: () => now }, invoice, 41);
+    expect(during).toMatchObject({ id: 41, status: 'running', requested_at: now.toISOString(), finished_at: null });
+    const rows = fake.tables.get('dossier_requests') ?? [];
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ id: 41, status: 'done', finished_at: now.toISOString() });
+  });
+
+  it('já reivindicado por outra invocação (não está mais pending): não chama o Claude', async () => {
+    const { invoice, db, context, requests, fake } = await setup();
+    fake.tables.set('dossier_requests', [{ ...pendingRow(41), status: 'running' }]);
+    const ask = answering(kitGoodRaw());
+    await generateOnEvent({ db, askWithUsage: ask, context, requests }, invoice, 41);
+    expect(ask).not.toHaveBeenCalled();
+  });
+
+  it('busyKeys: o pending não é geração em andamento, o running recente é', async () => {
+    const { requests, fake } = await setup();
+    const now = new Date('2026-11-22T12:00:00.000Z');
+    fake.tables.set('dossier_requests', [
+      { ...pendingRow(1), input_key: 'a', requested_at: '2026-11-22T11:59:00.000Z' },
+      { ...pendingRow(2), input_key: 'b', requested_at: '2026-11-22T11:59:00.000Z', status: 'running' },
+    ]);
+    const busy = await busyKeys(requests, now);
+    expect([...busy]).toEqual(['b']);
   });
 });

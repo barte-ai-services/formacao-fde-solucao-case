@@ -82,15 +82,15 @@ export function inBackoff(row: { readonly attempts: number; readonly updated_at:
 }
 
 /**
- * #38 O estado de cada chave já gravada: `skip` para as ok, as esgotadas e as ainda na espera (a mesma regra de
+ * #38 O estado de cada chave já gravada: `ok` para as prontas (#311, para fechar o pedido pendente delas), `skip` para as esgotadas e as ainda na espera (a mesma regra de
  * planQueue), `retry` para a que errou e já pode ser tentada. Serve à tarefa cujo pending() é caro.
  */
-export async function keyStates(db: Db, task: string, now: Date): Promise<Map<string, 'skip' | 'retry'>> {
+export async function keyStates(db: Db, task: string, now: Date): Promise<Map<string, 'ok' | 'skip' | 'retry'>> {
   const { byKey } = await existingSuggestions(db, task);
-  const keys = new Map<string, 'skip' | 'retry'>();
+  const keys = new Map<string, 'ok' | 'skip' | 'retry'>();
   for (const row of byKey.values()) {
-    const skip = row.status === 'ok' || row.attempts >= MAX_ATTEMPTS || inBackoff(row, now);
-    keys.set(row.input_key, skip ? 'skip' : 'retry');
+    const skip = row.attempts >= MAX_ATTEMPTS || inBackoff(row, now);
+    keys.set(row.input_key, row.status === 'ok' ? 'ok' : skip ? 'skip' : 'retry');
   }
   return keys;
 }

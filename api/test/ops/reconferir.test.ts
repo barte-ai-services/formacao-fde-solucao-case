@@ -44,7 +44,7 @@ describe('#56 reconferir', () => {
   it('roda a captura e a conferência de novo: as 80 notas voltam com proposta', async () => {
     const { fake, rest, runOnce } = setup();
     await runOnce();
-    await reconferir(rest, {}, undefined, runOnce);
+    await reconferir(rest, {}, runOnce);
     expect(fake.rows('invoices')).toHaveLength(80);
     expect(fake.rows('proposals')).toHaveLength(80);
     expect(fake.rows('invoices').every((r) => r.state === 'com_proposta' || r.state === 'decidida')).toBe(true);

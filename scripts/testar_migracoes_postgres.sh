@@ -272,6 +272,35 @@ end
 $$;
 SQL
 
+echo "== #311 o backfill do dossiê e o estado dos pedidos (a linha (e) já existia, aguardando_aprovacao, rota analista)"
+psql <<'SQL'
+do $$
+declare
+  v_status text;
+begin
+  select status into v_status from public.dossier_requests where input_key = repeat('1', 44) and requested_by = 'backfill';
+  assert v_status = 'pending', format('(#311) a proposta antiga deveria estar pending, está %s', v_status);
+end
+$$;
+SQL
+psql -f - < "$MIGRACOES/20261122110000_dossier_backfill.sql"
+psql <<'SQL'
+do $$
+begin
+  assert (select count(*) from public.dossier_requests where input_key = repeat('1', 44) and status = 'pending') = 1, '(#311) o backfill repetido duplicou o pendente';
+  -- o estado done grava, e o motivo fora do conjunto fechado é recusado
+  insert into public.dossier_requests (input_key, requested_by, finished_at, status) values (repeat('2', 44), 'x', now(), 'done');
+  assert (select status from public.dossier_requests where input_key = repeat('2', 44)) = 'done', '(#311) status done não gravou';
+  begin
+    insert into public.dossier_requests (input_key, requested_by, status, reason) values (repeat('3', 44), 'x', 'error', 'texto livre');
+    raise exception '(#311) motivo fora do conjunto fechado entrou';
+  exception when check_violation then null;
+  end;
+  raise notice '(#311) ok: o backfill enfileirou a proposta antiga como pending, é idempotente, e o motivo é um conjunto fechado';
+end
+$$;
+SQL
+
 echo "== sem versão repetida"
 repetidas="$(ls "$MIGRACOES" | sed 's/_.*//' | sort | uniq -d)"
 if [ -n "$repetidas" ]; then echo "versão repetida: $repetidas" >&2; exit 1; fi

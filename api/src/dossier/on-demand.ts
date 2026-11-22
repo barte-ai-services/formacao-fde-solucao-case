@@ -15,7 +15,7 @@ import type { Db } from '../claude/db.js';
 import { storedError } from '../claude/runner.js';
 import { dossierRequest, failureReason, parseDossierOutput, type DossierInput } from '../claude/tasks/dossier.js';
 import type { CheckContext, InvoiceView } from '../domain/index.js';
-import type { DossierRequests } from './requests.js';
+import { NoCredentialsError, requestReasonOf, type Closing, type DossierRequests } from './requests.js';
 import { DOSSIER_TASK } from './source.js';
 
 const TABLE = 'claude_suggestions';
@@ -88,13 +88,15 @@ export async function generateOnDemand(deps: OnDemandDeps, request: OnDemandRequ
   const clock = deps.now ?? (() => new Date());
   const log = deps.log ?? ((line: string) => console.error(line));
   const key = request.invoiceAccessKey;
+  // #311 Como o pedido fecha: done só se o dossiê foi gravado; senão error, com o motivo codificado.
+  let closing: Closing = { status: 'error', reason: 'storage_failed' };
   try {
     const started = clock().getTime();
     let input: DossierInput | Record<string, never> = {};
     let result: { ok: true; output: unknown } | { ok: false; error: unknown };
     let usage: Usage | null = null;
     try {
-      if (!deps.askWithUsage) throw new ClaudeError('auth', 'sem credencial do Claude no Worker');
+      if (!deps.askWithUsage) throw new NoCredentialsError();
       input = dossierRequest(request.invoice, await deps.context(key));
       const answered = await deps.askWithUsage<unknown>(input);
       usage = answered.usage;
@@ -111,6 +113,7 @@ export async function generateOnDemand(deps: OnDemandDeps, request: OnDemandRequ
     if (!result.ok && previous?.status === 'ok') {
       // #130 AC-4: o dossiê pronto continua; a falha fica só no log.
       log(`#130 dossiê sob demanda da nota ${key} falhou (${failureReason(result.error)}); o anterior continua`);
+      closing = { status: 'error', reason: requestReasonOf(result.error) };
     } else {
       const attempts = previous?.attempts ?? 0;
       const fields = result.ok
@@ -141,12 +144,13 @@ export async function generateOnDemand(deps: OnDemandDeps, request: OnDemandRequ
         ],
         { onConflict: 'task,input_key', resolution: 'merge' },
       );
+      closing = result.ok ? { status: 'done' } : { status: 'error', reason: requestReasonOf(result.error) };
     }
   } catch (error) {
     log(`#130 dossiê sob demanda da nota ${key} não gravado: ${storedError(error, deps.secrets)}`);
   } finally {
     try {
-      if (request.requestId !== undefined) await deps.requests.finish(request.requestId, clock());
+      if (request.requestId !== undefined) await deps.requests.finish(request.requestId, clock(), closing);
     } catch (error) {
       // #130 O pedido aberto vira abandonado em IN_FLIGHT_MS; a gaveta para de mostrar Gerando sozinha.
       log(`#130 pedido do dossiê da nota ${key} não fechado: ${storedError(error, deps.secrets)}`);
