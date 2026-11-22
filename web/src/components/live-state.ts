@@ -33,11 +33,14 @@ export function noteOf(event: LiveEvent): LiveInvoiceRef | null {
   }
 }
 
+/** #355 Quantas linhas a tela guarda enquanto fica aberta: as mais novas; as mais velhas saem, para a lista não crescer sem fim. */
+export const MAX_ROWS = 200;
+
 const keyed = (events: LiveEvent[], from: number): LiveRow[] => events.map((event, i) => ({ key: String(from + i), event }));
 
 /** A primeira carga: a lista é a resposta, e o cursor é o que ela devolveu. */
 export function startFeed(body: LiveBody): LiveFeed {
-  return { rows: keyed(body.events, 0), since: body.since, day: body.indicators.day, awaiting: body.awaiting, seq: body.events.length };
+  return { rows: keyed(body.events, 0).slice(0, MAX_ROWS), since: body.since, day: body.indicators.day, awaiting: body.awaiting, seq: body.events.length };
 }
 
 /**
@@ -46,10 +49,10 @@ export function startFeed(body: LiveBody): LiveFeed {
  */
 export function mergeFeed(feed: LiveFeed, body: LiveBody): LiveFeed {
   const base = { day: body.indicators.day, awaiting: body.awaiting };
-  if (feed.since === null) return { ...base, rows: keyed(body.events, feed.seq), since: body.since, seq: feed.seq + body.events.length };
+  if (feed.since === null) return { ...base, rows: keyed(body.events, feed.seq).slice(0, MAX_ROWS), since: body.since, seq: feed.seq + body.events.length };
   return {
     ...base,
-    rows: [...keyed(body.events, feed.seq), ...feed.rows],
+    rows: [...keyed(body.events, feed.seq), ...feed.rows].slice(0, MAX_ROWS),
     since: body.since ?? feed.since,
     seq: feed.seq + body.events.length,
   };

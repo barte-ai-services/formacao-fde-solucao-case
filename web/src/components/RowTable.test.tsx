@@ -67,12 +67,13 @@ describe("#209 RowTable: sem o que reordena as linhas", () => {
 
 describe("#160 RowTable: linha inerte (esqueleto)", () => {
   const data = [...rows, { key: "sk", number: "…" }];
-  const render3 = (onOpenRow = vi.fn()) => {
+  const render3 = (onOpenRow = vi.fn(), hideInert?: boolean) => {
     render(
       <RowTable<Row>
         data={data}
         rowKey={(r) => r.key}
         rowInert={(r) => r.key === "sk"}
+        hideInert={hideInert}
         onOpenRow={(r) => onOpenRow(r.key)}
         rowLabel={(r) => `Abrir a nota ${r.number}`}
         columns={[{ key: "nota", title: "Nota", dataIndex: "number", render: (_, r) => `NF ${r.number}` }]}
@@ -99,5 +100,16 @@ describe("#160 RowTable: linha inerte (esqueleto)", () => {
     fireEvent.keyDown(row("20"), { key: "Enter" });
     expect(onOpenRow.mock.calls).toEqual([["k1"], ["k2"]]);
     expect(row("10").getAttribute("tabindex")).toBe("0");
+  });
+
+  it("#355: com hideInert falso, a linha inerte segue legível para leitor de tela, sem tabindex, sem rótulo e sem abrir a gaveta", () => {
+    const onOpenRow = render3(vi.fn(), false);
+    const inert = document.querySelectorAll("tbody tr")[2]!;
+    expect(inert.getAttribute("aria-hidden")).toBeNull();
+    expect(inert.getAttribute("tabindex")).toBeNull();
+    expect(inert.getAttribute("aria-label")).toBeNull();
+    fireEvent.click(inert);
+    fireEvent.keyDown(inert, { key: "Enter" });
+    expect(onOpenRow).not.toHaveBeenCalled();
   });
 });

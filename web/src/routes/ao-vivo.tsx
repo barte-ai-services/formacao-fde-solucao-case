@@ -65,6 +65,7 @@ export default function AoVivo(_props: RouteProps): ReactElement {
                 if (note) setOpen(note.access_key);
               }}
               rowInert={(row) => noteOf(row.event) === null}
+              hideInert={false}
               rowLabel={(row) => {
                 const note = noteOf(row.event);
                 return note ? texts.grid.openInvoice(numberOf(note)) : "";

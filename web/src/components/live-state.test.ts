@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LiveBody, LiveEvent } from "../api/live";
-import { mergeFeed, noteOf, startFeed } from "./live-state";
+import { MAX_ROWS, mergeFeed, noteOf, startFeed } from "./live-state";
 
 /*
  * #355 O estado do ao vivo: as linhas novas entram no topo, o cursor segue o último devolvido, a resposta vazia não mexe na lista nem no cursor.
@@ -50,5 +50,19 @@ describe("#355 o estado do ao vivo", () => {
   it("a rodada não tem nota; a decisão e a de pessoa têm", () => {
     expect(noteOf(run)).toBeNull();
     expect(noteOf(person(1))).toEqual({ access_key: "K1", number: "1" });
+  });
+
+  it("#355: a lista guarda no máximo MAX_ROWS linhas, as mais novas, e o cursor segue o devolvido", () => {
+    const many = (from: number, n: number) => Array.from({ length: n }, (_, i) => person(from + i));
+    const first = startFeed(body(many(0, MAX_ROWS + 50), "S1"));
+    expect(first.rows).toHaveLength(MAX_ROWS);
+    expect(first.rows[0]!.event).toEqual(person(0));
+    const next = mergeFeed(first, body([person(7), person(8)], "S2"));
+    expect(next.rows).toHaveLength(MAX_ROWS);
+    expect(next.rows.slice(0, 2).map((r) => r.event)).toEqual([person(7), person(8)]);
+    expect(next.rows[2]!.key).toBe(first.rows[0]!.key);
+    expect(next.rows.at(-1)!.key).toBe(first.rows[MAX_ROWS - 3]!.key);
+    expect(next.since).toBe("S2");
+    expect(next.seq).toBe(first.seq + 2);
   });
 });
