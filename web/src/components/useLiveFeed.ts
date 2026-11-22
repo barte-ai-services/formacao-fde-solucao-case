@@ -9,11 +9,11 @@ export const POLL_MS = 5_000;
 type Model =
   | { phase: "loading" }
   | { phase: "error" }
-  | { phase: "ready"; feed: LiveFeed; /** O último pedido de atualização falhou: a lista fica e o cursor não anda. */ stale: boolean };
+  | { phase: "ready"; feed: LiveFeed; /** #355 O último pedido de atualização falhou: a lista fica e o cursor não anda. */ stale: boolean };
 
 type Publish = (update: (model: Model) => Model) => void;
 
-/** Espera `ms`; resolve `false` se a tela saiu antes, e o laço para. */
+/** #355 Espera `ms`; resolve `false` se a tela saiu antes, e o laço para. */
 function wait(ms: number, signal: AbortSignal): Promise<boolean> {
   return new Promise((resolve) => {
     if (signal.aborted) return resolve(false);
@@ -28,7 +28,7 @@ function wait(ms: number, signal: AbortSignal): Promise<boolean> {
 }
 
 /**
- * A primeira carga e depois um pedido por vez a cada `POLL_MS`: o próximo só é marcado quando o anterior terminou, então nunca há dois em voo.
+ * #355 A primeira carga e depois um pedido por vez a cada `POLL_MS`: o próximo só é marcado quando o anterior terminou, então nunca há dois em voo.
  * Uma falha da primeira carga é o erro da tela; uma falha depois dela só marca `stale`, e o mesmo cursor vai no pedido seguinte.
  * Nunca rejeita: o chamador pode soltá-la com `void`. O texto de um erro não sai daqui, só o fato de ter falhado.
  */
@@ -41,7 +41,7 @@ async function follow(signal: AbortSignal, publish: Publish): Promise<void> {
     if (!signal.aborted) publish(() => ({ phase: "error" }));
     return;
   }
-  // O atualizador roda depois, na renderização: ele lê uma constante, não o `feed` que o laço ainda vai trocar.
+  // #355 O atualizador roda depois, na renderização: ele lê uma constante, não o `feed` que o laço ainda vai trocar.
   const first = feed;
   publish(() => ({ phase: "ready", feed: first, stale: false }));
   while (await wait(POLL_MS, signal)) {

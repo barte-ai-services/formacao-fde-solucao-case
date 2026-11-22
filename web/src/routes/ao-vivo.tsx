@@ -17,7 +17,7 @@ import { texts } from "../texts";
 const t = texts.aoVivo;
 const KEY_TAIL = 8;
 
-/** O número da nota; sem ele, a chave curta (a API nem sempre resolve o número). */
+/** #355 O número da nota; sem ele, a chave curta (a API nem sempre resolve o número). */
 const numberOf = (note: LiveInvoiceRef): string => note.number ?? note.access_key.slice(-KEY_TAIL);
 
 function Figures({ feed }: { feed: LiveFeed }): ReactElement {

@@ -5,12 +5,12 @@ export type LiveActor = "system" | "rule" | "claude" | "engine" | "person";
 
 export interface LiveInvoiceRef {
   access_key: string;
-  /** Nulo quando a API não resolveu o número da nota. */
+  /** #354 Nulo quando a API não resolveu o número da nota. */
   number: string | null;
 }
 
 interface LiveBase {
-  /** Instante do passo, em ISO. */
+  /** #354 Instante do passo, em ISO. */
   at: string;
   actor: LiveActor;
   actor_name: string;
@@ -47,13 +47,13 @@ export interface LiveDayIndicators {
 
 export interface LiveBody {
   events: LiveEvent[];
-  /** O cursor: o texto exato que a API devolveu, que a tela manda de volta sem mexer. Nulo sem nenhum passo. */
+  /** #354 O cursor: o texto exato que a API devolveu, que a tela manda de volta sem mexer. Nulo sem nenhum passo. */
   since: string | null;
   indicators: { day: LiveDayIndicators };
   awaiting: number;
 }
 
-/** O corpo não tem a forma do contrato. Sem texto do corpo: a tela mostra só a mensagem dela. */
+/** #354 O corpo não tem a forma do contrato. Sem texto do corpo: a tela mostra só a mensagem dela. */
 const malformed = (): ApiError => new ApiError(0, "corpo_inesperado", "a API respondeu fora do contrato");
 
 type Dict = Record<string, unknown>;
@@ -101,7 +101,7 @@ export function parseLive(body: unknown): LiveBody {
 }
 
 export const liveApi = {
-  /** `since` é o cursor devolvido, no pedido sem mexer; sem ele, a API traz os últimos passos. */
+  /** #354 `since` é o cursor devolvido, no pedido sem mexer; sem ele, a API traz os últimos passos. */
   load: async (since: string | null, signal: AbortSignal): Promise<LiveBody> => {
     const query = since === null ? "" : `?since=${encodeURIComponent(since)}`;
     return parseLive(await apiGet<unknown>(`/api/ao-vivo${query}`, { signal }));

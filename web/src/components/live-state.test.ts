@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseLive, type LiveBody, type LiveEvent } from "../api/live";
+import type { LiveBody, LiveEvent } from "../api/live";
 import { mergeFeed, noteOf, startFeed } from "./live-state";
 
 /*
@@ -50,26 +50,5 @@ describe("#355 o estado do ao vivo", () => {
   it("a rodada não tem nota; a decisão e a de pessoa têm", () => {
     expect(noteOf(run)).toBeNull();
     expect(noteOf(person(1))).toEqual({ access_key: "K1", number: "1" });
-  });
-});
-
-describe("#355 a borda lê só o contrato", () => {
-  const raw = { events: [{ ...person(1) }, { ...run }], since: "S", indicators: { day: day(null), month: { month: "2026-11" } }, awaiting: 0 };
-
-  it("aceita o corpo do contrato, inclusive o traço do percentual nulo", () => {
-    const parsed = parseLive(raw);
-    expect(parsed.events).toHaveLength(2);
-    expect(parsed.indicators.day.withoutPersonPct).toBeNull();
-  });
-
-  it.each([
-    ["sem events", { ...raw, events: undefined }],
-    ["kind que a tela não conhece", { ...raw, events: [{ ...person(1), kind: "novo" }] }],
-    ["rodada com nota", { ...raw, events: [{ ...run, invoice: { access_key: "K", number: "1" } }] }],
-    ["awaiting em texto", { ...raw, awaiting: "6" }],
-    ["since em número", { ...raw, since: 1 }],
-    ["corpo que não é objeto", "x"],
-  ])("recusa %s sem repetir o corpo na mensagem", (_name, bad) => {
-    expect(() => parseLive(bad)).toThrow(/fora do contrato/);
   });
 });

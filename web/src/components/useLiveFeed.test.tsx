@@ -36,7 +36,7 @@ describe("#355/AC-2 useLiveFeed", () => {
     expect(result.current.state).toBe("ready");
     await tick(POLL_MS);
     expect(sent).toEqual(["/api/ao-vivo", "/api/ao-vivo?since=S1"]);
-    // O segundo pedido segue pendurado por muito mais que um período: nenhum terceiro sai.
+    // #355 O segundo pedido segue pendurado por muito mais que um período: nenhum terceiro sai.
     await tick(POLL_MS * 4);
     expect(sent).toHaveLength(2);
     await act(async () => finish?.());

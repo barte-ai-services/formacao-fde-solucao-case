@@ -2,19 +2,19 @@
 import type { LiveBody, LiveDayIndicators, LiveEvent, LiveInvoiceRef } from "../api/live";
 
 export interface LiveRow {
-  /** Identidade da linha na tela: a ordem de chegada, que não muda quando entram linhas acima. */
+  /** #355 Identidade da linha na tela: a ordem de chegada, que não muda quando entram linhas acima. */
   key: string;
   event: LiveEvent;
 }
 
 export interface LiveFeed {
-  /** Do mais novo ao mais velho. */
+  /** #355 Do mais novo ao mais velho. */
   rows: LiveRow[];
-  /** O cursor devolvido pela API, intacto; nulo enquanto não houve passo algum. */
+  /** #355 O cursor devolvido pela API, intacto; nulo enquanto não houve passo algum. */
   since: string | null;
   day: LiveDayIndicators;
   awaiting: number;
-  /** Quantas linhas já ganharam chave. */
+  /** #355 Quantas linhas já ganharam chave. */
   seq: number;
 }
 

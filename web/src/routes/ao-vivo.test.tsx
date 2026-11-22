@@ -1,13 +1,13 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Frame } from "../src/App";
-import { POLL_MS } from "../src/components/useLiveFeed";
-import { fallbackContext } from "../src/shell/context";
+import { Frame } from "../App";
+import { POLL_MS } from "../components/useLiveFeed";
+import { fallbackContext } from "../shell/context";
 
 /*
- * #355 Esqueleto vermelho da tela Ao vivo (/pagar/ao-vivo), escrito contra o wireframe aprovado. Roda a tela inteira pelo Frame, como o
- * usuário a abre, com o fetch simulado. Fica vermelho até a camada do contrato ligar a rota, o menu e o polling. Os textos entre aspas
- * são os do wireframe; a camada de código os leva para `texts.aoVivo` e o teste passa a ler de lá.
+ * #355 A tela Ao vivo (/pagar/ao-vivo) contra o wireframe aprovado: o esqueleto que nasceu vermelho e está verde desde a camada do
+ * contrato. Roda a tela inteira pelo Frame, como o usuário a abre, com o fetch simulado. Os textos entre aspas são literais do
+ * wireframe, de propósito: o teste não lê `texts.aoVivo`, e assim pega a troca de um texto da tela.
  */
 
 const KEY = (n: number) => `3526110000000000000055001000${String(n).padStart(8, "0")}1000`;
