@@ -12,6 +12,7 @@ import type { RoundStep } from '../automation/round-budget.js';
 import type { RoundBuild } from '../automation/round.js';
 import { NO_FIGURES, type RunFigures } from '../automation/runs.js';
 import { ROUND_BUDGET_MS } from '../claude/cron.js';
+import { DEMO_NOTES_STEP_COST, DEMO_NOTES_STEP_NAME } from '../demo/round-step.js';
 
 /** #356 AC-4 O que cada passo faz no mundo, injetado: o adaptador real é cron/round-work.ts, os testes usam dublês. */
 export interface RoundWork {
@@ -37,6 +38,8 @@ export interface RoundWork {
   /** #311 Os passos periféricos que engoliram a própria falha durante a rodada (cada helper de tick.ts registra o seu nome fixo em `fail`). */
   failedSteps(): readonly string[];
   engine(): Promise<{ evaluated: number; approved: number }>;
+  /** #349 As notas novas do modo demonstração: de 3 a 8 num lote só; devolve quantas entraram. Só o passo do modo ligado chama. */
+  captureDemoNotes(): Promise<number>;
 }
 
 /**
@@ -55,6 +58,7 @@ export const STEP_COSTS = {
   duplicates: 11,
   supplierOverdue: 6,
   engine: 21,
+  demoNotes: DEMO_NOTES_STEP_COST,
 } as const satisfies Record<string, number>;
 
 /** #356 AC-4 O custo medido de cada tarefa do Claude (a fila cheia dela), pelo nome em tasksFor. */
@@ -85,7 +89,7 @@ function claudeCost(task: string): number {
  * tomada; o prazo das tarefas do Claude (ROUND_BUDGET_MS) é fixado aqui, uma vez, e vale para todas (#356 AC-3: um
  * prazo por tarefa estouraria a validade da trava).
  */
-export function buildRoundSteps(work: RoundWork, now: () => number = Date.now, claudeBudgetMs: number = ROUND_BUDGET_MS): RoundBuild {
+export function buildRoundSteps(work: RoundWork, now: () => number = Date.now, claudeBudgetMs: number = ROUND_BUDGET_MS, demoEnabled = false): RoundBuild {
   const claudeDeadline = now() + claudeBudgetMs;
   const figures: { -readonly [K in keyof RunFigures]: RunFigures[K] } = { ...NO_FIGURES };
   const step = (name: string, maxSubrequests: number, run: () => Promise<void>, critical = false): RoundStep => ({
@@ -108,6 +112,8 @@ export function buildRoundSteps(work: RoundWork, now: () => number = Date.now, c
    * test/cron/round-extension.test.ts mostram um passo acrescentado ao fim planejado, admitido e cortado por essas regras.
    */
   const steps: RoundStep[] = [
+    // #349 Com o modo demonstração ligado, as notas novas entram ANTES da captura, para a mesma rodada já capturá-las (e a faixa as contar).
+    ...(demoEnabled ? [step(DEMO_NOTES_STEP_NAME, STEP_COSTS.demoNotes, async () => { await work.captureDemoNotes(); })] : []),
     step('captura', STEP_COSTS.capture, async () => {
       Object.assign(figures, await work.capture());
     }, true),

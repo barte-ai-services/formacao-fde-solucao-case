@@ -29,6 +29,7 @@ import {
   storedSuggestions,
   type Fail,
 } from "./round-helpers.js";
+import { runDemoNotesRound } from '../demo/round-step.js';
 import { findUnreconciledReceipts } from './unreconciled-receipts.js';
 
 /** #356 AC-4 A janela do E8 é a de round-helpers.ts (7 dias, PUBLISH_WINDOW_DAYS), servida em fatias (REGISTRY_SLICES). */
@@ -112,6 +113,8 @@ export function supabaseRoundWork(
       if (round.failedTasks.length > 0) fail('claude');
     },
     engine: () => runEngine(rest, env, fail, { ...ENGINE_LIMITS, ...(clefTimeoutCapMs === undefined ? {} : { clefTimeoutCapMs }) }),
+    // #349 O passo só entra na lista com o modo ligado (buildRoundSteps), então `enabled` é sempre true aqui.
+    captureDemoNotes: () => runDemoNotesRound({ rest, enabled: true, now: new Date() }),
     failedSteps: () => [...failedSteps],
   };
 }

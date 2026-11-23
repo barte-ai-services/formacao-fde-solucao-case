@@ -109,7 +109,7 @@ async function executeRound(
   const work = supabaseRoundWork(rest, meter.env, meter.fetch, window ? { claudeTimeoutMs: window.claudeTimeoutMs, clefTimeoutCapMs: window.clefTimeoutMs } : {});
   const ports: RoundPorts = {
     ...supabaseRoundStore({ rest, finish, log }),
-    buildRound: () => buildRoundSteps(work, Date.now, window?.claudeDeadlineMs),
+    buildRound: (demoEnabled) => buildRoundSteps(work, Date.now, window?.claudeDeadlineMs, demoEnabled),
     spent: meter.spent,
     refused: meter.refused,
     ...(window ? { timeUp: meter.expired } : {}),
