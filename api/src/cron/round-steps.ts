@@ -45,19 +45,23 @@ export interface RoundWork {
 /**
  * #356 AC-4 O custo máximo declarado de cada passo, em subrequests, com a fila cheia: o número medido (ver o teste).
  * Passo a menos medido, o Worker estoura o teto; a mais, o passo é adiado sem precisar.
+ * #362 Cada custo é o do passo SOZINHO, com a leitura guardada limpa (o teste a limpa antes de cada passo): a rodada lê cada consulta uma
+ * vez (cron/tick.ts, `memoizeReads`), então o que um passo de antes leu não se paga de novo e a rodada gasta menos que a soma destes.
+ * #362 O custo da captura cresce só com as notas guardadas e as emitidas: uma requisição a mais por 1000 notas guardadas (`listStored`)
+ * e outra por 1000 emitidas (a leitura da SEFAZ), as duas paginadas de 1000 em 1000. A escala da turma fica bem abaixo disso.
  */
 export const STEP_COSTS = {
-  capture: 18,
+  capture: 16,
   checkFailures: 5,
-  unreconciled: 4,
-  propose: 16,
-  registry: 21,
+  unreconciled: 3,
+  propose: 15,
+  registry: 15,
   dock: 8,
   store: 8,
   returns: 10,
   duplicates: 11,
   supplierOverdue: 6,
-  engine: 21,
+  engine: 20,
   demoNotes: DEMO_NOTES_STEP_COST,
 } as const satisfies Record<string, number>;
 

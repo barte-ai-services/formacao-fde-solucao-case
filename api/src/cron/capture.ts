@@ -22,6 +22,8 @@ export type CaptureDeps = {
   readonly now?: () => Date;
   /** #35 O Claude, que sugere o casamento por descrição na rodada. Sem ele, a regra decide sozinha. */
   readonly descriptions?: DescriptionSuggester;
+  /** #362 As sugestões lidas só quando há nota a conferir: a rodada quieta não paga a leitura. Vale se `descriptions` não vier. */
+  readonly loadDescriptions?: () => Promise<DescriptionSuggester | undefined>;
 };
 
 export type CaptureResult = {
@@ -45,29 +47,42 @@ export type CaptureOptions = {
   readonly markFailures?: boolean;
 };
 
-/** #59 Idempotente: a segunda rodada sobre a mesma SEFAZ não grava nem confere nada de novo. */
+/**
+ * #59 Idempotente: a segunda rodada sobre a mesma SEFAZ não grava nem confere nada de novo.
+ * #362 Em lote: duas leituras (as chaves da SEFAZ e as notas guardadas) dizem o que é novo e o que falta conferir. Sem nenhuma das duas
+ * a captura termina ali, e o gasto não depende de quantas notas há. Com trabalho, lê as notas e os itens (uma vez, para todas), grava só
+ * as novas e confere só as novas e as a conferir; a conferência vê todas as notas capturadas, como sempre (a E6 compara com elas).
+ * #362 AC-3 "Mudada" é a nota guardada que ainda está `a_conferir`: o conteúdo de uma NF-e não muda sob a mesma chave de acesso (a
+ * correção é outra nota ou uma carta de correção), então a nota já conferida não se confere de novo, como já era antes do lote.
+ */
 export async function captureInvoices(deps: CaptureDeps, options: CaptureOptions = {}): Promise<CaptureResult> {
+  const [issuedKeys, stored] = await Promise.all([deps.sefaz.listIssuedKeys(), deps.invoices.listStored()]);
+  const known = new Set(stored.map((s) => s.accessKey));
+  const issuedSet = new Set(issuedKeys);
+  const pending = new Map(stored.filter((s) => s.state === 'a_conferir' && issuedSet.has(s.accessKey)).map((s) => [s.accessKey, s.checkError]));
+  const fresh = issuedKeys.filter((key) => !known.has(key));
+  if (fresh.length === 0 && pending.size === 0) return { seen: issuedKeys.length, inserted: 0, checked: 0, failed: 0 };
   const issued = await deps.sefaz.listIssuedInvoices();
-  const inserted = await deps.invoices.insertNew(issued);
-  const pending = new Map((await deps.invoices.listPendingKeys()).map((p) => [p.accessKey, p.checkError]));
+  const freshSet = new Set(fresh);
+  const inserted = await deps.invoices.insertNew(issued.filter((i) => freshSet.has(i.accessKey)));
+  for (const key of inserted) pending.set(key, null);
   const toCheck = issued.filter((i) => pending.has(i.accessKey));
-  if (toCheck.length > 0) {
-    const ctx = await buildContext(deps, issued);
-    // #66 Com as sugestões do Claude, a conferência roda dentro da rodada, e o cache se limpa no fim.
-    const { checked, failures } = deps.descriptions
-      ? await withDescriptionMatches(
-          deps.descriptions,
-          toCheck.flatMap((invoice) => descriptionMatchRequests(invoice, ctx)),
-          () => checkEach(toCheck, ctx, pending),
-        )
-      : checkEach(toCheck, ctx, pending);
-    await deps.invoices.saveChecked(checked, (deps.now ?? (() => new Date()))().toISOString());
-    const counts = { seen: issued.length, inserted: inserted.length, checked: checked.length, failed: failures.length };
-    if (options.markFailures === false) return { ...counts, failures };
-    await deps.invoices.markCheckFailed(notYetMarked(failures));
-    return counts;
-  }
-  return { seen: issued.length, inserted: inserted.length, checked: 0, failed: 0 };
+  if (toCheck.length === 0) return { seen: issued.length, inserted: inserted.length, checked: 0, failed: 0 };
+  const ctx = await buildContext(deps, issued);
+  // #66 Com as sugestões do Claude, a conferência roda dentro da rodada, e o cache se limpa no fim.
+  const descriptions = deps.descriptions ?? (await deps.loadDescriptions?.());
+  const { checked, failures } = descriptions
+    ? await withDescriptionMatches(
+        descriptions,
+        toCheck.flatMap((invoice) => descriptionMatchRequests(invoice, ctx)),
+        () => checkEach(toCheck, ctx, pending),
+      )
+    : checkEach(toCheck, ctx, pending);
+  await deps.invoices.saveChecked(checked, (deps.now ?? (() => new Date()))().toISOString());
+  const counts = { seen: issued.length, inserted: inserted.length, checked: checked.length, failed: failures.length };
+  if (options.markFailures === false) return { ...counts, failures };
+  await deps.invoices.markCheckFailed(notYetMarked(failures));
+  return counts;
 }
 
 /** #356 AC-4 Tira as notas que já guardam este mesmo motivo: marcá-las de novo é um update que não muda nada. */

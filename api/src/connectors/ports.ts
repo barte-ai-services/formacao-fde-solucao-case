@@ -21,6 +21,8 @@ import type {
 /** #59 SEFAZ: as notas emitidas contra a Já Chegou, todas a conferir. */
 export interface SefazPort {
   listIssuedInvoices(): Promise<Invoice[]>;
+  /** #362 Só as chaves das notas emitidas: uma leitura, sem os itens, para saber o que há de novo sem montar as notas. */
+  listIssuedKeys(): Promise<string[]>;
 }
 
 /** #59 ERP Compras: as ordens de compra, com o saldo de cada item (regra 5). */

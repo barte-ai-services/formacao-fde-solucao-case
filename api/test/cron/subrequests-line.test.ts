@@ -56,7 +56,7 @@ describe('#311 a conta de subrequests no fim de cada invocação', () => {
     expect(lineOf(log, 'cron: subrequests')).toEqual([`cron: subrequests ${run.counter.count()}/50 (dossiê 11-59/15 * * * *)`]);
   });
 
-  it('#356 a conta do tick sobre a base do kit: a rodada quieta (sem nota nova, sem Claude) faz 43 chamadas, dentro dos 50 do plano gratuito', async () => {
+  it('#356 a conta do tick sobre a base do kit: a rodada quieta (sem nota nova, sem Claude) faz 25 chamadas, dentro dos 50 do plano gratuito', async () => {
     const fake = new FakePostgrest(kitTables());
     vi.stubGlobal('fetch', fake.fetch);
     vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -66,8 +66,8 @@ describe('#311 a conta de subrequests no fim de cada invocação', () => {
 
     await tick(CRON, SUPABASE_ENV);
 
-    // #311 Antes do orçamento (#356) a mesma rodada fazia 67 chamadas; agora os passos que não cabem ficam para a rodada seguinte.
-    expect(counter.count()).toBe(43);
+    // #311 Antes do orçamento (#356) a mesma rodada fazia 67 chamadas; agora os passos que não cabem ficam para a rodada seguinte. #362 A captura quieta e a leitura única de cada consulta a levam a 25.
+    expect(counter.count()).toBe(25);
     expect(counter.count()).toBeLessThanOrEqual(50);
   });
 });

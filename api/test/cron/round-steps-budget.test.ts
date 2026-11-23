@@ -64,16 +64,18 @@ function kitWorld(delegation = true, tweak: (tables: ReturnType<typeof kitTables
 /** #356 AC-4 O que o kitWorld e a rodada mais cheia têm em comum: o medidor da rodada e o que se monta com ele. */
 function roundWorld(fake: FakePostgrest, env: Env) {
   let meter: RoundMeter = startRoundMeter(env);
-  let rest = new SupabaseRest({ url: URL_, secretKey: 'sb_secret_fake', fetch: meter.fetch });
+  let rest = new SupabaseRest({ url: URL_, secretKey: 'sb_secret_fake', fetch: meter.fetch, memoizeReads: true });
   const begin = (measuring = false) => {
     meter = startRoundMeter(env, measuring ? { measureOnly: true } : {});
-    rest = new SupabaseRest({ url: URL_, secretKey: 'sb_secret_fake', fetch: meter.fetch });
+    rest = new SupabaseRest({ url: URL_, secretKey: 'sb_secret_fake', fetch: meter.fetch, memoizeReads: true });
   };
   begin(true);
   const spent = () => meter.spent();
   const build = () => buildRoundSteps(supabaseRoundWork(rest, meter.env, meter.fetch));
   /** #356 AC-4 Roda um passo e devolve o que gastou. */
   const measure = async (step: RoundStep): Promise<number> => {
+    // #362 O custo declarado é o do passo SOZINHO: o que um passo de antes leu e a rodada guardou (a foto da rodada) não entra na conta dele.
+    rest.resetReads();
     const before = spent();
     await step.run();
     return spent() - before;
@@ -397,7 +399,7 @@ describe('#356/AC-4 a rodada mais cheia contra o teto de 50', () => { // ADR-002
  * invocação): o que o `subrequests` gravado diz (o medido, a gravação incluída) mais a soltura da trava, que vem depois dela.
  * Quem acrescenta um passo, uma leitura ou uma porta muda este número e vê o teste cair.
  */
-const FULLEST_TICK_MEASURED = 48;
+const FULLEST_TICK_MEASURED = 45;
 
 describe('#356/AC-4 a rodada mais cheia, ligada ao tick, contra o teto de 50', () => { // ADR-002
   it('o gasto medido de cada rodada do tick (modo, trava, adiados, passos, gravação e soltura) não passa de 50, e nenhum passo falha', async () => { // ADR-002

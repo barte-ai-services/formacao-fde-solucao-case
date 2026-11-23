@@ -10,6 +10,14 @@ export type SupabaseRestConfig = {
   readonly pageSize?: number;
   /** #59 REL-1: tempo máximo de cada requisição, em milissegundos. */
   readonly timeoutMs?: number;
+  /**
+   * #362 Guarda a leitura por cliente (o da rodada): a mesma leitura (tabela, colunas, ordem, filtros) feita de novo devolve o que a
+   * primeira trouxe, sem outra requisição. É a foto da rodada: a trava deixa uma rodada só escrever, e o que uma pessoa grava no meio
+   * chega na rodada seguinte. Toda escrita da tabela por este cliente (e qualquer `rpc`) esquece o que se guardou dela ao terminar, com
+   * sucesso ou erro, então um passo nunca deixa de ver o que a própria rodada gravou. A rodada não lê e escreve a mesma tabela em
+   * paralelo (os passos correm em sequência); se um dia correr, a leitura que começou com a escrita em voo também é esquecida no fim.
+   */
+  readonly memoizeReads?: boolean;
 };
 
 export type Row = Record<string, unknown>;
@@ -94,6 +102,9 @@ export class SupabaseRest {
   private readonly doFetch: FetchFn;
   private readonly pageSize: number;
   private readonly timeoutMs: number;
+  private readonly memoizes: boolean;
+  /** #362 A leitura em curso ou pronta de cada (tabela, opções); a promessa é guardada, então duas leituras juntas fazem uma requisição. */
+  private readonly memo = new Map<string, Promise<unknown[]>>();
 
   constructor(config: SupabaseRestConfig) {
     this.base = config.url.replace(/\/+$/, '') + '/rest/v1/';
@@ -101,10 +112,43 @@ export class SupabaseRest {
     this.doFetch = config.fetch ?? ((input, init) => fetch(input, init));
     this.pageSize = config.pageSize ?? DEFAULT_PAGE_SIZE;
     this.timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.memoizes = config.memoizeReads ?? false;
   }
 
   /** #59 Lê a tabela inteira, paginando pelo cabeçalho Range. As linhas saem sem tipo: quem lê valida. */
   async select(table: string, options: SelectOptions = {}): Promise<unknown[]> {
+    if (!this.memoizes) return this.selectNow(table, options);
+    const key = `${table}\u0000${JSON.stringify(options)}`;
+    let pending = this.memo.get(key);
+    if (!pending) {
+      pending = this.selectNow(table, options);
+      this.memo.set(key, pending);
+      // #362 A leitura que falhou não fica guardada: a chamada seguinte tenta de novo.
+      void pending.catch(() => this.memo.delete(key));
+    }
+    return [...(await pending)];
+  }
+
+  /** #362 Esquece tudo o que se guardou: a próxima leitura vai ao banco (o teste mede o custo de um passo sozinho, sem o que o passo de antes já leu). */
+  resetReads(): void {
+    this.forget(null);
+  }
+
+  /** #362 O que uma escrita muda deixa de valer: esquece o que se guardou da tabela (o `rpc` não diz qual, esquece tudo). */
+  private forget(table: string | null): void {
+    for (const key of [...this.memo.keys()]) if (table === null || key.startsWith(`${table}\u0000`)) this.memo.delete(key);
+  }
+
+  /** #362 Faz a escrita e esquece a leitura guardada DEPOIS dela, também quando falha: a leitura que começou com a escrita em voo não fica. */
+  private async forgetAfter<T>(table: string | null, write: () => Promise<T>): Promise<T> {
+    try {
+      return await write();
+    } finally {
+      this.forget(table);
+    }
+  }
+
+  private async selectNow(table: string, options: SelectOptions): Promise<unknown[]> {
     const params = new URLSearchParams({ select: options.select ?? '*' });
     if (options.order) params.set('order', options.order);
     for (const [column, expr] of Object.entries(options.filters ?? {})) params.append(column, expr);
@@ -133,28 +177,28 @@ export class SupabaseRest {
     if (options.onConflict) params.set('on_conflict', options.onConflict);
     const prefer = ['return=representation'];
     if (options.ignoreDuplicates ?? true) prefer.push('resolution=ignore-duplicates');
-    return this.request('insert', table, 'POST', params, rows, { Prefer: prefer.join(',') });
+    return this.forgetAfter(table, () => this.request('insert', table, 'POST', params, rows, { Prefer: prefer.join(',') }));
   }
 
   /** #59 Insere ou atualiza pela restrição de onConflict (resolution=merge-duplicates). */
   async upsert(table: string, rows: readonly Row[], onConflict: string): Promise<unknown[]> {
     if (rows.length === 0) return [];
     const params = new URLSearchParams({ on_conflict: onConflict });
-    return this.request('upsert', table, 'POST', params, rows, {
-      Prefer: 'return=representation,resolution=merge-duplicates',
-    });
+    return this.forgetAfter(table, () =>
+      this.request('upsert', table, 'POST', params, rows, { Prefer: 'return=representation,resolution=merge-duplicates' }),
+    );
   }
 
   /** #59 Atualiza as linhas que passam nos filtros. Exige ao menos um filtro. */
   async update(table: string, filters: Filters, patch: Row): Promise<unknown[]> {
     const params = this.requireFilters('update', table, filters);
-    return this.request('update', table, 'PATCH', params, patch, { Prefer: 'return=representation' });
+    return this.forgetAfter(table, () => this.request('update', table, 'PATCH', params, patch, { Prefer: 'return=representation' }));
   }
 
   /** #59 Apaga as linhas que passam nos filtros. Exige ao menos um filtro. */
   async delete(table: string, filters: Filters): Promise<void> {
     const params = this.requireFilters('delete', table, filters);
-    await this.request('delete', table, 'DELETE', params, undefined, { Prefer: 'return=minimal' });
+    await this.forgetAfter(table, () => this.request('delete', table, 'DELETE', params, undefined, { Prefer: 'return=minimal' }));
   }
 
   /**
@@ -162,7 +206,7 @@ export class SupabaseRest {
    * função devolve (texto, número, null...), sem tipo: quem chama valida. Falha com o mesmo SupabaseRestError.
    */
   async rpc(fn: string, args: Row): Promise<unknown> {
-    return this.requestJson('rpc', `rpc/${fn}`, 'POST', new URLSearchParams(), args, {});
+    return this.forgetAfter(null, () => this.requestJson('rpc', `rpc/${fn}`, 'POST', new URLSearchParams(), args, {}));
   }
 
   private requireFilters(operation: RestOperation, table: string, filters: Filters): URLSearchParams {

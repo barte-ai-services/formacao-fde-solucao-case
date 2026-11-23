@@ -7,9 +7,18 @@ import type { SupabaseRest } from './supabase-rest.js';
 export class SefazConnector implements SefazPort {
   constructor(private readonly rest: SupabaseRest) {}
 
+  /** #362 A mesma leitura das notas de listIssuedInvoices, para a rodada que lê as duas pagar a das notas uma vez só. */
+  private readNotas(): Promise<KitNota[]> {
+    return readRows(this.rest, 'kit_notas', isKitNotaRow, { order: 'chave' });
+  }
+
+  async listIssuedKeys(): Promise<string[]> {
+    return (await this.readNotas()).map((n) => n.chave);
+  }
+
   async listIssuedInvoices(): Promise<Invoice[]> {
     const [notas, itens] = await Promise.all([
-      readRows(this.rest, 'kit_notas', isKitNotaRow, { order: 'chave' }),
+      this.readNotas(),
       readRows(this.rest, 'kit_nota_itens', isKitNotaItemRow, { order: 'chave,codigo_fornecedor' }),
     ]);
     const itemsByKey = groupBy(itens, (i) => i.chave);

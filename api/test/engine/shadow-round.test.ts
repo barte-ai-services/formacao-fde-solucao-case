@@ -351,10 +351,26 @@ describe('#41 o motor na rodada do Cron', () => {
     expect([...evaluated].some((id) => approvedIds.has(id))).toBe(false);
     expect(fake.rows('proposals').filter((p) => evaluated.has(p.id)).every((p) => p.state === 'aguardando_aprovacao')).toBe(true);
 
-    // #356 As rodadas seguintes não reavaliam: nada novo no motor, e as avaliadas das rodadas somam só as da primeira.
+    // #356 As rodadas seguintes não reavaliam: cada proposta tem uma decisão da cascata e uma só medição do Clef, e as avaliadas somam as da cascata.
+    // #362 A rodada quieta é barata e o motor roda cedo, com as propostas ainda saindo em lotes: o lote de trás entra depois, e é avaliado.
+    const e4Of = () => fake.rows('proposals').filter((p) => p.classification === 'E4');
+    const cascadeOf = () => fake.rows('engine_decisions').filter((d) => d.role === 'cascade');
+    const benchmarkOf = () => fake.rows('engine_decisions').filter((d) => d.role === 'benchmark');
+    const ruleDecided = () => cascadeOf().filter((d) => d.decided_by === 'rule');
+    await roundsUntil(round, () => e4Of().length > cascade.length && cascadeOf().length === e4Of().length && benchmarkOf().length === ruleDecided().length);
+    const e4 = e4Of();
+    expect(new Set(cascadeOf().map((d) => d.proposal_id))).toEqual(new Set(e4.map((p) => p.id)));
+    expect(new Set(benchmarkOf().map((d) => d.proposal_id))).toEqual(new Set(ruleDecided().map((d) => d.proposal_id)));
+    const settled = fake.rows('engine_decisions').length;
     await rounds(round, 4);
-    expect(fake.rows('engine_decisions')).toHaveLength(decisions.length);
-    expect(fake.rows('automation_runs').reduce((n, r) => n + Number(r.engine_evaluated), 0)).toBe(cascade.length);
+    expect(fake.rows('engine_decisions')).toHaveLength(settled);
+    expect(fake.rows('automation_runs').reduce((n, r) => n + Number(r.engine_evaluated), 0)).toBe(e4.length);
+
+    // #41 O invariante sombra vale para TODAS as propostas avaliadas, as dos lotes de trás também.
+    const allEvaluated = new Set(fake.rows('engine_decisions').map((d) => d.proposal_id));
+    expect(fake.rows('engine_decisions').every((d) => d.mode === 'shadow')).toBe(true);
+    expect(fake.rows('approvals').some((a) => allEvaluated.has(a.proposal_id))).toBe(false);
+    expect(fake.rows('proposals').filter((p) => allEvaluated.has(p.id)).every((p) => p.state === 'aguardando_aprovacao')).toBe(true);
   });
 
   it('se o motor falha, a rodada segue ok e conta zero', async () => {
