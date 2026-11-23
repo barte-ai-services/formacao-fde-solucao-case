@@ -233,6 +233,34 @@ describe('#356/AC-4 os adiados da última rodada que rodou', () => { // ADR-002
   });
 });
 
+describe('#356 o estado corrente de automation_runs, remontado das linhas em qualquer ordem', () => { // ADR-002
+  // rebuild_test de supabase/persistence-modes.yaml: as linhas ok, failed e skipped chegam fora de ordem.
+  const row = (id: number, startedAt: string, status: 'ok' | 'failed' | 'skipped', deferred: string[]) => ({
+    id, started_at: startedAt, finished_at: startedAt, status, origin: 'cron', demo_enabled: true, deferred_steps: deferred,
+    seen: 1, inserted: 1, checked: 1, failed: 0, proposed: 1, approved_by_rule: 0, cadastro_e8: 0, dock_published: 0,
+    store_published: 0, duplicates_blocked: 0, engine_evaluated: 0, engine_approved: 0, error: null,
+  });
+  const restOf = (rows: ReturnType<typeof row>[]) => {
+    const fake = new FakePostgrest({ automation_runs: rows });
+    return new SupabaseRest({ url: 'https://fake.supabase.co', secretKey: 'sb_secret_fake', fetch: fake.fetch });
+  };
+  const SCRAMBLED = [
+    row(2, '2026-11-23T10:15:00Z', 'ok', ['dock']),
+    row(4, '2026-11-23T10:17:00Z', 'skipped', ['pulada']),
+    row(1, '2026-11-23T10:00:00Z', 'failed', ['antigo']),
+    row(3, '2026-11-23T10:16:00Z', 'failed', ['claude']),
+  ];
+
+  it('lastDeferred ignora a pulada mais nova e devolve os adiados da última que rodou', async () => {
+    const store = supabaseRoundStore({ rest: restOf(SCRAMBLED), finish: restOf(SCRAMBLED), log: () => {} });
+    await expect(store.history.lastDeferred()).resolves.toEqual(['claude']);
+  });
+
+  it('listRuns, de que o estado do painel parte, também só traz ok e failed, da mais nova à mais velha', async () => {
+    expect((await listRuns(restOf(SCRAMBLED), 10)).map((r) => r.id)).toEqual([3, 2, 1]);
+  });
+});
+
 describe('#356/AC-1 AC-3 a gravação da rodada', () => { // ADR-002
   it('grava as colunas de sempre mais a origem, o modo, os adiados, os passos falhos e o gasto', async () => {
     const { store, calls } = storeOf();
@@ -284,17 +312,29 @@ describe('#356/AC-5 as rodadas puladas e a lista que o painel já lê', () => { 
     expect(calls[0]?.params.get('status')).toBe('in.(ok,failed)');
   });
 
-  it('listSkippedRuns lê as puladas, da mais nova à mais velha, com origem e modo', async () => { // ADR-002
+  const NOW = new Date('2026-11-23T10:30:00Z');
+
+  it('listSkippedRuns lê as puladas, da mais nova à mais velha, com origem e modo, só da janela recente', async () => { // ADR-002
     const { rest, calls } = scripted(() => ({ body: [{ id: 7, started_at: '2026-11-23T10:15:00+00:00', origin: 'manual', demo_enabled: true }] }));
-    await expect(listSkippedRuns(rest, 10)).resolves.toEqual([{ id: 7, startedAt: '2026-11-23T10:15:00+00:00', origin: 'manual', demoEnabled: true }]);
+    await expect(listSkippedRuns(rest, 10, NOW)).resolves.toEqual([{ id: 7, startedAt: '2026-11-23T10:15:00+00:00', origin: 'manual', demoEnabled: true }]);
     expect(calls[0]?.params.get('status')).toBe('eq.skipped');
     expect(calls[0]?.params.get('order')).toBe('started_at.desc');
     expect(calls[0]?.params.get('limit')).toBe('10');
+    expect(calls[0]?.params.get('started_at')).toBe('gte.2026-11-22T10:30:00.000Z');
+  });
+
+  it('listSkippedRuns não lê a pulada de fora da janela, por mais que o limite sobre', async () => { // ADR-002
+    const fake = new FakePostgrest({ automation_runs: [
+      { id: 1, started_at: '2026-11-20T10:00:00Z', status: 'skipped', origin: 'cron', demo_enabled: true },
+      { id: 2, started_at: '2026-11-23T10:00:00Z', status: 'skipped', origin: 'cron', demo_enabled: true },
+    ] });
+    const rest = new SupabaseRest({ url: 'https://fake.supabase.co', secretKey: 'sb_secret_fake', fetch: fake.fetch });
+    expect((await listSkippedRuns(rest, 10, NOW)).map((r) => r.id)).toEqual([2]);
   });
 
   it('sem as colunas novas (42703) não há puladas', async () => { // ADR-002
     const { rest } = scripted(() => ({ status: 400, body: NO_COLUMN_READ }));
-    await expect(listSkippedRuns(rest, 10)).resolves.toEqual([]);
+    await expect(listSkippedRuns(rest, 10, NOW)).resolves.toEqual([]);
   });
 });
 

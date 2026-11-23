@@ -1,6 +1,6 @@
 // #211 O estado da automação e a próxima rodada, puros.
 import { describe, expect, it } from 'vitest';
-import { automationState, lastExecutedRun, nextRunAt } from '../../src/automation/state.js';
+import { automationState, nextRunAt } from '../../src/automation/state.js';
 
 const at = (hhmm: string) => new Date(`2026-11-16T${hhmm}:00Z`);
 
@@ -50,22 +50,5 @@ describe('#356/AC-5 automationState sem falso alarme', () => { // ADR-002
   it('a medida é a mesma em qualquer modo: 3 intervalos de 15 minutos', () => { // ADR-002
     expect(automationState(run('09:45', 'ok'), at('10:29'))).toBe('ok');
     expect(automationState(run('09:45', 'ok'), at('10:31'))).toBe('stalled');
-  });
-});
-
-describe('#356/AC-5 lastExecutedRun ignora as rodadas puladas', () => { // ADR-002
-  const row = (startedAt: string, status: 'ok' | 'failed' | 'skipped') => ({ startedAt: at(startedAt).toISOString(), status });
-
-  it('devolve a rodada mais recente que rodou de fato, ok ou failed', () => { // ADR-002
-    const newestFirst = [row('10:20', 'skipped'), row('10:19', 'skipped'), row('10:15', 'failed'), row('10:00', 'ok')];
-    expect(lastExecutedRun(newestFirst)).toEqual({ startedAt: at('10:15').toISOString(), status: 'failed' });
-  });
-  it('só puladas ou nenhuma: não há rodada executada', () => { // ADR-002
-    expect(lastExecutedRun([row('10:20', 'skipped')])).toBeNull();
-    expect(lastExecutedRun([])).toBeNull();
-  });
-  it('as puladas não escondem a parada: a última executada é a que mede o stalled', () => { // ADR-002
-    const last = lastExecutedRun([row('10:40', 'skipped'), row('09:00', 'ok')]);
-    expect(automationState(last, at('10:41'))).toBe('stalled');
   });
 });

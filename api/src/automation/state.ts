@@ -24,21 +24,3 @@ export function automationState(
   if (now.getTime() - Date.parse(last.startedAt) > STALLED_AFTER_MS) return 'stalled';
   return last.status === 'ok' ? 'ok' : 'failed';
 }
-
-type ExecutedStatus = 'ok' | 'failed';
-
-function isExecuted<T extends { readonly status: string }>(r: T): r is T & { readonly status: ExecutedStatus } {
-  return r.status === 'ok' || r.status === 'failed';
-}
-
-/**
- * #356 AC-5 A rodada mais recente que rodou de fato (ok ou failed), da lista da mais nova à mais velha.
- * A pulada (`skipped`, a trava estava tomada) não é rodada que mede estado: ela não esconde uma
- * parada e não vira falha. Sem nenhuma executada, `null`.
- */
-export function lastExecutedRun<T extends { readonly status: string }>(
-  newestFirst: readonly T[],
-): (T & { readonly status: ExecutedStatus }) | null {
-  const found = newestFirst.find(isExecuted);
-  return found ?? null;
-}

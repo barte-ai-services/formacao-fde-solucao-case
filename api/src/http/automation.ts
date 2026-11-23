@@ -26,8 +26,9 @@ export async function automation(identity: Identity, _request: Request, env: Env
       listRuns(rest, RUNS_SHOWN),
       readIndicators(rest, now),
       mode.read(),
-      listSkippedRuns(rest, RUNS_SHOWN),
+      listSkippedRuns(rest, RUNS_SHOWN, now),
     ]);
+    // #356 AC-5 `listRuns` só traz ok e failed: a pulada nunca é a última rodada, então o estado parte de `runs[0]`.
     const last = runs[0] ?? null;
     const intervalMinutes = modeIntervalMinutes(demo.enabled);
     return Response.json({

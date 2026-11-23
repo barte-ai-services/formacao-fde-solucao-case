@@ -135,11 +135,19 @@ const isSkippedRow = shaped<SkippedRow>({
   id: isInteger, started_at: isString, origin: oneOf('cron', 'manual'), demo_enabled: isBoolean,
 } satisfies Shape<SkippedRow>);
 
-/** #356 AC-5 As últimas rodadas puladas, da mais nova à mais velha. Sem as colunas novas (migração não aplicada) não há puladas. */
-export async function listSkippedRuns(rest: SupabaseRest, limit: number): Promise<SkippedRun[]> {
+/** #356 IDX-1 A tabela cresce sem retenção (cerca de 1.440 linhas por dia com o modo ligado): a leitura das puladas olha só as das últimas 24 horas. */
+export const SKIPPED_WINDOW_MS = 24 * 60 * 60_000;
+
+/**
+ * #356 AC-5 As últimas rodadas puladas das últimas 24 horas, da mais nova à mais velha. A janela por `started_at` com a ordem
+ * `started_at.desc` e o limite usa o índice automation_runs_started_at_idx. Sem as colunas novas (migração não aplicada) não há puladas.
+ */
+export async function listSkippedRuns(rest: SupabaseRest, limit: number, now: Date): Promise<SkippedRun[]> {
   try {
+    const since = new Date(now.getTime() - SKIPPED_WINDOW_MS).toISOString();
     const rows = await rest.select(TABLE, {
-      select: 'id,started_at,origin,demo_enabled', order: 'started_at.desc', limit, filters: { status: 'eq.skipped' },
+      select: 'id,started_at,origin,demo_enabled', order: 'started_at.desc', limit,
+      filters: { status: 'eq.skipped', started_at: `gte.${since}` },
     });
     return parseRows(rows, isSkippedRow, TABLE).map((r) => ({ id: r.id, startedAt: r.started_at, origin: r.origin, demoEnabled: r.demo_enabled }));
   } catch (error) {
