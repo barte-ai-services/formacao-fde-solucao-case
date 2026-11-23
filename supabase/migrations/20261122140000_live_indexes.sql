@@ -1,4 +1,4 @@
--- #354 Índices das leituras do GET /api/ao-vivo, que a tela repete a cada poucos segundos: sem eles cada consulta varre a tabela.
+-- #354 Índices das leituras do GET /api/live, que a tela repete a cada poucos segundos: sem eles cada consulta varre a tabela.
 -- #354 `create index concurrently` fica de fora: o `supabase db push` roda cada arquivo dentro de uma transação, e o Postgres
 -- #354 recusa `concurrently` nela. O índice simples trava a escrita só enquanto se constrói, e as duas tabelas são pequenas.
 
