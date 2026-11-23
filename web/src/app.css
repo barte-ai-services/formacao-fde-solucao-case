@@ -96,7 +96,7 @@ table [class*="StatusBadge-module__label"] {
   outline-offset: var(--spacing-2xs);
 }
 
-/* #211 #242 A faixa de automação: discreta, com o mesmo respiro lateral das telas. Só tokens da barte-design-system, nenhuma cor fixa.
+/* #211 #242 A faixa de automação: discreta, sem margem própria: a largura e o respiro até o título vêm do `.shell-home` que a contém (#372). Só tokens da barte-design-system, nenhuma cor fixa.
    Grade ícone | texto | ação; o tom vem de data-tone. */
 .pagar-automation-band {
   display: grid;
@@ -104,7 +104,6 @@ table [class*="StatusBadge-module__label"] {
   align-items: center;
   column-gap: var(--spacing-sm);
   min-height: var(--sizes-6xl);
-  margin: var(--spacing-md) var(--spacing-xl) 0;
   padding: var(--spacing-sm) var(--spacing-md);
   border: var(--border-width-sm) solid var(--stroke-primary);
   border-radius: var(--border-radius-md);
@@ -161,7 +160,6 @@ table [class*="StatusBadge-module__label"] {
     grid-template-areas: "i t" ". a";
     row-gap: var(--spacing-xs);
     align-items: start;
-    margin: var(--spacing-md) var(--spacing-md) 0;
   }
   .pagar-automation-band__icon { grid-area: i; }
   .pagar-automation-band__text { grid-area: t; }

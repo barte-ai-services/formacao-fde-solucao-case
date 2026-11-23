@@ -34,8 +34,11 @@ export function Frame({ context }: { context: ShellContext }) {
     <ShellFrame context={context} zone={ZONE}>
       <ViewerProvider email={context.user?.email ?? null}>
         <AutomationProvider>
-          <AutomationBand />
-          <CurrentRoute />
+          {/* #372 A faixa e a tela dividem o mesmo contêiner das telas: a largura e o respiro até o título vêm dele. */}
+          <div className="shell-home">
+            <AutomationBand />
+            <CurrentRoute />
+          </div>
         </AutomationProvider>
       </ViewerProvider>
     </ShellFrame>
