@@ -12,6 +12,7 @@ import {
 import { SupabaseApprovalStore } from '../../src/approval/supabase-store.js';
 import { SupabaseRest } from '../../src/connectors/supabase-rest.js';
 import { tick } from '../../src/cron/tick.js';
+import { UNCAPPED } from '../support/subrequest-counter.js';
 import { ENGINE_APPROVER } from '../../src/domain/approval.js';
 import { ClefTimeoutError } from '../../src/engine/clef.js';
 import { DEFAULT_ANALYST_SETTINGS, RULE_VERSION } from '../../src/engine/decision.js';
@@ -381,7 +382,7 @@ describe('#42 o motor delegado na rodada do Cron', () => {
     vi.stubGlobal('fetch', fake.fetch);
     vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    await tick({ cron: '*/15 * * * *' }, { ...ENV, ai: ai(answer) });
+    await tick({ cron: '*/15 * * * *' }, { ...ENV, ai: ai(answer) }, UNCAPPED);
 
     const decisions = fake.rows('engine_decisions');
     expect(decisions.every((d) => d.mode === 'delegated' && d.role === 'cascade')).toBe(true);
@@ -401,7 +402,7 @@ describe('#42 o motor delegado na rodada do Cron', () => {
     expect(fake.rows('automation_runs')[0]).toMatchObject({ status: 'ok', engine_approved: engineApprovals.length, engine_evaluated: decisions.length });
 
     // #42 A segunda rodada não aprova de novo: as aprovadas saíram da fila.
-    await tick({ cron: '*/15 * * * *' }, { ...ENV, ai: ai(answer) });
+    await tick({ cron: '*/15 * * * *' }, { ...ENV, ai: ai(answer) }, UNCAPPED);
     expect(fake.rows('approvals').filter((a) => a.approver === 'motor')).toHaveLength(engineApprovals.length);
     expect(fake.rows('automation_runs')[1]).toMatchObject({ engine_approved: 0 });
   });
@@ -411,7 +412,7 @@ describe('#42 o motor delegado na rodada do Cron', () => {
     vi.stubGlobal('fetch', fake.fetch);
     vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    await tick({ cron: '*/15 * * * *' }, { ...ENV, ai: ai(answer) });
+    await tick({ cron: '*/15 * * * *' }, { ...ENV, ai: ai(answer) }, UNCAPPED);
 
     expect(fake.rows('engine_decisions').length).toBeGreaterThan(0);
     expect(fake.rows('engine_decisions').every((d) => d.mode === 'shadow')).toBe(true);

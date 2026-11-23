@@ -51,6 +51,30 @@ O Cron chama o Claude pela Messages API (`src/claude/`), no começo de cada roda
   arquivo exportando um `ClaudeTask` e uma linha em `tasks/index.ts`.
 - **Eval do casamento de descrição** (fora do gate, precisa da credencial): `npm run eval:description-match`.
 
+## O dossiê gerado sozinho (#311)
+
+O dossiê das propostas que esperam uma pessoa tem o próprio cron (`11-59/15 * * * *`, minutos 11, 26, 41 e 56), com os 50
+subrequests da invocação só para ele. Antes ele rodava no fim do tick de 15 minutos, que já passa dos 50 antes de chegar
+lá (172 no kit inteiro), e o disparo caía no teto sem deixar rastro.
+
+- **Orçamento:** 8 leituras + 13 do contexto + 5 por disparo, no máximo 5 disparos: 46 subrequests, 49 se fechar pendentes (até 3 PATCH: dossiê já ok, proposta que não espera mais e chave esgotada, que fecha em `error`/`claude_failed`)
+  (`test/cron/dossier-budget.test.ts` mede). O que passa do teto fica para a invocação seguinte.
+- **Rastro:** cada pedido em `dossier_requests` tem `status` (`pending`, `running`, `done`, `error`) e `reason`, um código
+  (`no_credentials`, `rate_limited`, `auth_refused`, `claude_failed`, `storage_failed`, `not_needed`), nunca texto livre.
+  Só `running` conta como geração em andamento: o `pending` do backfill não trava a gaveta nem a geração.
+- **Erro global do Claude** (429, 401/403, sem credencial): o pedido fecha em `error` com o motivo, o lote para ali e a
+  próxima invocação só tenta de novo depois de 30 minutos (`DOSSIER_GLOBAL_BACKOFF_MS`). Sem credencial, o motivo
+  `no_credentials` vale só enquanto ela continua faltando.
+- **Backfill:** a migração `20261122110000_dossier_backfill.sql` enfileira (`pending`) as propostas que já esperavam uma
+  pessoa sem dossiê; o cron as gera, 5 por invocação.
+- **Ver sem acessar o banco:** `GET /api/admin/dossies`, só para administrador (403 para os demais), devolve as contagens
+  das sugestões do dossiê por gatilho e status e os pedidos `pending` ou `error`, sem quem pediu nem a saída do Claude.
+  Com a sessão do Access aberta, no console do navegador:
+
+  ```js
+  fetch('/api/admin/dossies').then(r => r.json()).then(console.log)
+  ```
+
 ## O motor de decisão em modo sombra (#41)
 
 A cada rodada, depois do Claude, o Cron passa pelo motor (`src/engine/`) as propostas que aguardam uma pessoa e

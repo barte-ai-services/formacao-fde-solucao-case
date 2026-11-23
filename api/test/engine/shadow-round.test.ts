@@ -4,6 +4,7 @@ import { MemoryApprovalStore } from '../../src/approval/store.js';
 import { SupabaseApprovalStore } from '../../src/approval/supabase-store.js';
 import { SupabaseRest } from '../../src/connectors/supabase-rest.js';
 import { tick } from '../../src/cron/tick.js';
+import { UNCAPPED } from '../support/subrequest-counter.js';
 import { RULE_VERSION } from '../../src/engine/decision.js';
 import { runShadowRound } from '../../src/engine/run.js';
 import { CLEF_MAX_ATTEMPTS, MemoryEngineStore } from '../../src/engine/store.js';
@@ -327,7 +328,7 @@ describe('#41 o motor na rodada do Cron', () => {
     vi.stubGlobal('fetch', fake.fetch);
     vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    await tick({ cron: '*/15 * * * *' }, { ...ENV, ai: ai(answer) });
+    await tick({ cron: '*/15 * * * *' }, { ...ENV, ai: ai(answer) }, UNCAPPED);
     const decisions = fake.rows('engine_decisions');
     const cascade = decisions.filter((d) => d.role === 'cascade');
     const [run] = fake.rows('automation_runs');
@@ -346,7 +347,7 @@ describe('#41 o motor na rodada do Cron', () => {
     expect([...evaluated].some((id) => approvedIds.has(id))).toBe(false);
     expect(fake.rows('proposals').filter((p) => evaluated.has(p.id)).every((p) => p.state === 'aguardando_aprovacao')).toBe(true);
 
-    await tick({ cron: '*/15 * * * *' }, { ...ENV, ai: ai(answer) });
+    await tick({ cron: '*/15 * * * *' }, { ...ENV, ai: ai(answer) }, UNCAPPED);
     expect(fake.rows('automation_runs')[1]?.engine_evaluated).toBe(0);
     expect(fake.rows('engine_decisions')).toHaveLength(decisions.length);
   });
@@ -363,7 +364,7 @@ describe('#41 o motor na rodada do Cron', () => {
       logs.push(args.map(String).join(' '));
     });
 
-    await expect(tick({ cron: '*/15 * * * *' }, { ...ENV, ai: ai(answer) })).resolves.toMatchObject({ seen: expect.any(Number) });
+    await expect(tick({ cron: '*/15 * * * *' }, { ...ENV, ai: ai(answer) }, UNCAPPED)).resolves.toMatchObject({ seen: expect.any(Number) });
     expect(fake.rows('automation_runs')[0]).toMatchObject({ status: 'ok', engine_evaluated: 0 });
     expect(logs.some((l) => l.includes('motor de decisão indisponível (HTTP 404)'))).toBe(true);
   });
@@ -372,7 +373,7 @@ describe('#41 o motor na rodada do Cron', () => {
     const fake = new FakePostgrest(kitTables());
     vi.stubGlobal('fetch', fake.fetch);
     vi.spyOn(console, 'log').mockImplementation(() => {});
-    await tick({ cron: '*/15 * * * *' }, ENV);
+    await tick({ cron: '*/15 * * * *' }, ENV, UNCAPPED);
     expect(fake.rows('engine_decisions')).toHaveLength(0);
     expect(fake.rows('automation_runs')[0]).toMatchObject({ status: 'ok', engine_evaluated: 0 });
   });

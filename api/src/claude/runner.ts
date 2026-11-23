@@ -81,16 +81,20 @@ export function inBackoff(row: { readonly attempts: number; readonly updated_at:
   return now.getTime() < Date.parse(row.updated_at) + BACKOFF_BASE_MS * 2 ** row.attempts;
 }
 
+/** #311 O estado de uma chave já gravada, lido por keyStates. */
+export type KeyState = 'ok' | 'exhausted' | 'skip' | 'retry';
+
 /**
- * #38 O estado de cada chave já gravada: `skip` para as ok, as esgotadas e as ainda na espera (a mesma regra de
- * planQueue), `retry` para a que errou e já pode ser tentada. Serve à tarefa cujo pending() é caro.
+ * #38 O estado de cada chave já gravada: `ok` para as prontas (#311, para fechar o pedido pendente delas), `exhausted` para a que errou MAX_ATTEMPTS vezes
+ * (#311, nunca mais entra no lote), `skip` para as ainda na espera (a mesma regra de planQueue), `retry` para a que errou e já pode ser tentada. Serve à tarefa cujo pending() é caro.
  */
-export async function keyStates(db: Db, task: string, now: Date): Promise<Map<string, 'skip' | 'retry'>> {
+export async function keyStates(db: Db, task: string, now: Date): Promise<Map<string, KeyState>> {
   const { byKey } = await existingSuggestions(db, task);
-  const keys = new Map<string, 'skip' | 'retry'>();
+  const keys = new Map<string, KeyState>();
   for (const row of byKey.values()) {
-    const skip = row.status === 'ok' || row.attempts >= MAX_ATTEMPTS || inBackoff(row, now);
-    keys.set(row.input_key, skip ? 'skip' : 'retry');
+    if (row.status === 'ok') keys.set(row.input_key, 'ok');
+    else if (row.attempts >= MAX_ATTEMPTS) keys.set(row.input_key, 'exhausted');
+    else keys.set(row.input_key, inBackoff(row, now) ? 'skip' : 'retry');
   }
   return keys;
 }

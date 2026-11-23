@@ -95,7 +95,7 @@ export async function route(request: Request, env: Env, deps: RouterDeps, ctx?: 
   );
   if (approval) return approval;
 
-  const admin = await adminRoutes(request, auth.identity, env, ctx ? (work) => ctx.waitUntil(work) : undefined);
+  const admin = await adminRoutes(request, auth.identity, env);
   if (admin) return admin;
 
   const returnNotes = await returnNoteRoutes(request, auth.identity, env, deps.returnNotes ?? {}, supabaseFromEnv);

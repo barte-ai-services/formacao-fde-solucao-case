@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SUPPLIER_SWEEP_PER_ROUND } from '../../src/cron/supplier-sweep.js';
 import { tick } from '../../src/cron/tick.js';
+import { UNCAPPED } from '../support/subrequest-counter.js';
 import { FakePostgrest } from '../support/fake-postgrest.js';
 import { kitTables } from '../support/kit.js';
 import { sentRow } from '../supplier/supabase-reply-support.js';
@@ -26,7 +27,7 @@ function round(today: string, requests = 1): { fake: FakePostgrest; run: () => P
   vi.spyOn(console, 'error').mockImplementation(() => {});
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date(`${today}T15:00:00Z`));
-  return { fake, run: () => tick(CRON, ENV) };
+  return { fake, run: () => tick(CRON, ENV, UNCAPPED) };
 }
 
 describe('#157 a rodada do Cron varre o prazo dos pedidos ao fornecedor, mesmo sem o Claude', () => {

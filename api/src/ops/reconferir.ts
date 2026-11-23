@@ -1,6 +1,6 @@
 // #56 Reconferir: apaga o que a conferência gravou e roda a captura e a conferência completas de novo.
 // Só as tabelas do domínio; nenhuma kit_* (a base do kit é a fonte e fica intacta).
-import { tick, type Defer, type TickSummary } from "../cron/tick.js";
+import { tick, type TickSummary } from "../cron/tick.js";
 import type { SupabaseRest } from '../connectors/supabase-rest.js';
 import type { Env } from '../env.js';
 
@@ -37,8 +37,7 @@ export async function resetDomain(rest: SupabaseRest, tables = DOMAIN_TABLES): P
 export async function reconferir(
   rest: SupabaseRest,
   env: Env,
-  defer: Defer = (work) => void work,
-  runTick: (env: Env) => Promise<TickSummary | null | void> = (e) => tick({ cron: "reconferir" }, e, defer),
+  runTick: (env: Env) => Promise<TickSummary | null | void> = (e) => tick({ cron: "reconferir" }, e),
 ): Promise<TickSummary | null> {
   await resetDomain(rest);
   return (await runTick(env)) ?? null;

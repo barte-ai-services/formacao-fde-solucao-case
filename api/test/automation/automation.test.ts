@@ -40,7 +40,7 @@ describe('#211 AC-1 o tick grava a rodada', () => {
     expect(Date.parse(String(runs[0]?.finished_at))).toBeGreaterThanOrEqual(Date.parse(String(runs[0]?.started_at)));
     expect(Object.keys(runs[0] ?? {}).sort()).toEqual([
       'approved_by_rule', 'cadastro_e8', 'checked', 'dock_published', 'duplicates_blocked', 'engine_approved', 'engine_evaluated', 'error', 'failed',
-      'finished_at', 'inserted', 'proposed', 'seen', 'started_at', 'status', 'store_published',
+      'failed_steps', 'finished_at', 'inserted', 'proposed', 'seen', 'started_at', 'status', 'store_published', 'subrequests',
     ]);
   });
 
@@ -96,6 +96,20 @@ describe('#211 GET /api/automacao', () => {
     expect(body.runs).toHaveLength(20);
     expect(body.last).toMatchObject({ id: 1, status: 'ok', figures: { seen: 12, approvedByRule: 7, dockPublished: 5 } });
     expect(body.indicators.day).toMatchObject({ decided: 0, withoutPersonPct: null });
+  });
+
+  it('#311 a rodada traz os passos que falharam e os subrequests; a linha antiga, sem as colunas novas, sai com lista vazia e sem contagem', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-16T10:18:00Z'));
+    const fresh = { ...run(2, '2026-11-16T10:15:00Z', 'ok'), failed_steps: ['dock', 'claude'], subrequests: 52 };
+    const old = run(1, '2026-11-16T10:00:00Z', 'ok');
+    const body: unknown = await (await call(new FakePostgrest({ automation_runs: [fresh, old] }))).json();
+    expect(body).toMatchObject({
+      runs: [
+        { id: 2, status: 'ok', failedSteps: ['dock', 'claude'], subrequests: 52 },
+        { id: 1, failedSteps: [], subrequests: null },
+      ],
+    });
   });
 
   it('failed quando a última falhou e stalled quando nada roda há mais de 2 rodadas', async () => {

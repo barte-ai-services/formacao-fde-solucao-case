@@ -17,9 +17,9 @@
 # #156: acrescenta issued_return_notes e outbox_supplier_emails (desenho em
 # supabase/persistence-supplier-request.md); a estratégia de unidade de trabalho é a da #156.
 # #156 acrescenta: declara as tabelas que a camada de persistência da devolução lê ou grava e
-# toda a base do kit. Ainda sem modo declarado, a declarar pelo dono de cada uma: titles,
+# toda a base do kit. #311 declara dossier_requests (ver a entrada em tables). Ainda sem modo declarado, a declarar pelo dono de cada uma: titles,
 # outbox_dock_actions, outbox_registry_corrections, outbox_store_actions, claude_suggestions,
-# exceptions, automation_runs, dossier_requests (#253), engine_decisions e engine_settings (#251).
+# exceptions, automation_runs, engine_decisions e engine_settings (#251).
 
 database: postgresql 17          # supabase/config.toml, [db] major_version = 17
 migrations: supabase/migrations  # migrações do Supabase CLI, YYYYMMDDHHMMSS_nome.sql
@@ -211,6 +211,33 @@ tables:
     projection: "leitura atual por pedido: a primeira por message_id desc nulls last (no_reply só vale sem leitura de mensagem)"
     rebuild_test: "teste do adaptador que remonta a leitura atual de leituras gravadas em qualquer ordem (persistence-supplier-reply.md, Testes)"
     refusal: grant               # revoke update, delete, truncate de anon, authenticated e service_role
+
+  # O pedido do dossiê, da gaveta e do cron (#130, #311). A #253 apontou que a tabela não tinha modo declarado.
+  dossier_requests:
+    mode: upsert-with-history
+    history: in-row-transition
+    version_column: status       # o PATCH filtra status=eq.pending (claim): a escrita sobre estado velho não pega linha
+    # #311: o pedido (nota, quem, gatilho, quando) é um fato; status sai de pending (backfill) ou nasce running (gaveta e
+    # #311: cron), e fecha uma vez em done ou error, com finished_at e, no erro, o motivo fechado em reason (um código, nunca
+    # #311: texto livre). Os pedidos error que o cron grava por nota, quando a falha global impede o lote, entram já fechados.
+    idempotency: "dossier_requests_pending_input_key_idx: um pending por nota (índice único parcial); o backfill grava com on conflict do nothing"
+    deletion: none
+    erasure: not stated          # requested_by é e-mail de quem pediu na gaveta; sem caminho de apagamento registrado
+    indexes:
+      - name: dossier_requests_input_key_requested_at_idx
+        serves: o 409 e o 429 da gaveta (pedidos de uma nota por data)
+      - name: dossier_requests_pending_input_key_idx
+        serves: um pendente por nota (índice único parcial, status = 'pending'); o backfill (20261122110000) usa no on conflict
+      - name: dossier_requests_requested_at_idx
+        serves: o ramo requested_at.gte da janela de pedidos que o cron lê a cada invocação
+      - name: dossier_requests_open_requested_at_idx
+        serves: a rota GET /api/admin/dossies (pending e error, do mais novo ao mais velho)
+    # #311 Os índices foram criados sem CONCURRENTLY, exceção à IDX-4 registrada em docs/adr/ADR-008-indices-de-dossier-requests-sem-concurrently.md:
+    # #311 a tabela tem dezenas de linhas (um pedido por nota), o lock de escrita dura milissegundos e fica aceito, e o índice
+    # #311 único precisa existir antes do on conflict do backfill. O deploy roda `supabase db push --remote --yes --include-all`
+    # #311 (.github/workflows/supabase-base-do-kit.yml, passo "Aplicar as migrações"), que não garante rodar fora de transação,
+    # #311 e CONCURRENTLY não roda dentro de uma.
+    # RLS ligado e sem política (20261117140000_dossier_sob_demanda.sql): só a chave secreta do Worker lê e grava.
 
   # Base do kit (#52, ADR-001): espelho dos JSON de data/kit/, que é a fonte versionada.
   kit_fornecedores: &kit   # #156: ganha a coluna email (migração da #156); o modo é o da #156
