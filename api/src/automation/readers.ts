@@ -1,7 +1,7 @@
 // #211 O que a API lê do banco para a faixa, os indicadores e a linha do tempo. Só leitura.
 import { isInteger, isString, nullable, oneOf, optional, parseRows, shaped, type Shape } from '../connectors/guards.js';
 import { ENGINE_APPROVER } from '../domain/approval.js';
-import type { SupabaseRest } from '../connectors/supabase-rest.js';
+import { isMissingSchema, type SupabaseRest } from '../connectors/supabase-rest.js';
 import type { DossierSource } from '../dossier/source.js';
 import { computeIndicators, type DecidedBy, type DecisionRecord, type Indicators } from './indicators.js';
 import { todayInBrasilia } from '../http/approval.js';
@@ -99,6 +99,47 @@ export async function readPersonApprovals(
     approvals: rows.filter((a) => decidedBy(a) === 'person').map((a) => ({ proposalId: a.proposal_id, approver: a.approver, approvedAt: a.approved_at })),
     horizon: rows.length === limit ? (rows.at(-1)?.approved_at ?? null) : null,
   };
+}
+
+/** #353 O pedido de devolução que a automação enviou sozinha: a nota de origem e o instante do envio, no texto do banco. */
+export type AutoReturnSent = { readonly invoiceAccessKey: string; readonly sentAt: string };
+export type AutoReturnsRead = { readonly sent: AutoReturnSent[]; readonly horizon: string | null };
+type AutoReturnRow = { invoice_access_key: string; sent_at: string };
+const isAutoReturnRow = shaped<AutoReturnRow>({ invoice_access_key: isString, sent_at: isString } satisfies Shape<AutoReturnRow>);
+
+/** #353 Quem enviou o pedido quando foi a automação: o carimbo `sent_by` que a rpc da demonstração grava. */
+export const AUTOMATION_SENDER = 'automação';
+
+/**
+ * #353 Os pedidos de devolução que a automação enviou sozinha (`origin = demo`, `sent_by = automação`), depois de `afterIso` quando vem, do mais
+ * novo ao mais velho (`desc`) ou do mais velho ao mais novo (`asc`), como as outras fontes do ao vivo. Antes da migração (sem a coluna
+ * `origin`) não há pedido assim: a leitura volta vazia, e a tela segue como era. O `horizon` é o de readPersonApprovals.
+ */
+export async function readAutoReturns(
+  rest: SupabaseRest,
+  limit: number,
+  afterIso?: string,
+  direction: 'asc' | 'desc' = 'desc',
+): Promise<AutoReturnsRead> {
+  try {
+    const rows = parseRows(
+      await rest.select('outbox_supplier_emails', {
+        select: 'invoice_access_key,sent_at',
+        filters: { status: 'eq.sent', origin: 'eq.demo', sent_by: `eq.${AUTOMATION_SENDER}`, ...(afterIso !== undefined && { sent_at: `gt.${afterIso}` }) },
+        order: `sent_at.${direction}`,
+        limit,
+      }),
+      isAutoReturnRow,
+      'outbox_supplier_emails',
+    );
+    return {
+      sent: rows.map((r) => ({ invoiceAccessKey: r.invoice_access_key, sentAt: r.sent_at })),
+      horizon: rows.length === limit ? (rows.at(-1)?.sent_at ?? null) : null,
+    };
+  } catch (error) {
+    if (!isMissingSchema(error)) throw error;
+    return { sent: [], horizon: null };
+  }
 }
 
 /** #354 A nota que o passo cita: a chave de acesso (por onde a gaveta abre) e o número, quando a nota está no banco. */

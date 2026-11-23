@@ -13,7 +13,7 @@ type ItemJson = {
   unitPriceCents: number;
   totalCents: number;
 };
-type InvoiceRow = {
+export type InvoiceRow = {
   access_key: string;
   number: string;
   series: string;
@@ -36,7 +36,7 @@ const isItem = shaped<ItemJson>({
   totalCents: isInteger,
 } satisfies Shape<ItemJson>);
 
-const isInvoiceRow = shaped<InvoiceRow>({
+export const isInvoiceRow = shaped<InvoiceRow>({
   access_key: isString,
   number: isString,
   series: isString,
@@ -51,7 +51,7 @@ const isInvoiceRow = shaped<InvoiceRow>({
 
 const isEmailRow = shaped<EmailRow>({ email: nullable(isString) } satisfies Shape<EmailRow>);
 
-const invoiceOf = (row: InvoiceRow): Invoice =>
+export const invoiceOf = (row: InvoiceRow): Invoice =>
   Invoice.receive({
     accessKey: row.access_key,
     number: row.number,

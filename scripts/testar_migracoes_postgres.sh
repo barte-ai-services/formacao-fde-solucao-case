@@ -3,6 +3,7 @@
 # trava otimista de proposals.version. Fora do `make check`: o CI não tem docker garantido. Reexecutável.
 # #304 Prova também a função save_approval_decision (a decisão do aprovador numa só transação).
 # #349 Prova também kit_insert_demo_batch (o lote de notas da demonstração numa só chamada) e a coluna kit_notas.origin.
+# #353 Prova também a devolução automática: demo_auto_return_pending e demo_auto_return_send (emite, envia e move a fila numa transação).
 #
 #   scripts/testar_migracoes_postgres.sh
 #
@@ -437,7 +438,137 @@ end
 $$;
 SQL
 
+echo "== provas da devolução automática (#353): demo_auto_return_pending e demo_auto_return_send"
+psql <<'SQL'
+do $$
+declare
+  v_pending jsonb;
+  v_batch jsonb;
+  v_note jsonb;
+  v_n integer;
+  v_q1 bigint;
+  v_q2 bigint;
+  v_q3 bigint;
+  v_req bigint;
+  v_issued bigint;
+  v_row record;
+begin
+  -- o cadastro: o fornecedor F01 passa a ter e-mail; as notas 'a' e 'b' (demo) e 'c' (base) existem em kit_notas e em invoices
+  update public.kit_fornecedores set email = 'compras@fornecedor.example' where fornecedor_id = 'F01';
+  insert into public.kit_notas (chave, nota_id, numero, serie, fornecedor_id, destino, data_emissao, pedido_referenciado, canal_entrada, valor_total, origin)
+  values (repeat('a', 44), 'DM-00006', 16, 1, 'F01', 'LJ-001', '2026-11-23', null, 'SEFAZ', 40.00, 'demo'),
+         (repeat('b', 44), 'DM-00007', 17, 1, 'F01', 'LJ-001', '2026-11-23', null, 'SEFAZ', 40.00, 'demo'),
+         (repeat('c', 44), 'NF-008', 8, 1, 'F01', 'LJ-001', '2026-11-23', null, 'SEFAZ', 40.00, 'base');
+  insert into public.invoices (access_key, number, series, supplier_id, store, issued_on, entry_channel, total_cents, items, state)
+  select k, n, '1', 'F01', 'LJ-001', '2026-11-23', 'sefaz', 100000,
+    '[{"supplierCode":"F01-001","sku":"SKU-1","description":"Produto de teste","quantity":{"amount":100,"unit":"UN"},"unitPriceCents":10000,"totalCents":1000000}]'::jsonb, 'decidida'
+  from (values (repeat('a', 44), '10'), (repeat('b', 44), '11'), (repeat('c', 44), '88')) t(k, n);
+  -- três devoluções pendentes: 3 UN (R$ 300,00) de nota demo, 60 UN (R$ 6.000,00) de nota demo e 3 UN de nota da base
+  insert into public.outbox_return_notes (invoice_access_key, payload, idempotency_key) values
+    (repeat('a', 44), '{"lines":[{"supplierCode":"F01-001","amount":3,"unit":"UN"}],"reason":"x"}', 'k-a'),
+    (repeat('b', 44), '{"lines":[{"supplierCode":"F01-001","amount":60,"unit":"UN"}],"reason":"x"}', 'k-b'),
+    (repeat('c', 44), '{"lines":[{"supplierCode":"F01-001","amount":3,"unit":"UN"}],"reason":"x"}', 'k-c');
+  v_q1 := (select id from public.outbox_return_notes where invoice_access_key = repeat('a', 44));
+  v_q2 := (select id from public.outbox_return_notes where invoice_access_key = repeat('b', 44));
+  v_q3 := (select id from public.outbox_return_notes where invoice_access_key = repeat('c', 44));
+
+  -- (a) modo desligado: nada para ler nem para enviar, qualquer que seja o limite
+  update public.demo_settings set enabled = false;
+  v_pending := public.demo_auto_return_pending();
+  assert jsonb_array_length(v_pending -> 'entries') = 0, '(a) leu entrada com o modo desligado';
+  update public.demo_settings set enabled = true;
+
+  -- (b) modo ligado, limite padrão R$ 5.000,00: só a de R$ 300,00 da nota demo (a de R$ 6.000,00 passa do limite, a da base não é demo)
+  v_pending := public.demo_auto_return_pending();
+  assert (v_pending ->> 'limitCents')::integer = 500000, '(b) o limite padrão não é 500000';
+  assert jsonb_array_length(v_pending -> 'entries') = 1, format('(b) esperava 1 entrada, veio %s', jsonb_array_length(v_pending -> 'entries'));
+  assert (v_pending -> 'entries' -> 0 ->> 'queueId')::bigint = v_q1, '(b) a entrada não é a de R$ 300,00';
+  assert (v_pending -> 'entries' -> 0 ->> 'supplierEmail') = 'compras@fornecedor.example', '(b) e-mail do fornecedor';
+  assert (v_pending -> 'entries' -> 0 -> 'request') = 'null'::jsonb, '(b) não havia rascunho';
+  raise notice '(b) ok: só a devolução de nota demo até o limite é lida';
+
+  -- (c) o limite muda no banco, sem deploy: com R$ 10.000,00 a de R$ 6.000,00 entra, com zero nada entra
+  update public.demo_settings set auto_return_limit_cents = 1000000;
+  assert jsonb_array_length(public.demo_auto_return_pending() -> 'entries') = 2, '(c) com R$ 10.000,00 deveriam ser 2';
+  update public.demo_settings set auto_return_limit_cents = 0;
+  assert jsonb_array_length(public.demo_auto_return_pending() -> 'entries') = 0, '(c) com limite zero nada deveria entrar';
+  begin
+    update public.demo_settings set auto_return_limit_cents = -1;
+    raise exception '(c) limite negativo entrou';
+  exception when check_violation then null;
+  end;
+  update public.demo_settings set auto_return_limit_cents = 500000;
+  raise notice '(c) ok: o limite vem do banco, zero desliga e negativo não existe';
+
+  -- (d) enviar: a nota é emitida, o pedido sai como enviado pela automação (origin demo) e a fila vai para emitida, tudo junto
+  v_note := '{"nature":"devolucao","referencedAccessKey":"x","supplierId":"F01","destination":"LJ-001","items":[],"total":300}'::jsonb;
+  v_batch := jsonb_build_array(jsonb_build_object(
+    'queueId', v_q1, 'invoiceAccessKey', repeat('a', 44), 'supplierId', 'F01', 'recipient', 'compras@fornecedor.example', 'note', v_note,
+    'subject', 'Devolução da nota {{nota.numero}}', 'body', 'corpo', 'asks', jsonb_build_array('a'), 'issuedOn', '2026-11-23',
+    'draftedOn', '2026-11-23', 'dueOn', '2026-11-26', 'requestId', null, 'requestVersion', null));
+  v_n := public.demo_auto_return_send(v_batch);
+  assert v_n = 1, format('(d) devolveu %s, esperado 1', v_n);
+  v_issued := (select id from public.issued_return_notes where queue_id = v_q1);
+  assert v_issued is not null, '(d) a nota não foi emitida';
+  select * into v_row from public.outbox_supplier_emails where queue_id = v_q1;
+  assert v_row.status = 'sent' and v_row.origin = 'demo' and v_row.sent_by = 'automação' and v_row.channel = 'mock', '(d) o pedido não saiu como enviado pela automação';
+  assert v_row.issued_return_note_id = v_issued and v_row.version = 1 and jsonb_array_length(v_row.history) = 1, '(d) nota, versão ou histórico do pedido';
+  assert (v_row.history -> 0 ->> 'by') = 'automação' and (v_row.history -> 0 ->> 'action') = 'sent', '(d) a entrada do histórico';
+  assert (v_row.attachments -> 0 ->> 'filename') = 'nota-devolucao-ND-' || v_issued || '.json', '(d) o anexo aponta a nota emitida';
+  select * into v_row from public.outbox_return_notes where id = v_q1;
+  assert v_row.status = 'emitida' and v_row.emitted_by = 'automação' and v_row.nfe_number = v_issued::text, '(d) a fila não foi movida para emitida pela automação';
+  assert (select status from public.outbox_return_notes where id = v_q2) = 'pendente', '(d) a outra devolução mudou';
+  raise notice '(d) ok: emitiu a nota, enviou o pedido (origin demo, sent_by automação) e moveu a fila numa chamada';
+
+  -- (e) repetir o lote não emite de novo nem duplica: a devolução já não está pendente
+  assert public.demo_auto_return_send(v_batch) = 0, '(e) repetir o lote devolveu mais que 0';
+  assert (select count(*) from public.issued_return_notes where queue_id = v_q1) = 1, '(e) emitiu a nota duas vezes';
+  assert (select count(*) from public.outbox_supplier_emails where queue_id = v_q1) = 1, '(e) duplicou o pedido';
+  raise notice '(e) ok: o mesmo lote de novo devolve 0 e não duplica nada';
+
+  -- (f) o banco confere o limite e a origem de novo: lote com nota acima do limite, ou de nota da base, não passa
+  update public.demo_settings set auto_return_limit_cents = 10000;
+  assert public.demo_auto_return_send(jsonb_set(jsonb_set(v_batch, '{0,queueId}', to_jsonb(v_q2)), '{0,invoiceAccessKey}', to_jsonb(repeat('b', 44)))) = 0, '(f) enviou acima do limite';
+  update public.demo_settings set auto_return_limit_cents = 500000;
+  assert public.demo_auto_return_send(jsonb_set(jsonb_set(v_batch, '{0,queueId}', to_jsonb(v_q3)), '{0,invoiceAccessKey}', to_jsonb(repeat('c', 44)))) = 0, '(f) enviou nota da base';
+  assert (select status from public.outbox_return_notes where id in (v_q2, v_q3) and status <> 'pendente' limit 1) is null, '(f) moveu a fila que não devia';
+  update public.demo_settings set enabled = false;
+  assert public.demo_auto_return_send(v_batch) = 0, '(f) enviou com o modo desligado';
+  update public.demo_settings set enabled = true;
+  raise notice '(f) ok: acima do limite, nota da base ou modo desligado não saem';
+
+  -- (g) o rascunho que já existia (o do Claude) é o que sai: mesmo texto, versão sobe, origin vira demo
+  insert into public.outbox_supplier_emails (invoice_access_key, queue_id, supplier_id, request_type, recipient, subject, body, asks, note, drafted_on, due_on, model, status, history)
+  values (repeat('b', 44), v_q2, 'F01', 'return_note', 'compras@fornecedor.example', 'Assunto do Claude', 'Corpo do Claude', '["pedido"]', v_note, '2026-11-23', '2026-11-26', 'claude', 'draft',
+    '[{"version":1,"at":"2026-11-23T10:00:00Z","by":"agente","action":"drafted","state":{}}]');
+  v_req := (select id from public.outbox_supplier_emails where queue_id = v_q2);
+  update public.demo_settings set auto_return_limit_cents = 1000000;
+  v_pending := public.demo_auto_return_pending();
+  assert (v_pending -> 'entries' -> 0 -> 'request' ->> 'id')::bigint = v_req and (v_pending -> 'entries' -> 0 -> 'request' ->> 'subject') = 'Assunto do Claude', '(g) a leitura não trouxe o rascunho';
+  v_batch := jsonb_build_array(jsonb_build_object(
+    'queueId', v_q2, 'invoiceAccessKey', repeat('b', 44), 'supplierId', 'F01', 'recipient', 'compras@fornecedor.example',
+    'note', jsonb_set(v_note, '{total}', '6000'), 'subject', 'Assunto do Claude', 'body', 'Corpo do Claude', 'asks', jsonb_build_array('pedido'),
+    'issuedOn', '2026-11-23', 'draftedOn', '2026-11-23', 'dueOn', '2026-11-26', 'requestId', v_req, 'requestVersion', 1));
+  assert public.demo_auto_return_send(v_batch) = 1, '(g) o rascunho não saiu';
+  select * into v_row from public.outbox_supplier_emails where id = v_req;
+  assert v_row.status = 'sent' and v_row.origin = 'demo' and v_row.sent_by = 'automação' and v_row.version = 2 and v_row.subject = 'Assunto do Claude', '(g) o rascunho não virou enviado';
+  assert jsonb_array_length(v_row.history) = 2, '(g) o histórico não ganhou a entrada do envio';
+  assert (select count(*) from public.outbox_supplier_emails where queue_id = v_q2) = 1, '(g) criou um segundo pedido';
+  -- e a versão velha é pulada: o lote com a versão 1 de novo não acha a fila pendente nem o rascunho
+  assert public.demo_auto_return_send(v_batch) = 0, '(g) reenviou o rascunho já enviado';
+  update public.demo_settings set auto_return_limit_cents = 500000;
+  raise notice '(g) ok: o rascunho do Claude sai com o texto dele, na versão seguinte, e o lote velho é pulado';
+
+  -- (h) permissões: só o service_role executa as duas funções
+  assert not has_function_privilege('anon', 'public.demo_auto_return_pending()', 'execute'), '(h) anon executa a leitura';
+  assert not has_function_privilege('authenticated', 'public.demo_auto_return_send(jsonb)', 'execute'), '(h) authenticated executa o envio';
+  assert has_function_privilege('service_role', 'public.demo_auto_return_pending()', 'execute') and has_function_privilege('service_role', 'public.demo_auto_return_send(jsonb)', 'execute'), '(h) service_role sem execute';
+  raise notice '(h) ok: só o service_role executa';
+end
+$$;
+SQL
+
 echo "== sem versão repetida"
 repetidas="$(ls "$MIGRACOES" | sed 's/_.*//' | sort | uniq -d)"
 if [ -n "$repetidas" ]; then echo "versão repetida: $repetidas" >&2; exit 1; fi
-echo "OK: todas as migrações aplicadas sem erro, sem versão repetida, e as provas de proposals.version, de save_approval_decision e de kit_insert_demo_batch passaram"
+echo "OK: todas as migrações aplicadas sem erro, sem versão repetida, e as provas de proposals.version, de save_approval_decision, de kit_insert_demo_batch e da devolução automática (#353) passaram"

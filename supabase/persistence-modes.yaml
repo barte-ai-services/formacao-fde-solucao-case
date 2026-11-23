@@ -179,6 +179,8 @@ tables:
     send_guard: "send_claim uuid + send_claimed_at timestamptz (trava do envio, com prazo)"
     deletion: none               # nada é apagado; o fim é status = discarded com motivo, quem e quando
     erasure: not stated          # sent_by e discarded_by identificam pessoas (ADR-005); sem caminho de apagamento registrado
+    # #353: a coluna origin ('base' por padrão, 'demo') marca o pedido que a devolução automática da demonstração enviou; nesse caso sent_by é
+    # #353: 'automação' (não é pessoa) e o envio entra no history como {action: 'sent', by: 'automação'} na mesma linha, por demo_auto_return_send.
     # #157: a cobrança da leitura (#157, AC-3) mora nesta linha, nas colunas follow_up_*, e segue a mesma
     # #157: disciplina: todo PATCH filtra version=eq.<lida>, soma 1 e acrescenta a entrada em history no mesmo PATCH.
     # #157: depois de `sent` a #156 não grava mais a linha (markSent e discard não partem de `sent`), então as
@@ -251,6 +253,8 @@ tables:
     # #356 Uma linha só (id é o booleano true, com check), semeada pela migração. A troca é lida e gravada por PATCH filtrado em
     # #356 id=eq.true&version=eq.<lida>, que sobe a versão e acrescenta a entrada ao history no mesmo PATCH (a disciplina da #156); o
     # #356 PATCH que não toca linha é recusado (DemoModeWriteError, `conflict`, 409 na camada API) e a linha ausente é erro, não recriação.
+    # #353 O limite da devolução automática (auto_return_limit_cents, centavos, 500000 por padrão, zero desliga, nunca negativo) mora nesta linha: muda
+    # #353 por UPDATE no banco, sem deploy e sem passar pelo history (que registra só a troca de modo); só vale com enabled = true.
     tenant: none
     deletion: none
     erasure: not stated          # changed_by e o `by` do history são o e-mail de um administrador; só no banco, nunca em resposta nem em log; sem caminho de apagamento registrado

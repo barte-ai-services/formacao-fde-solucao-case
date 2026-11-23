@@ -12,6 +12,7 @@ import type { RoundStep } from '../automation/round-budget.js';
 import type { RoundBuild } from '../automation/round.js';
 import { NO_FIGURES, type RunFigures } from '../automation/runs.js';
 import { ROUND_BUDGET_MS } from '../claude/cron.js';
+import { AUTO_RETURN_COST, AUTO_RETURN_STEP_NAME } from '../demo/auto-return.js';
 import { DEMO_NOTES_STEP_COST, DEMO_NOTES_STEP_NAME } from '../demo/round-step.js';
 
 /** #356 AC-4 O que cada passo faz no mundo, injetado: o adaptador real é cron/round-work.ts, os testes usam dublês. */
@@ -35,6 +36,8 @@ export interface RoundWork {
   demoDockCount(): Promise<void>;
   /** #363 As respostas do fornecedor da demonstração (caixa de entrada mock): só entra na rodada com o modo ligado. */
   demoSupplierReplies(): Promise<void>;
+  /** #353 A devolução de valor pequeno que sai sozinha (até o limite do banco): só entra na rodada com o modo ligado. */
+  demoAutoReturn(): Promise<void>;
   /** #171 Os nomes das tarefas do Claude da rodada (tasksFor); cada uma é um passo. */
   readonly claudeTasks: readonly string[];
   /** #356 AC-3 Uma tarefa do Claude até `deadline` (epoch em ms): o prazo é um por rodada, igual para todas. */
@@ -68,6 +71,8 @@ export const STEP_COSTS = {
   /** #363 Uma rpc de leitura e uma de gravação em lote (a medida do passo da demonstração). */
   dockCount: 2,
   supplierReplies: 2,
+  /** #353 Uma rpc de leitura e uma de gravação em lote (a medida do passo da devolução automática). */
+  autoReturn: AUTO_RETURN_COST,
   engine: 20,
   demoNotes: DEMO_NOTES_STEP_COST,
 } as const satisfies Record<string, number>;
@@ -151,6 +156,9 @@ export function buildRoundSteps(work: RoundWork, now: () => number = Date.now, c
     step('devolucoes', STEP_COSTS.returns, async () => {
       await work.publishReturns();
     }),
+    // #353 A devolução automática lê a fila que 'devolucoes' acabou de publicar, e o pedido que ela envia entra antes da varredura de prazo do
+    // #353 fornecedor e dos passos do Claude (o rascunho do Claude não precisa mais disputar a devolução). Só com o modo ligado.
+    ...(demoEnabled ? [step(AUTO_RETURN_STEP_NAME, STEP_COSTS.autoReturn, () => work.demoAutoReturn())] : []),
     step('duplicados', STEP_COSTS.duplicates, async () => {
       figures.duplicatesBlocked = (await work.blockDuplicates()).blocked;
     }),

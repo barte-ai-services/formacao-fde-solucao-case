@@ -25,6 +25,7 @@ export function noteOf(event: LiveEvent): LiveInvoiceRef | null {
       return null;
     case "decision":
     case "human_decision":
+    case "auto_return":
       return event.invoice;
     default: {
       const unreachable: never = event;

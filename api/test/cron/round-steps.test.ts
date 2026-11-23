@@ -19,6 +19,7 @@ function work(deadlines: Map<string, number>): RoundWork {
     markOverdueSupplierRequests: nothing,
     demoDockCount: async () => {},
     demoSupplierReplies: async () => {},
+    demoAutoReturn: async () => {},
     claudeTasks: ['description-match', 'probable-order'],
     claudeTask: async (name, deadline) => void deadlines.set(name, deadline),
     engine: async () => ({ evaluated: 0, approved: 0 }),
@@ -84,7 +85,7 @@ describe('#363 a contagem da doca e as respostas do fornecedor só entram com o 
     expect(list.indexOf('contagem-da-doca')).toBeGreaterThan(list.indexOf('loja'));
     expect(list.indexOf('respostas-do-fornecedor')).toBeLessThan(list.indexOf('prazo-fornecedor'));
     for (const n of DEMO) expect(list.indexOf(n)).toBeLessThan(list.indexOf('motor'));
-    expect(list.filter((n) => !DEMO.includes(n) && n !== 'notas-demo')).toEqual(names(false));
+    expect(list.filter((n) => !DEMO.includes(n) && n !== 'notas-demo' && n !== 'devolucao-automatica')).toEqual(names(false));
   });
 
   it('cada passo declara o custo de STEP_COSTS e roda o trabalho da demonstração', async () => { // ADR-002
@@ -97,5 +98,35 @@ describe('#363 a contagem da doca e as respostas do fornecedor só entram com o 
     await count?.run();
     await replies?.run();
     expect(calls).toEqual(['doca', 'respostas']);
+  });
+});
+
+describe('#353 a devolução automática só entra com o modo demonstração ligado, e o modo desligado não muda a lista', () => { // ADR-002
+  const names = (demo: boolean) => buildRoundSteps(work(new Map()), Date.now, undefined, demo).steps.map((s) => s.name);
+
+  it('#353/AC-3: com o modo desligado a lista é, passo a passo, a de antes da #353 (nenhum passo novo, mesma ordem)', () => { // ADR-002
+    expect(names(false)).toEqual([
+      'captura', 'marcas-da-conferencia', 'recebimentos-sem-nota', 'propostas',
+      'cadastro-e8-dias-0-1', 'cadastro-e8-dias-2-3', 'cadastro-e8-dias-4-5', 'cadastro-e8-dias-6-6',
+      'doca', 'loja', 'devolucoes', 'duplicados', 'prazo-fornecedor',
+      'claude-description-match', 'claude-probable-order', 'motor',
+    ]);
+    expect(buildRoundSteps(work(new Map())).steps.map((s) => s.name)).toEqual(names(false));
+  });
+
+  it('#353/AC-1: com o modo ligado o passo vem logo depois de devolucoes (que publica a fila que ele lê), e o resto da lista não muda', () => { // ADR-002
+    const list = names(true);
+    expect(list.indexOf('devolucao-automatica')).toBe(list.indexOf('devolucoes') + 1);
+    expect(list.filter((n) => !['notas-demo', 'contagem-da-doca', 'respostas-do-fornecedor', 'devolucao-automatica'].includes(n))).toEqual(names(false));
+  });
+
+  it('#353/AC-1: o passo declara o custo de STEP_COSTS (2) e roda o trabalho da demonstração', async () => { // ADR-002
+    const calls: string[] = [];
+    const w: RoundWork = { ...work(new Map()), demoAutoReturn: async () => void calls.push('devolucao') };
+    const step = buildRoundSteps(w, Date.now, undefined, true).steps.find((s) => s.name === 'devolucao-automatica');
+    expect(step?.maxSubrequests).toBe(STEP_COSTS.autoReturn);
+    expect(STEP_COSTS.autoReturn).toBe(2);
+    await step?.run();
+    expect(calls).toEqual(['devolucao']);
   });
 });
