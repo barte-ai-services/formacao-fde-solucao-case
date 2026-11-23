@@ -61,6 +61,8 @@ export type StoredDecision = EngineDecision & { readonly decidedAt: string };
 export type EngineSettings = {
   readonly level: string;
   readonly delegationEnabled: boolean;
+  /** #351 O valor de `delegationEnabled` de antes de o modo demonstração ligar; nulo com o modo desligado. */
+  readonly delegationBeforeDemo?: boolean | null;
   readonly confidenceThreshold: number;
   readonly clefTimeoutMs: number;
 };
