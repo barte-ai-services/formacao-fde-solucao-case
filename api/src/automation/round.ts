@@ -191,6 +191,8 @@ async function runLocked(
   const status = error === null ? 'ok' : 'failed';
   const figures = build ? build.figures() : NO_FIGURES;
   // #311 Cada passo falha sozinho: o que lançou e o que engoliu a própria falha entram em failed_steps; a captura (o caminho crítico) é o status `failed`.
+  // #371 Com o modo ligado o motor é do caminho fixo e roda em toda rodada: a linha diz quantas decisões ele gravou e quantas aprovou nesta (só números). A rodada que não montou não o rodou.
+  if (demoEnabled && build) ports.log(`cron: motor do caminho fixo decidiu ${build.figures().engineEvaluated} e aprovou ${build.figures().engineApproved} nesta rodada`);
   const failedSteps = [...new Set([...(build?.failedSteps() ?? []), ...outcome.failed.map((f) => f.name).filter((n) => !build?.failsRound.has(n))])];
   await recordSafely(ports, {
     startedAt, finishedAt: ports.now(), status, origin, demoEnabled, figures, error, deferredSteps: outcome.deferred,

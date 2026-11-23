@@ -144,10 +144,10 @@ const ROUNDS = 30;
 /**
  * #371 O N: a espera máxima, em rodadas (em minutos, com o modo ligado), entre duas vezes de um passo que se reveza, MEDIDA em ROUNDS rodadas seguidas
  * com a fila cheia (o mundo mais cheio do kit, com o Claude, o fornecedor e as devoluções) e as notas novas do modo a cada rodada. Cada número é a maior
- * espera medida (a espera de um passo que roda de uma em uma rodada é 0). Com 3 notas por rodada, 9; com 8, o pior caso, 17: quanto mais notas, mais
+ * espera medida (a espera de um passo que roda de uma em uma rodada é 0). Com 3 notas por rodada, 12; com 8, o pior caso, 22: quanto mais notas, mais
  * rodadas o motor gasta decidindo (até 4 decisões, 15 do orçamento) e menos sobra aos demais.
  */
-const ROTATION_WAIT_MAX: Readonly<Record<number, number>> = { 3: 9, 8: 17 };
+const ROTATION_WAIT_MAX: Readonly<Record<number, number>> = { 3: 12, 8: 22 };
 /**
  * #371 Os passos que a conta do orçamento deixa de fora do N com o caminho fixo. O fixo gasta 2 + 16 + 7 = 25 antes do motor e o motor ocioso, 7: sobram 11
  * a 13 do orçamento de 43, e o passo que declara mais que isso só cabe numa rodada em que o motor e as propostas gastaram menos que o pior. O rascunho

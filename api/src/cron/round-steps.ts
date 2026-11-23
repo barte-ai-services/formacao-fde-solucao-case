@@ -78,11 +78,11 @@ export const STEP_COSTS = {
   proposeFixed: 7,
   engineFixed: 15,
   /**
-   * #371 O E8 da janela inteira no revezamento do modo demonstração: 7 leituras mais até REGISTRY_MESSAGES_PER_STEP_DEMO (4) publicações. Quatro fatias de 15
-   * (o teto de 8 mensagens de sempre) somavam 60 do declarado e nenhuma cabia ao lado do caminho fixo, que deixa no máximo 13 do orçamento; um passo de 11
-   * cabe, e o que passar do teto fica para a rodada seguinte (a caixa de saída é idempotente).
+   * #371 O E8 de cada fatia no revezamento do modo demonstração: 7 leituras mais até REGISTRY_MESSAGES_PER_STEP_DEMO (3) publicações. Com o teto de 8 de
+   * sempre (15) a fatia não cabia nunca ao lado do caminho fixo, que deixa no máximo 13 do orçamento; com 3, são 10, e o que passar do teto fica para a
+   * rodada seguinte (a caixa de saída é idempotente).
    */
-  registryDemo: 11,
+  registryDemo: 10,
 } as const satisfies Record<string, number>;
 
 /** #356 AC-4 O custo medido de cada tarefa do Claude (a fila cheia dela), pelo nome em tasksFor. */
@@ -95,10 +95,8 @@ export const CLAUDE_TASK_COSTS: Readonly<Record<string, number>> = {
 
 /** #356 AC-4 As fatias da janela do E8: cada uma cabe sozinha ao lado da captura. */
 export const REGISTRY_SLICES: readonly (readonly [number, number])[] = [[0, 2], [2, 4], [4, 6], [6, 7]];
-/** #371 Com o modo demonstração ligado a janela de 7 dias é uma fatia só: os volumes da demonstração são pequenos (STEP_COSTS.registryDemo). */
-export const REGISTRY_SLICES_DEMO: readonly (readonly [number, number])[] = [[0, 7]];
-/** #371 O teto de mensagens E8 novas por passo com o modo demonstração ligado (STEP_COSTS.registryDemo). */
-export const REGISTRY_MESSAGES_PER_STEP_DEMO = 4;
+/** #371 O teto de mensagens E8 novas por fatia com o modo demonstração ligado (STEP_COSTS.registryDemo). */
+export const REGISTRY_MESSAGES_PER_STEP_DEMO = 3;
 
 /**
  * #356 AC-4 O passo que, se falha, grava a rodada como `failed`: só a captura, o caminho crítico (#311). Todo o resto falha sozinho,
@@ -161,8 +159,7 @@ export function buildRoundSteps(work: RoundWork, now: () => number = Date.now, c
       figures.proposed = r.proposed;
       figures.approvedByRule = r.approvedByRule;
     }),
-    // #371 Com o modo ligado a janela de 7 dias é UM passo (as quatro fatias leriam as mesmas tabelas quatro vezes no declarado) com o teto de mensagens do modo.
-    ...(demoEnabled ? REGISTRY_SLICES_DEMO : REGISTRY_SLICES).map(([from, to]) =>
+    ...REGISTRY_SLICES.map(([from, to]) =>
       step(`cadastro-e8-dias-${from}-${to - 1}`, demoEnabled ? STEP_COSTS.registryDemo : STEP_COSTS.registry, async () => {
         figures.cadastroE8 += await (demoEnabled ? work.publishRegistry(from, to, REGISTRY_MESSAGES_PER_STEP_DEMO) : work.publishRegistry(from, to));
       }),

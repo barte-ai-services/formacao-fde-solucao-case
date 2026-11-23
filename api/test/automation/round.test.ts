@@ -19,7 +19,7 @@ const utc = (hhmm: string) => Date.parse(`2026-11-22T${hhmm}:00Z`);
 type StepSpec = { name: string; cost: number; critical?: boolean; fails?: boolean };
 
 /** #356 Um mundo de dublês: o relógio, o modo, a trava com validade e a gravação, e um registro de cada chamada às portas. */
-function world(opts: { demo?: boolean; steps?: StepSpec[]; failsRound?: string[]; startAt?: number; buildThrows?: boolean; spends?: Record<string, number>; swallowed?: string[]; refusing?: string[] } = {}) {
+function world(opts: { demo?: boolean; steps?: StepSpec[]; failsRound?: string[]; startAt?: number; buildThrows?: boolean; spends?: Record<string, number>; swallowed?: string[]; refusing?: string[]; figures?: Partial<RunFigures> } = {}) {
   let now = opts.startAt ?? utc('10:15');
   const calls: string[] = [];
   const ran: string[] = [];
@@ -53,7 +53,7 @@ function world(opts: { demo?: boolean; steps?: StepSpec[]; failsRound?: string[]
         if (s.fails) throw new TypeError('texto do erro que não pode ir ao registro');
       },
     }));
-    const figures = (): RunFigures => ({ ...NO_FIGURES, seen: ran.length });
+    const figures = (): RunFigures => ({ ...NO_FIGURES, seen: ran.length, ...opts.figures });
     return { steps, figures, failsRound: new Set(opts.failsRound ?? ['captura']), failedSteps: () => opts.swallowed ?? [] };
   };
   const ports: RoundPorts = {
@@ -433,5 +433,27 @@ describe('#311 cada passo falha sozinho e a rodada grava o rastro e o gasto', ()
     const w = world();
     await runNow(w.ports);
     expect(w.calls).toEqual(['modo', 'trava', 'adiados', 'gravar-rodada', 'soltar']);
+  });
+});
+
+describe('#371 a linha de log do motor por rodada com o modo demonstração ligado', () => { // ADR-002
+  const decided = { engineEvaluated: 3, engineApproved: 2 };
+
+  it('ligado, a rodada loga quantas decisões o motor gravou e quantas aprovou, só os números', async () => { // ADR-002
+    const w = world({ demo: true, figures: decided });
+    await runRound(w.ports, { origin: 'cron', scheduledTime: utc('10:15') });
+    expect(w.logs).toContain('cron: motor do caminho fixo decidiu 3 e aprovou 2 nesta rodada');
+  });
+
+  it('desligado, a rodada não ganha linha nenhuma: o log é o de antes', async () => { // ADR-002
+    const w = world({ demo: false, figures: decided });
+    await runRound(w.ports, { origin: 'cron', scheduledTime: utc('10:15') });
+    expect(w.logs).toEqual([]);
+  });
+
+  it('a rodada que não montou (custo mal declarado) não loga decisões do motor', async () => { // ADR-002
+    const w = world({ demo: true, buildThrows: true, figures: decided });
+    await runRound(w.ports, { origin: 'cron', scheduledTime: utc('10:15') });
+    expect(w.logs.filter((l) => l.includes('motor do caminho fixo'))).toEqual([]);
   });
 });
