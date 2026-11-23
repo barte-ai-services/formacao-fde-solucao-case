@@ -13,6 +13,7 @@ const EXPECTED: Record<string, { path: string; title: string; empty: string }> =
   "/pagar/fila/:id": { path: "/pagar/fila/35261100", title: "Proposta da nota 35261100", empty: "Esta nota ainda não tem proposta" },
   "/pagar/hoje": { path: "/pagar/hoje", title: "Lista do dia", empty: "Nenhum título para pagar hoje" },
   "/pagar/duplicadas": { path: "/pagar/duplicadas", title: "Notas duplicadas", empty: "Nenhuma nota duplicada neste mês" },
+  "/pagar/ao-vivo": { path: "/pagar/ao-vivo", title: "Ao vivo", empty: "Nenhum passo da automação ainda" }, // ADR-004
   "/pagar/valor-barrado": { path: "/pagar/valor-barrado", title: "Pagamento errado evitado", empty: "Nada evitado neste mês ainda" },
   "/doca": { path: "/doca", title: "Doca", empty: "Nenhuma nota com entrega prevista hoje" },
   "/devolucoes": { path: "/devolucoes", title: "Notas de devolução", empty: "Nenhuma devolução pendente de emissão" },
@@ -44,6 +45,7 @@ function emptyApiOf(path: string): Promise<Response> {
   if (path === "/api/return-notes") return Promise.resolve(Response.json({ notes: [] }));
   if (path === "/api/duplicates") return Promise.resolve(Response.json({ duplicates: [], count: 0 }));
   if (path === "/api/hoje") return Promise.resolve(Response.json({ day: "2026-11-15", items: [], total: { cents: 0 } }));
+  if (path === "/api/live") return Promise.resolve(Response.json({ events: [], since: null, indicators: { day: { date: "2026-11-15", decided: 0, byRule: 0, withoutPersonPct: null }, month: { month: "2026-11" } }, awaiting: 0 }));
   if (path === "/api/valor-barrado") return Promise.resolve(Response.json({ month: "2026-11", baselineCents: 54300000, barred: { totalCents: 0, byException: [] }, ifApprovedAsProposed: { totalCents: 0, byException: [] }, daily: [] }));
   return Promise.resolve(Response.json({ error: "not_found" }, { status: 404 }));
 }

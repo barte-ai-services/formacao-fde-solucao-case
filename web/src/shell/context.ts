@@ -16,6 +16,7 @@ export const NAVIGATION: NavGroup[] = [
       { key: "hoje", label: "Lista do dia", href: "/pagar/hoje", zone: ZONE, icon: "calendar" },
       { key: "duplicadas", label: "Notas duplicadas", href: "/pagar/duplicadas", zone: ZONE, icon: "receipt" },
       { key: "barrado", label: "Pagamento errado evitado", href: "/pagar/valor-barrado", zone: ZONE, icon: "chart-bar" },
+      { key: "ao-vivo", label: "Ao vivo", href: "/pagar/ao-vivo", zone: ZONE, icon: "flow-arrow" }, // ADR-004
       { key: "pedidos-fornecedor", label: "Pedidos ao fornecedor", href: "/pedidos-fornecedor", zone: ZONE, icon: "receipt" }, // ADR-004
     ],
   },

@@ -23,6 +23,11 @@ export interface RowTableProps<T extends object> extends Omit<TableProps<T>, Fix
    * nem o teclado a abrem. Opcional: sem ele, toda linha é de nota, como na #209.
    */
   rowInert?: (row: T) => boolean;
+  /**
+   * #355 Se a linha inerte some também para o leitor de tela. Padrão `true` (o esqueleto da #160); `false` para a linha que é um passo
+   * real, só sem ação (a rodada do ao vivo): fica legível, fora do Tab e sem abrir a gaveta.
+   */
+  hideInert?: boolean;
 }
 
 /**
@@ -30,7 +35,7 @@ export interface RowTableProps<T extends object> extends Omit<TableProps<T>, Fix
  * e entra na ordem do Tab. O link da NF, um seletor ou um botão dentro da linha não abrem a gaveta.
  * O `Table` do DS só trata o clique; o teclado e o rótulo entram aqui, nas linhas que ele desenha.
  */
-export function RowTable<T extends object>({ onOpenRow, rowLabel, rowInert, data, ...table }: RowTableProps<T>): ReactElement {
+export function RowTable<T extends object>({ onOpenRow, rowLabel, rowInert, hideInert = true, data, ...table }: RowTableProps<T>): ReactElement {
   const box = useRef<HTMLDivElement>(null);
   /** O clique que nasceu num controle: lido em captura, antes de a linha tratar o seu. */
   const fromControl = useRef(false);
@@ -40,9 +45,9 @@ export function RowTable<T extends object>({ onOpenRow, rowLabel, rowInert, data
     data.forEach((record, i) => {
       const tr = trs[i];
       if (!tr) return;
-      // #160 A linha inerte fica fora do Tab e da leitura.
+      // #160 A linha inerte fica fora do Tab e, salvo `hideInert` falso (#355), da leitura.
       if (rowInert?.(record)) {
-        tr.setAttribute("aria-hidden", "true");
+        if (hideInert) tr.setAttribute("aria-hidden", "true");
         return;
       }
       tr.setAttribute("tabindex", "0");
