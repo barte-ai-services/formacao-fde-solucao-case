@@ -3,16 +3,16 @@ import { isKitNotaRow } from '../../src/connectors/kit-rows.js';
 
 // #349: a origem da nota é opcional na leitura, para os mocks e as linhas antigas continuarem valendo.
 const base = {
-  chave: '1'.repeat(44),
-  nota_id: 'NF-001',
-  numero: 1,
-  serie: 1,
-  fornecedor_id: 'F01',
-  destino: 'LJ-001',
-  data_emissao: '2026-11-23',
-  pedido_referenciado: null,
-  canal_entrada: 'SEFAZ',
-  valor_total: '10.00',
+  chave: '1'.repeat(44), // ADR-001
+  nota_id: 'NF-001', // ADR-001
+  numero: 1, // ADR-001
+  serie: 1, // ADR-001
+  fornecedor_id: 'F01', // ADR-001
+  destino: 'LJ-001', // ADR-001
+  data_emissao: '2026-11-23', // ADR-001
+  pedido_referenciado: null, // ADR-001
+  canal_entrada: 'SEFAZ', // ADR-001
+  valor_total: '10.00', // ADR-001
 };
 
 describe('#349 kit_notas.origin na leitura', () => {

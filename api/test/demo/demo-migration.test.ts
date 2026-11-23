@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 // #349: asserções sobre o texto da migração do modo demonstração; o comportamento real roda em scripts/testar_migracoes_postgres.sh.
-const FILE = '20261123100000_demo_origin_e_lote.sql';
+const FILE = '20261123100000_demo_origin_and_batch.sql';
 const SQL = readFileSync(new URL(`../../../supabase/migrations/${FILE}`, import.meta.url), 'utf8');
 const flat = SQL.replace(/--[^\n]*/g, '').replace(/\s+/g, ' ').toLowerCase();
 
@@ -26,9 +26,9 @@ describe('#349 kit_notas ganha a origem', () => {
   });
 });
 
-describe('#349 kit_inserir_lote_demo grava o lote numa só chamada', () => {
+describe('#349 kit_insert_demo_batch grava o lote numa só chamada', () => {
   it('é uma função de um parâmetro jsonb que devolve inteiro, com o search_path fixo', () => {
-    expect(flat).toContain('create function public.kit_inserir_lote_demo(p_lote jsonb) returns integer');
+    expect(flat).toContain('create function public.kit_insert_demo_batch(p_batch jsonb) returns integer');
     expect(flat).toContain('set search_path = public');
   });
 
@@ -37,8 +37,8 @@ describe('#349 kit_inserir_lote_demo grava o lote numa só chamada', () => {
   });
 
   it('só o service_role executa', () => {
-    expect(flat).toContain('revoke execute on function public.kit_inserir_lote_demo(jsonb) from public, anon, authenticated');
-    expect(flat).toContain('grant execute on function public.kit_inserir_lote_demo(jsonb) to service_role');
+    expect(flat).toContain('revoke execute on function public.kit_insert_demo_batch(jsonb) from public, anon, authenticated');
+    expect(flat).toContain('grant execute on function public.kit_insert_demo_batch(jsonb) to service_role');
   });
 
   it('insere as nove tabelas na ordem das chaves estrangeiras, cada uma com on conflict do nothing', () => {

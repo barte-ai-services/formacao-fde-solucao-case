@@ -13,7 +13,7 @@ alter table public.kit_notas add column origin text not null default 'base' chec
 -- #349 O cadastro (fornecedores e produtos) já existe e não é gravado aqui: a chave estrangeira falha se o lote citar um que não existe.
 -- #349 Sem security definer: roda com os direitos de quem chama (a chave secreta do Worker). A origem da nota é sempre 'demo',
 -- #349 qualquer que seja o que o lote traga.
-create function public.kit_inserir_lote_demo(p_lote jsonb)
+create function public.kit_insert_demo_batch(p_batch jsonb)
 returns integer
 language plpgsql
 set search_path = public
@@ -21,58 +21,58 @@ as $$
 declare
   v_notas integer;
 begin
-  if p_lote is null or jsonb_typeof(p_lote) <> 'object' then
+  if p_batch is null or jsonb_typeof(p_batch) <> 'object' then
     raise exception 'lote da demonstração ausente ou fora do formato';
   end if;
 
   insert into public.kit_ordens (ordem_id, fornecedor_id, destino, data_emissao, status, motivo_status, valor_total)
   select ordem_id, fornecedor_id, destino, data_emissao, status, motivo_status, valor_total
-    from jsonb_populate_recordset(null::public.kit_ordens, p_lote -> 'kit_ordens')
+    from jsonb_populate_recordset(null::public.kit_ordens, p_batch -> 'kit_ordens')
   on conflict do nothing;
 
   insert into public.kit_ordem_itens (ordem_id, codigo_fornecedor, sku, descricao, quantidade, unidade, preco_unitario)
   select ordem_id, codigo_fornecedor, sku, descricao, quantidade, unidade, preco_unitario
-    from jsonb_populate_recordset(null::public.kit_ordem_itens, p_lote -> 'kit_ordem_itens')
+    from jsonb_populate_recordset(null::public.kit_ordem_itens, p_batch -> 'kit_ordem_itens')
   on conflict do nothing;
 
   insert into public.kit_notas_lancadas (chave, nota_id, numero, serie, fornecedor_id, destino, data_emissao, pedido_referenciado, canal_entrada, valor_total, situacao)
   select chave, nota_id, numero, serie, fornecedor_id, destino, data_emissao, pedido_referenciado, canal_entrada, valor_total, situacao
-    from jsonb_populate_recordset(null::public.kit_notas_lancadas, p_lote -> 'kit_notas_lancadas')
+    from jsonb_populate_recordset(null::public.kit_notas_lancadas, p_batch -> 'kit_notas_lancadas')
   on conflict do nothing;
 
   insert into public.kit_nota_lancada_itens (chave, codigo_fornecedor, sku, descricao, quantidade, unidade, preco_unitario, valor)
   select chave, codigo_fornecedor, sku, descricao, quantidade, unidade, preco_unitario, valor
-    from jsonb_populate_recordset(null::public.kit_nota_lancada_itens, p_lote -> 'kit_nota_lancada_itens')
+    from jsonb_populate_recordset(null::public.kit_nota_lancada_itens, p_batch -> 'kit_nota_lancada_itens')
   on conflict do nothing;
 
   insert into public.kit_notas (chave, nota_id, numero, serie, fornecedor_id, destino, data_emissao, pedido_referenciado, canal_entrada, valor_total, origin)
   select chave, nota_id, numero, serie, fornecedor_id, destino, data_emissao, pedido_referenciado, canal_entrada, valor_total, 'demo'
-    from jsonb_populate_recordset(null::public.kit_notas, p_lote -> 'kit_notas')
+    from jsonb_populate_recordset(null::public.kit_notas, p_batch -> 'kit_notas')
   on conflict do nothing;
   get diagnostics v_notas = row_count;
 
   insert into public.kit_nota_itens (chave, codigo_fornecedor, sku, descricao, quantidade, unidade, preco_unitario, valor)
   select chave, codigo_fornecedor, sku, descricao, quantidade, unidade, preco_unitario, valor
-    from jsonb_populate_recordset(null::public.kit_nota_itens, p_lote -> 'kit_nota_itens')
+    from jsonb_populate_recordset(null::public.kit_nota_itens, p_batch -> 'kit_nota_itens')
   on conflict do nothing;
 
   insert into public.kit_recebimentos (recebimento_id, nota_chave, ordem_id, fornecedor_id, destino, canal, data, observacao)
   select recebimento_id, nota_chave, ordem_id, fornecedor_id, destino, canal, data, observacao
-    from jsonb_populate_recordset(null::public.kit_recebimentos, p_lote -> 'kit_recebimentos')
+    from jsonb_populate_recordset(null::public.kit_recebimentos, p_batch -> 'kit_recebimentos')
   on conflict do nothing;
 
   insert into public.kit_recebimento_itens (recebimento_id, codigo_fornecedor, descricao, quantidade, unidade)
   select recebimento_id, codigo_fornecedor, descricao, quantidade, unidade
-    from jsonb_populate_recordset(null::public.kit_recebimento_itens, p_lote -> 'kit_recebimento_itens')
+    from jsonb_populate_recordset(null::public.kit_recebimento_itens, p_batch -> 'kit_recebimento_itens')
   on conflict do nothing;
 
   insert into public.kit_pagamentos (pagamento_id, fornecedor_id, destino, data, valor, forma, origem, nota_chave)
   select pagamento_id, fornecedor_id, destino, data, valor, forma, origem, nota_chave
-    from jsonb_populate_recordset(null::public.kit_pagamentos, p_lote -> 'kit_pagamentos')
+    from jsonb_populate_recordset(null::public.kit_pagamentos, p_batch -> 'kit_pagamentos')
   on conflict do nothing;
 
   return v_notas;
 end;
 $$;
-revoke execute on function public.kit_inserir_lote_demo(jsonb) from public, anon, authenticated;
-grant execute on function public.kit_inserir_lote_demo(jsonb) to service_role;
+revoke execute on function public.kit_insert_demo_batch(jsonb) from public, anon, authenticated;
+grant execute on function public.kit_insert_demo_batch(jsonb) to service_role;

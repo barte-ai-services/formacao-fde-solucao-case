@@ -5,15 +5,15 @@ import type { KeyAllocator } from './access-key.js';
 import type { Rng } from './prng.js';
 import type { DemoItem, NoteInput, RowSink } from './rows.js';
 
-/** L = loja (até R$ 4 mil), C = CD até R$ 20 mil, CB = CD acima de R$ 20 mil, H = acima de R$ 100 mil. */
+/** L = loja (até R$ 4 mil), C = CD até R$ 20 mil, CB = CD acima de R$ 20 mil, H = acima de R$ 100 mil. (#349) */
 export type Size = 'L' | 'C' | 'CB' | 'H';
 
 export type CaseEnv = {
   readonly rng: Rng;
-  /** Sorteia os textos livres sem olhar o tipo do caso, para o texto nunca denunciar a exceção. */
+  /** Sorteia os textos livres sem olhar o tipo do caso, para o texto nunca denunciar a exceção. (#349) */
   readonly textRng: Rng;
   readonly today: string;
-  /** O número de sequência da nota: todo id e todo código de chave dela sai dele. */
+  /** O número de sequência da nota: todo id e todo código de chave dela sai dele. (#349) */
   readonly n: number;
   readonly keys: KeyAllocator;
   readonly sink: RowSink;
@@ -68,7 +68,7 @@ const RANGES: Readonly<Record<Size, readonly [number, number]>> = {
   H: [104000, 158000],
 };
 
-/** O valor-alvo da nota, em centavos. */
+/** O valor-alvo da nota, em centavos. (#349) */
 export function targetCents(rng: Rng, size: Size): number {
   const [low, high] = RANGES[size];
   return Math.round(rng.float(low, high) * 100);
@@ -87,7 +87,7 @@ export function itemOf(product: DemoProduct, quantity: number): DemoItem {
   };
 }
 
-/** Itens da ordem: `count` produtos do fornecedor, pesos sorteados, quantidade em múltiplos de `multiple`. */
+/** Itens da ordem: `count` produtos do fornecedor, pesos sorteados, quantidade em múltiplos de `multiple`. (#349) */
 export function orderItems(rng: Rng, supplierId: string, valueCents: number, count = 3, multiple = 4): DemoItem[] {
   const products = rng.sample(productsOf(supplierId), count);
   const weights = products.map(() => rng.float(0.6, 1.4));
@@ -105,7 +105,7 @@ export type NoteSpec = {
   readonly items: readonly DemoItem[];
   readonly orderId: string | null;
   readonly channel?: string;
-  /** O código da chave: a nota do lote usa `n * 2`, a nota lançada de fundo usa `n * 2 + 1`. */
+  /** O código da chave: a nota do lote usa `n * 2`, a nota lançada de fundo usa `n * 2 + 1`. (#349) */
   readonly slot: 0 | 1;
   readonly number?: number;
 };
@@ -131,7 +131,7 @@ export function newNote(env: CaseEnv, spec: NoteSpec): NoteInput {
   };
 }
 
-/** A data do recebimento: o dia seguinte à emissão, sem passar de hoje. */
+/** A data do recebimento: o dia seguinte à emissão, sem passar de hoje. (#349) */
 export const receivedOn = (env: CaseEnv, issuedOn: string): string => {
   const next = addDays(issuedOn, 1);
   return next > env.today ? env.today : next;

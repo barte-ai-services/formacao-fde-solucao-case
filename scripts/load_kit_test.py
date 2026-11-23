@@ -112,7 +112,7 @@ class TransformTest(unittest.TestCase):
 
 
 class FakeStore(ck.Supabase):
-    """O Supabase em memória: o upsert por chave primária, como o PostgREST com merge-duplicates. Nada além de gravar."""
+    """#349 O Supabase em memória: o upsert por chave primária, como o PostgREST com merge-duplicates. Nada além de gravar."""
 
     def __init__(self) -> None:
         super().__init__("https://fake.supabase.co", "sb_secret_fake")
@@ -134,9 +134,10 @@ class DemoNotesTest(unittest.TestCase):
 
     @staticmethod
     def demo_note() -> dict[str, Json]:
+        # ADR-001
         return {"chave": "9" * 44, "nota_id": "DM-00001", "numero": 1, "serie": 1, "fornecedor_id": "F01",
-                "destino": "LJ-001", "data_emissao": "2026-11-23", "pedido_referenciado": None,
-                "canal_entrada": "SEFAZ", "valor_total": Decimal("10.00"), "origin": "demo"}
+                "destino": "LJ-001", "data_emissao": "2026-11-23", "pedido_referenciado": None,  # ADR-001
+                "canal_entrada": "SEFAZ", "valor_total": Decimal("10.00"), "origin": "demo"}  # ADR-001
 
     def test_every_base_note_is_loaded_with_origin_base(self) -> None:
         notes = ck.build_rows(DATA_DIR)["kit_notas"]
@@ -154,6 +155,48 @@ class DemoNotesTest(unittest.TestCase):
         self.assertEqual(81, len(store.tables["kit_notas"]))
         origins = [r["origin"] for r in store.tables["kit_notas"].values()]
         self.assertEqual((80, 1), (origins.count("base"), origins.count("demo")))
+
+
+class BaseRowsOfTest(unittest.TestCase):
+    """#349: a conferência online olha só as linhas da base; as de demonstração não entram na conta."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.contract = ck.load_contract(DATA_DIR)
+        cls.rows = ck.build_rows(DATA_DIR)
+
+    def table(self, name: str) -> Json:
+        return next(t for t in self.contract["tables"] if t["name"] == name)
+
+    def test_demo_rows_of_every_table_are_left_out(self) -> None:
+        demo = {
+            "kit_ordens": {"ordem_id": "OC-DM-1"},  # ADR-001
+            "kit_notas": {"chave": "9" * 44},  # ADR-001
+            "kit_notas_lancadas": {"chave": "8" * 44},  # ADR-001
+            "kit_pagamentos": {"pagamento_id": "PG-DM-1"},  # ADR-001
+            "kit_recebimentos": {"recebimento_id": "RC-DM-1"},  # ADR-001
+            "kit_nota_itens": {"chave": "9" * 44, "codigo_fornecedor": "F01-001"},  # ADR-001
+        }
+        for name, extra in demo.items():
+            with self.subTest(table=name):
+                stored = [*self.rows[name], extra]
+                found = ck.base_rows_of(self.table(name), stored, self.rows[name])
+                self.assertEqual(len(self.rows[name]), len(found))
+                self.assertNotIn(extra, found)
+
+    def test_the_demo_prefixes_never_collide_with_the_json_keys(self) -> None:
+        for name, column in (("kit_ordens", "ordem_id"), ("kit_recebimentos", "recebimento_id"), ("kit_pagamentos", "pagamento_id")):
+            with self.subTest(table=name):
+                self.assertFalse(any("-DM-" in str(r[column]) for r in self.rows[name]))
+
+    def test_a_base_row_that_is_missing_from_the_table_is_not_invented(self) -> None:
+        found = ck.base_rows_of(self.table("kit_ordens"), self.rows["kit_ordens"][1:], self.rows["kit_ordens"])
+        self.assertEqual(len(self.rows["kit_ordens"]) - 1, len(found))
+
+    def test_sums_run_over_the_base_rows_only(self) -> None:
+        stored = [*self.rows["kit_pagamentos"], {"pagamento_id": "PG-DM-1", "valor": Decimal("1000.00")}]  # ADR-001
+        found = ck.base_rows_of(self.table("kit_pagamentos"), stored, self.rows["kit_pagamentos"])
+        self.assertEqual(ck.sum_column(self.rows["kit_pagamentos"], "valor"), ck.sum_column(found, "valor"))
 
 
 class RepositoryTest(unittest.TestCase):

@@ -34,7 +34,7 @@ describe('#349 gravação do lote da demonstração', () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]?.url).toBe(`https://fake.supabase.co/rest/v1/rpc/${INSERT_FUNCTION}`);
     expect(calls[0]?.method).toBe('POST');
-    expect(calls[0]?.body).toEqual({ p_lote: JSON.parse(JSON.stringify(batch.rows)) });
+    expect(calls[0]?.body).toEqual({ p_batch: JSON.parse(JSON.stringify(batch.rows)) });
   });
 
   it('o corpo leva as linhas e nenhuma classificação esperada', async () => {

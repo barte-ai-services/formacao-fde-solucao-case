@@ -1,11 +1,11 @@
 // Catálogo do gerador de notas da demonstração (#349): fornecedores e produtos da base do kit (data/kit/fornecedores.json e
-// produtos.json), que as linhas geradas citam por chave estrangeira. Um teste confere este catálogo contra os dois arquivos.
-// Todos os nomes e CNPJs são fictícios: o CNPJ tem dígito verificador inválido de propósito.
+// produtos.json), que as linhas geradas citam por chave estrangeira. Um teste confere este catálogo contra os dois arquivos. (#349)
+// Todos os nomes e CNPJs são fictícios: o CNPJ tem dígito verificador inválido de propósito. (#349)
 
 export type DemoSupplier = {
   readonly id: string;
   readonly name: string;
-  /** Só os 14 dígitos do CNPJ, que entram na chave de acesso. */
+  /** Só os 14 dígitos do CNPJ, que entram na chave de acesso. (#349) */
   readonly cnpjDigits: string;
   readonly blocked: boolean;
 };
@@ -81,7 +81,7 @@ export const PRODUCTS: readonly DemoProduct[] = [
   { sku: 'SKU-1037', supplierId: 'F12', supplierCode: 'F12-003', description: "Filtro de papel 103", boxFactor: 4, priceCents: 690 },
 ];
 
-/** Itens que o fornecedor passou a vender e que ainda não têm cadastro (E8). */
+/** Itens que o fornecedor passou a vender e que ainda não têm cadastro (E8). (#349) */
 export const UNREGISTERED_ITEMS: Readonly<Record<string, DemoUnregisteredItem>> = {
   F02: { description: 'Isotônico limão 500 ml (lançamento)', priceCents: 590 },
   F05: { description: 'Granola sem açúcar 800 g (lançamento)', priceCents: 2990 },

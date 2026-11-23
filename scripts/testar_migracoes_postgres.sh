@@ -2,7 +2,7 @@
 # #295 Aplica TODAS as migrações de supabase/migrations/ num Postgres de verdade (docker, descartável) e prova a
 # trava otimista de proposals.version. Fora do `make check`: o CI não tem docker garantido. Reexecutável.
 # #304 Prova também a função save_approval_decision (a decisão do aprovador numa só transação).
-# #349 Prova também kit_inserir_lote_demo (o lote de notas da demonstração numa só chamada) e a coluna kit_notas.origin.
+# #349 Prova também kit_insert_demo_batch (o lote de notas da demonstração numa só chamada) e a coluna kit_notas.origin.
 #
 #   scripts/testar_migracoes_postgres.sh
 #
@@ -324,7 +324,7 @@ end
 $$;
 SQL
 
-echo "== provas da função kit_inserir_lote_demo e da coluna kit_notas.origin (#349)"
+echo "== provas da função kit_insert_demo_batch e da coluna kit_notas.origin (#349)"
 psql <<'SQL'
 \set QUIET off
 do $$
@@ -373,7 +373,7 @@ begin
       'descricao', 'Produto de teste', 'quantidade', 4, 'unidade', 'UN')),
     'kit_pagamentos', jsonb_build_array(jsonb_build_object('pagamento_id', 'PG-DM-1', 'fornecedor_id', 'F01', 'destino', 'LJ-001',
       'data', '2026-11-20', 'valor', 40.00, 'forma', 'pix', 'origem', 'compra emergencial da loja, fora do fluxo', 'nota_chave', null)));
-  v_n := public.kit_inserir_lote_demo(v_lote);
+  v_n := public.kit_insert_demo_batch(v_lote);
   assert v_n = 2, format('(b) devolveu %s, esperado 2', v_n);
   assert (select count(*) from public.kit_notas where origin = 'demo') = 2, '(b) as duas notas não são demo';
   assert (select count(*) from public.kit_nota_itens where chave in (repeat('1', 44), repeat('2', 44))) = 2, '(b) itens da nota';
@@ -385,7 +385,7 @@ begin
 
   -- (c) repetir o lote não duplica nem apaga nada: devolve 0
   v_antes := (select count(*) from public.kit_nota_itens);
-  v_n := public.kit_inserir_lote_demo(v_lote);
+  v_n := public.kit_insert_demo_batch(v_lote);
   assert v_n = 0, format('(c) devolveu %s, esperado 0', v_n);
   assert (select count(*) from public.kit_notas) = 3 and (select count(*) from public.kit_nota_itens) = v_antes, '(c) repetir mudou as linhas';
   raise notice '(c) ok: o mesmo lote de novo devolve 0 e não duplica nem apaga nada';
@@ -398,7 +398,7 @@ begin
       'fornecedor_id', 'F99', 'destino', 'LJ-001', 'data_emissao', '2026-11-23', 'pedido_referenciado', null,
       'canal_entrada', 'SEFAZ', 'valor_total', 1.00)));
   begin
-    perform public.kit_inserir_lote_demo(v_lote);
+    perform public.kit_insert_demo_batch(v_lote);
     raise exception '(d) o lote com fornecedor inexistente entrou';
   exception when foreign_key_violation then
     null;
@@ -408,13 +408,13 @@ begin
 
   -- (e) lote ausente ou fora do formato
   begin
-    perform public.kit_inserir_lote_demo(null);
+    perform public.kit_insert_demo_batch(null);
     raise exception '(e) lote nulo entrou';
   exception when raise_exception then
     if sqlerrm like '(e)%' then raise; end if;
   end;
   begin
-    perform public.kit_inserir_lote_demo('[]'::jsonb);
+    perform public.kit_insert_demo_batch('[]'::jsonb);
     raise exception '(e) lote em lista entrou';
   exception when raise_exception then
     if sqlerrm like '(e)%' then raise; end if;
@@ -422,9 +422,9 @@ begin
   raise notice '(e) ok: lote nulo ou fora do formato levanta erro';
 
   -- (f) permissões: só o service_role executa
-  assert not has_function_privilege('anon', 'public.kit_inserir_lote_demo(jsonb)', 'execute'), '(f) anon executa';
-  assert not has_function_privilege('authenticated', 'public.kit_inserir_lote_demo(jsonb)', 'execute'), '(f) authenticated executa';
-  assert has_function_privilege('service_role', 'public.kit_inserir_lote_demo(jsonb)', 'execute'), '(f) service_role não executa';
+  assert not has_function_privilege('anon', 'public.kit_insert_demo_batch(jsonb)', 'execute'), '(f) anon executa';
+  assert not has_function_privilege('authenticated', 'public.kit_insert_demo_batch(jsonb)', 'execute'), '(f) authenticated executa';
+  assert has_function_privilege('service_role', 'public.kit_insert_demo_batch(jsonb)', 'execute'), '(f) service_role não executa';
   raise notice '(f) ok: anon e authenticated sem execute; service_role com';
 
   -- (g) a carga da base (upsert pela chave) não apaga a nota de demonstração e deixa a da base como base
@@ -440,4 +440,4 @@ SQL
 echo "== sem versão repetida"
 repetidas="$(ls "$MIGRACOES" | sed 's/_.*//' | sort | uniq -d)"
 if [ -n "$repetidas" ]; then echo "versão repetida: $repetidas" >&2; exit 1; fi
-echo "OK: todas as migrações aplicadas sem erro, sem versão repetida, e as provas de proposals.version, de save_approval_decision e de kit_inserir_lote_demo passaram"
+echo "OK: todas as migrações aplicadas sem erro, sem versão repetida, e as provas de proposals.version, de save_approval_decision e de kit_insert_demo_batch passaram"

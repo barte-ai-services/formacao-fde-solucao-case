@@ -7,7 +7,7 @@ export class Rng {
     this.state = seed >>> 0;
   }
 
-  /** Um número em [0, 1). */
+  /** Um número em [0, 1). (#349) */
   next(): number {
     this.state = (this.state + 0x6d2b79f5) >>> 0;
     let t = this.state;
@@ -16,7 +16,7 @@ export class Rng {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   }
 
-  /** Um inteiro em [low, high], os dois inclusos. */
+  /** Um inteiro em [low, high], os dois inclusos. (#349) */
   int(low: number, high: number): number {
     return low + Math.floor(this.next() * (high - low + 1));
   }
@@ -31,7 +31,7 @@ export class Rng {
     return item;
   }
 
-  /** `count` itens distintos da lista, em ordem sorteada. */
+  /** `count` itens distintos da lista, em ordem sorteada. (#349) */
   sample<T>(items: readonly T[], count: number): T[] {
     return this.shuffle(items).slice(0, Math.min(count, items.length));
   }

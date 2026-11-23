@@ -165,7 +165,7 @@ class ContractTest(unittest.TestCase):
 
     def test_notes_carry_the_origin_column_and_the_version_moved_up(self) -> None:
         # #349: o modo demonstração marca a nota gerada com origin = demo. Coluna nova no fim, obrigatória, com padrão
-        # 'base': mudança compatível (a maior só sobe no incompatível), então a menor sobe de 1.0.0.
+        # 'base': mudança compatível (a maior só sobe no incompatível), então a menor sobe de 1.0.0. (#349)
         notes = next(t for t in self.contract["tables"] if t["name"] == "kit_notas")
         origin = notes["columns"][-1]
         self.assertEqual(("origin", "text", False, "base"),
@@ -176,7 +176,7 @@ class ContractTest(unittest.TestCase):
         self.assertGreaterEqual(minor, 1)
 
     def test_origin_has_a_check_and_a_default_in_the_migration(self) -> None:
-        with open(os.path.join(MIGRATIONS, "20261123100000_demo_origin_e_lote.sql"), encoding="utf-8") as f:
+        with open(os.path.join(MIGRATIONS, "20261123100000_demo_origin_and_batch.sql"), encoding="utf-8") as f:
             sql = normalize(re.sub(r"--[^\n]*", "", f.read()))
         self.assertIn("add column origin text not null default 'base' check (origin in ('base', 'demo'))", sql)
 

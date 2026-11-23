@@ -12,7 +12,7 @@ import {
 const NOW = new Date('2026-11-23T12:00:00Z');
 const input = (over: Partial<DemoBatchInput> = {}): DemoBatchInput => ({ seed: 1, count: 5, now: NOW, sequenceStart: 1, ...over });
 
-/** Lotes de 8 notas, cada um com a semente e o início de sequência da rodada seguinte, até somar `total` notas. */
+/** Lotes de 8 notas, cada um com a semente e o início de sequência da rodada seguinte, até somar `total` notas. (#349) */
 function rounds(total: number, firstSeed = 100): DemoBatch[] {
   const batches: DemoBatch[] = [];
   let sequenceStart = 1;

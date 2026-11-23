@@ -1,5 +1,5 @@
 // Gerador puro das notas novas do modo demonstração (#349): sem I/O, com semente.
-// Porta a lógica de kit-domingo/gerador/gerar_base.py sem o gabarito: a classificação esperada é só o retorno em memória.
+// Porta a lógica de kit-domingo/gerador/gerar_base.py sem o gabarito: a classificação esperada é só o retorno em memória. (#349)
 import type { ApprovalLevel } from '../domain/index.js';
 import { KeyAllocator, CODE_SPACE } from './access-key.js';
 import { EXCEPTION_CASES, matchCase, type ExceptionCode, type MatchVariant } from './cases.js';
@@ -12,10 +12,10 @@ export type { DemoBatch, DemoBatchInput, DemoNotaRow, DemoRows, ExpectedClassifi
 
 export const DEMO_NOTES_MIN = 3;
 export const DEMO_NOTES_MAX = 8;
-/** Perto de 10% de match, como na base. */
+/** Perto de 10% de match, como na base. (#349) */
 export const MATCH_SHARE = 0.1;
 
-/** O tamanho de cada nota por exceção, como na composição da base (E6 só em reemissão, que nunca repete chave). */
+/** O tamanho de cada nota por exceção, como na composição da base (E6 só em reemissão, que nunca repete chave). (#349) */
 const COMPOSITION: Readonly<Record<ExceptionCode, readonly Size[]>> = {
   E1: ['L', 'L', 'L', 'L', 'L', 'C', 'C', 'CB', 'H'],
   E2: ['L', 'L', 'L', 'L', 'L', 'C', 'C', 'C', 'CB'],
@@ -32,14 +32,14 @@ const EXCEPTION_POOL: readonly (readonly [ExceptionCode, Size])[] = EXCEPTION_CO
   COMPOSITION[code].map((size) => [code, size] as const),
 );
 
-/** Exato na loja, sem o número do pedido, exato no CD, exato acima de R$ 100 mil, fornecedor bloqueado e dois dentro da tolerância. */
+/** Exato na loja, sem o número do pedido, exato no CD, exato acima de R$ 100 mil, fornecedor bloqueado e dois dentro da tolerância. (#349) */
 const MATCH_POOL: readonly MatchVariant[] = ['exato_L', 'exato_L', 'sem_xped_L', 'exato_C', 'exato_H', 'bloqueado_C', 'tolerancia_L', 'tolerancia_L'];
 
 const ANALYST_CEILING_CENTS = 2_000_000;
 const COORDINATION_CEILING_CENTS = 10_000_000;
 const BLOCKED_ID = 'F12';
 
-/** O nível da régua: o encaminhamento que o gerador espera, calculado à parte da regra da solução. */
+/** O nível da régua: o encaminhamento que o gerador espera, calculado à parte da regra da solução. (#349) */
 function ladderLevel(outcome: CaseOutcome): ApprovalLevel {
   const { classification, totalCents, supplierId } = outcome;
   if (classification === 'E6') return 'bloqueio';
@@ -59,12 +59,12 @@ function assertInput(input: DemoBatchInput): void {
   if (!Number.isSafeInteger(input.seed)) throw new RangeError('seed deve ser um inteiro');
 }
 
-/** Quantas notas a rodada de uma semente emite: de 3 a 8. */
+/** Quantas notas a rodada de uma semente emite: de 3 a 8. (#349) */
 export function demoNoteCount(seed: number): number {
   return new Rng(seed ^ 0x9e3779b9).int(DEMO_NOTES_MIN, DEMO_NOTES_MAX);
 }
 
-/** O início de sequência da rodada seguinte: cada nota gasta um número. */
+/** O início de sequência da rodada seguinte: cada nota gasta um número. (#349) */
 export function nextSequenceStart(sequenceStart: number, count: number): number {
   return sequenceStart + count;
 }
@@ -75,6 +75,11 @@ function generateOne(env: CaseEnv): CaseOutcome {
   return EXCEPTION_CASES[code](env, size);
 }
 
+/**
+ * (#349) Gera o lote da rodada. Os ids (OC-DM-n, RC-DM-n, PG-DM-n, DM-n) e o código da chave de cada nota saem só do número de sequência.
+ * (#349) Nunca reuse um `sequenceStart`, nem com outra semente: o `on conflict do nothing` do banco manteria a ordem OC-DM-n mais
+ * (#349) antiga enquanto uma nota nova, de outra semente, entraria apontando para ela. Cada rodada começa em `nextSequenceStart`.
+ */
 export function generateDemoBatch(input: DemoBatchInput): DemoBatch {
   assertInput(input);
   const sink = new RowSink();

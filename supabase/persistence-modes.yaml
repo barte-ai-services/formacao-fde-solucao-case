@@ -9,6 +9,7 @@
 #           uma única transição terminal, com quem e quando na própria linha e o estado anterior implícito.
 # reason:   por que uma tabela ephemeral não guarda registro pelo qual o sistema responde
 # growth:   fixed para tabela de consulta que só um carregador versionado ou uma migração grava
+#           growing para tabela que a aplicação também alimenta, sem teto declarado (#349: linhas de demonstração)
 # gap:      o que as gravações de hoje ainda não cumprem do modo declarado; decisão a registrar
 #
 # #230: acrescenta invoice_audits e proposal_level_changes e a subida de nível de proposals (uma requisição
@@ -30,8 +31,8 @@ strategies:
   # (PostgREST, Transactions). Um caso de uso que grava mais de uma requisição não é atômico, salvo os que vão por
   # função do banco numa só chamada rpc: a subida de nível (raise_proposal_level, #230) e a decisão do aprovador
   # (save_approval_decision, #304), a trava da rodada (take_automation_lock e release_automation_lock, #356) e o lote de notas do modo
-  # demonstração (kit_inserir_lote_demo, #349: nove tabelas kit_*, on conflict do nothing, uma requisição por rodada; as linhas de
-  # demonstração são append-only e a carga da base nunca as apaga).
+  # demonstração (kit_insert_demo_batch, #349: nove tabelas kit_*, on conflict do nothing, uma requisição por rodada; a carga da base
+  # nunca apaga as linhas de demonstração).
   unit_of_work: postgrest-request
   tenancy:
     # A Já Chegou é uma empresa só; loja (store, destino) é um lugar dela, não um inquilino.
@@ -300,14 +301,23 @@ tables:
       registro é o arquivo versionado no git (ADR-001). A aplicação só lê.
     growth: fixed
   kit_produtos: *kit
-  kit_ordens: *kit
-  kit_ordem_itens: *kit
-  kit_notas: *kit
-  kit_nota_itens: *kit
-  kit_notas_lancadas: *kit
-  kit_nota_lancada_itens: *kit
-  kit_pagamentos: *kit
-  kit_recebimentos: *kit
-  kit_recebimento_itens: *kit
+  # #349: as nove tabelas abaixo também recebem linhas de demonstração, sintéticas e reproduzíveis da semente e da sequência,
+  # #349: que o Worker grava pela função kit_insert_demo_batch a cada rodada. Seguem ephemeral (nenhuma linha de demonstração
+  # #349: é registro pelo qual o sistema responde; regerá-las da mesma semente e sequência dá as mesmas linhas) e deixam de ser fixed.
+  kit_ordens: &kit_demo
+    mode: ephemeral
+    reason: >-
+      Linhas da base são cópia de data/kit/*.json recarregada por scripts/load_kit.py (o registro é o arquivo
+      versionado, ADR-001). Linhas de demonstração são sintéticas, reproduzíveis da semente e da sequência, e
+      gravadas pela aplicação pela função kit_insert_demo_batch (#349); nenhuma é registro pelo qual o sistema responde.
+    growth: growing
+  kit_ordem_itens: *kit_demo
+  kit_notas: *kit_demo
+  kit_nota_itens: *kit_demo
+  kit_notas_lancadas: *kit_demo
+  kit_nota_lancada_itens: *kit_demo
+  kit_pagamentos: *kit_demo
+  kit_recebimentos: *kit_demo
+  kit_recebimento_itens: *kit_demo
   kit_regua: *kit
   kit_excecoes: *kit

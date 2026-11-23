@@ -42,3 +42,29 @@ export function kitTables(): Record<string, Json[]> {
 export function kitCounts(): Record<string, number> {
   return Object.fromEntries(Object.entries(kitTables()).map(([t, rows]) => [t, rows.length]));
 }
+
+export type FoundRow = { readonly key: string; readonly itemCount: number };
+
+const BASE_KEY: Readonly<Record<string, { readonly key: string; readonly items: string | null }>> = {
+  kit_notas: { key: 'chave', items: 'kit_nota_itens' },
+  kit_ordens: { key: 'ordem_id', items: 'kit_ordem_itens' },
+  kit_notas_lancadas: { key: 'chave', items: 'kit_nota_lancada_itens' },
+  kit_pagamentos: { key: 'pagamento_id', items: null },
+  kit_recebimentos: { key: 'recebimento_id', items: 'kit_recebimento_itens' },
+};
+
+/**
+ * #349 Conta só as linhas da base entre as que o banco devolveu: a de demonstração entra nas mesmas tabelas e não está no JSON.
+ * Pela chave primária do JSON: a linha cuja chave o JSON não tem não conta, nem os itens dela.
+ */
+export function kitBaseCounts(found: Readonly<Record<string, readonly FoundRow[]>>): Record<string, number> {
+  const tables = kitTables();
+  const counts: Record<string, number> = {};
+  for (const [table, spec] of Object.entries(BASE_KEY)) {
+    const wanted = new Set((tables[table] ?? []).map((row) => String(row[spec.key])));
+    const base = (found[table] ?? []).filter((row) => wanted.has(row.key));
+    counts[table] = base.length;
+    if (spec.items !== null) counts[spec.items] = base.reduce((sum, row) => sum + row.itemCount, 0);
+  }
+  return counts;
+}

@@ -3,7 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { BLOCKED_SUPPLIER, PRODUCTS, SUPPLIERS, UNREGISTERED_ITEMS } from '../../src/demo/catalog.js';
 
 type Json = Record<string, unknown>;
-const kit = (name: string): Json[] => JSON.parse(readFileSync(new URL(`../../../data/kit/${name}.json`, import.meta.url), 'utf8')) as Json[];
+const isJson = (value: unknown): value is Json => typeof value === 'object' && value !== null && !Array.isArray(value);
+
+function kit(name: string): Json[] {
+  const parsed: unknown = JSON.parse(readFileSync(new URL(`../../../data/kit/${name}.json`, import.meta.url), 'utf8'));
+  if (!Array.isArray(parsed)) throw new TypeError(`data/kit/${name}.json: esperava uma lista`);
+  return parsed.filter(isJson);
+}
 
 describe('#349 o catálogo do gerador é o do kit', () => {
   it('os fornecedores batem com data/kit/fornecedores.json', () => {

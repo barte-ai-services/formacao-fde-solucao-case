@@ -20,15 +20,15 @@ export const totalCents = (items: readonly DemoItem[]): number => items.reduce((
 
 export function emptyRows(): DemoRows {
   return {
-    kit_ordens: [],
-    kit_ordem_itens: [],
-    kit_notas_lancadas: [],
-    kit_nota_lancada_itens: [],
-    kit_notas: [],
-    kit_nota_itens: [],
-    kit_recebimentos: [],
-    kit_recebimento_itens: [],
-    kit_pagamentos: [],
+    kit_ordens: [], // ADR-001
+    kit_ordem_itens: [], // ADR-001
+    kit_notas_lancadas: [], // ADR-001
+    kit_nota_lancada_itens: [], // ADR-001
+    kit_notas: [], // ADR-001
+    kit_nota_itens: [], // ADR-001
+    kit_recebimentos: [], // ADR-001
+    kit_recebimento_itens: [], // ADR-001
+    kit_pagamentos: [], // ADR-001
   };
 }
 
@@ -79,57 +79,57 @@ export class RowSink {
 
   addOrder(order: OrderInput): void {
     this.rows.kit_ordens.push({
-      ordem_id: order.id,
-      fornecedor_id: order.supplierId,
-      destino: order.store,
-      data_emissao: order.issuedOn,
-      status: order.status,
-      motivo_status: order.statusReason,
-      valor_total: reais(totalCents(order.items)),
+      ordem_id: order.id, // ADR-001
+      fornecedor_id: order.supplierId, // ADR-001
+      destino: order.store, // ADR-001
+      data_emissao: order.issuedOn, // ADR-001
+      status: order.status, // ADR-001
+      motivo_status: order.statusReason, // ADR-001
+      valor_total: reais(totalCents(order.items)), // ADR-001
     });
     for (const item of order.items) {
       this.rows.kit_ordem_itens.push({
-        ordem_id: order.id,
-        codigo_fornecedor: item.code,
-        sku: item.sku,
-        descricao: item.description,
-        quantidade: item.quantity,
-        unidade: item.unit,
-        preco_unitario: reais(item.priceCents),
+        ordem_id: order.id, // ADR-001
+        codigo_fornecedor: item.code, // ADR-001
+        sku: item.sku, // ADR-001
+        descricao: item.description, // ADR-001
+        quantidade: item.quantity, // ADR-001
+        unidade: item.unit, // ADR-001
+        preco_unitario: reais(item.priceCents), // ADR-001
       });
     }
   }
 
-  /** A nota lançada no contas a pagar (kit_notas_lancadas): o `nota_id` é nulo, como em toda a fonte. */
+  /** A nota lançada no contas a pagar (kit_notas_lancadas): o `nota_id` é nulo, como em toda a fonte. (#349) */
   addPostedNote(note: NoteInput, situation: 'lançada' | 'paga'): void {
     this.rows.kit_notas_lancadas.push({
-      chave: note.key,
-      nota_id: null,
-      numero: note.number,
-      serie: 1,
-      fornecedor_id: note.supplierId,
-      destino: note.store,
-      data_emissao: note.issuedOn,
-      pedido_referenciado: note.orderId ?? '',
-      canal_entrada: note.channel,
-      valor_total: reais(totalCents(note.items)),
-      situacao: situation,
+      chave: note.key, // ADR-001
+      nota_id: null, // ADR-001
+      numero: note.number, // ADR-001
+      serie: 1, // ADR-001
+      fornecedor_id: note.supplierId, // ADR-001
+      destino: note.store, // ADR-001
+      data_emissao: note.issuedOn, // ADR-001
+      pedido_referenciado: note.orderId ?? '', // ADR-001
+      canal_entrada: note.channel, // ADR-001
+      valor_total: reais(totalCents(note.items)), // ADR-001
+      situacao: situation, // ADR-001
     });
     this.rows.kit_nota_lancada_itens.push(...noteItemRows(note));
   }
 
   addNote(note: NoteInput): void {
     const row: DemoNotaRow = {
-      chave: note.key,
-      nota_id: note.noteId ?? '',
-      numero: note.number,
-      serie: 1,
-      fornecedor_id: note.supplierId,
-      destino: note.store,
-      data_emissao: note.issuedOn,
-      pedido_referenciado: note.orderId,
-      canal_entrada: note.channel,
-      valor_total: reais(totalCents(note.items)),
+      chave: note.key, // ADR-001
+      nota_id: note.noteId ?? '', // ADR-001
+      numero: note.number, // ADR-001
+      serie: 1, // ADR-001
+      fornecedor_id: note.supplierId, // ADR-001
+      destino: note.store, // ADR-001
+      data_emissao: note.issuedOn, // ADR-001
+      pedido_referenciado: note.orderId, // ADR-001
+      canal_entrada: note.channel, // ADR-001
+      valor_total: reais(totalCents(note.items)), // ADR-001
       origin: 'demo',
     };
     this.rows.kit_notas.push(row);
@@ -138,50 +138,50 @@ export class RowSink {
 
   addReceipt(receipt: ReceiptInput): void {
     this.rows.kit_recebimentos.push({
-      recebimento_id: receipt.id,
-      nota_chave: receipt.noteKey,
-      ordem_id: receipt.orderId,
-      fornecedor_id: receipt.supplierId,
-      destino: receipt.store,
-      canal: receipt.store.startsWith('CD') ? 'doca_cd' : 'app_loja',
-      data: receipt.receivedOn,
-      observacao: receipt.note,
+      recebimento_id: receipt.id, // ADR-001
+      nota_chave: receipt.noteKey, // ADR-001
+      ordem_id: receipt.orderId, // ADR-001
+      fornecedor_id: receipt.supplierId, // ADR-001
+      destino: receipt.store, // ADR-001
+      canal: receipt.store.startsWith('CD') ? 'doca_cd' : 'app_loja', // ADR-001
+      data: receipt.receivedOn, // ADR-001
+      observacao: receipt.note, // ADR-001
     });
     for (const line of receipt.lines) {
       this.rows.kit_recebimento_itens.push({
-        recebimento_id: receipt.id,
-        codigo_fornecedor: line.code,
-        descricao: line.description,
-        quantidade: line.quantity,
-        unidade: line.unit,
+        recebimento_id: receipt.id, // ADR-001
+        codigo_fornecedor: line.code, // ADR-001
+        descricao: line.description, // ADR-001
+        quantidade: line.quantity, // ADR-001
+        unidade: line.unit, // ADR-001
       });
     }
   }
 
   addPayment(payment: PaymentInput): void {
     this.rows.kit_pagamentos.push({
-      pagamento_id: payment.id,
-      fornecedor_id: payment.supplierId,
-      destino: payment.store,
-      data: payment.paidOn,
-      valor: reais(payment.cents),
-      forma: payment.method,
-      origem: 'compra emergencial da loja, fora do fluxo',
-      nota_chave: null,
+      pagamento_id: payment.id, // ADR-001
+      fornecedor_id: payment.supplierId, // ADR-001
+      destino: payment.store, // ADR-001
+      data: payment.paidOn, // ADR-001
+      valor: reais(payment.cents), // ADR-001
+      forma: payment.method, // ADR-001
+      origem: 'compra emergencial da loja, fora do fluxo', // ADR-001
+      nota_chave: null, // ADR-001
     });
   }
 }
 
 function noteItemRows(note: NoteInput): DemoRows['kit_nota_itens'] {
   return note.items.map((item) => ({
-    chave: note.key,
-    codigo_fornecedor: item.code,
-    sku: item.sku,
-    descricao: item.description,
-    quantidade: item.quantity,
-    unidade: item.unit,
-    preco_unitario: reais(item.priceCents),
-    valor: reais(itemCents(item)),
+    chave: note.key, // ADR-001
+    codigo_fornecedor: item.code, // ADR-001
+    sku: item.sku, // ADR-001
+    descricao: item.description, // ADR-001
+    quantidade: item.quantity, // ADR-001
+    unidade: item.unit, // ADR-001
+    preco_unitario: reais(item.priceCents), // ADR-001
+    valor: reais(itemCents(item)), // ADR-001
   }));
 }
 

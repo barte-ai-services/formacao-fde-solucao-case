@@ -12,7 +12,7 @@ const SEEDS = [1, 2, 3, 7, 11, 42, 99, 123, 2026, 4827];
 
 type Outcome = { readonly key: string; readonly expected: DemoBatch['expected'] extends ReadonlyMap<string, infer V> ? V : never; readonly classification: string; readonly level: string };
 
-/** Base do kit mais as linhas geradas, lidas pelos conectores reais e conferidas pela regra da própria solução. */
+/** Base do kit mais as linhas geradas, lidas pelos conectores reais e conferidas pela regra da própria solução. (#349) */
 async function reconcile(batches: readonly DemoBatch[]): Promise<Outcome[]> {
   const tables = kitTables();
   const merged: Record<string, Record<string, unknown>[]> = Object.fromEntries(Object.entries(tables).map(([t, r]) => [t, [...r]]));
