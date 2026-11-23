@@ -176,7 +176,7 @@ class ContractTest(unittest.TestCase):
         self.assertGreaterEqual(minor, 1)
 
     def test_origin_has_a_check_and_a_default_in_the_migration(self) -> None:
-        with open(os.path.join(MIGRATIONS, "20261123100000_demo_origin_and_batch.sql"), encoding="utf-8") as f:
+        with open(os.path.join(MIGRATIONS, "20261123110000_demo_origin_and_batch.sql"), encoding="utf-8") as f:
             sql = normalize(re.sub(r"--[^\n]*", "", f.read()))
         self.assertIn("add column origin text not null default 'base' check (origin in ('base', 'demo'))", sql)
 

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 // #349: asserções sobre o texto da migração do modo demonstração; o comportamento real roda em scripts/testar_migracoes_postgres.sh.
-const FILE = '20261123100000_demo_origin_and_batch.sql';
+const FILE = '20261123110000_demo_origin_and_batch.sql';
 const SQL = readFileSync(new URL(`../../../supabase/migrations/${FILE}`, import.meta.url), 'utf8');
 const flat = SQL.replace(/--[^\n]*/g, '').replace(/\s+/g, ' ').toLowerCase();
 
