@@ -11,6 +11,13 @@ type SelectItem = { name: string; embed?: SelectItem[] };
 /** #157 O PostgREST escolhe a chave estrangeira pelo nome depois de `!` (`rel!fk_name(cols)`); o fake só tem uma por relação. */
 const relationName = (name: string): string => name.split('!')[0] ?? name;
 
+/** #354 O instante em microssegundos, como o PostgreSQL compara: `Date.parse` só guarda milissegundos. */
+function microseconds(value: string): number {
+  const fraction = /\.(\d+)/.exec(value)?.[1] ?? '';
+  const sub = Number(fraction.padEnd(6, '0').slice(3, 6));
+  return Date.parse(value.replace(/(\.\d{3})\d+/, '$1')) * 1000 + sub;
+}
+
 /** #157 Compara duas células da ordenação: números como números (10 depois de 9), texto como texto, nulo por último. */
 function compare(a: unknown, b: unknown): number {
   if (a === null || a === undefined) return b === null || b === undefined ? 0 : 1;
@@ -405,7 +412,13 @@ export class FakePostgrest {
     // #156 is.null: a coluna sem valor.
     if (expr === 'is.null') return row[col] === null || row[col] === undefined;
     // #157 gt.: maior que, para ids numéricos (a mensagem mais nova); a coluna sem valor nunca é maior.
-    if (expr.startsWith('gt.')) return typeof row[col] === 'number' && row[col] > Number(expr.slice(3));
+    if (expr.startsWith('gt.')) {
+      if (typeof row[col] === 'number') return row[col] > Number(expr.slice(3));
+      // #354 gt. em instante (started_at, decided_at, approved_at): o cursor do ao vivo; a coluna sem valor nunca é maior.
+      return typeof row[col] === 'string' && microseconds(row[col]) > microseconds(expr.slice(3));
+    }
+    // #354 neq.: diferente (a coluna sem valor também é diferente, como no PostgREST para texto não nulo).
+    if (expr.startsWith('neq.')) return String(row[col]) !== expr.slice(4);
     if (expr.startsWith('gte.')) return !(Date.parse(String(row[col])) < Date.parse(expr.slice(4)));
     // #156 lt.: menor que, em instantes (a coluna sem valor nunca é menor).
     if (expr.startsWith('lt.')) return row[col] !== null && row[col] !== undefined && Date.parse(String(row[col])) < Date.parse(expr.slice(3));

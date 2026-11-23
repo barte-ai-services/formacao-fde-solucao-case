@@ -38,8 +38,14 @@ function period(records: readonly DecisionRecord[]): PeriodIndicators {
   };
 }
 
+/** #354 O que `computeIndicators` devolve: o dia e o mês, cada um com a sua chave de período. */
+export type Indicators = {
+  day: { date: string } & PeriodIndicators;
+  month: { month: string } & PeriodIndicators;
+};
+
 /** #211 O dia e o mês correntes, no fuso de Brasília, onde a Já Chegou paga. */
-export function computeIndicators(records: readonly DecisionRecord[], now: Date) {
+export function computeIndicators(records: readonly DecisionRecord[], now: Date): Indicators {
   const date = todayInBrasilia(now);
   const month = date.slice(0, 7);
   const inDay = records.filter((r) => todayInBrasilia(new Date(r.decidedAt)) === date);
