@@ -78,7 +78,7 @@ describe('#356 migração do modo demonstração', () => { // ADR-002
 
   it('#356/AC-3 automation_runs é append-only: ninguém, nem o service_role, atualiza, apaga ou trunca (PER-2)', () => { // ADR-002
     expect(sql).toContain('revoke update, delete, truncate on public.automation_runs from anon, authenticated, service_role;');
-    // O grant de insert e select do service_role (20261116100000) segue: a rodada grava e a tela lê.
+    // #356 O grant de insert e select do service_role (20261116100000) segue: a rodada grava e a tela lê.
     expect(sql).not.toMatch(/revoke (insert|select)/);
   });
 

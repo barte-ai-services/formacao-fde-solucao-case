@@ -9,7 +9,7 @@
  * Os passos, na ordem, e os custos declarados estão em round-steps.ts (o ponto de extensão da #349 e da #351); o trabalho de cada
  * passo, em round-work.ts. O dossiê não é daqui: tem o cron próprio (#311, cron/dossier-round.ts).
  */
-import { runRound, type RoundPorts, type RoundResult, type RoundTrigger } from "../automation/round.js";
+import { LOCK_TTL_MS, runRound, type RoundPorts, type RoundResult, type RoundTrigger } from "../automation/round.js";
 import { supabaseRoundStore } from "../automation/round-store.js";
 import { SupabaseRest } from "../connectors/supabase-rest";
 import type { Env } from "../env";
@@ -46,7 +46,28 @@ export class RoundFailedError extends Error {
 export async function tick(controller: TickController, env: Env): Promise<TickSummary | null> {
   const trigger: RoundTrigger =
     controller.scheduledTime === undefined ? { origin: "manual" } : { origin: "cron", scheduledTime: controller.scheduledTime };
-  const result = await executeRound(env, trigger, `tick ${controller.cron}`);
+  return summarize(await executeRound(env, trigger, `tick ${controller.cron}`));
+}
+
+/** #356 AC-3 A reconferência pediu a trava e outra rodada, ainda válida, a tem: nada foi apagado nem gravado. */
+export class RoundInProgressError extends Error {
+  constructor() {
+    super("já há uma rodada em andamento");
+    this.name = "RoundInProgressError";
+  }
+}
+
+/**
+ * #356 AC-3 A rodada da reconferência: toma a trava ANTES de `before` (o apagamento do domínio) e a rodada corre com essa mesma posse,
+ * solta no fim. Trava tomada e válida: lança `RoundInProgressError` sem chamar `before`. Se `before` falha, a trava é solta e o erro sobe.
+ */
+export async function tickAfterLock(controller: TickController, env: Env, before: () => Promise<void>): Promise<TickSummary | null> {
+  const result = await executeRound(env, { origin: "manual" }, `tick ${controller.cron}`, before);
+  if (result?.kind === "locked") throw new RoundInProgressError();
+  return summarize(result);
+}
+
+function summarize(result: RoundResult | null): TickSummary | null {
   if (result?.kind !== "done") return null;
   if (result.status === "failed") throw new RoundFailedError(result.error ?? "Error");
   const { seen, inserted, checked, failed, proposed } = result.figures;
@@ -62,7 +83,7 @@ export function runManualRound(env: Env): Promise<RoundResult | null> {
 }
 
 /** #356 Monta o medidor, as portas e a rodada da invocação; a linha de subrequests sai sempre, inclusive quando a rodada não roda. */
-async function executeRound(env: Env, trigger: RoundTrigger, label: string): Promise<RoundResult | null> {
+async function executeRound(env: Env, trigger: RoundTrigger, label: string, before?: () => Promise<void>): Promise<RoundResult | null> {
   const url = env.BARTE_ACADEMY_SUPABASE_URL;
   const secretKey = env.BARTE_ACADEMY_SUPABASE_SECRET_KEY;
   if (!url || !secretKey) {
@@ -85,10 +106,23 @@ async function executeRound(env: Env, trigger: RoundTrigger, label: string): Pro
   };
   let result: RoundResult | null = null;
   try {
-    result = await runRound(ports, trigger);
+    result = before ? await runAfterLock(ports, trigger, before) : await runRound(ports, trigger);
     return result;
   } finally {
     // #356 AC-1 Fora do ritmo a invocação só leu o modo: uma linha por minuto no log não diz nada, e a leitura não é uma rodada.
     if (result?.kind !== "off-rhythm") console.log(subrequestsLine(meter.spent(), label));
   }
+}
+
+/** #356 AC-3 Toma a trava, roda `before` e entrega a rodada à mesma posse; `before` que falha solta a trava (a validade cobre se a soltura também falhar). */
+async function runAfterLock(ports: RoundPorts, trigger: RoundTrigger, before: () => Promise<void>): Promise<RoundResult> {
+  const owner = ports.newOwner();
+  if (!(await ports.lock.take(owner, LOCK_TTL_MS))) return { kind: "locked" };
+  try {
+    await before();
+  } catch (error) {
+    await ports.lock.release(owner).catch(() => ports.log("cron: trava não solta; vence sozinha"));
+    throw error;
+  }
+  return runRound(ports, trigger, owner);
 }

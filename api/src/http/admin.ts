@@ -16,7 +16,7 @@ import { dossierOverview } from '../dossier/overview.js';
 import { reconferir } from "../ops/reconferir.js";
 import { setDemoMode } from '../automation/round.js';
 import { DemoModeWriteError, supabaseRoundStore } from '../automation/round-store.js';
-import { runManualRound } from '../cron/tick.js';
+import { RoundInProgressError, runManualRound } from '../cron/tick.js';
 import type { Identity } from './access.js';
 
 const RECONFERIR_PATH = '/api/admin/reconferir';
@@ -57,6 +57,8 @@ export async function adminRoutes(request: Request, identity: Identity, env: Env
     console.log('admin-reconferir', { by, ...summary });
     return Response.json(summary);
   } catch (error) {
+    // #356 AC-3 Trava tomada e válida: nada foi apagado nem gravado, e quem pediu tenta de novo daqui a pouco.
+    if (error instanceof RoundInProgressError) return fail(409, 'round_in_progress');
     console.error(
       'admin-reconferir: falhou',
       error instanceof SupabaseRestError
@@ -67,14 +69,14 @@ export async function adminRoutes(request: Request, identity: Identity, env: Env
   }
 }
 
-/** 405 e 415 das rotas que mudam estado: só POST, e o Access também aceita o cookie, então só JSON, que força o preflight de CORS que o Worker não responde. */
+/** #356 405 e 415 das rotas que mudam estado: só POST, e o Access também aceita o cookie, então só JSON, que força o preflight de CORS que o Worker não responde. */
 function rejectUnlessJsonPost(request: Request): Response | null {
   if (request.method !== 'POST') return fail(405, 'method_not_allowed', { Allow: 'POST' });
   if (!request.headers.get('Content-Type')?.toLowerCase().startsWith('application/json')) return fail(415, 'unsupported_media_type');
   return null;
 }
 
-/** O corpo JSON, ou nulo se não há ou não é JSON. */
+/** #356 O corpo JSON, ou nulo se não há ou não é JSON. */
 async function readJson(request: Request): Promise<unknown> {
   try {
     return await request.json();

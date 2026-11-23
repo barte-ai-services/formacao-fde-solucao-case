@@ -107,15 +107,18 @@ function errorClass(error: unknown): string {
   return error instanceof Error ? error.name : 'Error';
 }
 
-/** #356 AC-1 AC-3 AC-4 Uma rodada: ritmo, trava, passos, gravação e soltura. */
-export async function runRound(ports: RoundPorts, trigger: RoundTrigger): Promise<RoundResult> {
+/**
+ * #356 AC-1 AC-3 AC-4 Uma rodada: ritmo, trava, passos, gravação e soltura. #356 AC-3 Com `held`, quem chama já tomou a trava para
+ * esse dono (a reconferência, que apaga o domínio antes): a rodada não toma de novo e a solta no fim, a mesma posse.
+ */
+export async function runRound(ports: RoundPorts, trigger: RoundTrigger, held?: string): Promise<RoundResult> {
   const startedAt = ports.now();
   const demo = await ports.mode.read();
   if (trigger.origin === 'cron' && !roundRhythm(modeIntervalMinutes(demo.enabled), trigger.scheduledTime).runs) {
     return { kind: 'off-rhythm' };
   }
-  const owner = ports.newOwner();
-  if (!(await ports.lock.take(owner, LOCK_TTL_MS))) {
+  const owner = held ?? ports.newOwner();
+  if (held === undefined && !(await ports.lock.take(owner, LOCK_TTL_MS))) {
     await recordSafely(ports, {
       startedAt, finishedAt: ports.now(), status: 'skipped', origin: trigger.origin, demoEnabled: demo.enabled,
       figures: NO_FIGURES, error: null, deferredSteps: [], failedSteps: [], subrequests: recordedSubrequests(ports),

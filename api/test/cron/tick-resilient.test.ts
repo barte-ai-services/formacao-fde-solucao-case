@@ -93,7 +93,7 @@ describe('#311 a rodada resiliente', () => {
     const last = runs[runs.length - 1];
     expect(last).toMatchObject({ status: 'ok', error: null, failed_steps: [] });
     expect(counter.count()).toBeLessThanOrEqual(50);
-    // A gravação conta a si mesma; a soltura da trava vem depois dela.
+    // #356 A gravação conta a si mesma; a soltura da trava vem depois dela.
     expect(last?.subrequests).toBe(counter.count() - 1);
     const lines = log.mock.calls.map((c) => String(c[0]));
     expect(lines.filter((l) => l.startsWith('cron: subrequests'))).toEqual([`cron: subrequests ${counter.count()}/50 (tick * * * * *)`]);

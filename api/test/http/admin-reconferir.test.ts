@@ -138,4 +138,54 @@ describe('#174 POST /api/admin/reconferir', () => {
     expect(deletes.length).toBeGreaterThan(0);
     expect(deletes.every((r) => !new URL(r.url).pathname.includes('/kit_'))).toBe(true);
   });
+  // #356/AC-3 A reconferência toma a trava antes de apagar o domínio.
+  describe('#356/AC-3 a reconferência e a trava da rodada', () => {
+    const heldBy = (owner: string, minutes: number) => ({ id: true, owner, expires_at: new Date(Date.now() + minutes * 60_000).toISOString() });
+    const seedDomain = (fake: FakePostgrest) => fake.tables.set('invoices', [{ access_key: 'k1', state: 'conferida' }]);
+
+    it('#356/AC-3 com a trava tomada e válida: 409 round_in_progress, sem apagar nada e sem gravar linha', async () => {
+      const fake = serve();
+      fake.tables.set('automation_lock', [heldBy('cron', 4)]);
+      seedDomain(fake);
+      const response = await call({ body: confirm });
+      expect(response.status).toBe(409);
+      expect(await response.json()).toEqual({ error: 'round_in_progress' });
+      expect(fake.rows('invoices')).toHaveLength(1);
+      expect(fake.requests.filter((r) => r.method === 'DELETE')).toHaveLength(0);
+      expect(fake.rows('automation_runs')).toHaveLength(0);
+      expect(fake.rows('automation_lock')[0]).toMatchObject({ owner: 'cron' });
+    });
+
+    it('#356/AC-3 com a trava livre: toma uma vez só, apaga, a rodada corre com ela e a solta no fim', async () => {
+      const fake = serve();
+      seedDomain(fake);
+      expect((await call({ body: confirm })).status).toBe(200);
+      const takes = fake.requests.filter((r) => r.url.includes('rpc/take_automation_lock'));
+      expect(takes).toHaveLength(1);
+      const takeAt = fake.requests.indexOf(takes[0] as (typeof fake.requests)[number]);
+      const firstDelete = fake.requests.findIndex((r) => r.method === 'DELETE');
+      expect(takeAt).toBeLessThan(firstDelete);
+      expect(fake.rows('automation_lock')).toHaveLength(0);
+      expect(fake.rows('automation_runs')).toHaveLength(1);
+      expect(fake.rows('automation_runs')[0]).toMatchObject({ status: 'ok', origin: 'manual' });
+    });
+
+    it('#356/AC-3 a trava vencida é tomada e a reconferência roda', async () => {
+      const fake = serve();
+      fake.tables.set('automation_lock', [heldBy('morta', -1)]);
+      expect((await call({ body: confirm })).status).toBe(200);
+      expect(fake.rows('automation_lock')).toHaveLength(0);
+    });
+
+    it('#356/AC-3 se o apagamento falha: 502 genérico e a trava é solta', async () => {
+      const fake = serve();
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      fake.failNext('outbox_dock_actions', 'DELETE', 500, { message: 'segredo-do-banco' });
+      fake.failNext('invoices', 'DELETE', 500, { message: 'segredo-do-banco' });
+      const response = await call({ body: confirm });
+      expect(response.status).toBe(502);
+      expect(JSON.stringify(await response.json())).not.toContain('segredo-do-banco');
+      expect(fake.rows('automation_lock')).toHaveLength(0);
+    });
+  });
 });

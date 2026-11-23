@@ -15,7 +15,7 @@ import { tick } from '../../src/cron/tick.js';
 import { sweepSupplierOverdue } from '../../src/cron/supplier-sweep.js';
 import type { Env } from '../../src/env.js';
 import { decide, returnFirstItem } from '../returns/supabase-decided-source.support.js';
-import { ENV as CLAUDE_ENV, fullWorld, messagesApi } from '../support/budget-world.js';
+import { ENV as CLAUDE_ENV, fullWorld, messagesApi, messagesBody } from '../support/budget-world.js';
 import { fakeAi } from '../support/fake-ai.js';
 import { FakePostgrest } from '../support/fake-postgrest.js';
 import { kitTables } from '../support/kit.js';
@@ -341,7 +341,7 @@ async function fullestWorld() {
     const url = String(input);
     if (url.startsWith(PORT_URL)) return Promise.resolve(new Response('{}', { status: 200 }));
     if (!url.startsWith(ANTHROPIC)) return w.fake.fetch(url, init);
-    const body = JSON.parse(String(init?.body)) as { tools: { input_schema: { properties: Record<string, unknown> } }[] };
+    const body = messagesBody(init);
     if (Object.keys(body.tools[0]?.input_schema.properties ?? {}).includes('summary')) {
       return Promise.resolve(new Response(JSON.stringify({ content: [{ type: 'tool_use', name: 'responder', input: ANSWER }] }), { status: 200 }));
     }
@@ -407,7 +407,7 @@ describe('#356/AC-4 a rodada mais cheia, ligada ao tick, contra o teto de 50', (
     for (let i = 0; i < ROUNDS; i += 1) {
       if (i === 1) world.decideAll();
       await tickRound();
-      // a gravação conta a si mesma (spent + 1); a soltura da trava, depois dela, é a subrequest que falta
+      // #356 a gravação conta a si mesma (spent + 1); a soltura da trava, depois dela, é a subrequest que falta
       spend.push(Number(world.fake.rows('automation_runs').at(-1)?.subrequests) + 1);
     }
     const runs = world.fake.rows('automation_runs');

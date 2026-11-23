@@ -34,12 +34,12 @@ async function call(path: string, options: { as?: AccessKit | null; env?: Env; m
   const who = options.as === undefined ? admin : options.as;
   const headers = new Headers({ 'Content-Type': options.type ?? 'application/json' });
   if (who) headers.set('Cf-Access-Jwt-Assertion', await who.token());
-  // O verificador do Access lê o relógio real: o token sai antes de o teste fixar a data.
+  // #356 O verificador do Access lê o relógio real: o token sai antes de o teste fixar a data.
   if (options.at) {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date(options.at));
   }
-  const ctx = { waitUntil: (p: Promise<unknown>) => void options.deferred?.push(p), passThroughOnException: () => {}, props: {} } as unknown as ExecutionContext;
+  const ctx = { waitUntil: (p: Promise<unknown>) => void options.deferred?.push(p), passThroughOnException: () => {}, props: {} } as unknown as ExecutionContext; // #356 dublê do ExecutionContext: a rota só usa waitUntil
   const request = new Request(`https://worker.test${path}`, {
     method: options.method ?? 'POST',
     headers,
@@ -106,7 +106,7 @@ describe('#356/AC-2 POST /api/admin/rodar-agora', () => { // ADR-002
     expect(response.status).toBe(202);
     expect(Date.now() - started).toBeLessThan(10_000);
     expect(await response.json()).toEqual({ accepted: true, origin: 'manual' });
-    // A resposta saiu antes da rodada: nada gravado ainda, e a rodada está pendurada no waitUntil.
+    // #356 A resposta saiu antes da rodada: nada gravado ainda, e a rodada está pendurada no waitUntil.
     expect(fake.rows('automation_runs')).toEqual([]);
     expect(deferred).toHaveLength(1);
     await Promise.all(deferred);

@@ -351,7 +351,7 @@ describe('#41 o motor na rodada do Cron', () => {
     expect([...evaluated].some((id) => approvedIds.has(id))).toBe(false);
     expect(fake.rows('proposals').filter((p) => evaluated.has(p.id)).every((p) => p.state === 'aguardando_aprovacao')).toBe(true);
 
-    // As rodadas seguintes não reavaliam: nada novo no motor, e as avaliadas das rodadas somam só as da primeira.
+    // #356 As rodadas seguintes não reavaliam: nada novo no motor, e as avaliadas das rodadas somam só as da primeira.
     await rounds(round, 4);
     expect(fake.rows('engine_decisions')).toHaveLength(decisions.length);
     expect(fake.rows('automation_runs').reduce((n, r) => n + Number(r.engine_evaluated), 0)).toBe(cascade.length);

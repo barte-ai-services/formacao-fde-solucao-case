@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createWorker } from '../../src/index.js';
 import type { Env } from '../../src/env.js';
+import { isRecord } from '../../src/connectors/guards.js';
 import { FakePostgrest } from '../support/fake-postgrest.js';
 import { accessEnv, accessKit, type AccessKit } from '../support/access-token.js';
 
@@ -15,7 +16,7 @@ const env: Env = {
   BARTE_ACADEMY_SUPABASE_SECRET_KEY: 'sb_secret_teste',
   BARTE_ACADEMY_ADMIN_EMAILS: JSON.stringify([ADMIN]),
 };
-const ctx = { waitUntil: () => {}, passThroughOnException: () => {}, props: {} } as unknown as ExecutionContext;
+const ctx = { waitUntil: () => {}, passThroughOnException: () => {}, props: {} } as unknown as ExecutionContext; // #356 dublê do ExecutionContext: a rota só usa waitUntil
 
 let admin: AccessKit;
 let analyst: AccessKit;
@@ -36,7 +37,7 @@ const run = (id: number, startedAt: string, status: string, extra: Record<string
 });
 
 async function get(tables: Record<string, Record<string, unknown>[]>, who: AccessKit = admin, now = '2026-11-23T10:18:30Z'): Promise<Record<string, unknown>> {
-  // O verificador do Access lê o relógio real: o token sai antes de o teste fixar a data.
+  // #356 O verificador do Access lê o relógio real: o token sai antes de o teste fixar a data.
   vi.useRealTimers();
   const headers = new Headers({ 'Cf-Access-Jwt-Assertion': await who.token() });
   vi.useFakeTimers({ toFake: ['Date'] });
@@ -44,7 +45,9 @@ async function get(tables: Record<string, Record<string, unknown>[]>, who: Acces
   vi.stubGlobal('fetch', new FakePostgrest(tables).fetch);
   const response = await createWorker({ verifier: who.verifier }).fetch(new Request('https://worker.test/api/automacao', { headers }), env, ctx);
   expect(response.status).toBe(200);
-  return (await response.json()) as Record<string, unknown>;
+  const body: unknown = await response.json();
+  if (!isRecord(body)) throw new Error('a resposta de /api/automacao não é um objeto');
+  return body;
 }
 
 const ON = { id: true, enabled: true, changed_by: 'cfo@jachegou.test', changed_at: '2026-11-23T09:00:00+00:00', version: 2, history: [{ by: 'cfo@jachegou.test' }] };

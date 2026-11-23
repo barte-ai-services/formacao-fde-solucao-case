@@ -7,21 +7,32 @@ import { GOOD_TEXT } from '../supplier/doubles.js';
 import { SOURCE_KEY } from '../domain/supplier-request-fixtures.js';
 import { kitTables } from './kit.js';
 import { AFTER_DUE, READING } from './reply-scenarios.js';
+import { arrayOf, isRecord, isString, isUnknown, shaped } from '../../src/connectors/guards.js';
 import { supplierWorld, type SupplierWorld } from './supplier-world.js';
 import { sweepSupplierOverdue } from '../../src/cron/supplier-sweep.js';
 
 export const ENV = { BARTE_ACADEMY_SUPABASE_URL: 'https://fake.supabase.co', BARTE_ACADEMY_SUPABASE_SECRET_KEY: 'sb_secret_fake', BARTE_ACADEMY_ANTHROPIC_API_KEY: 'chave-de-teste' };
 export const OTHER_KEYS = ['35261112345678000195550010000438950000438952', '35261112345678000195550010000438960000438963', '35261112345678000195550010000438970000438974'];
 
+type MessagesBody = { tools: { name: string; input_schema: { properties: Record<string, unknown> } }[]; messages: unknown[] };
+const isMessagesBody = shaped<MessagesBody>({
+  tools: arrayOf(shaped({ name: isString, input_schema: shaped({ properties: isRecord }) })),
+  messages: arrayOf(isUnknown),
+});
+
+/** #356 O corpo de uma chamada à Messages API, estreitado por guard em vez de afirmado por cast. */
+export function messagesBody(init?: RequestInit): MessagesBody {
+  const body: unknown = JSON.parse(String(init?.body));
+  if (!isMessagesBody(body)) throw new Error('corpo da Messages API fora do formato esperado');
+  return body;
+}
+
 /** #157: a Messages API falsa: responde a ferramenta que a tarefa pediu, conforme o esquema dela, e conta as chamadas (#157: a cobrança já não pergunta ao Claude). */
 export function messagesApi(proposalOf: (key: string) => Record<string, unknown> | undefined, auditTurns = 2): { fetch: FetchFn; calls: () => number } {
   let calls = 0;
   const fetch: FetchFn = async (_url, init) => {
     calls += 1;
-    const body = JSON.parse(String(init?.body)) as {
-      tools: { name: string; input_schema: { properties: Record<string, unknown> } }[];
-      messages: unknown[];
-    };
+    const body = messagesBody(init);
     // #230 O auditor (invoice-audit) conversa com tools: na 1ª volta grava a auditoria que concorda com a régua (record_audit), na 2ª entrega a resposta final.
     if (body.tools.some((t) => t.name === 'record_audit')) {
       // #333 A volta é o que o laço já mandou: cada volta acrescenta 2 mensagens (a do modelo e a das tools). Com `auditTurns` > 2 o modelo lê antes de gravar, sempre a mesma nota (o pior caso passa do AUDIT_MAX_READS = 12: as leituras a mais voltam recusadas).

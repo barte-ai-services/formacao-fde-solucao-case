@@ -62,6 +62,11 @@ Só para administradores (`BARTE_ACADEMY_ADMIN_EMAILS`): 403 para os demais, 405
 - `POST /api/admin/modo-demonstracao` com `{ "enabled": true }` (ou `false`): liga ou desliga o modo, sem deploy, e grava quem mudou
   (o e-mail do Access, só no banco) e quando. Responde `200` com `{ "enabled": boolean, "changedAt": string }`. Corpo que não é
   exatamente isso: `400 invalid_body`. Duas trocas ao mesmo tempo: `409 conflict` para a que perdeu.
+- `POST /api/admin/reconferir` com `{ "confirmar": "RECONFERIR" }`: apaga as tabelas do domínio e roda uma rodada completa. Toma a trava
+  da rodada ANTES de apagar, e a rodada corre com essa mesma posse, solta no fim. Com a trava tomada e válida (uma rodada do Cron em
+  andamento, frequente no modo de 1 minuto), responde `409 { "error": "round_in_progress" }` sem apagar nada e sem gravar linha:
+  tente de novo em instantes. Como a rodada é orçada em 50 subrequests, a proposta pode sair nas rodadas seguintes: o `proposed` do
+  resumo pode ser 0. Sem a função da trava (migração não aplicada), segue como a rodada: sem trava, com o log.
 
 ### `GET /api/automacao`
 

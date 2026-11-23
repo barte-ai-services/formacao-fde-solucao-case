@@ -149,12 +149,12 @@ describe('#356/AC-4 a rodada do tick cabe nos 50 subrequests, com um medidor só
     await tick(at('10:00'), ENV);
     expect(first.counter.count()).toBeLessThanOrEqual(50);
     const run1 = first.fake.rows('automation_runs')[0];
-    // A gravação conta a si mesma; a soltura da trava vem depois dela e é a única subrequest fora do número gravado.
+    // #356 A gravação conta a si mesma; a soltura da trava vem depois dela e é a única subrequest fora do número gravado.
     expect(run1?.subrequests).toBe(first.counter.count() - 1);
     const deferred = run1?.deferred_steps as string[];
     expect(deferred.length).toBeGreaterThan(0);
 
-    // A mesma base na rodada seguinte: o adiado passa à frente e roda.
+    // #356 A mesma base na rodada seguinte: o adiado passa à frente e roda.
     const fake = first.fake;
     const counter = countSubrequests(fake.fetch, 1000);
     vi.stubGlobal('fetch', counter.fetch);
