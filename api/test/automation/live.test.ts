@@ -133,10 +133,10 @@ describe('#354/AC-2 since devolve só o que foi gravado depois', () => {
     const body = (await res.json()) as Body;
     expect(res.status).toBe(200);
     expect(body.events.map((e) => e.at)).toEqual(['2026-11-16T13:20:00.000Z', '2026-11-16T13:17:00.000Z']);
-    // #354 As três leituras dos passos são as que pedem o teto de 50 e a ordem do mais novo; cada uma leva o gt no banco.
+    // #354 As quatro leituras dos passos (a #353 acrescentou os pedidos enviados sozinhos) são as que pedem o teto de 50 e a ordem do mais novo; cada uma leva o gt no banco.
     const reads = fake.requests.filter((r) => r.method === 'GET' && r.url.includes('limit=50'));
-    expect(reads.map((r) => new URL(r.url).pathname.split('/').pop()).sort()).toEqual(['approvals', 'automation_runs', 'engine_decisions']);
-    expect(reads.every((r) => /(started_at|decided_at|approved_at)=gt\./.test(decodeURIComponent(r.url)))).toBe(true);
+    expect(reads.map((r) => new URL(r.url).pathname.split('/').pop()).sort()).toEqual(['approvals', 'automation_runs', 'engine_decisions', 'outbox_supplier_emails']);
+    expect(reads.every((r) => /(started_at|decided_at|approved_at|sent_at)=gt\./.test(decodeURIComponent(r.url)))).toBe(true);
   });
 
   it('#354/AC-2 sem nada novo, os eventos vêm vazios e since devolve o mesmo cursor', async () => {

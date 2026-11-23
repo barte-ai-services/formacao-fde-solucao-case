@@ -21,6 +21,7 @@ const work: RoundWork = {
   markOverdueSupplierRequests: nothing,
   demoDockCount: async () => {},
   demoSupplierReplies: async () => {},
+  demoAutoReturn: async () => {},
   claudeTasks: ['description-match', 'probable-order'],
   claudeTask: async () => {},
   engine: async () => ({ evaluated: 0, approved: 0 }),

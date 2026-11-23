@@ -54,6 +54,8 @@ async function tickRounds(fake: FakePostgrest, rounds: number): Promise<{ spend:
   vi.stubGlobal('fetch', (input: string | URL, init?: RequestInit) => 
     String(input).includes('/rpc/kit_insert_demo_batch') ? Promise.resolve(new Response('0', { status: 200, headers: { 'content-type': 'application/json' } }))
       // #363 As filas das rpcs da contagem da doca e das respostas da demonstração: vazias, uma leitura cada.
+      // #353 A fila da devolução automática: vazia (sem devolução pendente de valor pequeno), uma leitura.
+      : /\/rpc\/demo_auto_return_pending/.test(String(input)) ? Promise.resolve(new Response(JSON.stringify({ limitCents: 500000, entries: [] }), { status: 200, headers: { 'content-type': 'application/json' } }))
       : /\/rpc\/demo_(dock_count|supplier_replies)_pending/.test(String(input)) ? Promise.resolve(new Response('[]', { status: 200, headers: { 'content-type': 'application/json' } }))
       : fake.fetch(String(input), init));
   vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -86,14 +88,14 @@ describe('#362/AC-1 a rodada quieta com 80 notas já capturadas cabe com folga n
 });
 
 describe('#362/AC-1 e #349 a rodada quieta com o modo demonstração ligado, o passo notas-demo antes da captura', () => { // ADR-002
-  it('#362/AC-1 com o modo ligado, a rodada quieta gasta menos de 22 dos 50, igual com 80 e com 200 notas, e failed_steps vazio', async () => { // ADR-002
+  it('#362/AC-1 com o modo ligado, a rodada quieta gasta menos de 23 dos 50, igual com 80 e com 200 notas, e failed_steps vazio', async () => { // ADR-002
     const w = quietWorld(80, true, true);
     const a = await tickRounds(w, 6);
     const b = await tickRounds(quietWorld(200, true, true), 6);
     for (const r of [a, b]) {
       expect(r.runs.every((run) => run.demo_enabled === true), 'o modo está ligado').toBe(true);
       expect(r.runs.every((run) => run.status === 'ok' && (run.failed_steps as string[]).length === 0), JSON.stringify(r.runs.map((run) => run.failed_steps))).toBe(true);
-      expect(Math.max(...r.spend), `gasto por rodada: ${r.spend.join(', ')}`).toBeLessThan(22); // #363 com o modo ligado entram duas leituras de fila vazia (contagem da doca e respostas do fornecedor)
+      expect(Math.max(...r.spend), `gasto por rodada: ${r.spend.join(', ')}`).toBeLessThan(23); // #363 #353 com o modo ligado entram três leituras de fila vazia (contagem da doca, respostas do fornecedor e devolução automática)
     }
     expect(b.spend).toEqual(a.spend);
   });

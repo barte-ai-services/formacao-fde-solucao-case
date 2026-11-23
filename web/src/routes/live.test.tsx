@@ -20,6 +20,7 @@ const RUN = { kind: "run", at: at("13:15"), actor: "system", actor_name: "Autom�
 const RULE = { kind: "decision", at: at("13:21"), actor: "rule", actor_name: "Regra", invoice: { access_key: KEY(51234), number: "51234" }, mode: "delegated", step: "Regra aprovou" };
 const ENGINE = { kind: "decision", at: at("13:21"), actor: "engine", actor_name: "Motor", invoice: { access_key: KEY(51234), number: "51234" }, mode: "shadow", step: "Motor, em sombra, aprovaria" };
 const PERSON = { kind: "human_decision", at: at("13:19"), actor: "person", actor_name: "Ana Souza", invoice: { access_key: KEY(51220), number: "51220" }, step: "Decidiu a proposta" };
+const AUTO = { kind: "auto_return", at: at("13:22"), actor: "system", actor_name: "Automático", invoice: { access_key: KEY(51250), number: "51250" }, step: "Enviado automaticamente" };
 const NEWER = { kind: "decision", at: at("13:23"), actor: "rule", actor_name: "Regra", invoice: { access_key: KEY(51240), number: "51240" }, mode: "delegated", step: "Regra aprovou" };
 
 // #355 74% de propósito diferente do que sairia de decided/byRule: a tela mostra o que a API disse, sem recalcular (AC-3).
@@ -246,5 +247,20 @@ describe("#355 Ao vivo: acessibilidade da página montada", () => {
     expect(within(main).getAllByRole("row", { name: /^Abrir a nota 51234$/ })).toHaveLength(2);
     expect(within(main).getAllByRole("row", { name: "Abrir a nota 51220" })).toHaveLength(1);
     expect(document.querySelectorAll("[tabindex]:not([tabindex='0']):not([tabindex='-1'])")).toHaveLength(0);
+  });
+});
+
+describe("#353 Ao vivo: o pedido de devolução que saiu sozinho", () => {
+  it("#353/AC-1: a linha diz 'Enviado automaticamente', com a hora, a nota e o selo da automação, e abre a gaveta da nota", async () => {
+    const { proposals } = serve([{ body: { events: [AUTO, RULE], since: SINCE_1, indicators: indicators(74), awaiting: 6 } }]);
+    open();
+    await waitFor(() => expect(rows()).toHaveLength(2));
+    const [auto] = rows() as [HTMLElement, HTMLElement];
+    expect(auto.textContent).toContain("10h22");
+    expect(auto.textContent).toContain("51250");
+    expect(auto.textContent).toContain("Enviado automaticamente");
+    expect(within(auto).getByText("⚙ Automático")).toBeTruthy();
+    fireEvent.click(auto);
+    await waitFor(() => expect(proposals).toEqual([KEY(51250)]));
   });
 });

@@ -16,9 +16,10 @@ import { proposeChecked } from '../approval/propose-checked.js';
 import { runClaudeRound } from '../claude/cron.js';
 import { tasksFor } from '../claude/tasks/index.js';
 import { modeIntervalMinutes } from '../automation/rhythm.js';
+import { autoReturnStep } from '../demo/auto-return.js';
 import { dockCountStep } from '../demo/dock-count.js';
 import { supplierRepliesStep } from '../demo/supplier-replies.js';
-import { supabaseDockCountPorts, supabaseSupplierReplyPorts } from '../demo/supabase-demo-ports.js';
+import { supabaseAutoReturnPorts, supabaseDockCountPorts, supabaseSupplierReplyPorts } from '../demo/supabase-demo-ports.js';
 import { lastDaysUtc } from './publish-approved-e8.js';
 import { captureInvoices, markCheckFailures, type CaptureDeps } from './capture.js';
 import type { RoundWork } from './round-steps.js';
@@ -123,6 +124,8 @@ export function supabaseRoundWork(
     // #363 A rodada da demonstração é de 1 minuto: a contagem e a resposta contam rodadas nesse ritmo (só rodam com o modo ligado).
     demoDockCount: () => dockCountStep({ ...supabaseDockCountPorts(rest), clock: demoClock, seed: demoSeed, roundMs: DEMO_ROUND_MS }).run(),
     demoSupplierReplies: () => supplierRepliesStep({ ...supabaseSupplierReplyPorts(rest), clock: demoClock, seed: demoSeed, roundMs: DEMO_ROUND_MS }).run(),
+    // #353 A devolução automática: o relógio é o da demonstração (o dia da nota emitida); o limite vem do banco, na própria leitura.
+    demoAutoReturn: () => autoReturnStep({ ...supabaseAutoReturnPorts(rest), clock: demoClock }).run(),
     claudeTasks: tasksFor(rest).map((t) => t.name),
     claudeTask: async (name, deadline) => {
       const round = await runClaudeRound(rest, env, { only: [name], deadline, ...(fetch ? { fetch } : {}), ...(claudeTimeoutMs === undefined ? {} : { timeoutMs: claudeTimeoutMs }) });

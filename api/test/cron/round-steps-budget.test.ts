@@ -229,6 +229,67 @@ describe('#363 o custo da contagem da doca e das respostas do fornecedor, medido
   });
 });
 
+/** #353 A nota de origem como a rpc da devolução automática a entrega (as colunas de invoices que o leitor do pedido lê). */
+const INVOICE_JSON = {
+  access_key: '35261174055489000148550010000438941174512643', number: '43894', series: '1', supplier_id: 'F02', store: 'LJ-012',
+  issued_on: '2026-11-09', purchase_order_ref: 'OC-2026-42328', entry_channel: 'sefaz', total_cents: 208288,
+  items: [{ supplierCode: 'F02-005', sku: null, description: 'Arroz 5 kg', quantity: { amount: 12, unit: 'CX' }, unitPriceCents: 10000, totalCents: 120000 }],
+};
+/** #353 A fila cheia da devolução automática: `n` pedidos pendentes de valor pequeno (R$ 100,00 cada), no formato da rpc. */
+const autoReturnQueue = (n: number) => ({
+  limitCents: 500_000,
+  entries: Array.from({ length: n }, (_, i) => ({
+    queueId: i + 1, invoice: INVOICE_JSON, lines: [{ supplierCode: 'F02-005', amount: 1, unit: 'CX' }], supplierEmail: 'compras@fornecedor.example', request: null,
+  })),
+});
+
+/** #353 Mede o passo com a fila CHEIA, requisição a requisição: o fetch falso devolve a fila da rpc e conta tudo. */
+describe('#353 o custo da devolução automática, medido com a fila cheia', () => { // ADR-002
+  const NOW = new Date('2026-11-23T12:00:00Z');
+
+  async function measured(entries: number): Promise<{ spent: number; paths: string[]; sent: number }> {
+    const paths: string[] = [];
+    let sent = 0;
+    vi.stubGlobal('fetch', async (input: string, init?: RequestInit) => {
+      const path = new URL(String(input)).pathname.replace('/rest/v1/', '');
+      paths.push(path);
+      const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+      if (path === 'rpc/demo_auto_return_pending') return json(autoReturnQueue(entries));
+      if (path === 'rpc/demo_auto_return_send') {
+        const batch = (JSON.parse(String(init?.body)) as { p_batch: unknown[] }).p_batch;
+        sent = batch.length;
+        return json(batch.length);
+      }
+      return json([]);
+    });
+    const env: Env = { BARTE_ACADEMY_SUPABASE_URL: URL_, BARTE_ACADEMY_SUPABASE_SECRET_KEY: 'sb_secret_fake' };
+    const meter = startRoundMeter(env, { measureOnly: true });
+    const rest = new SupabaseRest({ url: URL_, secretKey: 'sb_secret_fake', fetch: meter.fetch });
+    await supabaseRoundWork(rest, meter.env, meter.fetch, { demoClock: () => NOW }).demoAutoReturn();
+    expect(paths.length).toBe(meter.spent());
+    return { spent: meter.spent(), paths, sent };
+  }
+
+  it('#353/AC-1: com a fila cheia gasta o declarado: 1 leitura e 1 gravação em lote, qualquer que seja o tamanho da fila', async () => { // ADR-002
+    const full = await measured(60);
+    expect(full.spent).toBe(STEP_COSTS.autoReturn);
+    expect(full.paths).toEqual(['rpc/demo_auto_return_pending', 'rpc/demo_auto_return_send']);
+    expect(full.sent, 'o lote leva no máximo 50 pedidos').toBe(50);
+  });
+
+  it('#353/AC-2: com a fila vazia, só lê (1) e não grava', async () => { // ADR-002
+    expect((await measured(0)).paths).toEqual(['rpc/demo_auto_return_pending']);
+  });
+
+  it('#353: com o modo ligado a lista continua cabendo no orçamento, e o planRound a aceita com o passo novo', () => { // ADR-002
+    const w = kitWorld();
+    const steps = buildRoundSteps(supabaseRoundWork(new SupabaseRest({ url: URL_, secretKey: 'k', fetch: async () => new Response('[]') }), w.env), Date.now, undefined, true).steps;
+    expect(names(steps)).toContain('devolucao-automatica');
+    expect(() => planRound(steps, [])).not.toThrow();
+    for (const s of steps) expect(() => planRound(steps, [s.name]), s.name).not.toThrow();
+  });
+});
+
 describe('#356/AC-4 a lista cabe no orçamento', () => { // ADR-002
   it('todo passo cabe sozinho ao lado da captura, o que o planRound exige para não haver fome', () => { // ADR-002
     const build = kitWorld().build();
@@ -387,6 +448,9 @@ async function fullestWorld(demo = false) {
     if (url.startsWith(PORT_URL)) return Promise.resolve(new Response('{}', { status: 200 }));
     if (url.includes('/rpc/kit_insert_demo_batch')) return Promise.resolve(new Response('0', { status: 200, headers: { 'content-type': 'application/json' } }));
     // #363 As filas das rpcs da contagem e das respostas da demonstração: vazias nesta rodada, uma leitura cada.
+    // #353 A fila da devolução automática, CHEIA em toda rodada do modo ligado (o pior caso do passo: uma leitura e uma gravação em lote).
+    if (url.includes('/rpc/demo_auto_return_pending')) return Promise.resolve(new Response(JSON.stringify(autoReturnQueue(3)), { status: 200, headers: { 'content-type': 'application/json' } }));
+    if (url.includes('/rpc/demo_auto_return_send')) return Promise.resolve(new Response('3', { status: 200, headers: { 'content-type': 'application/json' } }));
     if (url.includes('/rpc/demo_dock_count_pending') || url.includes('/rpc/demo_supplier_replies_pending')) return Promise.resolve(new Response('[]', { status: 200, headers: { 'content-type': 'application/json' } }));
     if (!url.startsWith(ANTHROPIC)) return w.fake.fetch(url, init);
     const body = messagesBody(init);
@@ -469,7 +533,9 @@ describe('#356/AC-4 a rodada mais cheia, ligada ao tick, contra o teto de 50', (
 
 /** #349 #362 A mesma rodada mais cheia ao tick com o modo demonstração ligado: o passo notas-demo (custo declarado 2) entra antes da captura e a rodada segue dentro de 50. */
 // #363 46 com as duas leituras da contagem da doca e das respostas (fila vazia) a mais.
-const FULLEST_TICK_DEMO_MEASURED = 46;
+// #353 45 com o passo da devolução automática (declarado 2) e a fila dele CHEIA em toda rodada (a leitura e a gravação): o declarado a mais adia
+// #353 outro passo em alguma rodada, e o maior gasto medido (que era 46) deixa de ser o mesmo; o teto de 48 que a #353 se impôs não é tocado.
+const FULLEST_TICK_DEMO_MEASURED = 45;
 
 describe('#349/AC-4 a rodada mais cheia ao tick com o modo demonstração ligado', () => { // ADR-002
   it('o gasto medido de cada rodada, com o notas-demo à frente da captura, não passa de 50, e nenhum passo falha', async () => { // ADR-002
@@ -484,6 +550,8 @@ describe('#349/AC-4 a rodada mais cheia ao tick com o modo demonstração ligado
     const own = runs.slice(-ROUNDS); // #349 a primeira linha é da semeadura do mundo, de antes do modo ligado
     expect(own.map((r) => [r.status, r.demo_enabled, (r.failed_steps as string[]).length])).toEqual(own.map(() => ['ok', true, 0]));
     expect(world.fake.rows('automation_lock')).toEqual([]);
+    // #353 Sem fome: o passo da devolução automática roda em rodadas do modo ligado, mesmo com todos os outros passos de fila cheia.
+    expect(own.filter((r) => !(r.deferred_steps as string[]).includes('devolucao-automatica')).length, 'a devolução automática nunca rodou').toBeGreaterThan(0);
     expect(Math.max(...spend), `gasto por rodada: ${spend.join(', ')}`).toBe(FULLEST_TICK_DEMO_MEASURED);
     expect(FULLEST_TICK_DEMO_MEASURED).toBeLessThanOrEqual(SUBREQUEST_CAP);
   });

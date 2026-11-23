@@ -34,8 +34,14 @@ export interface LiveHumanDecisionEvent extends LiveBase {
   invoice: LiveInvoiceRef;
 }
 
-/** A união por `kind`: um passo novo (o pedido de devolução automático da #353) é mais um membro, e quebra o `switch` exaustivo onde faltar tratar. */
-export type LiveEvent = LiveRunEvent | LiveDecisionEvent | LiveHumanDecisionEvent;
+/** #353 O pedido de devolução que a automação emitiu e enviou sozinha: o passo diz "Enviado automaticamente" e abre a gaveta da nota. */
+export interface LiveAutoReturnEvent extends LiveBase {
+  kind: "auto_return";
+  invoice: LiveInvoiceRef;
+}
+
+/** A união por `kind`: um passo novo é mais um membro, e quebra o `switch` exaustivo onde faltar tratar. */
+export type LiveEvent = LiveRunEvent | LiveDecisionEvent | LiveHumanDecisionEvent | LiveAutoReturnEvent;
 
 /** Os números do dia que a tela mostra: da API, sem conta no front. */
 export interface LiveDayIndicators {
@@ -80,6 +86,8 @@ function eventOf(v: unknown): LiveEvent {
       return { ...base, kind: "decision", invoice: invoiceOf(v.invoice), mode: v.mode };
     case "human_decision":
       return { ...base, kind: "human_decision", invoice: invoiceOf(v.invoice) };
+    case "auto_return":
+      return { ...base, kind: "auto_return", invoice: invoiceOf(v.invoice) };
     default:
       throw malformed();
   }

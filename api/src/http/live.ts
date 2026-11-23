@@ -1,6 +1,7 @@
 // #354 GET /api/live: os passos da automação, do mais novo ao mais velho, e os indicadores do dia.
 import { SupabaseApprovalStore } from '../approval/supabase-store.js';
 import {
+  autoReturnEvent,
   decisionEvent,
   humanDecisionEvent,
   LIVE_LIMIT,
@@ -11,7 +12,7 @@ import {
   type LiveEvent,
   type Stamped,
 } from '../automation/live.js';
-import { readIndicators, readInvoiceRefs, readPersonApprovals } from '../automation/readers.js';
+import { readAutoReturns, readIndicators, readInvoiceRefs, readPersonApprovals } from '../automation/readers.js';
 import { listRuns } from '../automation/runs.js';
 import { SupabaseRest, SupabaseRestError } from '../connectors/supabase-rest.js';
 import { SupabaseEngineStore } from '../engine/supabase-store.js';
@@ -45,16 +46,17 @@ export async function live(_identity: Identity, request: Request, env: Env): Pro
   const direction = since === null ? 'desc' : 'asc';
   const after = since ?? undefined;
   try {
-    const [runs, decisions, approvals, indicators, awaiting] = await Promise.all([
+    const [runs, decisions, approvals, autoReturns, indicators, awaiting] = await Promise.all([
       listRuns(rest, LIVE_LIMIT, after, direction),
       new SupabaseEngineStore(rest).recentCascade(LIVE_LIMIT, after, direction),
       readPersonApprovals(rest, LIVE_LIMIT, after, direction),
+      readAutoReturns(rest, LIVE_LIMIT, after, direction),
       readIndicators(rest, new Date()),
       new SupabaseApprovalStore(rest).listAwaiting(),
     ]);
     const refs = await readInvoiceRefs(
       rest,
-      decisions.map((d) => d.invoiceAccessKey),
+      [...decisions.map((d) => d.invoiceAccessKey), ...autoReturns.sent.map((s) => s.invoiceAccessKey)],
       approvals.approvals.map((a) => a.proposalId),
     );
     const stamp = (event: LiveEvent | null, raw: string): Stamped[] => (event === null ? [] : [{ event, raw }]);
@@ -66,15 +68,19 @@ export async function live(_identity: Identity, request: Request, env: Env): Pro
       const invoice = refs.byProposal.get(a.proposalId);
       return invoice ? stamp(humanDecisionEvent(a, invoice), a.approvedAt) : [];
     });
+    const fromAutoReturns = autoReturns.sent.flatMap((s) =>
+      stamp(autoReturnEvent(s, refs.byKey.get(s.invoiceAccessKey) ?? { access_key: s.invoiceAccessKey, number: null }), s.sentAt),
+    );
     const horizonOf = (rows: readonly { raw: string }[], full: boolean): string | null => (full ? (rows.at(-1)?.raw ?? null) : null);
     const page =
       since === null
-        ? newest([...fromRuns, ...fromDecisions, ...fromApprovals], LIVE_LIMIT)
+        ? newest([...fromRuns, ...fromDecisions, ...fromApprovals, ...fromAutoReturns], LIVE_LIMIT)
         : drain(
             [
               { steps: fromRuns, horizon: horizonOf(runs.map((r) => ({ raw: r.startedAt })), runs.length === LIVE_LIMIT) },
               { steps: fromDecisions, horizon: horizonOf(decisions.map((d) => ({ raw: d.decidedAt })), decisions.length === LIVE_LIMIT) },
               { steps: fromApprovals, horizon: approvals.horizon },
+              { steps: fromAutoReturns, horizon: autoReturns.horizon },
             ],
             LIVE_LIMIT,
             since,

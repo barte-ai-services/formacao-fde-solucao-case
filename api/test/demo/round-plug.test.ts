@@ -25,6 +25,7 @@ function work(captured: number[]): RoundWork {
     },
     demoDockCount: async () => {},
     demoSupplierReplies: async () => {},
+    demoAutoReturn: async () => {},
     failedSteps: () => [],
   };
 }

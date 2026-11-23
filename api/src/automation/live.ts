@@ -1,7 +1,7 @@
 // #354 Os passos da automação que a tela Ao vivo mostra: a rodada, a decisão da regra ou do motor e a decisão de pessoa.
 import type { AutomationRun } from './runs.js';
 import type { Indicators } from './indicators.js';
-import type { InvoiceRef, PersonApproval } from './readers.js';
+import type { AutoReturnSent, InvoiceRef, PersonApproval } from './readers.js';
 import type { TimelineActor } from './timeline.js';
 import type { StoredDecision } from '../engine/decision.js';
 
@@ -23,8 +23,11 @@ export type LiveDecisionEvent = LiveBase & { kind: 'decision'; invoice: InvoiceR
 /** #354 A decisão de uma pessoa. */
 export type LiveHumanDecisionEvent = LiveBase & { kind: 'human_decision'; invoice: InvoiceRef };
 
-/** #354 A união por `kind`. Um passo novo (ex.: o pedido de devolução automático da #353) entra como mais um membro. */
-export type LiveEvent = LiveRunEvent | LiveDecisionEvent | LiveHumanDecisionEvent;
+/** #353 O pedido de devolução que a automação emitiu e enviou sozinha (modo demonstração, valor até o limite do banco). */
+export type LiveAutoReturnEvent = LiveBase & { kind: 'auto_return'; invoice: InvoiceRef };
+
+/** #354 A união por `kind`. Um passo novo entra como mais um membro (o da #353 é o `auto_return`). */
+export type LiveEvent = LiveRunEvent | LiveDecisionEvent | LiveHumanDecisionEvent | LiveAutoReturnEvent;
 
 /** #354 A resposta de `GET /api/live`. `since` é o cursor: o instante, no texto do banco, do passo mais novo, que a tela devolve no próximo pedido. */
 export type LiveBody = {
@@ -39,7 +42,7 @@ export type LiveBody = {
 /** #354 O teto de passos por resposta: a tela busca a cada poucos segundos. */
 export const LIVE_LIMIT = 50;
 
-const KIND_RANK: Record<LiveEvent['kind'], number> = { human_decision: 0, decision: 1, run: 2 };
+const KIND_RANK: Record<LiveEvent['kind'], number> = { human_decision: 0, decision: 1, auto_return: 2, run: 3 };
 
 const iso = (value: string): string | null => {
   const ms = Date.parse(value);
@@ -89,6 +92,13 @@ export function humanDecisionEvent(a: PersonApproval, invoice: InvoiceRef): Live
   const at = iso(a.approvedAt);
   if (at === null) return null;
   return { kind: 'human_decision', at, actor: 'person', actor_name: a.approver, invoice, step: 'Decidiu a proposta' };
+}
+
+/** #353 O pedido enviado sozinho: o selo é o da automação (`system`, "Automático"), o mesmo da rodada, e o texto diz o que houve. */
+export function autoReturnEvent(sent: AutoReturnSent, invoice: InvoiceRef): LiveAutoReturnEvent | null {
+  const at = iso(sent.sentAt);
+  if (at === null) return null;
+  return { kind: 'auto_return', at, actor: 'system', actor_name: 'Automático', invoice, step: 'Enviado automaticamente' };
 }
 
 /** #354 Um passo com o instante do banco, no texto original (microssegundos e fuso), de onde sai o cursor. */
