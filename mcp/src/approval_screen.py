@@ -220,8 +220,10 @@ async function callTool(name, args) {
   let result;
   try {
     result = await request("tools/call", { name, arguments: args });
-  } catch (_) {
-    return { error: { code: "unavailable", message: GENERIC_FAILURE } };
+  } catch (failure) {
+    // #376 O motivo vai à tela só como rótulo fixo: nunca o texto nem o código de um erro do host.
+    const diagnostic = failure instanceof Error && failure.message === "timeout" ? "timeout" : "host_error";
+    return { error: { code: "unavailable", message: GENERIC_FAILURE, diagnostic } };
   }
   const data = result && typeof result.structuredContent === "object" ? result.structuredContent : null;
   if (result && result.isError) {
@@ -229,7 +231,7 @@ async function callTool(name, args) {
     const message = data && typeof data.message === "string" ? data.message : GENERIC_FAILURE;
     return { error: { code, message } };
   }
-  if (!data) return { error: { code: "unavailable", message: GENERIC_FAILURE } };
+  if (!data) return { error: { code: "unavailable", message: GENERIC_FAILURE, diagnostic: "sem_structured_content" } };
   return { data };
 }
 
@@ -260,7 +262,8 @@ function errorState(error, retry) {
       h("button", { type: "button", class: "primary", "data-action": "sign-in", onclick: retry }, "Entrar"));
   }
   return h("div", { "data-state": "error", class: "notice notice-error", role: "alert" },
-    h("p", null, error.message), " ",
+    h("p", null, error.message),
+    error.diagnostic ? h("p", { "data-field": "diagnostic", class: "muted" }, `Motivo: ${error.diagnostic}`) : null, " ",
     retry ? h("button", { type: "button", onclick: retry }, "Tentar de novo") : null);
 }
 

@@ -269,6 +269,21 @@ describe("1. Fila", () => {
     assert.match(screen.text(screen.$("[data-state=error]")), /Não foi possível concluir agora\. Tente de novo em instantes\./);
     assert.doesNotMatch(screen.text(), /segredo-do-host|-32603|falha do host/);
   });
+
+  test("#376: erro do host mostra só o rótulo do motivo", async () => {
+    await openQueue({ list_approval_queue: () => { throw new Error("segredo-do-host"); } });
+    assert.match(screen.text(screen.$("[data-field=diagnostic]")), /^Motivo: host_error$/);
+  });
+
+  test("#376: resposta sem structuredContent mostra sem_structured_content", async () => {
+    await openQueue({ list_approval_queue: () => ({ content: [{ type: "text", text: "{}" }], isError: false }) });
+    assert.match(screen.text(screen.$("[data-field=diagnostic]")), /^Motivo: sem_structured_content$/);
+  });
+
+  test("#376: falha da tool não mostra motivo de transporte", async () => {
+    await openQueue({ list_approval_queue: () => fail("unavailable", "Não foi possível concluir agora. Tente de novo em instantes.", { correlation_id: "abc123def456" }) });
+    assert.equal(screen.$("[data-field=diagnostic]"), null);
+  });
 });
 
 const THIRD = () => ITEM_BLOCKED.invoice_access_key;
