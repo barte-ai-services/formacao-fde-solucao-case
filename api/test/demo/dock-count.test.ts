@@ -179,11 +179,10 @@ describe('#363/AC-4: o passo da contagem grava em lote, dentro do custo, de form
   };
   const pendings = (n: number) => Array.from({ length: n }, (_, i) => action({ actionId: `a-${i}`, invoiceAccessKey: `K-${i}` }));
 
-  it('#363/AC-4: o custo declarado é de 3 subrequests (a leitura em até 2 requisições e o lote em 1, a rpc) e o passo tem a forma do passo de rodada', () => {
+  it('#363/AC-4: o custo declarado é de 2 subrequests (a leitura em 1 rpc e o lote em 1 rpc) e o passo tem a forma do passo de rodada', () => {
     const w = world([]);
     const step = dockCountStep({ ...w, clock: () => T0, seed: 's', roundMs: ROUND_MS });
-    expect(DOCK_COUNT_COST).toBe(3);
-    expect(DOCK_COUNT_COST).toBeLessThanOrEqual(3);
+    expect(DOCK_COUNT_COST).toBe(2);
     expect(step.maxSubrequests).toBe(DOCK_COUNT_COST);
     expect(typeof step.name).toBe('string');
   });

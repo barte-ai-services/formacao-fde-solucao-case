@@ -8,10 +8,10 @@ import { seededInt } from './seeded-draw.js';
 
 /**
  * #363 Custo do passo medido em requisições (fetches), não em chamadas de porta: a leitura da doca
- * (outbox_dock_actions, outbox_store_actions, itens e exceção da nota) cabe em até 2 requisições e a
- * gravação em 1, a rpc kit_insert_demo_batch (#349). O adaptador da parte 2 respeita esse teto.
+ * (as ações, a exceção e os itens da nota) é uma rpc só (demo_dock_count_pending) e a gravação outra
+ * (demo_insert_dock_counts), as duas da migração 20261123130000; o teste de medida prova o 2.
  */
-export const DOCK_COUNT_COST = 3;
+export const DOCK_COUNT_COST = 2;
 const MIN_DELAY_ROUNDS = 2;
 const MAX_DELAY_ROUNDS = 5;
 const DEFAULT_BATCH_LIMIT = 50;
@@ -118,7 +118,13 @@ function firstPerInvoice(pending: readonly PendingDockAction[]): PendingDockActi
     (a, b) => a.publishedAt.getTime() - b.publishedAt.getTime() || (a.actionId < b.actionId ? -1 : a.actionId > b.actionId ? 1 : 0),
   );
   const seen = new Set<string>();
-  return ordered.filter((a) => !seen.has(a.invoiceAccessKey) && seen.add(a.invoiceAccessKey) !== undefined);
+  const first: PendingDockAction[] = [];
+  for (const action of ordered) {
+    if (seen.has(action.invoiceAccessKey)) continue;
+    seen.add(action.invoiceAccessKey);
+    first.push(action);
+  }
+  return first;
 }
 
 /** #363 Decide, pura, quais ações já têm a contagem chegando nesta rodada e monta as linhas dela. */

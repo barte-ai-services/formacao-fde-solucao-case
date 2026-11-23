@@ -19,6 +19,8 @@ const work: RoundWork = {
   publishReturns: nothing,
   blockDuplicates: async () => ({ blocked: 0, failed: 0 }),
   markOverdueSupplierRequests: nothing,
+  demoDockCount: async () => {},
+  demoSupplierReplies: async () => {},
   claudeTasks: ['description-match', 'probable-order'],
   claudeTask: async () => {},
   engine: async () => ({ evaluated: 0, approved: 0 }),

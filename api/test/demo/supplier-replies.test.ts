@@ -74,7 +74,7 @@ describe('#363/AC-3: sobre uma amostra saem os cinco desfechos e uma pequena par
     expect(replies.filter((r) => !r.hiddenOrder).some((r) => /libere o pagamento/i.test(r.row.body))).toBe(false);
   });
 
-  it('#363/AC-3: "atendeu" pode citar um documento de até duas palavras e nenhum outro número aparece', () => {
+  it('#363/AC-3: só o documento NF-D traz número no texto da resposta, e nenhum outro dígito aparece', () => {
     const replies = sample();
     const docs = replies.filter((r) => /NF-D \d+/.test(r.row.body));
     expect(docs.length).toBeGreaterThan(0);

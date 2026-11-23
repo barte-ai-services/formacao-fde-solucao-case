@@ -17,6 +17,8 @@ function work(deadlines: Map<string, number>): RoundWork {
     publishReturns: nothing,
     blockDuplicates: async () => ({ blocked: 0, failed: 0 }),
     markOverdueSupplierRequests: nothing,
+    demoDockCount: async () => {},
+    demoSupplierReplies: async () => {},
     claudeTasks: ['description-match', 'probable-order'],
     claudeTask: async (name, deadline) => void deadlines.set(name, deadline),
     engine: async () => ({ evaluated: 0, approved: 0 }),
@@ -65,5 +67,35 @@ describe('#311 a rodada orquestrada não despacha o dossiê e só a captura a fa
 
   it('os passos que engoliram a própria falha chegam à rodada pelo trabalho', () => { // ADR-002
     expect(buildRoundSteps(work(new Map())).failedSteps()).toEqual(['dock']);
+  });
+});
+
+describe('#363 a contagem da doca e as respostas do fornecedor só entram com o modo demonstração ligado', () => { // ADR-002
+  const names = (demo: boolean) => buildRoundSteps(work(new Map()), Date.now, undefined, demo).steps.map((s) => s.name);
+  const DEMO = ['contagem-da-doca', 'respostas-do-fornecedor'];
+
+  it('com o modo desligado (o padrão) os dois passos não estão na lista, e a rodada normal é a de sempre', () => { // ADR-002
+    expect(names(false).filter((n) => DEMO.includes(n))).toEqual([]);
+    expect(buildRoundSteps(work(new Map())).steps.map((s) => s.name)).toEqual(names(false));
+  });
+
+  it('com o modo ligado a contagem vem depois de doca e loja, as respostas antes do prazo do fornecedor, e os dois antes do motor', () => { // ADR-002
+    const list = names(true);
+    expect(list.indexOf('contagem-da-doca')).toBeGreaterThan(list.indexOf('loja'));
+    expect(list.indexOf('respostas-do-fornecedor')).toBeLessThan(list.indexOf('prazo-fornecedor'));
+    for (const n of DEMO) expect(list.indexOf(n)).toBeLessThan(list.indexOf('motor'));
+    expect(list.filter((n) => !DEMO.includes(n))).toEqual(names(false));
+  });
+
+  it('cada passo declara o custo de STEP_COSTS e roda o trabalho da demonstração', async () => { // ADR-002
+    const calls: string[] = [];
+    const w: RoundWork = { ...work(new Map()), demoDockCount: async () => void calls.push('doca'), demoSupplierReplies: async () => void calls.push('respostas') };
+    const steps = buildRoundSteps(w, Date.now, undefined, true).steps;
+    const count = steps.find((s) => s.name === 'contagem-da-doca');
+    const replies = steps.find((s) => s.name === 'respostas-do-fornecedor');
+    expect([count?.maxSubrequests, replies?.maxSubrequests]).toEqual([STEP_COSTS.dockCount, STEP_COSTS.supplierReplies]);
+    await count?.run();
+    await replies?.run();
+    expect(calls).toEqual(['doca', 'respostas']);
   });
 });

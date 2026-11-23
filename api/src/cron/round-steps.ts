@@ -31,6 +31,10 @@ export interface RoundWork {
   publishReturns(): Promise<number>;
   blockDuplicates(): Promise<{ blocked: number; failed: number }>;
   markOverdueSupplierRequests(): Promise<number>;
+  /** #363 A contagem da doca da demonstração (notas origin='demo'): só entra na rodada com o modo ligado. */
+  demoDockCount(): Promise<void>;
+  /** #363 As respostas do fornecedor da demonstração (caixa de entrada mock): só entra na rodada com o modo ligado. */
+  demoSupplierReplies(): Promise<void>;
   /** #171 Os nomes das tarefas do Claude da rodada (tasksFor); cada uma é um passo. */
   readonly claudeTasks: readonly string[];
   /** #356 AC-3 Uma tarefa do Claude até `deadline` (epoch em ms): o prazo é um por rodada, igual para todas. */
@@ -61,6 +65,9 @@ export const STEP_COSTS = {
   returns: 10,
   duplicates: 11,
   supplierOverdue: 6,
+  /** #363 Uma rpc de leitura e uma de gravação em lote (a medida do passo da demonstração). */
+  dockCount: 2,
+  supplierReplies: 2,
   engine: 20,
   demoNotes: DEMO_NOTES_STEP_COST,
 } as const satisfies Record<string, number>;
@@ -139,12 +146,17 @@ export function buildRoundSteps(work: RoundWork, now: () => number = Date.now, c
     step('loja', STEP_COSTS.store, async () => {
       figures.storePublished = await work.publishStore();
     }),
+    // #363 A contagem da doca vem depois de 'doca' e 'loja', que publicam as ações que ela conta; só com o modo ligado.
+    ...(demoEnabled ? [step('contagem-da-doca', STEP_COSTS.dockCount, () => work.demoDockCount())] : []),
     step('devolucoes', STEP_COSTS.returns, async () => {
       await work.publishReturns();
     }),
     step('duplicados', STEP_COSTS.duplicates, async () => {
       figures.duplicatesBlocked = (await work.blockDuplicates()).blocked;
     }),
+    // #363 As respostas do fornecedor ficam ANTES de 'prazo-fornecedor': a resposta que chega nesta rodada já está na caixa quando a varredura
+    // #363 procura pedido sem resposta, e não vira "sem resposta" à toa. Antes dos passos do Claude, que a leem. Só com o modo ligado.
+    ...(demoEnabled ? [step('respostas-do-fornecedor', STEP_COSTS.supplierReplies, () => work.demoSupplierReplies())] : []),
     step('prazo-fornecedor', STEP_COSTS.supplierOverdue, async () => {
       await work.markOverdueSupplierRequests();
     }),
