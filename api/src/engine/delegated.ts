@@ -187,7 +187,9 @@ function stillAwaiting(file: CaseFile): boolean {
  *   `below_confidence` com a recomendação; a falha do Clef fica com a pessoa (`clef_failed`, com a classe do erro
  *   e a latência, como na #41).
  * Até `DELEGATED_ROUND_LIMIT` propostas por rodada; o resto fica para a próxima. A decisão é gravada antes da
- * aprovação, que a cita (o banco confere que batem). A decisão `approve` gravada sem
+ * aprovação, que a cita (o banco confere que batem). #371 As decisões da rodada gravam juntas (`recordMany`: uma leitura das propostas e uma gravação) e a
+ * releitura antes de aprovar é uma só para o lote (`reread`: duas leituras), em vez de uma gravação e uma releitura por proposta; a gravação e a aprovação
+ * seguem falhando sozinhas, e a porta sem as duas operações cai no caminho de antes, nota a nota. A decisão `approve` gravada sem
  * aprovação é a que ficou com a pessoa.
  *
  * A falha do Clef no modo delegado não volta ao Clef: a cascata gravada é uma por proposta e modo, e decisão do

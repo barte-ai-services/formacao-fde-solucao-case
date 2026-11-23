@@ -7,6 +7,10 @@
  * o trabalho em `RoundWork` e o custo medido em `STEP_COSTS`; o teste de medida cobra o custo declarado igual ao
  * medido, e o executor (automation/round-budget.ts) adia o que não couber e o roda na rodada seguinte.
  * Nada mais muda: a trava, o ritmo e a gravação são de automation/round.ts.
+ *
+ * #371 Com o modo demonstração ligado, captura, notas-demo, propostas e motor são o CAMINHO FIXO (`FIXED_PATH`, `fixed: true`): rodam em toda rodada,
+ * antes dos demais; os custos de propostas e motor são os medidos em sequência (`STEP_COSTS.proposeFixed` e `engineFixed`) e os demais passos se
+ * revezam com o que sobra (automation/round-budget.ts). Um passo novo continua entrando na lista como antes; ele se reveza, não é fixo.
  */
 import type { RoundStep } from '../automation/round-budget.js';
 import type { RoundBuild } from '../automation/round.js';

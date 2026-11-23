@@ -16,6 +16,18 @@
  * (`SpentMeter`, a porta `spent` de round.ts) o passo fora dele também roda quando o gasto medido deixa lugar, para a
  * rodada com a fila vazia não esticar a cadência de quem cabe. O piso de uma rodada ociosa é ler cada fila uma vez
  * (~40 subrequests medidos), então os passos de custo declarado alto, no fim da lista, ainda esperam algumas rodadas.
+ *
+ * #371 O CAMINHO FIXO (o modo demonstração ligado): um passo `fixed` roda em TODA rodada, antes dos demais e na ordem da lista, sem admissão. A rodada
+ * de 1 minuto adiava o motor em toda rodada porque só a captura era crítica e o motor, o último da lista, declarava o maior custo (20) e entrava no fim da
+ * fila dos adiados: fora do garantido só roda se o declarado couber no que sobra MEDIDO (`fitsLeftover`), o que quase nunca acontece. Com o caminho fixo
+ * (notas-demo, captura, propostas e motor: 2 + 16 + 7 + 15 declarados, medidos EM SEQUÊNCIA, com a leitura guardada de um passo valendo para o seguinte)
+ * sobram 3 do orçamento de 43 no declarado, e os demais se revezam assim: 1) o que sobra, MEDIDO depois dos fixos, é dividido pelo adiado há mais tempo
+ * primeiro, entrando enquanto o declarado couber, e roda na ordem da lista; 2) o gasto abaixo do declarado deixa mais lugar e uma segunda passada, na mesma
+ * ordem de espera, admite o que ainda couber. Sem passo fixo (o modo desligado) nada disso vale e a rodada é a de antes. O "o maior periférico cabe junto do
+ * crítico" de `planRound` NÃO vale com o caminho fixo: a captura sozinha gasta 16 por rodada com notas novas, e os fixos deixam de 3 a 13 de 43 conforme o
+ * motor e as propostas tenham o que fazer; o passo que declara mais que isso só roda numa rodada leve. O N (a espera máxima entre duas vezes de um passo) é
+ * MEDIDO em test/cron/round-fixed-path-budget.test.ts: 12 rodadas com 3 notas novas por rodada, 22 com 8, e o rascunho da cobrança (14) e a ordem provável
+ * (12), os dois mais caros, ficam de fora dele quando a rodada está cheia.
  */
 
 import { SUBREQUEST_CAP } from '../cron/subrequests.js';
