@@ -386,6 +386,8 @@ async function fullestWorld(demo = false) {
     const url = String(input);
     if (url.startsWith(PORT_URL)) return Promise.resolve(new Response('{}', { status: 200 }));
     if (url.includes('/rpc/kit_insert_demo_batch')) return Promise.resolve(new Response('0', { status: 200, headers: { 'content-type': 'application/json' } }));
+    // #363 As filas das rpcs da contagem e das respostas da demonstração: vazias nesta rodada, uma leitura cada.
+    if (url.includes('/rpc/demo_dock_count_pending') || url.includes('/rpc/demo_supplier_replies_pending')) return Promise.resolve(new Response('[]', { status: 200, headers: { 'content-type': 'application/json' } }));
     if (!url.startsWith(ANTHROPIC)) return w.fake.fetch(url, init);
     const body = messagesBody(init);
     if (Object.keys(body.tools[0]?.input_schema.properties ?? {}).includes('summary')) {
@@ -466,7 +468,8 @@ describe('#356/AC-4 a rodada mais cheia, ligada ao tick, contra o teto de 50', (
 });
 
 /** #349 #362 A mesma rodada mais cheia ao tick com o modo demonstração ligado: o passo notas-demo (custo declarado 2) entra antes da captura e a rodada segue dentro de 50. */
-const FULLEST_TICK_DEMO_MEASURED = 45;
+// #363 46 com as duas leituras da contagem da doca e das respostas (fila vazia) a mais.
+const FULLEST_TICK_DEMO_MEASURED = 46;
 
 describe('#349/AC-4 a rodada mais cheia ao tick com o modo demonstração ligado', () => { // ADR-002
   it('o gasto medido de cada rodada, com o notas-demo à frente da captura, não passa de 50, e nenhum passo falha', async () => { // ADR-002
