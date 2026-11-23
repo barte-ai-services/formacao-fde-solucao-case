@@ -123,6 +123,16 @@ table [class*="StatusBadge-module__label"] {
 }
 /* O "Ver rodadas" é o Button link do kit; sem respiro lateral, para alinhar ao texto, e a seta a --spacing-xs do rótulo. */
 .pagar-automation-band .pagar-automation-band__action { padding: 0; gap: var(--spacing-xs); }
+/* #357 Ações da faixa: os controles do administrador à esquerda do "Ver rodadas", e a etiqueta do modo ao lado do título. */
+.pagar-automation-band__actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: var(--spacing-md); }
+.pagar-automation-band__admin { display: flex; align-items: center; flex-wrap: wrap; gap: var(--spacing-md); }
+.pagar-automation-band__admin-message { color: var(--accent-red); font-size: var(--typography-body-xs-fontSize); }
+.pagar-automation-band__demo { align-self: flex-start; }
+.pagar-automation-band__skipped {
+  font-size: var(--typography-body-xs-fontSize);
+  line-height: var(--typography-body-xs-lineHeight);
+  color: var(--content-secondary);
+}
 .pagar-automation-band[data-tone="info"] { background: var(--accent-blue-light); }
 .pagar-automation-band[data-tone="info"] .pagar-automation-band__icon { color: var(--accent-blue); }
 .pagar-automation-band[data-tone="warning"] { background: var(--accent-orange-light); }
