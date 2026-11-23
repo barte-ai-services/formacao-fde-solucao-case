@@ -35,10 +35,11 @@ function sefazWith(count: number): Record<string, Row[]> {
 }
 
 /** #362 Um mundo quieto: as `count` notas já capturadas e já decididas (nada a conferir, nada a propor), nada novo na SEFAZ. */
-function quietWorld(count: number, settle = true): FakePostgrest {
+function quietWorld(count: number, settle = true, demo = false): FakePostgrest {
   const tables = sefazWith(count);
   const stored = settle ? (tables.kit_notas ?? []).map((n) => ({ access_key: n.chave, state: 'decidida', check_error: null })) : [];
-  return new FakePostgrest({ ...tables, invoices: stored, engine_settings: [], claude_suggestions: [] });
+  const demoSettings = demo ? [{ id: true, enabled: true, changed_by: null, changed_at: '2026-11-23T09:00:00+00:00', version: 1, history: [] }] : [];
+  return new FakePostgrest({ ...tables, invoices: stored, engine_settings: [], claude_suggestions: [], demo_settings: demoSettings });
 }
 
 const ENV: Env = {
@@ -49,7 +50,9 @@ const ENV: Env = {
 
 /** #362 A rodada real pelo tick, `rounds` vezes; devolve o gasto medido de cada uma (o gravado mais a soltura da trava) e as linhas gravadas. */
 async function tickRounds(fake: FakePostgrest, rounds: number): Promise<{ spend: number[]; runs: Row[] }> {
-  vi.stubGlobal('fetch', (input: string | URL, init?: RequestInit) => fake.fetch(String(input), init));
+  // #349 O fake não implementa a rpc do lote das notas demo: com o modo ligado ela responde 0 (o lote já existia, nenhuma nota entrou), contada como subrequest igual.
+  vi.stubGlobal('fetch', (input: string | URL, init?: RequestInit) => 
+    String(input).includes('/rpc/kit_insert_demo_batch') ? Promise.resolve(new Response('0', { status: 200, headers: { 'content-type': 'application/json' } })) : fake.fetch(String(input), init));
   vi.spyOn(console, 'log').mockImplementation(() => {});
   const spend: number[] = [];
   for (let i = 0; i < rounds; i += 1) {
@@ -76,6 +79,20 @@ describe('#362/AC-1 a rodada quieta com 80 notas já capturadas cabe com folga n
     const { spend, runs } = await tickRounds(quietWorld(80), 6);
     expect(Math.max(...spend), `gasto por rodada: ${spend.join(', ')}`).toBeLessThan(20);
     expect(runs.every((r) => r.status === 'ok' && (r.failed_steps as string[]).length === 0), JSON.stringify(runs.map((r) => r.failed_steps))).toBe(true);
+  });
+});
+
+describe('#362/AC-1 e #349 a rodada quieta com o modo demonstração ligado, o passo notas-demo antes da captura', () => { // ADR-002
+  it('#362/AC-1 com o modo ligado, a rodada quieta gasta menos de 20 dos 50, igual com 80 e com 200 notas, e failed_steps vazio', async () => { // ADR-002
+    const w = quietWorld(80, true, true);
+    const a = await tickRounds(w, 6);
+    const b = await tickRounds(quietWorld(200, true, true), 6);
+    for (const r of [a, b]) {
+      expect(r.runs.every((run) => run.demo_enabled === true), 'o modo está ligado').toBe(true);
+      expect(r.runs.every((run) => run.status === 'ok' && (run.failed_steps as string[]).length === 0), JSON.stringify(r.runs.map((run) => run.failed_steps))).toBe(true);
+      expect(Math.max(...r.spend), `gasto por rodada: ${r.spend.join(', ')}`).toBeLessThan(20);
+    }
+    expect(b.spend).toEqual(a.spend);
   });
 });
 

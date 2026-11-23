@@ -19,6 +19,8 @@ export async function sweepReturnNotes(
   limit: number = Number.POSITIVE_INFINITY,
 ): Promise<SweepResult> {
   const decided = await source.listDecided();
+  // #362 Nada decidido, nada a publicar: a caixa de saída não se lê.
+  if (decided.length === 0) return { published: 0, alreadyQueued: 0, withoutReturn: 0 };
   const seen = new Set((await outbox.list()).map((row) => row.invoiceAccessKey));
   let published = 0;
   let alreadyQueued = 0;

@@ -41,11 +41,11 @@ A rodada (`src/automation/round.ts`, ligada ao Cron em `src/cron/tick.ts`) é um
 (`src/cron/round-steps.ts`), cada um com o custo máximo em subrequests medido (`test/cron/round-steps-budget.test.ts`).
 Um medidor por invocação (`src/cron/round-meter.ts`) conta tudo o que sai do Worker; o passo que não cabe no que sobra dos 50
 fica para a rodada seguinte, onde passa à frente (sem fome), e a rodada grava quais adiou. **Para acrescentar um passo (#349,
-#351), acrescente-o à lista em `round-steps.ts`, com o custo medido; nada mais muda.** A rodada mais cheia gasta 45 dos 50
-(`FULLEST_TICK_MEASURED`, a gravação e a soltura da trava incluídas). A rodada lê cada consulta ao banco uma vez (o `memoizeReads`
+#351), acrescente-o à lista em `round-steps.ts`, com o custo medido; nada mais muda.** A rodada mais cheia gasta 45 dos 50,
+com o modo demonstração desligado ou ligado (`FULLEST_TICK_MEASURED`, `FULLEST_TICK_DEMO_MEASURED`, a gravação e a soltura da trava incluídas). A rodada lê cada consulta ao banco uma vez (o `memoizeReads`
 do cliente dela, a foto da rodada; a escrita da tabela a esquece), e a captura só lê em lote as chaves da SEFAZ e as notas
-guardadas (#362): com nada novo a rodada quieta gasta 17 dos 50, com 80 ou com 200 notas, e o custo declarado de cada passo
-é o dele sozinho (`STEP_COSTS`). A captura lê as notas guardadas e as emitidas paginadas de 1000 em 1000: uma requisição a mais por 1000 de cada (#362).
+guardadas (#362): com nada novo a rodada quieta gasta 16 dos 50 com o modo desligado e 18 com ele ligado (o passo `notas-demo`, de custo declarado 2,
+roda antes da captura), igual com 80 e com 200 notas, e o custo declarado de cada passo é o dele sozinho (`STEP_COSTS`). A captura lê as notas guardadas e as emitidas paginadas de 1000 em 1000: uma requisição a mais por 1000 de cada (#362).
 
 - **Ritmo:** com o modo demonstração desligado (o padrão), a rodada só roda quando o minuto UTC de `scheduledTime` é múltiplo de
   15; nos outros minutos o tick lê o modo e sai, sem gravar linha. Ligado, roda todo minuto. Sem a tabela `demo_settings` (a migração
