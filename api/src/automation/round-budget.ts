@@ -49,6 +49,12 @@ export type RoundStep = {
   readonly maxSubrequests: number;
   /** #356 AC-4 O caminho crítico (a captura): nunca perde a vez para um passo adiado. */
   readonly critical?: boolean;
+  /**
+   * #371 O caminho fixo da rodada com o modo demonstração ligado: o passo roda em TODA rodada, antes dos demais e na ordem da lista, sem
+   * passar pela admissão. Diferente de `critical`: o passo fixo não faz a rodada falhar (isso é de `ROUND_FAILING_STEPS`) e não tem rank 0
+   * na fila dos adiados, porque nunca é adiado. Os demais passos se revezam com o que sobra (`planRound`, `executeRound`).
+   */
+  readonly fixed?: boolean;
   readonly run: () => Promise<void>;
 };
 
@@ -67,7 +73,7 @@ export type RoundOutcome = {
  */
 function admissionOrder(steps: readonly RoundStep[], deferredBefore: readonly string[]): RoundStep[] {
   const waiting = (s: RoundStep): number => deferredBefore.indexOf(s.name);
-  const rank = (s: RoundStep): number => (s.critical ? 0 : waiting(s) >= 0 ? 1 : 2);
+  const rank = (s: RoundStep): number => (s.critical || s.fixed ? 0 : waiting(s) >= 0 ? 1 : 2);
   // #356 AC-4 sort é estável: fora dos adiados vale a ordem da lista.
   return [...steps].sort((a, b) => rank(a) - rank(b) || (rank(a) === 1 ? waiting(a) - waiting(b) : 0));
 }
@@ -80,6 +86,7 @@ function admissionOrder(steps: readonly RoundStep[], deferredBefore: readonly st
  * de espera e volta na rodada seguinte como `deferredBefore`.
  */
 export function planRound(steps: readonly RoundStep[], deferredBefore: readonly string[]): RoundPlan {
+  if (steps.some((s) => s.fixed)) return planWithFixed(steps, deferredBefore);
   const tooBig = steps.find((s) => s.maxSubrequests > STEP_BUDGET);
   if (tooBig) throw new Error(`passo ${tooBig.name} declara ${tooBig.maxSubrequests} subrequests, mais que o orçamento ${STEP_BUDGET}`);
   const criticalCost = steps.filter((s) => s.critical).reduce((n, s) => n + s.maxSubrequests, 0);
@@ -100,6 +107,47 @@ export function planRound(steps: readonly RoundStep[], deferredBefore: readonly 
     run: steps.filter((s) => admitted.has(s)),
     deferred: [...carried, ...out.filter((n) => !carried.includes(n))],
   };
+}
+
+/** #371 O custo declarado dos passos fixos juntos: o que toda rodada com o caminho fixo gasta antes de qualquer passo que se reveza. */
+function fixedCostOf(steps: readonly RoundStep[]): number {
+  return steps.filter((s) => s.fixed || s.critical).reduce((n, s) => n + s.maxSubrequests, 0);
+}
+
+/** #371 Valida o caminho fixo: cada passo cabe sozinho e os fixos somam no máximo STEP_BUDGET (o que sobra é de quem se reveza). */
+function checkFixedCost(steps: readonly RoundStep[]): number {
+  const tooBig = steps.find((s) => s.maxSubrequests > STEP_BUDGET);
+  if (tooBig) throw new Error(`passo ${tooBig.name} declara ${tooBig.maxSubrequests} subrequests, mais que o orçamento ${STEP_BUDGET}`);
+  const fixedCost = fixedCostOf(steps);
+  if (fixedCost > STEP_BUDGET) throw new Error(`os passos fixos e críticos declaram ${fixedCost} subrequests juntos, mais que o orçamento ${STEP_BUDGET}`);
+  return fixedCost;
+}
+
+/**
+ * #371 O que se reveza, na ordem de quem pede a vez (o adiado há mais tempo primeiro), entra enquanto o declarado couber em `room`; o que não cabe
+ * fica para a rodada seguinte e passa à frente dela. O garantido não tem a regra do "maior periférico cabe": com o caminho fixo gastando
+ * quase tudo, o passo mais caro pode não caber nunca no declarado, e a vez dele vem do que a rodada MEDIU que sobrou (`executeRound`).
+ */
+function packRotating(rotating: readonly RoundStep[], deferredBefore: readonly string[], room: number): Set<RoundStep> {
+  const picked = new Set<RoundStep>();
+  let left = room;
+  for (const s of admissionOrder(rotating, deferredBefore)) {
+    if (s.maxSubrequests > left) continue;
+    left -= s.maxSubrequests;
+    picked.add(s);
+  }
+  return picked;
+}
+
+/** #371 O planejamento com o caminho fixo: os fixos sempre entram; o que sobra do declarado é dividido entre os demais, o mais antigo primeiro. */
+function planWithFixed(steps: readonly RoundStep[], deferredBefore: readonly string[]): RoundPlan {
+  const fixedCost = checkFixedCost(steps);
+  const rotating = steps.filter((s) => !s.fixed && !s.critical);
+  const picked = packRotating(rotating, deferredBefore, STEP_BUDGET - fixedCost);
+  const admitted = (s: RoundStep): boolean => s.fixed === true || s.critical === true || picked.has(s);
+  const out = steps.filter((s) => !admitted(s)).map((s) => s.name);
+  const carried = deferredBefore.filter((n) => out.includes(n));
+  return { run: steps.filter(admitted), deferred: [...carried, ...out.filter((n) => !carried.includes(n))] };
 }
 
 /** #356 AC-4 O passo que gastou mais subrequests que o custo declarado: vai ao log da rodada para o custo ser corrigido. */
@@ -146,6 +194,7 @@ export async function executeRound(
   timeUp?: TimeUp,
 ): Promise<RoundOutcome> {
   const plan = planRound(steps, deferredBefore);
+  if (steps.some((s) => s.fixed)) return executeWithFixed(steps, deferredBefore, plan, { spent, refused, timeUp });
   const guaranteed = new Set<RoundStep>(plan.run);
   const ran: string[] = [];
   const failed: RoundFailure[] = [];
@@ -164,21 +213,71 @@ export async function executeRound(
     if (isGuaranteed) guaranteedLeft -= s.maxSubrequests;
     else if (!spent || !fitsLeftover(s, spent() - start, guaranteedLeft)) continue;
     notRun.delete(s.name);
-    const before = spent?.() ?? 0;
-    const refusedBefore = refused?.() ?? 0;
-    try {
-      await s.run();
-      if ((refused?.() ?? 0) > refusedBefore) failed.push({ name: s.name, error: REFUSED_ERROR });
-      else ran.push(s.name);
-    } catch (e) {
-      // #356 AC-4 só a classe do erro vai ao resultado, nunca a mensagem, para o tick logar (#335)
-      failed.push({ name: s.name, error: e instanceof Error ? e.name : typeof e });
-    }
-    const measured = spent ? spent() - before : 0;
-    if (measured > s.maxSubrequests) overspent.push({ name: s.name, declared: s.maxSubrequests, measured });
+    await runStep(s, { spent, refused }, { ran, failed, overspent });
   }
   const stillWaiting = new Set([...notRun, ...late]);
+  return { ran, failed, deferred: deferredOf(steps, deferredBefore, stillWaiting), overspent };
+}
+
+type Meters = { readonly spent: SpentMeter | undefined; readonly refused: RefusedMeter | undefined };
+type Tally = { readonly ran: string[]; readonly failed: RoundFailure[]; readonly overspent: RoundOverspend[] };
+
+/** #356 AC-4 Roda um passo isolado: a falha dele, e o gasto acima do declarado, vão ao resultado; nada sobe. */
+async function runStep(s: RoundStep, meters: Meters, tally: Tally): Promise<void> {
+  const before = meters.spent?.() ?? 0;
+  const refusedBefore = meters.refused?.() ?? 0;
+  try {
+    await s.run();
+    if ((meters.refused?.() ?? 0) > refusedBefore) tally.failed.push({ name: s.name, error: REFUSED_ERROR });
+    else tally.ran.push(s.name);
+  } catch (e) {
+    // #356 AC-4 só a classe do erro vai ao resultado, nunca a mensagem, para o tick logar (#335)
+    tally.failed.push({ name: s.name, error: e instanceof Error ? e.name : typeof e });
+  }
+  const measured = meters.spent ? meters.spent() - before : 0;
+  if (measured > s.maxSubrequests) tally.overspent.push({ name: s.name, declared: s.maxSubrequests, measured });
+}
+
+/** #356 AC-4 Os adiados na ordem de espera: os que já esperavam (do mais antigo), depois os novos na ordem da lista. */
+function deferredOf(steps: readonly RoundStep[], deferredBefore: readonly string[], stillWaiting: ReadonlySet<string>): string[] {
   const carried = deferredBefore.filter((n) => stillWaiting.has(n));
-  const deferred = [...carried, ...steps.map((s) => s.name).filter((n) => stillWaiting.has(n) && !carried.includes(n))];
-  return { ran, failed, deferred, overspent };
+  return [...carried, ...steps.map((s) => s.name).filter((n) => stillWaiting.has(n) && !carried.includes(n))];
+}
+
+/**
+ * #371 A rodada com o caminho fixo (o modo demonstração ligado). 1) Os passos fixos rodam primeiro, em sequência e sempre, na ordem da lista: seguidos,
+ * a leitura que um deixa guardada (`memoizeReads`) o seguinte aproveita, e é isso que torna o custo deles, medido em sequência, menor que a soma dos
+ * avulsos. 2) O que sobra do orçamento, medido, é dividido entre os demais, o adiado há mais tempo primeiro: entra enquanto o declarado couber, e roda
+ * na ordem da lista. 3) O gasto abaixo do declarado deixa mais lugar: uma segunda passada, na mesma ordem de espera, admite o que ainda couber.
+ * Sem o medidor só o garantido pelo declarado (`planWithFixed`) roda.
+ */
+async function executeWithFixed(
+  steps: readonly RoundStep[],
+  deferredBefore: readonly string[],
+  plan: RoundPlan,
+  { spent, refused, timeUp }: Meters & { readonly timeUp: TimeUp | undefined },
+): Promise<RoundOutcome> {
+  const tally: Tally = { ran: [], failed: [], overspent: [] };
+  const attempted = new Set<string>();
+  const late: string[] = [];
+  const start = spent?.() ?? 0;
+  const isFixed = (s: RoundStep): boolean => s.fixed === true || s.critical === true;
+  const attempt = async (s: RoundStep): Promise<void> => {
+    // #356 AC-2 Passou o tempo da rodada: o passo que não começou fica adiado, não falha recusado.
+    if (timeUp?.()) return void late.push(s.name);
+    attempted.add(s.name);
+    await runStep(s, { spent, refused }, tally);
+  };
+  for (const s of steps.filter(isFixed)) await attempt(s);
+  const rotating = steps.filter((s) => !isFixed(s));
+  const room = spent ? STEP_BUDGET - (spent() - start) : 0;
+  const picked = spent ? packRotating(rotating, deferredBefore, room) : new Set(plan.run.filter((s) => !isFixed(s)));
+  for (const s of rotating.filter((r) => picked.has(r))) await attempt(s);
+  if (spent) {
+    for (const s of admissionOrder(rotating, deferredBefore)) {
+      if (!attempted.has(s.name) && !late.includes(s.name) && fitsLeftover(s, spent() - start, 0)) await attempt(s);
+    }
+  }
+  const stillWaiting = new Set(steps.map((s) => s.name).filter((n) => !attempted.has(n)));
+  return { ...tally, deferred: deferredOf(steps, deferredBefore, stillWaiting) };
 }
