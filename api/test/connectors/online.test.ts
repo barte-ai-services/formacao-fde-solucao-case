@@ -6,7 +6,7 @@ import { supabaseConnectors } from '../../src/connectors/supabase-connectors.js'
 import { arrayOf, isNumber, isString, nullable, optional, parseRows, shaped, type Shape } from '../../src/connectors/guards.js';
 import { SupabaseRest, SupabaseRestError } from '../../src/connectors/supabase-rest.js';
 import { captureInvoices } from '../../src/cron/capture.js';
-import { kitCounts } from '../support/kit.js';
+import { kitBaseCounts, kitCounts, kitTables } from '../support/kit.js';
 
 function env(name: string): string | undefined {
   const value: unknown = Reflect.get(process.env, name);
@@ -105,17 +105,27 @@ describe.skipIf(!ONLINE)('#59 online, no Supabase real', () => {
     const invoices = await d.sefaz.listIssuedInvoices();
     const orders = await d.purchasing.listPurchaseOrders();
     const receipts = await d.wms.listReceipts();
+    const posted = await d.payables.listPostedInvoices();
+    const payments = await d.bank.listPayments();
+    // #349 O banco também tem as linhas do modo demonstração: só as que o JSON do kit tem entram na conta (contrato, decisões).
+    const baseCounts = kitBaseCounts({
+      kit_notas: invoices.map((i) => ({ key: i.accessKey, itemCount: i.items.length })),
+      kit_ordens: orders.map((o) => ({ key: o.id, itemCount: o.items.length })),
+      kit_notas_lancadas: posted.map((p) => ({ key: p.accessKey, itemCount: 0 })),
+      kit_pagamentos: payments.map((p) => ({ key: p.id, itemCount: 0 })),
+      kit_recebimentos: receipts.map((r) => ({ key: r.id, itemCount: r.items.length })),
+    });
     const found = {
-      kit_notas: invoices.length,
-      kit_nota_itens: invoices.flatMap((i) => i.items).length,
-      kit_ordens: orders.length,
-      kit_ordem_itens: orders.flatMap((o) => o.items).length,
-      kit_notas_lancadas: (await d.payables.listPostedInvoices()).length,
+      kit_notas: baseCounts.kit_notas,
+      kit_nota_itens: baseCounts.kit_nota_itens,
+      kit_ordens: baseCounts.kit_ordens,
+      kit_ordem_itens: baseCounts.kit_ordem_itens,
+      kit_notas_lancadas: baseCounts.kit_notas_lancadas,
       kit_fornecedores: (await d.registry.listSuppliers()).length,
       kit_produtos: (await d.registry.listProducts()).length,
-      kit_pagamentos: (await d.bank.listPayments()).length,
-      kit_recebimentos: receipts.length,
-      kit_recebimento_itens: receipts.flatMap((r) => r.items).length,
+      kit_pagamentos: baseCounts.kit_pagamentos,
+      kit_recebimentos: baseCounts.kit_recebimentos,
+      kit_recebimento_itens: baseCounts.kit_recebimento_itens,
     };
     console.log(`  AC-3 online: ${JSON.stringify(found)}`);
     for (const [table, n] of Object.entries(found)) expect(n, table).toBe(counts[table]);
@@ -149,14 +159,19 @@ describe.skipIf(!ONLINE)('#59 online, no Supabase real', () => {
     expect(noteBack?.lines[0]?.quantity.equals(Quantity.of(4, 'UN'))).toBe(true);
   });
 
-  it('#59/AC-5 regra 1: capturar duas vezes deixa 80 chaves distintas em invoices', async () => {
+  it('#59/AC-5 regra 1: capturar duas vezes deixa as 80 chaves da base, distintas, em invoices', async () => {
     const first = await captureInvoices(connectors.captureDeps);
     const second = await captureInvoices(connectors.captureDeps);
     console.log(`  AC-5 online: 1ª ${JSON.stringify(first)} 2ª ${JSON.stringify(second)}`);
-    expect(second).toEqual({ seen: 80, inserted: 0, checked: 0, failed: 0 });
+    // #349 As notas do modo demonstração também chegam a invoices: as 80 da base têm de estar lá, sem repetir chave.
+    expect(second).toMatchObject({ inserted: 0, checked: 0, failed: 0 });
+    expect(second.seen).toBeGreaterThanOrEqual(80);
     const keys = parseRows(await rest.select('invoices', { select: 'access_key,state' }), isInvoiceStateRow, 'invoices');
-    expect(keys).toHaveLength(80);
-    expect(new Set(keys.map((k) => k.access_key)).size).toBe(80);
+    const stored = new Set(keys.map((k) => k.access_key));
+    expect(stored.size).toBe(keys.length);
+    const baseKeys = (kitTables().kit_notas ?? []).map((row) => String(row.chave));
+    expect(baseKeys).toHaveLength(80);
+    expect(baseKeys.filter((key) => !stored.has(key))).toEqual([]);
     expect(keys.every((k) => k.state !== 'a_conferir')).toBe(true);
   }, 60_000);
 

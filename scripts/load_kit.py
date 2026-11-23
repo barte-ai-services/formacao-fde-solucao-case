@@ -109,6 +109,7 @@ def build_rows(data_dir: str = DATA_DIR) -> dict[str, list[Row]]:
     rows: dict[str, list[Row]] = {}
     for t in contract["tables"]:
         columns = [c["name"] for c in t["columns"]]
+        defaults = {c["name"]: c["default"] for c in t["columns"] if "default" in c}  # #349 kit_notas.origin = 'base'
         source = read_json(data_dir, t["file"])
         records = file_records(t, source)
         rows[t["name"]] = []
@@ -118,12 +119,22 @@ def build_rows(data_dir: str = DATA_DIR) -> dict[str, list[Row]]:
             rows[t["name"]].append({c: 1 if c == "id" else source[c] for c in columns})
         else:
             for r in records:
-                rows[t["name"]].append({c: r.get(c) for c in columns})
+                rows[t["name"]].append({c: r.get(c, defaults.get(c)) for c in columns})
     return rows
 
 
 def sum_column(rows: list[Row], column: str) -> Decimal:
     return sum((Decimal(str(r[column])) for r in rows), Decimal(0))
+
+
+def base_rows_of(table: Json, stored: list[Row], base: list[Row]) -> list[Row]:
+    """#349 Das linhas lidas do banco, só as que o JSON do kit tem, pela chave primária do contrato.
+
+    O modo demonstração grava linhas novas nas tabelas do kit; a contagem e as somas do JSON valem só para as da base.
+    """
+    key = table["primary_key"]
+    wanted = {tuple(r[c] for c in key) for r in base}
+    return [r for r in stored if tuple(r[c] for c in key) in wanted]
 
 
 class DecimalEncoder(json.JSONEncoder):
@@ -169,12 +180,28 @@ class Supabase:
             if status >= 300:
                 raise LoadError("write", table, status)
 
-    def count(self, table: str) -> int:
-        status, headers, _ = self._request("GET", table + "?select=*", None,
+    def count(self, table: str, filters: str = "") -> int:
+        status, headers, _ = self._request("GET", table + "?select=*" + filters, None,
                                            {"Prefer": "count=exact", "Range": "0-0", "Range-Unit": "items"})
         if status >= 300:
             raise LoadError("count", table, status)
         return int({k.lower(): v for k, v in headers.items()}["content-range"].split("/")[1])
+
+    def read_rows(self, table: str, columns: list[str]) -> list[Row]:
+        """#349 Lê as colunas pedidas de todas as linhas, paginando, em ordem estável. Números voltam como Decimal."""
+        rows: list[Row] = []
+        start = 0
+        while True:
+            status, _, body = self._request(
+                "GET", f"{table}?select={','.join(columns)}&order={','.join(columns)}", None,
+                {"Range": f"{start}-{start + 999}", "Range-Unit": "items"})
+            if status >= 300:
+                raise LoadError("read", table, status)
+            page = json.loads(body, parse_float=Decimal)
+            rows += page
+            if len(page) < 1000:
+                return rows
+            start += 1000
 
     def read_column(self, table: str, column: str) -> list[Json]:
         """Lê uma coluna inteira, paginando. Números voltam como Decimal."""

@@ -78,7 +78,8 @@ export interface RoundPorts {
     lastDeferred(): Promise<readonly string[]>;
     record(record: RoundRecord): Promise<void>;
   };
-  buildRound(): RoundBuild;
+  /** #349 `demoEnabled`: o modo demonstração desta rodada, para o passo das notas novas entrar na lista só quando ligado. */
+  buildRound(demoEnabled: boolean): RoundBuild;
   /**
    * #356 AC-4 O gasto medido da invocação, em subrequests, fetch a fetch (cron/round-meter.ts). Sem ele, só o conjunto
    * garantido pelos custos declarados roda; com ele, o passo fora do garantido roda quando o gasto real deixa lugar.
@@ -175,7 +176,7 @@ async function runLocked(
   let error: string | null = null;
   try {
     // #356 AC-4 A montagem também lança (custo de tarefa do Claude sem medida): a trava já está tomada, então a rodada grava failed e a solta.
-    build = ports.buildRound();
+    build = ports.buildRound(demoEnabled);
     outcome = await executeRound(build.steps, before, ports.spent?.bind(ports), ports.refused?.bind(ports), ports.timeUp?.bind(ports));
   } catch (e) {
     // #356 AC-4 Custo mal declarado (planRound) ou rodada que não montou: a rodada não roda, fica gravada como failed, e os adiados ficam como estavam.

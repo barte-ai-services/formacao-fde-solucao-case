@@ -77,24 +77,33 @@ class KitBaseOnlineTest(unittest.TestCase):
         cls.client = ck.Supabase(URL, KEY)
 
     def counts(self) -> dict[str, int]:
-        return {t["name"]: self.client.count(t["name"]) for t in self.contract["tables"]}
+        return {t["name"]: len(self.base_rows(t, [])) for t in self.contract["tables"]}  # #349 a base; a demonstração cresce sozinha
+
+    def base_rows(self, t: Json, columns: list[str]) -> list[dict[str, Json]]:
+        """#349 As linhas da base lidas do banco: as de demonstração ficam de fora (ver as decisões do contrato)."""
+        key = list(t["primary_key"])
+        stored = self.client.read_rows(t["name"], list(dict.fromkeys(key + columns)))
+        return ck.base_rows_of(t, stored, self.rows[t["name"]])
 
     def test_ac1_count_of_each_table_equals_the_json(self) -> None:
         for t in self.contract["tables"]:
             with self.subTest(table=t["name"]):
                 expected = ck.expected_count(t)
-                found = self.client.count(t["name"])
-                print(f"  AC-1 {t['name']}: json={expected} supabase={found}")
+                found = len(self.base_rows(t, []))
+                print(f"  AC-1 {t['name']}: json={expected} supabase(base)={found}")
                 self.assertEqual(expected, found)
+
+    def test_ac1_notes_marked_base_count_the_json(self) -> None:
+        found = self.client.count("kit_notas", "&origin=eq.base")
+        self.assertEqual(ck.expected_count(next(t for t in self.contract["tables"] if t["name"] == "kit_notas")), found)
 
     def test_ac1_sums_match_the_json_without_tolerance(self) -> None:
         for t in self.contract["tables"]:
             for column in t["sums"]:
                 with self.subTest(table=t["name"], column=column):
                     json_sum = ck.sum_column(self.rows[t["name"]], column)
-                    stored = self.client.read_column(t["name"], column)
-                    db_sum = sum((Decimal(str(v)) for v in stored), Decimal(0))
-                    print(f"  soma {t['name']}.{column}: json={json_sum} supabase={db_sum}")
+                    db_sum = ck.sum_column(self.base_rows(t, [column]), column)
+                    print(f"  soma {t['name']}.{column}: json={json_sum} supabase(base)={db_sum}")
                     self.assertEqual(json_sum, db_sum)
 
     def test_ac2_repeated_load_changes_no_count(self) -> None:

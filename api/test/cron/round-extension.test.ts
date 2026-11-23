@@ -22,6 +22,7 @@ const work: RoundWork = {
   claudeTasks: ['description-match', 'probable-order'],
   claudeTask: async () => {},
   engine: async () => ({ evaluated: 0, approved: 0 }),
+  captureDemoNotes: async () => 0,
   failedSteps: () => [],
 };
 

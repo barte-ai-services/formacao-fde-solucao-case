@@ -20,6 +20,7 @@ function work(deadlines: Map<string, number>): RoundWork {
     claudeTasks: ['description-match', 'probable-order'],
     claudeTask: async (name, deadline) => void deadlines.set(name, deadline),
     engine: async () => ({ evaluated: 0, approved: 0 }),
+    captureDemoNotes: async () => 0,
     failedSteps: () => ['dock'],
   };
 }
