@@ -57,11 +57,10 @@ export class SupabaseDecidedReturnSource implements DecidedReturnSource {
   constructor(private readonly rest: SupabaseRest) {}
 
   async listDecided(): Promise<readonly DecidedReturnCase[]> {
-    const [proposals, receipts, products] = await Promise.all([
-      this.rest.select('proposals', { select: DECIDED_SELECT, filters: { state: 'in.(aprovada,alterada)' }, order: 'id' }), // ADR-002
-      new WmsCountConnector(this.rest).listReceipts(),
-      new ErpRegistryConnector(this.rest).listProducts(),
-    ]);
+    const proposals = await this.rest.select('proposals', { select: DECIDED_SELECT, filters: { state: 'in.(aprovada,alterada)' }, order: 'id' }); // ADR-002
+    // #362 Sem decisão, não há devolução a montar: os recebimentos e o cadastro não se leem (com decisão, são os mesmos 3 em paralelo).
+    if (proposals.length === 0) return [];
+    const [receipts, products] = await Promise.all([new WmsCountConnector(this.rest).listReceipts(), new ErpRegistryConnector(this.rest).listProducts()]);
     return parseRows(proposals, isDecidedRow, 'proposals').flatMap((row): DecidedReturnCase[] => {
       // #156 Decisão do dono do grupo, 17/11: a decisão sem aprovação é pulada e registrada (só a chave e o motivo, sem o corpo),
       // #156 como em dock-source.ts, para as outras entrarem na fila; o propose-checked da main pode deixá-la sem reparo.

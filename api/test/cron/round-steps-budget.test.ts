@@ -64,16 +64,18 @@ function kitWorld(delegation = true, tweak: (tables: ReturnType<typeof kitTables
 /** #356 AC-4 O que o kitWorld e a rodada mais cheia têm em comum: o medidor da rodada e o que se monta com ele. */
 function roundWorld(fake: FakePostgrest, env: Env) {
   let meter: RoundMeter = startRoundMeter(env);
-  let rest = new SupabaseRest({ url: URL_, secretKey: 'sb_secret_fake', fetch: meter.fetch });
+  let rest = new SupabaseRest({ url: URL_, secretKey: 'sb_secret_fake', fetch: meter.fetch, memoizeReads: true });
   const begin = (measuring = false) => {
     meter = startRoundMeter(env, measuring ? { measureOnly: true } : {});
-    rest = new SupabaseRest({ url: URL_, secretKey: 'sb_secret_fake', fetch: meter.fetch });
+    rest = new SupabaseRest({ url: URL_, secretKey: 'sb_secret_fake', fetch: meter.fetch, memoizeReads: true });
   };
   begin(true);
   const spent = () => meter.spent();
   const build = () => buildRoundSteps(supabaseRoundWork(rest, meter.env, meter.fetch));
   /** #356 AC-4 Roda um passo e devolve o que gastou. */
   const measure = async (step: RoundStep): Promise<number> => {
+    // #362 O custo declarado é o do passo SOZINHO: o que um passo de antes leu e a rodada guardou (a foto da rodada) não entra na conta dele.
+    rest.resetReads();
     const before = spent();
     await step.run();
     return spent() - before;
@@ -333,13 +335,16 @@ async function playRound(world: ReturnType<typeof roundWorld>, ports: RoundPorts
  * #356 AC-4 A rodada mais cheia: o kit e o mundo do fornecedor (os pedidos enviados, a resposta a ler, as devoluções na
  * fila) com a Messages API falsa e o Workers AI contados, e os passos do Claude e o prazo do fornecedor incluídos.
  */
-async function fullestWorld() {
+async function fullestWorld(demo = false) {
   const { world: w } = await fullWorld();
   w.fake.tables.set('engine_settings', ENGINE_ON.map((s) => ({ ...s })));
+  // #349 Com o modo demonstração ligado o passo notas-demo entra na rodada; o fake não tem a rpc do lote, que responde 0 (nenhuma nota entrou), contada igual.
+  if (demo) w.fake.tables.set('demo_settings', [{ id: true, enabled: true, changed_by: null, changed_at: '2026-11-23T09:00:00+00:00', version: 1, history: [] }]);
   const api = messagesApi((key) => w.fake.rows('proposals').find((row) => row.invoice_access_key === key));
   vi.stubGlobal('fetch', (input: string | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.startsWith(PORT_URL)) return Promise.resolve(new Response('{}', { status: 200 }));
+    if (url.includes('/rpc/kit_insert_demo_batch')) return Promise.resolve(new Response('0', { status: 200, headers: { 'content-type': 'application/json' } }));
     if (!url.startsWith(ANTHROPIC)) return w.fake.fetch(url, init);
     const body = messagesBody(init);
     if (Object.keys(body.tools[0]?.input_schema.properties ?? {}).includes('summary')) {
@@ -397,7 +402,7 @@ describe('#356/AC-4 a rodada mais cheia contra o teto de 50', () => { // ADR-002
  * invocação): o que o `subrequests` gravado diz (o medido, a gravação incluída) mais a soltura da trava, que vem depois dela.
  * Quem acrescenta um passo, uma leitura ou uma porta muda este número e vê o teste cair.
  */
-const FULLEST_TICK_MEASURED = 48;
+const FULLEST_TICK_MEASURED = 45;
 
 describe('#356/AC-4 a rodada mais cheia, ligada ao tick, contra o teto de 50', () => { // ADR-002
   it('o gasto medido de cada rodada do tick (modo, trava, adiados, passos, gravação e soltura) não passa de 50, e nenhum passo falha', async () => { // ADR-002
@@ -416,6 +421,27 @@ describe('#356/AC-4 a rodada mais cheia, ligada ao tick, contra o teto de 50', (
     expect(Math.max(...spend), `gasto por rodada: ${spend.join(', ')}`).toBe(FULLEST_TICK_MEASURED);
     expect(FULLEST_TICK_MEASURED).toBeLessThanOrEqual(SUBREQUEST_CAP);
     expect((runs[0]?.deferred_steps as string[]).length, 'a rodada cheia adia passos').toBeGreaterThan(0);
+  });
+});
+
+/** #349 #362 A mesma rodada mais cheia ao tick com o modo demonstração ligado: o passo notas-demo (custo declarado 2) entra antes da captura e a rodada segue dentro de 50. */
+const FULLEST_TICK_DEMO_MEASURED = 45;
+
+describe('#349/AC-4 a rodada mais cheia ao tick com o modo demonstração ligado', () => { // ADR-002
+  it('o gasto medido de cada rodada, com o notas-demo à frente da captura, não passa de 50, e nenhum passo falha', async () => { // ADR-002
+    const world = await fullestWorld(true);
+    const spend: number[] = [];
+    for (let i = 0; i < ROUNDS; i += 1) {
+      if (i === 1) world.decideAll();
+      await tick({ cron: '* * * * *' }, world.env);
+      spend.push(Number(world.fake.rows('automation_runs').at(-1)?.subrequests) + 1);
+    }
+    const runs = world.fake.rows('automation_runs');
+    const own = runs.slice(-ROUNDS); // #349 a primeira linha é da semeadura do mundo, de antes do modo ligado
+    expect(own.map((r) => [r.status, r.demo_enabled, (r.failed_steps as string[]).length])).toEqual(own.map(() => ['ok', true, 0]));
+    expect(world.fake.rows('automation_lock')).toEqual([]);
+    expect(Math.max(...spend), `gasto por rodada: ${spend.join(', ')}`).toBe(FULLEST_TICK_DEMO_MEASURED);
+    expect(FULLEST_TICK_DEMO_MEASURED).toBeLessThanOrEqual(SUBREQUEST_CAP);
   });
 });
 

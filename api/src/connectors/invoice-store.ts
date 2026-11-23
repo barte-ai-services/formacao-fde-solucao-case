@@ -1,21 +1,26 @@
 // Gravação das notas capturadas e do resultado da conferência (invoices, divergences) (#59, AC-5).
-import type { Invoice } from '../domain/index.js';
-import { isString, nullable, optional, parseRows, shaped, type Shape } from './guards.js';
+import type { Invoice, InvoiceState } from '../domain/index.js';
+import { isString, nullable, oneOf, optional, parseRows, shaped, type Shape } from './guards.js';
 import type { SupabaseRest } from './supabase-rest.js';
 
 export interface InvoiceStore {
   /** #59 Regra 1: grava as notas novas e ignora a chave que já existe. Devolve as chaves gravadas agora. */
   insertNew(invoices: readonly Invoice[]): Promise<string[]>;
-  /** #59 As notas ainda a conferir, cada uma com o motivo já guardado da última falha (#356 AC-4: na mesma requisição, sem leitura a mais). */
-  listPendingKeys(): Promise<PendingKey[]>;
+  /**
+   * #362 Todas as notas guardadas, com o estado e o motivo da última falha, numa leitura só e sem o corpo delas: a captura vê por aqui o
+   * que é novo e o que falta conferir (#356 AC-4: o motivo guardado vem na mesma requisição). Lê a tabela inteira, paginada de 1000 em
+   * 1000: uma requisição a mais por 1000 notas guardadas. A leitura da SEFAZ pagina igual, e a escala da turma fica bem abaixo disso;
+   * se passar, o corte entra aqui, sem mudar o critério da captura.
+   */
+  listStored(): Promise<StoredInvoice[]>;
   /** #59 Grava divergências e depois estado e classificação das notas conferidas (REL-3). */
   saveChecked(invoices: readonly Invoice[], checkedAt: string): Promise<void>;
   /** #56 Marca a nota que quebrou na conferência com o motivo; ela segue a conferir. */
   markCheckFailed(failures: readonly CheckFailure[]): Promise<void>;
 }
 
-/** #59 Uma nota a conferir e o motivo que a falha de uma rodada anterior já deixou nela (null: nunca marcada). */
-export type PendingKey = { readonly accessKey: string; readonly checkError: string | null };
+/** #362 Uma nota guardada, só o que a captura precisa saber dela. */
+export type StoredInvoice = { readonly accessKey: string; readonly state: InvoiceState; readonly checkError: string | null };
 
 /**
  * #56 Uma nota que a conferência não conseguiu conferir, e por quê. `storedReason` é o motivo que a nota já guarda
@@ -49,8 +54,12 @@ function baseRow(invoice: Invoice): Record<string, unknown> {
 type InvoiceKeyRow = { access_key: string };
 const isInvoiceKeyRow = shaped<InvoiceKeyRow>({ access_key: isString } satisfies Shape<InvoiceKeyRow>);
 // #356 AC-4 check_error é null enquanto a nota nunca quebrou; uma coluna ausente (o PostgREST falso) vale null.
-type PendingRow = { access_key: string; check_error?: string | null | undefined };
-const isPendingRow = shaped<PendingRow>({ access_key: isString, check_error: optional(nullable(isString)) } satisfies Shape<PendingRow>);
+type StoredRow = { access_key: string; state: InvoiceState; check_error?: string | null | undefined };
+const isStoredRow = shaped<StoredRow>({
+  access_key: isString,
+  state: oneOf<InvoiceState>('a_conferir', 'conferida', 'com_proposta', 'decidida'),
+  check_error: optional(nullable(isString)),
+} satisfies Shape<StoredRow>);
 
 export class SupabaseInvoiceStore implements InvoiceStore {
   constructor(private readonly rest: SupabaseRest) {}
@@ -61,13 +70,9 @@ export class SupabaseInvoiceStore implements InvoiceStore {
     return parseRows(inserted, isInvoiceKeyRow, 'invoices').map((r) => r.access_key);
   }
 
-  async listPendingKeys(): Promise<PendingKey[]> {
-    const rows = await this.rest.select('invoices', {
-      select: 'access_key,check_error',
-      filters: { state: 'eq.a_conferir' },
-      order: 'access_key',
-    });
-    return parseRows(rows, isPendingRow, 'invoices').map((r) => ({ accessKey: r.access_key, checkError: r.check_error ?? null }));
+  async listStored(): Promise<StoredInvoice[]> {
+    const rows = await this.rest.select('invoices', { select: 'access_key,state,check_error', order: 'access_key' });
+    return parseRows(rows, isStoredRow, 'invoices').map((r) => ({ accessKey: r.access_key, state: r.state, checkError: r.check_error ?? null }));
   }
 
   /**

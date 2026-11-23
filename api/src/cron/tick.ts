@@ -103,7 +103,8 @@ async function executeRound(
     return null;
   }
   const meter = startRoundMeter(env, window ? { limitMs: window.limitMs } : {});
-  const rest = new SupabaseRest({ url, secretKey, fetch: meter.fetch, ...(window ? { timeoutMs: window.supabaseTimeoutMs } : {}) });
+  // #362 A rodada lê cada consulta uma vez (a foto da rodada), qualquer que seja o passo que a peça; a escrita esquece a tabela.
+  const rest = new SupabaseRest({ url, secretKey, fetch: meter.fetch, memoizeReads: true, ...(window ? { timeoutMs: window.supabaseTimeoutMs } : {}) });
   const finish = new SupabaseRest({ url, secretKey, fetch: meter.reservedFetch, ...(window ? { timeoutMs: window.finishTimeoutMs } : {}) });
   const log = (line: string): void => console.log(line);
   // #351 O modo que a rodada já leu (ports.mode.read) segue para o motor: nenhuma requisição a mais. Sem leitura, falha fechada.

@@ -44,14 +44,11 @@ async function sweep<M extends { readonly invoiceAccessKey: string; readonly act
   limit: number,
 ): Promise<{ published: number }> {
   const rows = parseRows(
-    await rest.select('proposals', {
-      select: 'invoice_access_key,state,dock_action',
-      filters: { state: 'in.(aprovada,alterada)' },
-      order: 'invoice_access_key',
-    }),
+    // #362 A mesma leitura que o cadastro do E8 faz (todas as colunas, por id), para a foto da rodada servir às duas: uma requisição em vez de duas.
+    await rest.select('proposals', { filters: { state: 'in.(aprovada,alterada)' }, order: 'id' }),
     isDecidedRow,
     'proposals',
-  );
+  ).sort((a, b) => (a.invoice_access_key < b.invoice_access_key ? -1 : a.invoice_access_key > b.invoice_access_key ? 1 : 0));
   if (rows.length === 0) return { published: 0 };
   const stores = new Map(
     parseRows(await rest.select('invoices', { select: 'access_key,store', order: 'access_key' }), isStoreRow, 'invoices').map(

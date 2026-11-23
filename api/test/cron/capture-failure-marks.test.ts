@@ -11,7 +11,7 @@ function brokenWorld(count: number) {
   const tables = kitTables();
   for (const nota of tables.kit_notas!.slice(0, count)) nota.data_emissao = '09/11/2026';
   const fake = new FakePostgrest(tables);
-  const rest = new SupabaseRest({ url: 'https://fake.supabase.co', secretKey: 'sb_secret_fake', fetch: fake.fetch });
+  const rest = new SupabaseRest({ url: 'https://fake.supabase.co', secretKey: 'sb_secret_fake', fetch: fake.fetch, memoizeReads: true });
   return { fake, deps: supabaseConnectors(rest).captureDeps };
 }
 
@@ -22,7 +22,7 @@ describe('#356/AC-4 a captura sem as marcas de falha', () => { // ADR-002
     const result = await captureInvoices(deps, { markFailures: false });
     expect(result).toMatchObject({ seen: 80, inserted: 80, checked: 71, failed: 9 });
     expect(result.failures).toHaveLength(9);
-    expect(fake.requests.length - before).toBe(17); // #356 AC-4 com ou sem notas quebradas; mais 1 do adaptador (as sugestões guardadas) são os 18 declarados
+    expect(fake.requests.length - before).toBe(15); // #356 AC-4 com ou sem notas quebradas; mais 1 do adaptador (as sugestões guardadas) são os 16 declarados (#362: a rodada lê cada consulta uma vez)
     expect(fake.rows('invoices').filter((r) => r.check_error)).toHaveLength(0);
   });
 
@@ -76,7 +76,7 @@ describe('#356/AC-4 a captura sem as marcas de falha', () => { // ADR-002
     const { failures } = await captureInvoices(deps, { markFailures: false });
     await markCheckFailures(deps, failures ?? [], 1);
     const since = fake.requests.length;
-    const pending = await deps.invoices.listPendingKeys();
+    const pending = (await deps.invoices.listStored()).filter((s) => s.state === 'a_conferir');
     expect(fake.requests.length - since).toBe(1);
     expect(pending.filter((p) => p.checkError !== null)).toHaveLength(1);
     expect(pending.filter((p) => p.checkError === null)).toHaveLength(pending.length - 1);

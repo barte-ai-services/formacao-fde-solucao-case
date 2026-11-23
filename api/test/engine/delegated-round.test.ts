@@ -392,23 +392,36 @@ describe('#42 o motor delegado na rodada do Cron', () => {
     expect(decisions.every((d) => d.mode === 'delegated' && d.role === 'cascade')).toBe(true);
     const approving = decisions.filter((d) => d.outcome === 'approve');
     expect(approving.length).toBeGreaterThan(0);
+    const expectEffects = (approvals: readonly Record<string, unknown>[]) => {
+      for (const a of approvals) {
+        const d = fake.rows('engine_decisions').filter((x) => x.outcome === 'approve').find((x) => x.id === a.engine_decision_id);
+        expect(d).toBeDefined();
+        expect(a).toMatchObject({ proposal_id: d?.proposal_id, approver_level: 'analista', engine_confidence: d?.confidence, engine_model_version: d?.model_version });
+        expect(a).not.toHaveProperty('approved_by');
+        const key = fake.rows('proposals').find((p) => p.id === a.proposal_id)?.invoice_access_key;
+        expect(fake.rows('titles').find((t) => t.invoice_access_key === key)?.state).toBe('na_lista_do_dia');
+        expect(fake.rows('proposals').find((p) => p.id === a.proposal_id)?.state).toBe('aprovada');
+      }
+    };
     const engineApprovals = fake.rows('approvals').filter((a) => a.approver === 'motor');
     expect(engineApprovals).toHaveLength(approving.length);
-    for (const a of engineApprovals) {
-      const d = approving.find((x) => x.id === a.engine_decision_id);
-      expect(d).toBeDefined();
-      expect(a).toMatchObject({ proposal_id: d?.proposal_id, approver_level: 'analista', engine_confidence: d?.confidence, engine_model_version: d?.model_version });
-      expect(a).not.toHaveProperty('approved_by');
-      const key = fake.rows('proposals').find((p) => p.id === a.proposal_id)?.invoice_access_key;
-      expect(fake.rows('titles').find((t) => t.invoice_access_key === key)?.state).toBe('na_lista_do_dia');
-      expect(fake.rows('proposals').find((p) => p.id === a.proposal_id)?.state).toBe('aprovada');
-    }
+    expectEffects(engineApprovals);
     expect(fake.rows('automation_runs').find((r) => Number(r.engine_evaluated) > 0)).toMatchObject({ status: 'ok', engine_approved: engineApprovals.length, engine_evaluated: decisions.length });
 
-    // #42 As rodadas seguintes não aprovam de novo: as aprovadas saíram da fila.
+    // #42 As rodadas seguintes não aprovam de novo: as aprovadas saíram da fila, e cada decisão de aprovar tem uma aprovação só.
+    // #362 A rodada quieta é barata e o motor roda cedo, com as propostas ainda saindo em lotes: o lote de trás entra depois, e também é aprovado, com os efeitos conferidos.
+    // #42 A decisão approve que ficou com a pessoa (a aprovação não gravou na rodada) segue aguardando e sem aprovação: não conta.
+    const approvedOf = () =>
+      fake.rows('engine_decisions').filter((d) => d.outcome === 'approve' && fake.rows('proposals').find((p) => p.id === d.proposal_id)?.state === 'aprovada');
+    const motorOf = () => fake.rows('approvals').filter((a) => a.approver === 'motor');
+    await roundsUntil(round, () => motorOf().length > engineApprovals.length && motorOf().length === approvedOf().length);
     await rounds(round, 4);
-    expect(fake.rows('approvals').filter((a) => a.approver === 'motor')).toHaveLength(engineApprovals.length);
-    expect(fake.rows('automation_runs').reduce((n, r) => n + Number(r.engine_approved), 0)).toBe(engineApprovals.length);
+    const motor = motorOf();
+    expect(motor).toHaveLength(approvedOf().length);
+    expect(new Set(motor.map((a) => a.proposal_id)).size).toBe(motor.length);
+    expect(new Set(motor.map((a) => a.engine_decision_id))).toEqual(new Set(approvedOf().map((d) => d.id)));
+    expectEffects(motor);
+    expect(fake.rows('automation_runs').reduce((n, r) => n + Number(r.engine_approved), 0)).toBe(motor.length);
   });
 
   it('desligada: só a sombra, nada do motor em approvals e engine_approved zero', async () => {

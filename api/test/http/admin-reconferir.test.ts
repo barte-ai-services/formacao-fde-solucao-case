@@ -133,7 +133,7 @@ describe('#174 POST /api/admin/reconferir', () => {
     // #356 A rodada é orçada em 50 subrequests e os passos adiados da anterior passam à frente: a proposta pode ficar para a rodada seguinte.
     await roundsUntil(() => tick({ cron: 'reconferir' }, env), () => fake.rows('proposals').length > 0);
     expect(fake.rows('invoices')).toHaveLength(80);
-    expect(fake.rows('outbox_dock_actions').some((r) => r.id === 99)).toBe(false);
+    expect(fake.rows('outbox_dock_actions').some((r) => r.invoice_access_key === 'k')).toBe(false);
     expect(Object.fromEntries(Object.keys(kitTables()).map((t) => [t, fake.rows(t).length]))).toEqual(kitBefore);
     const deletes = fake.requests.filter((r) => r.method === 'DELETE');
     expect(deletes.length).toBeGreaterThan(0);

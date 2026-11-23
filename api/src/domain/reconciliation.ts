@@ -102,7 +102,7 @@ export type UnreconciledReceipt = {
 /** #69/AC-1: o recebimento que não concilia com nenhuma nota, e por quê, para ficar registrado. */
 export function unreconciledReceipts(
   receipts: readonly Receipt[],
-  invoices: readonly InvoiceView[],
+  invoices: readonly Pick<InvoiceView, 'accessKey'>[],
 ): readonly UnreconciledReceipt[] {
   const keys = new Set(invoices.map((i) => i.accessKey));
   const out: UnreconciledReceipt[] = [];

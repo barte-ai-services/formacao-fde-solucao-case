@@ -11,7 +11,6 @@ import { listDescriptionSuggestions, storedDescriptionSuggester } from '../conne
 import type { CheckFailure } from '../connectors/invoice-store.js';
 import { supabaseConnectors } from '../connectors/supabase-connectors.js';
 import type { FetchFn, SupabaseRest } from '../connectors/supabase-rest.js';
-import type { DescriptionSuggester } from '../domain/description-match.js';
 import type { Env } from '../env.js';
 import { proposeChecked } from '../approval/propose-checked.js';
 import { runClaudeRound } from '../claude/cron.js';
@@ -41,9 +40,10 @@ export const STORE_PER_STEP = 5;
 /**
  * #356 AC-4 Os tetos dos passos que tinham laço sem teto, no tamanho que o custo declarado em STEP_COSTS comporta:
  * - títulos E6 bloqueados por passo: 2 leituras + 1 update por título = 11 (STEP_COSTS.duplicates);
- * - mensagens E8 novas por fatia da janela: 12 leituras (2 dias de decisões) + 1 leitura da caixa (o que já foi publicado não se
- *   republica) + 1 publicação por mensagem nova = 21 (STEP_COSTS.registry); a leitura de um bloco a mais de notas (60 por bloco)
- *   sai do mesmo teto de 8, então o custo não passa de 21;
+ * - mensagens E8 novas por fatia da janela: 7 leituras distintas (as propostas, as notas, as divergências, os títulos, as aprovações, os
+ *   fornecedores e a caixa de saída, o que já foi publicado não se republica; o resto que a fatia repetiria sai da foto da rodada, #362)
+ *   + 1 publicação por mensagem nova (8) = 15 (STEP_COSTS.registry, medido); a leitura de um bloco a mais de notas (60 por bloco)
+ *   sai do mesmo teto de 8, então o custo não passa de 15;
  * - notas propostas por passo: as gravações são em lote (16 requisições qualquer que seja o volume); o teto limita o corpo;
  * - notas que quebraram na conferência e são marcadas por passo: 1 update por nota = 5 (STEP_COSTS.checkFailures).
  */
@@ -70,11 +70,11 @@ export function supabaseRoundWork(
   const { captureDeps, registryCorrections } = supabaseConnectors(rest);
   // #356 AC-4 As notas que quebraram na conferência: a captura as guarda e o passo seguinte as marca (dentro da mesma rodada).
   let checkFailures: readonly CheckFailure[] = [];
-  const deps = (descriptions: DescriptionSuggester | undefined): CaptureDeps => (descriptions ? { ...captureDeps, descriptions } : captureDeps);
+  // #362 As sugestões do Claude se leem quando há nota a conferir; a captura quieta não gasta a leitura.
+  const deps: CaptureDeps = { ...captureDeps, loadDescriptions: () => storedSuggestions(rest, fail) };
   return {
     capture: async () => {
-      const descriptions: DescriptionSuggester | undefined = await storedSuggestions(rest, fail);
-      const { failures, ...result } = await captureInvoices(deps(descriptions), { markFailures: false });
+      const { failures, ...result } = await captureInvoices(deps, { markFailures: false });
       checkFailures = failures ?? [];
       console.log(`cron: notas vistas ${result.seen}, novas ${result.inserted}, conferidas ${result.checked}, com erro ${result.failed}`);
       return result;
