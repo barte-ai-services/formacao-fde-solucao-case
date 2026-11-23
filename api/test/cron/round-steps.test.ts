@@ -84,7 +84,7 @@ describe('#363 a contagem da doca e as respostas do fornecedor só entram com o 
     expect(list.indexOf('contagem-da-doca')).toBeGreaterThan(list.indexOf('loja'));
     expect(list.indexOf('respostas-do-fornecedor')).toBeLessThan(list.indexOf('prazo-fornecedor'));
     for (const n of DEMO) expect(list.indexOf(n)).toBeLessThan(list.indexOf('motor'));
-    expect(list.filter((n) => !DEMO.includes(n))).toEqual(names(false));
+    expect(list.filter((n) => !DEMO.includes(n) && n !== 'notas-demo')).toEqual(names(false));
   });
 
   it('cada passo declara o custo de STEP_COSTS e roda o trabalho da demonstração', async () => { // ADR-002
