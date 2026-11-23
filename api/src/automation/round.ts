@@ -222,10 +222,11 @@ async function recordSafely(ports: RoundPorts, record: RoundRecord): Promise<voi
   }
 }
 
-/** #356 AC-3 Soltar a trava é o último passo; se falha, a validade a vence sozinha. */
 /**
- * #356 AC-3 Toma a trava para `owner`. Se `take` lança (o RPC passou do timeout do cliente, mas o Postgres pode ter concluído e gravado a trava com
- * este dono), solta com o mesmo dono antes de relançar: a soltura só apaga `where owner = p_owner`, então não mexe em trava alheia.
+ * #356 AC-3 Toma a trava para `owner`. Se `take` lança, solta com o mesmo dono antes de relançar: a soltura só apaga
+ * `where owner = p_owner`, então não mexe em trava alheia.
+ * Caso aceito: o RPC passa do timeout do cliente mas o Postgres conclui o `take` depois da soltura (take em voo) e grava a trava.
+ * A soltura não o alcança; quem o cobre é a validade de 5 min da trava (LOCK_TTL_MS), que a vence sozinha, sem migração.
  */
 export async function takeLock(ports: RoundPorts, owner: string): Promise<boolean> {
   try {
@@ -236,6 +237,7 @@ export async function takeLock(ports: RoundPorts, owner: string): Promise<boolea
   }
 }
 
+/** #356 AC-3 Soltar a trava é o último passo; se falha, a validade a vence sozinha. */
 async function releaseSafely(ports: RoundPorts, owner: string): Promise<void> {
   try {
     await ports.lock.release(owner);

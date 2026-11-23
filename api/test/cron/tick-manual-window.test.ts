@@ -18,8 +18,21 @@ const ENV: Env = {
 };
 const DESCRIPTION = 'Refrigerante sabor cola 2 L';
 
+/** #356 AC-2 A rodada manual que o caso disparou; o afterEach a espera, para que uma falha não deixe a rodada viva no caso seguinte. */
+let pendingRound: Promise<unknown> | undefined;
+
 beforeEach(() => {
+  pendingRound = undefined;
   vi.useFakeTimers();
+  // #356 AC-2 O digest real termina fora do laço de eventos, e o relógio falso não o espera: o `advanceTimersByTimeAsync` podia
+  // #356 fechar a janela antes dele. Um digest síncrono (resolvido na hora) deixa a rodada depender só dos timers falsos.
+  // #356 AC-2 A chave só precisa ser a mesma nos dois lados (o teste a grava e a rodada a lê), então basta um resumo determinístico de 32 bytes.
+  vi.spyOn(crypto.subtle, 'digest').mockImplementation((_algorithm, data) => {
+    const input = new Uint8Array(data as ArrayBuffer);
+    const bytes = new Uint8Array(32);
+    input.forEach((b, i) => { bytes[i % 32] = ((bytes[i % 32] ?? 0) * 31 + b + i) & 0xff; });
+    return Promise.resolve(bytes.buffer);
+  });
   vi.setSystemTime(new Date('2026-11-23T10:07:30Z'));
   // #356 AC-2 O prazo dos clientes (AbortSignal.timeout) corre no relógio falso, como o do Worker corre no real.
   vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms: number) => {
@@ -31,7 +44,10 @@ beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
-afterEach(() => {
+afterEach(async () => {
+  // #356 AC-2 Esgota os timers falsos e espera a rodada acabar: com o caso falho, ela não segue viva com o relógio real.
+  await vi.runAllTimersAsync();
+  await pendingRound?.catch(() => undefined);
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -56,7 +72,7 @@ async function kitWithClaudeWork(): Promise<FakePostgrest> {
 /** #356 AC-2 Dispara a rodada manual e deixa correr a janela do waitUntil; diz se ela terminou dentro dela. */
 async function runWithinWindow(): Promise<boolean> {
   let settled = false;
-  void runManualRound(ENV).then(
+  pendingRound = runManualRound(ENV).then(
     () => { settled = true; },
     () => { settled = true; },
   );
