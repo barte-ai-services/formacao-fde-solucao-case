@@ -34,6 +34,8 @@ export class RoundLimitError extends Error {
 export type RoundMeter = {
   /** #356 AC-4 Quantas subrequests saíram por este medidor (com falha ou sem). */
   spent(): number;
+  /** #356 AC-2 O limite de tempo da rodada passou: o executor não começa passo novo (ele fica adiado) em vez de deixar o medidor recusá-lo fetch a fetch. */
+  expired(): boolean;
   /** #356 AC-4 Quantas chamadas, ou passos inteiros, foram recusadas por falta de teto ou de tempo (o passo que engole a recusa também falhou). */
   refused(): number;
   /** #356 AC-4 O fetch contado dos passos: passe-o ao SupabaseRest, ao Claude e às portas de leitura. Recusa no teto menos a reserva e depois do limite de tempo. */
@@ -61,8 +63,9 @@ export function startRoundMeter(env: Env, options: RoundMeterOptions = {}): Roun
   const counter = countSubrequests(base, options.measureOnly ? undefined : { cap: SUBREQUEST_CAP, reserve: FINISH_RESERVE });
   const startedAt = now();
   let late = 0;
+  const expired = (): boolean => !options.measureOnly && now() - startedAt >= limitMs;
   const admitTime = (): void => {
-    if (!options.measureOnly && now() - startedAt >= limitMs) {
+    if (expired()) {
       late += 1;
       throw new RoundLimitError();
     }
@@ -77,6 +80,7 @@ export function startRoundMeter(env: Env, options: RoundMeterOptions = {}): Roun
   };
   return {
     spent: counter.count,
+    expired,
     refused: () => counter.refused() + late,
     fetch,
     reservedFetch: counter.reservedFetch,

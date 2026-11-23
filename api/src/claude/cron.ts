@@ -56,6 +56,8 @@ export function runClaudeRound(
     readonly only?: readonly string[];
     /** #356 AC-3 O prazo da rodada (epoch em ms), fixado no começo dela: os passos do Claude da rodada orquestrada dividem UM, não um cada. */
     readonly deadline?: number;
+    /** #356 AC-2 O timeout de cada pergunta (a conversa toda); a rodada manual o encurta para caber no waitUntil. Sem ele, ASK_TIMEOUT_MS. */
+    readonly timeoutMs?: number;
   } = {},
 ): Promise<ClaudeRound> {
   // #356 AC-4 `only` roda só as tarefas de nome dado: cada uma é um passo da rodada orçada (cron/round-steps.ts).
@@ -77,7 +79,7 @@ async function runRound(
   rest: SupabaseRest,
   env: ClaudeEnv,
   tasksOf: (rest: SupabaseRest) => readonly ClaudeTask<unknown, unknown>[],
-  options: { readonly fetch?: FetchFn; readonly log?: (line: string) => void; readonly deadline?: number },
+  options: { readonly fetch?: FetchFn; readonly log?: (line: string) => void; readonly deadline?: number; readonly timeoutMs?: number },
 ): Promise<ClaudeRound> {
   const log = options.log ?? ((line: string) => console.log(line));
   const credentials = credentialsFromEnv(env);
@@ -85,7 +87,7 @@ async function runRound(
     log('cron: sem credencial do Claude; tarefas do Claude puladas e a regra decide sozinha');
     return { ran: false, failedTasks: [], failures: 0 };
   }
-  const client = new ClaudeClient({ credentials, fetch: options.fetch });
+  const client = new ClaudeClient({ credentials, fetch: options.fetch, timeoutMs: options.timeoutMs });
   const secrets = [credentials.kind === 'api-key' ? credentials.apiKey : credentials.token, env.BARTE_ACADEMY_SUPABASE_SECRET_KEY ?? ''];
   let result: RunResult = { failedTasks: [] };
   try {

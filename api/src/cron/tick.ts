@@ -13,6 +13,7 @@ import { LOCK_TTL_MS, runRound, type RoundPorts, type RoundResult, type RoundTri
 import { supabaseRoundStore } from "../automation/round-store.js";
 import { SupabaseRest } from "../connectors/supabase-rest";
 import type { Env } from "../env";
+import { MANUAL_WINDOW, type ManualWindow } from "./manual-window";
 import { startRoundMeter } from "./round-meter";
 import { buildRoundSteps } from "./round-steps";
 import { supabaseRoundWork } from "./round-work";
@@ -80,29 +81,38 @@ function summarize(result: RoundResult | null): TickSummary | null {
 /**
  * #356 AC-2 A rodada manual (`POST /api/admin/rodar-agora`): sem ritmo, mas com a trava. Nunca lança por falha da rodada: ela fica
  * gravada como `failed`, e quem chama (o waitUntil) só precisa esperar. Nulo sem as credenciais do Supabase.
+ * #356 AC-2 Roda dentro da janela do waitUntil (~30 s depois do 202, a conta em cron/manual-window.ts): o limite de tempo, os prazos do Claude
+ * e os timeouts do banco são os de MANUAL_WINDOW, e o que não coube fica adiado para a próxima rodada. O Cron e a reconferência não os têm.
  */
 export function runManualRound(env: Env): Promise<RoundResult | null> {
-  return executeRound(env, { origin: "manual" }, "rodar agora");
+  return executeRound(env, { origin: "manual" }, "rodar agora", undefined, MANUAL_WINDOW);
 }
 
 /** #356 Monta o medidor, as portas e a rodada da invocação; a linha de subrequests sai sempre, inclusive quando a rodada não roda. */
-async function executeRound(env: Env, trigger: RoundTrigger, label: string, before?: DomainReset): Promise<RoundResult | null> {
+async function executeRound(
+  env: Env,
+  trigger: RoundTrigger,
+  label: string,
+  before?: DomainReset,
+  window?: ManualWindow,
+): Promise<RoundResult | null> {
   const url = env.BARTE_ACADEMY_SUPABASE_URL;
   const secretKey = env.BARTE_ACADEMY_SUPABASE_SECRET_KEY;
   if (!url || !secretKey) {
     console.log(`cron: execução agendada (${label}); sem credenciais do Supabase, rodada pulada`);
     return null;
   }
-  const meter = startRoundMeter(env);
-  const rest = new SupabaseRest({ url, secretKey, fetch: meter.fetch });
-  const finish = new SupabaseRest({ url, secretKey, fetch: meter.reservedFetch });
+  const meter = startRoundMeter(env, window ? { limitMs: window.limitMs } : {});
+  const rest = new SupabaseRest({ url, secretKey, fetch: meter.fetch, ...(window ? { timeoutMs: window.supabaseTimeoutMs } : {}) });
+  const finish = new SupabaseRest({ url, secretKey, fetch: meter.reservedFetch, ...(window ? { timeoutMs: window.finishTimeoutMs } : {}) });
   const log = (line: string): void => console.log(line);
-  const work = supabaseRoundWork(rest, meter.env, meter.fetch);
+  const work = supabaseRoundWork(rest, meter.env, meter.fetch, window?.claudeTimeoutMs);
   const ports: RoundPorts = {
     ...supabaseRoundStore({ rest, finish, log }),
-    buildRound: () => buildRoundSteps(work),
+    buildRound: () => buildRoundSteps(work, Date.now, window?.claudeDeadlineMs),
     spent: meter.spent,
     refused: meter.refused,
+    ...(window ? { timeUp: meter.expired } : {}),
     newOwner: () => crypto.randomUUID(),
     now: () => new Date(),
     log,

@@ -85,8 +85,8 @@ function claudeCost(task: string): number {
  * tomada; o prazo das tarefas do Claude (ROUND_BUDGET_MS) é fixado aqui, uma vez, e vale para todas (#356 AC-3: um
  * prazo por tarefa estouraria a validade da trava).
  */
-export function buildRoundSteps(work: RoundWork, now: () => number = Date.now): RoundBuild {
-  const claudeDeadline = now() + ROUND_BUDGET_MS;
+export function buildRoundSteps(work: RoundWork, now: () => number = Date.now, claudeBudgetMs: number = ROUND_BUDGET_MS): RoundBuild {
+  const claudeDeadline = now() + claudeBudgetMs;
   const figures: { -readonly [K in keyof RunFigures]: RunFigures[K] } = { ...NO_FIGURES };
   const step = (name: string, maxSubrequests: number, run: () => Promise<void>, critical = false): RoundStep => ({
     name,

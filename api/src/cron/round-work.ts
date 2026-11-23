@@ -57,7 +57,7 @@ export const ENGINE_LIMITS = { decisionLimit: 2, clefLimit: 1 } as const;
  * #311) e passa aqui o `rest` feito com o fetch dele, o env dele (`meter.env`, com o ai contado) e o fetch dele: o Claude usa esse
  * fetch, e assim todo fetch da rodada, o das portas inclusive, é contado.
  */
-export function supabaseRoundWork(rest: SupabaseRest, env: Env, fetch?: FetchFn): RoundWork {
+export function supabaseRoundWork(rest: SupabaseRest, env: Env, fetch?: FetchFn, claudeTimeoutMs?: number): RoundWork {
   const failedSteps = new Set<string>();
   const fail: Fail = (step) => void failedSteps.add(step);
   const { captureDeps, registryCorrections } = supabaseConnectors(rest);
@@ -101,7 +101,7 @@ export function supabaseRoundWork(rest: SupabaseRest, env: Env, fetch?: FetchFn)
     markOverdueSupplierRequests: () => markOverdueRequests(rest, fail),
     claudeTasks: tasksFor(rest).map((t) => t.name),
     claudeTask: async (name, deadline) => {
-      const round = await runClaudeRound(rest, env, { only: [name], deadline, ...(fetch ? { fetch } : {}) });
+      const round = await runClaudeRound(rest, env, { only: [name], deadline, ...(fetch ? { fetch } : {}), ...(claudeTimeoutMs === undefined ? {} : { timeoutMs: claudeTimeoutMs }) });
       // #311 A tarefa que falhou ou desistiu conta como passo falho do Claude, como no tick.
       if (round.failedTasks.length > 0) fail('claude');
     },

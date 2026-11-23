@@ -86,6 +86,8 @@ export interface RoundPorts {
   spent?(): number;
   /** #311 Quantas chamadas, ou passos inteiros, o medidor recusou: o passo que engole a recusa também falhou. */
   refused?(): number;
+  /** #356 AC-2 O tempo da rodada acabou (só a manual o tem, por caber no waitUntil): o passo que não começou fica adiado. */
+  timeUp?(): boolean;
   newOwner(): string;
   now(): Date;
   /** #356 Uma linha de log sem dado sensível: nomes de passo e classes de erro. */
@@ -174,7 +176,7 @@ async function runLocked(
   try {
     // #356 AC-4 A montagem também lança (custo de tarefa do Claude sem medida): a trava já está tomada, então a rodada grava failed e a solta.
     build = ports.buildRound();
-    outcome = await executeRound(build.steps, before, ports.spent?.bind(ports), ports.refused?.bind(ports));
+    outcome = await executeRound(build.steps, before, ports.spent?.bind(ports), ports.refused?.bind(ports), ports.timeUp?.bind(ports));
   } catch (e) {
     // #356 AC-4 Custo mal declarado (planRound) ou rodada que não montou: a rodada não roda, fica gravada como failed, e os adiados ficam como estavam.
     outcome = { ran: [], failed: [], deferred: [...before], overspent: [] };

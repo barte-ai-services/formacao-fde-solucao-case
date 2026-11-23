@@ -95,7 +95,8 @@ function failureFields(error: unknown): Record<string, unknown> {
 /**
  * #356 AC-2 POST /api/admin/rodar-agora: 202 na hora, a rodada manual no `defer`. O corpo não importa (pode ser `{}` ou vazio). A trava e a
  * gravação são da rodada (automation/round.ts): com a trava tomada ela pula e fica gravada como `skipped`. A falha da rodada é gravada
- * por ela; o que escapa dela vai ao log só como classe, sem o e-mail do administrador.
+ * por ela; o que escapa dela vai ao log só como classe, sem o e-mail do administrador. O `defer` (waitUntil) vive só ~30 s depois do 202:
+ * a rodada manual tem os limites de cron/manual-window.ts, que fecham a conta, e o que não coube fica adiado para a próxima rodada.
  */
 function runNowRoute(env: Env, defer: Defer | undefined): Response {
   if (!env.BARTE_ACADEMY_SUPABASE_URL || !env.BARTE_ACADEMY_SUPABASE_SECRET_KEY) return fail(503, 'supabase_not_configured');

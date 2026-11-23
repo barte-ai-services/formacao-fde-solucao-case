@@ -125,6 +125,9 @@ function fitsLeftover(step: RoundStep, usedSoFar: number, guaranteedLeft: number
  */
 export type RefusedMeter = () => number;
 
+/** #356 AC-2 Uma porta: o tempo da rodada acabou (o medidor de cron/round-meter.ts); sem ela a rodada só é limitada pelo orçamento. */
+export type TimeUp = () => boolean;
+
 /** #356 AC-4 A classe do erro que o passo que engoliu uma chamada recusada leva a `failed` (a de cron/subrequests.ts). */
 export const REFUSED_ERROR = 'SubrequestBudgetError';
 
@@ -140,6 +143,7 @@ export async function executeRound(
   deferredBefore: readonly string[],
   spent?: SpentMeter,
   refused?: RefusedMeter,
+  timeUp?: TimeUp,
 ): Promise<RoundOutcome> {
   const plan = planRound(steps, deferredBefore);
   const guaranteed = new Set<RoundStep>(plan.run);
@@ -147,9 +151,15 @@ export async function executeRound(
   const failed: RoundFailure[] = [];
   const overspent: RoundOverspend[] = [];
   const notRun = new Set(plan.deferred);
+  const late: string[] = [];
   const start = spent?.() ?? 0;
   let guaranteedLeft = plan.run.reduce((n, s) => n + s.maxSubrequests, 0);
   for (const s of steps) {
+    // #356 AC-2 Passou o tempo da rodada (a manual cabe no waitUntil): o passo que não começou fica adiado, não falha recusado.
+    if (timeUp?.()) {
+      if (!notRun.has(s.name)) late.push(s.name);
+      continue;
+    }
     const isGuaranteed = guaranteed.has(s);
     if (isGuaranteed) guaranteedLeft -= s.maxSubrequests;
     else if (!spent || !fitsLeftover(s, spent() - start, guaranteedLeft)) continue;
@@ -167,5 +177,8 @@ export async function executeRound(
     const measured = spent ? spent() - before : 0;
     if (measured > s.maxSubrequests) overspent.push({ name: s.name, declared: s.maxSubrequests, measured });
   }
-  return { ran, failed, deferred: plan.deferred.filter((n) => notRun.has(n)), overspent };
+  const stillWaiting = new Set([...notRun, ...late]);
+  const carried = deferredBefore.filter((n) => stillWaiting.has(n));
+  const deferred = [...carried, ...steps.map((s) => s.name).filter((n) => stillWaiting.has(n) && !carried.includes(n))];
+  return { ran, failed, deferred, overspent };
 }
