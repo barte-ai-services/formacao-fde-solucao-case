@@ -1,10 +1,6 @@
 // #371 O mundo de teste da rodada de 1 minuto com o modo demonstração ligado: a rodada mais cheia do kit (os pedidos, as devoluções, a resposta
 // #371 a ler, a Messages API e o Workers AI falsos) mais as notas novas que o passo notas-demo grava a cada rodada, de verdade, pelo gerador.
 import { vi } from 'vitest';
-import { SupabaseRest } from '../../src/connectors/supabase-rest.js';
-import { startRoundMeter } from '../../src/cron/round-meter.js';
-import { buildRoundSteps } from '../../src/cron/round-steps.js';
-import { supabaseRoundWork } from '../../src/cron/round-work.js';
 import { tick } from '../../src/cron/tick.js';
 import { generateDemoBatch } from '../../src/demo/generator.js';
 import type { Env } from '../../src/env.js';
@@ -29,8 +25,6 @@ export type DemoRoundWorld = {
   /** Roda uma rodada do cron de 1 minuto (o tick) um minuto depois da anterior e devolve a linha gravada dela. */
   readonly round: () => Promise<Record<string, unknown>>;
   readonly roundNumber: () => number;
-  /** Roda os passos de uma rodada à mão (os fixos primeiro, os demais na ordem da lista), sem teto, e devolve o que cada um gastou depois dos de antes. */
-  readonly measureRound: () => Promise<Map<string, number>>;
 };
 
 /**
@@ -77,21 +71,6 @@ export async function demoRoundWorld({ notesPerRound, delegation = false }: { re
     env,
     arrived,
     roundNumber: () => round,
-    measureRound: async () => {
-      round += 1;
-      nowMs += 60_000;
-      vi.setSystemTime(new Date(nowMs));
-      const meter = startRoundMeter(env, { measureOnly: true });
-      const rest = new SupabaseRest({ url: URL_, secretKey: 'sb_secret_fake', fetch: meter.fetch, memoizeReads: true });
-      const { steps } = buildRoundSteps(supabaseRoundWork(rest, meter.env, meter.fetch, { demoMode: async () => true }), Date.now, undefined, true);
-      const spent = new Map<string, number>();
-      for (const step of steps) {
-        const before = meter.spent();
-        await step.run();
-        spent.set(step.name, meter.spent() - before);
-      }
-      return spent;
-    },
     round: async () => {
       round += 1;
       nowMs += 60_000;
