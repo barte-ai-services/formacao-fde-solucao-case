@@ -63,7 +63,7 @@ export function supabaseRoundWork(
   env: Env,
   fetch?: FetchFn,
   // #356 AC-2 Só a rodada manual os passa (cron/manual-window.ts): o prazo de uma pergunta ao Claude e o teto do prazo do Clef.
-  { claudeTimeoutMs, clefTimeoutCapMs }: { readonly claudeTimeoutMs?: number; readonly clefTimeoutCapMs?: number } = {},
+  { claudeTimeoutMs, clefTimeoutCapMs, demoMode }: { readonly claudeTimeoutMs?: number; readonly clefTimeoutCapMs?: number; readonly demoMode?: () => Promise<boolean> } = {},
 ): RoundWork {
   const failedSteps = new Set<string>();
   const fail: Fail = (step) => void failedSteps.add(step);
@@ -112,7 +112,7 @@ export function supabaseRoundWork(
       // #311 A tarefa que falhou ou desistiu conta como passo falho do Claude, como no tick.
       if (round.failedTasks.length > 0) fail('claude');
     },
-    engine: () => runEngine(rest, env, fail, { ...ENGINE_LIMITS, ...(clefTimeoutCapMs === undefined ? {} : { clefTimeoutCapMs }) }),
+    engine: () => runEngine(rest, env, fail, { ...ENGINE_LIMITS, ...(demoMode ? { demoMode } : {}), ...(clefTimeoutCapMs === undefined ? {} : { clefTimeoutCapMs }) }),
     // #349 O passo só entra na lista com o modo ligado (buildRoundSteps), então `enabled` é sempre true aqui.
     captureDemoNotes: () => runDemoNotesRound({ rest, enabled: true, now: new Date() }),
     failedSteps: () => [...failedSteps],
