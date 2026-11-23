@@ -1,11 +1,11 @@
 // #363 Contagem da doca da demonstração: módulo puro, sem plugar na rodada (a parte 2 pluga).
-// Para cada ação publicada na doca (ou na loja) de nota demo, sorteia em que rodada a contagem chega
-// (2 a 5 depois da publicação) e monta as linhas que o conector do WMS lê (kit_recebimentos e itens).
+// #363 Para cada ação publicada na doca (ou na loja) de nota demo, sorteia em que rodada a contagem chega
+// #363 (2 a 5 depois da publicação) e monta as linhas que o conector do WMS lê (kit_recebimentos e itens).
 import type { KitRecebimento, KitRecebimentoItem } from '../connectors/kit-rows.js';
 import { roundsElapsed, type Clock, type DemoRoundStep } from './demo-step.js';
 import { seededInt } from './seeded-draw.js';
 
-/** Uma leitura mais um lote gravado: o custo em subrequests do passo. */
+/** #363 Uma leitura mais um lote gravado: o custo em subrequests do passo. */
 export const DOCK_COUNT_COST = 2;
 const MIN_DELAY_ROUNDS = 2;
 const MAX_DELAY_ROUNDS = 5;
@@ -21,7 +21,7 @@ export type PendingDockItem = {
   readonly unit: string;
 };
 
-/** Ação publicada na doca (ou na loja) de uma nota demo que ainda não tem contagem. */
+/** #363 Ação publicada na doca (ou na loja) de uma nota demo que ainda não tem contagem. */
 export type PendingDockAction = {
   readonly actionId: string;
   readonly channel: DockChannel;
@@ -30,12 +30,12 @@ export type PendingDockAction = {
   readonly supplierId: string;
   readonly store: string;
   readonly purchaseOrderId: string | null;
-  /** A exceção da nota (por exemplo E1 ou E3); null quando a nota não tem exceção. */
+  /** #363 A exceção da nota (por exemplo E1 ou E3); null quando a nota não tem exceção. */
   readonly classification: string | null;
   readonly items: readonly PendingDockItem[];
 };
 
-/** O kit não tem coluna de origem: a parte 2 decide a migração; aqui a linha só carrega a marca. */
+/** #363 O kit não tem coluna de origem: a parte 2 decide a migração; aqui a linha só carrega a marca. */
 export type DemoReceipt = KitRecebimento & { readonly origin: 'demo' };
 export type DockCountRow = { readonly receipt: DemoReceipt; readonly items: readonly KitRecebimentoItem[] };
 export type DockCountBatch = { readonly receipts: readonly DemoReceipt[]; readonly items: readonly KitRecebimentoItem[] };
@@ -50,29 +50,29 @@ export type DockCountStepOptions = DockCountPlanOptions & {
   readonly batchLimit?: number;
 };
 
-/** Rodadas entre a publicação e a contagem, de 2 a 5, fixo por chave da nota e semente. */
+/** #363 Rodadas entre a publicação e a contagem, de 2 a 5, fixo por chave da nota e semente. */
 export function dockCountDelay(seed: string, invoiceAccessKey: string): number {
-  return seededInt(seed, invoiceAccessKey, 'contagem-atraso', MIN_DELAY_ROUNDS, MAX_DELAY_ROUNDS);
+  return seededInt(seed, invoiceAccessKey, 'count-delay', MIN_DELAY_ROUNDS, MAX_DELAY_ROUNDS);
 }
 
 const CHANNELS: Record<DockChannel, string> = { dock: 'doca_cd', store: 'app_loja' };
 
-/** E1: um item da nota some da contagem (contado zero). */
+/** #363 E1: um item da nota some da contagem (contado zero). */
 function omitOne(items: readonly PendingDockItem[], seed: string, key: string): PendingDockItem[] {
-  const skipped = seededInt(seed, key, 'contagem-item-faltante', 0, items.length - 1);
+  const skipped = seededInt(seed, key, 'count-missing-item', 0, items.length - 1);
   return items.filter((_, index) => index !== skipped);
 }
 
 /**
- * E3: um item com quantidade de 2 ou mais é contado com um valor sorteado em [1, q-1].
- * Sem nenhum item assim não há como contar menos sem zerar, e zerar viraria E1: a contagem traz o que a nota traz.
+ * #363 E3: um item com quantidade de 2 ou mais é contado com um valor sorteado em [1, q-1].
+ * #363 Sem nenhum item assim não há como contar menos sem zerar, e zerar viraria E1: a contagem traz o que a nota traz.
  */
 function countLess(items: readonly PendingDockItem[], seed: string, key: string): PendingDockItem[] {
   const candidates = items.flatMap((item, index) => (item.quantity >= 2 ? [index] : []));
   if (candidates.length === 0) return [...items];
-  const chosen = candidates[seededInt(seed, key, 'contagem-item-menor', 0, candidates.length - 1)];
+  const chosen = candidates[seededInt(seed, key, 'count-short-item', 0, candidates.length - 1)];
   return items.map((item, index) =>
-    index === chosen ? { ...item, quantity: seededInt(seed, key, 'contagem-quantidade', 1, item.quantity - 1) } : item,
+    index === chosen ? { ...item, quantity: seededInt(seed, key, 'count-quantity', 1, item.quantity - 1) } : item,
   );
 }
 
@@ -87,35 +87,44 @@ function toRow(action: PendingDockAction, now: Date, seed: string): DockCountRow
   const id = `RC-DOCA-${action.invoiceAccessKey}`;
   return {
     receipt: {
-      recebimento_id: id,
-      nota_chave: action.invoiceAccessKey,
-      ordem_id: action.purchaseOrderId,
-      fornecedor_id: action.supplierId,
-      destino: action.store,
-      canal: CHANNELS[action.channel],
-      data: now.toISOString().slice(0, 10),
-      observacao: DEMO_NOTE,
+      recebimento_id: id, // ADR-001
+      nota_chave: action.invoiceAccessKey, // ADR-001
+      ordem_id: action.purchaseOrderId, // ADR-001
+      fornecedor_id: action.supplierId, // ADR-001
+      destino: action.store, // ADR-001
+      canal: CHANNELS[action.channel], // ADR-001
+      data: now.toISOString().slice(0, 10), // ADR-001
+      observacao: DEMO_NOTE, // ADR-001
       origin: 'demo',
     },
     items: countedItems(action, seed).map((item) => ({
-      recebimento_id: id,
-      codigo_fornecedor: item.supplierCode,
-      descricao: item.description,
-      quantidade: item.quantity,
-      unidade: item.unit,
+      recebimento_id: id, // ADR-001
+      codigo_fornecedor: item.supplierCode, // ADR-001
+      descricao: item.description, // ADR-001
+      quantidade: item.quantity, // ADR-001
+      unidade: item.unit, // ADR-001
     })),
   };
 }
 
-/** Decide, pura, quais ações já têm a contagem chegando nesta rodada e monta as linhas dela. */
+/** #363 Uma ação por nota: a primeira por publicação, e no empate por actionId, para o recebimento (um por nota) não repetir. */
+function firstPerInvoice(pending: readonly PendingDockAction[]): PendingDockAction[] {
+  const ordered = [...pending].sort(
+    (a, b) => a.publishedAt.getTime() - b.publishedAt.getTime() || (a.actionId < b.actionId ? -1 : a.actionId > b.actionId ? 1 : 0),
+  );
+  const seen = new Set<string>();
+  return ordered.filter((a) => !seen.has(a.invoiceAccessKey) && seen.add(a.invoiceAccessKey) !== undefined);
+}
+
+/** #363 Decide, pura, quais ações já têm a contagem chegando nesta rodada e monta as linhas dela. */
 export function planDockCount(pending: readonly PendingDockAction[], options: DockCountPlanOptions): DockCountRow[] {
   const now = options.clock();
-  return pending
+  return firstPerInvoice(pending)
     .filter((a) => roundsElapsed(now, a.publishedAt, options.roundMs) >= dockCountDelay(options.seed, a.invoiceAccessKey))
     .map((a) => toRow(a, now, options.seed));
 }
 
-/** Passo de rodada: uma leitura e, havendo contagem pronta, uma gravação em lote. */
+/** #363 Passo de rodada: uma leitura e, havendo contagem pronta, uma gravação em lote. */
 export function dockCountStep(options: DockCountStepOptions): DemoRoundStep {
   return {
     name: 'demo-dock-count',

@@ -7,10 +7,10 @@ export type DemoRoundStep = {
   readonly run: () => Promise<void>;
 };
 
-/** Relógio injetado: o módulo nunca lê a hora sozinho. */
+/** #363 Relógio injetado: o módulo nunca lê a hora sozinho. */
 export type Clock = () => Date;
 
-/** Quantas rodadas inteiras passaram desde `since`, com `roundMs` por rodada (o cron roda a cada 15 min). */
+/** #363 Quantas rodadas inteiras passaram desde `since`, com `roundMs` por rodada (o cron roda a cada 15 min). */
 export function roundsElapsed(now: Date, since: Date, roundMs: number): number {
   return Math.floor((now.getTime() - since.getTime()) / roundMs);
 }

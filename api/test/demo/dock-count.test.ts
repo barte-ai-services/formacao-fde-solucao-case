@@ -57,34 +57,52 @@ describe('#363/AC-1: a contagem da doca chega entre 2 e 5 rodadas depois da publ
     const a = action();
     const [row] = plan(a, afterRounds(firstReadyRound(a)));
     expect(row?.receipt).toMatchObject({
-      recebimento_id: `RC-DOCA-${KEY}`,
-      nota_chave: KEY,
-      ordem_id: 'OC-1',
-      fornecedor_id: 'F08',
-      destino: 'LJ-001',
-      canal: 'doca_cd',
-      data: '2026-11-20',
+      recebimento_id: `RC-DOCA-${KEY}`, // ADR-001
+      nota_chave: KEY, // ADR-001
+      ordem_id: 'OC-1', // ADR-001
+      fornecedor_id: 'F08', // ADR-001
+      destino: 'LJ-001', // ADR-001
+      canal: 'doca_cd', // ADR-001
+      data: '2026-11-20', // ADR-001
       origin: 'demo',
     });
-    expect(row?.receipt.observacao).not.toBe('');
+    expect(row?.receipt.observacao).not.toBe(''); // ADR-001
+  });
+
+  it('#363/AC-1: duas ações da mesma nota (doca e loja) geram um único recebimento, o da publicação mais antiga', () => {
+    const later = action({ actionId: 'a-1', channel: 'dock', publishedAt: afterRounds(1) });
+    const earlier = action({ actionId: 'a-2', channel: 'store', publishedAt: T0 });
+    const rows = planDockCount([later, earlier], { clock: () => afterRounds(20), seed: 's1', roundMs: ROUND_MS });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.receipt.canal).toBe('app_loja'); // ADR-001
+    const ids = rows.map((r) => r.receipt.recebimento_id); // ADR-001
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('#363/AC-1: no empate de publicação, vence o menor actionId, qualquer que seja a ordem da entrada', () => {
+    const a = action({ actionId: 'a-1', channel: 'dock' });
+    const b = action({ actionId: 'a-2', channel: 'store' });
+    const options = { clock: () => afterRounds(20), seed: 's1', roundMs: ROUND_MS };
+    expect(planDockCount([b, a], options).map((r) => r.receipt.canal)).toEqual(['doca_cd']); // ADR-001
+    expect(planDockCount([a, b], options).map((r) => r.receipt.canal)).toEqual(['doca_cd']); // ADR-001
   });
 
   it('#363/AC-1: ação do canal loja gera o recebimento no canal app_loja', () => {
     const a = action({ channel: 'store' });
     const [row] = plan(a, afterRounds(firstReadyRound(a)));
-    expect(row?.receipt.canal).toBe('app_loja');
+    expect(row?.receipt.canal).toBe('app_loja'); // ADR-001
   });
 
   it('#363/AC-1: sem exceção (ou outra classificação) conta exatamente o que a nota traz', () => {
     for (const classification of [null, 'E2', 'E4', 'E8']) {
       const a = action({ classification });
       const [row] = plan(a, afterRounds(5));
-      expect(row?.items.map((i) => [i.codigo_fornecedor, i.quantidade, i.unidade])).toEqual([
+      expect(row?.items.map((i) => [i.codigo_fornecedor, i.quantidade, i.unidade])).toEqual([ // ADR-001
         ['F08-001', 100, 'UN'],
         ['F08-002', 40, 'UN'],
         ['F08-003', 1, 'UN'],
       ]);
-      expect(row?.items.every((i) => i.recebimento_id === `RC-DOCA-${KEY}`)).toBe(true);
+      expect(row?.items.every((i) => i.recebimento_id === `RC-DOCA-${KEY}`)).toBe(true); // ADR-001
     }
   });
 
@@ -96,7 +114,7 @@ describe('#363/AC-1: a contagem da doca chega entre 2 e 5 rodadas depois da publ
   it('#363/AC-1: E3 (quantidade menor) conta menos num item com mais de uma unidade, mas acima de zero', () => {
     for (let i = 0; i < 30; i += 1) {
       const [row] = plan(action({ classification: 'E3', actionId: `a-${i}`, invoiceAccessKey: `K-${i}` }), afterRounds(5), `seed-${i}`);
-      const bySupplierCode = new Map(row?.items.map((it) => [it.codigo_fornecedor, it.quantidade]));
+      const bySupplierCode = new Map(row?.items.map((it) => [it.codigo_fornecedor, it.quantidade])); // ADR-001
       expect(bySupplierCode.size).toBe(3);
       const lower = [...bySupplierCode].filter(([code, q]) => q < (code === 'F08-001' ? 100 : code === 'F08-002' ? 40 : 1));
       expect(lower).toHaveLength(1);
@@ -107,7 +125,7 @@ describe('#363/AC-1: a contagem da doca chega entre 2 e 5 rodadas depois da publ
   it('#363/AC-1: E3 sem item de mais de uma unidade não tem como contar menos: conta o que a nota traz', () => {
     const a = action({ classification: 'E3', items: [{ supplierCode: 'F08-003', description: 'Feijão 1 kg', quantity: 1, unit: 'UN' }] });
     const [row] = plan(a, afterRounds(5));
-    expect(row?.items.map((i) => i.quantidade)).toEqual([1]);
+    expect(row?.items.map((i) => i.quantidade)).toEqual([1]); // ADR-001
   });
 
   it('#363/AC-1: passada pelo domínio real, a contagem de E1 vira falta física e a de E3 vira quantidade menor, e as outras nenhuma', () => {
@@ -131,14 +149,14 @@ describe('#363/AC-1: a contagem da doca chega entre 2 e 5 rodadas depois da publ
       const [row] = plan(single(classification), afterRounds(5));
       if (!row) throw new Error('sem contagem');
       return {
-        id: row.receipt.recebimento_id,
-        invoiceAccessKey: row.receipt.nota_chave,
-        purchaseOrderId: row.receipt.ordem_id,
-        supplierId: row.receipt.fornecedor_id,
-        store: row.receipt.destino,
-        receivedOn: row.receipt.data,
-        note: row.receipt.observacao,
-        items: row.items.map((i) => ({ supplierCode: i.codigo_fornecedor, description: i.descricao, quantity: Quantity.of(i.quantidade, i.unidade === 'CX' ? 'CX' : 'UN') })),
+        id: row.receipt.recebimento_id, // ADR-001
+        invoiceAccessKey: row.receipt.nota_chave, // ADR-001
+        purchaseOrderId: row.receipt.ordem_id, // ADR-001
+        supplierId: row.receipt.fornecedor_id, // ADR-001
+        store: row.receipt.destino, // ADR-001
+        receivedOn: row.receipt.data, // ADR-001
+        note: row.receipt.observacao, // ADR-001
+        items: row.items.map((i) => ({ supplierCode: i.codigo_fornecedor, description: i.descricao, quantity: Quantity.of(i.quantidade, i.unidade === 'CX' ? 'CX' : 'UN') })), // ADR-001
       };
     };
     const ctx = (c: string | null) => emptyContext({ receipts: [asReceipt(c)] });
