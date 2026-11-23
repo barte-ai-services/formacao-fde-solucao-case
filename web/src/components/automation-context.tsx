@@ -1,9 +1,16 @@
 // #211 Uma carga só de `GET /api/automacao` por tela, entregue à faixa e aos indicadores.
-import { createContext, useContext, type ReactNode } from "react";
+// #357 `reload` carrega de novo (depois de "Rodar agora" ou de mudar o modo) sem apagar a faixa enquanto a resposta nova não chega.
+import { createContext, useContext, useRef, type ReactNode } from "react";
 import { loadAutomation, type AutomationDto } from "../api/automation";
 import { useLoad, type Load } from "./useLoad";
 
-const AutomationContext = createContext<Load<AutomationDto> | null>(null);
+interface AutomationValue {
+  load: Load<AutomationDto>;
+  /** A última carga pronta: fica na tela enquanto a recarga corre. */
+  kept: AutomationDto | undefined;
+}
+
+const AutomationContext = createContext<AutomationValue | null>(null);
 
 export function AutomationProvider({
   load = loadAutomation,
@@ -18,13 +25,21 @@ export function AutomationProvider({
     await new Promise((resolve) => setTimeout(resolve, 0));
     return load(signal);
   });
-  return <AutomationContext.Provider value={value}>{children}</AutomationContext.Provider>;
+  const kept = useRef<AutomationDto | undefined>(undefined);
+  if (value.state === "ready" && value.data) kept.current = value.data;
+  return <AutomationContext.Provider value={{ load: value, kept: value.state === "loading" ? kept.current : undefined }}>{children}</AutomationContext.Provider>;
 }
 
 /** A automação carregada, ou nulo fora do provider, antes de chegar e quando a carga falhou ou veio fora do formato. */
 export function useAutomation(): AutomationDto | null {
-  const load = useContext(AutomationContext);
-  const data = load?.state === "ready" ? load.data : undefined;
+  const ctx = useContext(AutomationContext);
+  const data = ctx?.load.state === "ready" ? ctx.load.data : ctx?.kept;
   if (!data || !["ok", "failed", "stalled"].includes(data.state) || !data.indicators) return null;
   return data;
+}
+
+/** #357 Carrega a automação de novo; sem efeito fora do provider. */
+export function useAutomationReload(): () => void {
+  const ctx = useContext(AutomationContext);
+  return ctx?.load.retry ?? (() => {});
 }

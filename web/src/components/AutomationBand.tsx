@@ -2,21 +2,30 @@
 // #242 Informativa (azul) quando está ok, aviso (laranja) quando a última falhou, alerta (vermelha) quando está parada,
 // #242 neutra quando ainda não rodou. Só tokens da barte-design-system; o ícone muda de forma para o tom não depender só da cor.
 import { useState } from "react";
+import { StatusBadge } from "@barte-ai-services/barte-ui-kit";
 import { CaretRight, Hourglass, Info, Warning, WarningOctagon } from "@phosphor-icons/react";
 import { Button, Drawer, Icon, Table } from "barte-design-system";
-import type { AutomationRunDto } from "../api/automation";
+import type { AutomationRunDto, SkippedRunDto } from "../api/automation";
 import { texts } from "../texts";
 import { clock } from "./automation-format";
-import { useAutomation } from "./automation-context";
+import { AutomationAdminControls } from "./AutomationAdminControls";
+import { useAutomation, useAutomationReload } from "./automation-context";
 
 const t = texts.automation;
 
 type Tone = "info" | "warning" | "error" | "neutral";
 
+/** #357 Uma linha das rodadas: a que correu ou a pulada. */
+type RunRow = { kind: "run"; run: AutomationRunDto } | { kind: "skipped"; run: SkippedRunDto };
+
 const toPerson = (r: AutomationRunDto) => Math.max(0, r.figures.proposed - r.figures.approvedByRule);
+
+/** Os números de uma rodada que correu; a pulada não fez nada, então não tem número. */
+const figure = (r: RunRow, pick: (f: AutomationRunDto["figures"]) => number) => (r.kind === "run" ? pick(r.run.figures) : "—");
 
 export function AutomationBand({ now = () => new Date() }: { now?: () => Date }) {
   const data = useAutomation();
+  const reload = useAutomationReload();
   const [open, setOpen] = useState(false);
   // Faixa é informação a mais: se não carrega, a tela segue sem ela.
   if (!data) return null;
@@ -58,7 +67,16 @@ export function AutomationBand({ now = () => new Date() }: { now?: () => Date })
     };
   }
 
+  const isAdmin = data.isAdmin === true;
+  const demo = data.demo?.enabled === true;
+  const skipped = data.skipped ?? [];
+  // #357 AC-1 O administrador sempre tem a faixa, para ter onde pedir a primeira rodada.
+  if (!band && isAdmin) band = { tone: "neutral", icon: Hourglass, title: t.neverRan };
   if (!band) return null;
+  const rows: RunRow[] = [
+    ...data.runs.map((run): RunRow => ({ kind: "run", run })),
+    ...skipped.map((run): RunRow => ({ kind: "skipped", run })),
+  ].sort((a, b) => Date.parse(b.run.startedAt) - Date.parse(a.run.startedAt));
   return (
     <>
       <div className="pagar-automation-band" data-state={data.state} data-tone={band.tone} role={band.tone === "error" ? "alert" : undefined}>
@@ -66,26 +84,41 @@ export function AutomationBand({ now = () => new Date() }: { now?: () => Date })
           <Icon icon={band.icon} />
         </span>
         <div className="pagar-automation-band__text">
-          <span className="pagar-automation-band__title">{band.title}</span>
+          <span className="pagar-automation-band__title">
+            {band.title}
+          </span>
+          {demo ? (
+            <StatusBadge size="sm" tone="info" className="pagar-automation-band__demo">
+              {t.demoMode}
+            </StatusBadge>
+          ) : null}
           {band.figures ? <span className="pagar-automation-band__figures">{band.figures}</span> : null}
+          {skipped[0] ? (
+            <span className="pagar-automation-band__skipped" data-testid="automation-skipped">
+              {t.skipped(clock(skipped[0].startedAt))}
+            </span>
+          ) : null}
         </div>
-        {seeRuns}
+        <div className="pagar-automation-band__actions">
+          {isAdmin ? <AutomationAdminControls demoEnabled={demo} onReload={reload} /> : null}
+          {seeRuns}
+        </div>
       </div>
       {open ? (
         <Drawer isOpen title={t.drawerTitle} onClose={() => setOpen(false)} className="shell-connection-panel">
-          <Table<AutomationRunDto>
-            data={data.runs}
-            rowKey={(r) => String(r.id)}
+          <Table<RunRow>
+            data={rows}
+            rowKey={(r) => `${r.kind}-${r.run.id}`}
             size="md"
             emptyText={t.noRuns}
             columns={[
-              { key: "at", title: t.columns.at, dataIndex: "startedAt", render: (_, r) => clock(r.startedAt) },
-              { key: "status", title: t.columns.status, dataIndex: "status", render: (_, r) => (r.status === "ok" ? t.statusOk : t.statusFailed) },
-              { key: "captured", title: t.columns.captured, dataIndex: "figures", render: (_, r) => r.figures.inserted },
-              { key: "checked", title: t.columns.checked, dataIndex: "figures", render: (_, r) => r.figures.checked },
-              { key: "byRule", title: t.columns.byRule, dataIndex: "figures", render: (_, r) => r.figures.approvedByRule },
-              { key: "toPerson", title: t.columns.toPerson, dataIndex: "figures", render: (_, r) => toPerson(r) },
-              { key: "published", title: t.columns.published, dataIndex: "figures", render: (_, r) => r.figures.dockPublished },
+              { key: "at", title: t.columns.at, dataIndex: "run", render: (_, r) => clock(r.run.startedAt) },
+              { key: "status", title: t.columns.status, dataIndex: "kind", render: (_, r) => (r.kind === "skipped" ? t.statusSkipped : r.run.status === "ok" ? t.statusOk : t.statusFailed) },
+              { key: "captured", title: t.columns.captured, dataIndex: "run", render: (_, r) => figure(r, (f) => f.inserted) },
+              { key: "checked", title: t.columns.checked, dataIndex: "run", render: (_, r) => figure(r, (f) => f.checked) },
+              { key: "byRule", title: t.columns.byRule, dataIndex: "run", render: (_, r) => figure(r, (f) => f.approvedByRule) },
+              { key: "toPerson", title: t.columns.toPerson, dataIndex: "run", render: (_, r) => r.kind === "run" ? toPerson(r.run) : "—" },
+              { key: "published", title: t.columns.published, dataIndex: "run", render: (_, r) => figure(r, (f) => f.dockPublished) },
             ]}
           />
         </Drawer>
