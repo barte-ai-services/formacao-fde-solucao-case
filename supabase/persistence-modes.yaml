@@ -29,7 +29,9 @@ strategies:
   # (api/src/connectors/supabase-rest.ts) e cada requisição roda numa transação própria
   # (PostgREST, Transactions). Um caso de uso que grava mais de uma requisição não é atômico, salvo os que vão por
   # função do banco numa só chamada rpc: a subida de nível (raise_proposal_level, #230) e a decisão do aprovador
-  # (save_approval_decision, #304) e a trava da rodada (take_automation_lock e release_automation_lock, #356).
+  # (save_approval_decision, #304), a trava da rodada (take_automation_lock e release_automation_lock, #356) e o lote de notas do modo
+  # demonstração (kit_inserir_lote_demo, #349: nove tabelas kit_*, on conflict do nothing, uma requisição por rodada; as linhas de
+  # demonstração são append-only e a carga da base nunca as apaga).
   unit_of_work: postgrest-request
   tenancy:
     # A Já Chegou é uma empresa só; loja (store, destino) é um lugar dela, não um inquilino.

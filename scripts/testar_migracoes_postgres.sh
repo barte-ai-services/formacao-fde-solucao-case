@@ -2,6 +2,7 @@
 # #295 Aplica TODAS as migrações de supabase/migrations/ num Postgres de verdade (docker, descartável) e prova a
 # trava otimista de proposals.version. Fora do `make check`: o CI não tem docker garantido. Reexecutável.
 # #304 Prova também a função save_approval_decision (a decisão do aprovador numa só transação).
+# #349 Prova também kit_inserir_lote_demo (o lote de notas da demonstração numa só chamada) e a coluna kit_notas.origin.
 #
 #   scripts/testar_migracoes_postgres.sh
 #
@@ -323,7 +324,120 @@ end
 $$;
 SQL
 
+echo "== provas da função kit_inserir_lote_demo e da coluna kit_notas.origin (#349)"
+psql <<'SQL'
+\set QUIET off
+do $$
+declare
+  v_lote jsonb;
+  v_n integer;
+  v_antes integer;
+begin
+  -- o cadastro que o lote cita (a carga do kit o traz em produção)
+  insert into public.kit_fornecedores (fornecedor_id, razao_social, cnpj, bloqueado, motivo_bloqueio)
+  values ('F01', 'Fornecedor de teste', '00.000.000/0001-00', false, '');
+  insert into public.kit_produtos (sku, descricao, fornecedor_id, codigo_fornecedor, unidade_base, fator_caixa, preco_referencia_un)
+  values ('SKU-1', 'Produto de teste', 'F01', 'F01-001', 'UN', 4, 10.00);
+
+  -- (a) a nota que entra sem dizer a origem é da base; a origem só aceita base ou demo
+  insert into public.kit_notas (chave, nota_id, numero, serie, fornecedor_id, destino, data_emissao, pedido_referenciado, canal_entrada, valor_total)
+  values (repeat('0', 44), 'NF-001', 1, 1, 'F01', 'LJ-001', '2026-11-23', null, 'SEFAZ', 40.00);
+  assert (select origin from public.kit_notas where chave = repeat('0', 44)) = 'base', '(a) a nota sem origem não ficou base';
+  begin
+    update public.kit_notas set origin = 'real' where chave = repeat('0', 44);
+    raise exception '(a) origin = real entrou';
+  exception when check_violation then
+    null;
+  end;
+  raise notice '(a) ok: origin vale base por padrão e só aceita base ou demo';
+
+  -- (b) um lote de duas notas, com ordem, recebimento e pagamento: grava tudo e devolve 2
+  v_lote := jsonb_build_object(
+    'kit_ordens', jsonb_build_array(jsonb_build_object('ordem_id', 'OC-DM-1', 'fornecedor_id', 'F01', 'destino', 'LJ-001',
+      'data_emissao', '2026-11-20', 'status', 'aberta', 'motivo_status', '', 'valor_total', 40.00)),
+    'kit_ordem_itens', jsonb_build_array(jsonb_build_object('ordem_id', 'OC-DM-1', 'codigo_fornecedor', 'F01-001', 'sku', 'SKU-1',
+      'descricao', 'Produto de teste', 'quantidade', 4, 'unidade', 'UN', 'preco_unitario', 10.00)),
+    'kit_notas', jsonb_build_array(
+      jsonb_build_object('chave', repeat('1', 44), 'nota_id', 'DM-00001', 'numero', 10, 'serie', 1, 'fornecedor_id', 'F01', 'destino', 'LJ-001',
+        'data_emissao', '2026-11-23', 'pedido_referenciado', 'OC-DM-1', 'canal_entrada', 'SEFAZ', 'valor_total', 40.00, 'origin', 'base'),
+      jsonb_build_object('chave', repeat('2', 44), 'nota_id', 'DM-00002', 'numero', 11, 'serie', 1, 'fornecedor_id', 'F01', 'destino', 'LJ-001',
+        'data_emissao', '2026-11-23', 'pedido_referenciado', null, 'canal_entrada', 'e-mail', 'valor_total', 40.00)),
+    'kit_nota_itens', jsonb_build_array(
+      jsonb_build_object('chave', repeat('1', 44), 'codigo_fornecedor', 'F01-001', 'sku', 'SKU-1', 'descricao', 'Produto de teste',
+        'quantidade', 4, 'unidade', 'UN', 'preco_unitario', 10.00, 'valor', 40.00),
+      jsonb_build_object('chave', repeat('2', 44), 'codigo_fornecedor', 'F01-001', 'sku', 'SKU-1', 'descricao', 'Produto de teste',
+        'quantidade', 4, 'unidade', 'UN', 'preco_unitario', 10.00, 'valor', 40.00)),
+    'kit_recebimentos', jsonb_build_array(jsonb_build_object('recebimento_id', 'RC-DM-1', 'nota_chave', repeat('1', 44), 'ordem_id', 'OC-DM-1',
+      'fornecedor_id', 'F01', 'destino', 'LJ-001', 'canal', 'app_loja', 'data', '2026-11-23', 'observacao', '')),
+    'kit_recebimento_itens', jsonb_build_array(jsonb_build_object('recebimento_id', 'RC-DM-1', 'codigo_fornecedor', 'F01-001',
+      'descricao', 'Produto de teste', 'quantidade', 4, 'unidade', 'UN')),
+    'kit_pagamentos', jsonb_build_array(jsonb_build_object('pagamento_id', 'PG-DM-1', 'fornecedor_id', 'F01', 'destino', 'LJ-001',
+      'data', '2026-11-20', 'valor', 40.00, 'forma', 'pix', 'origem', 'compra emergencial da loja, fora do fluxo', 'nota_chave', null)));
+  v_n := public.kit_inserir_lote_demo(v_lote);
+  assert v_n = 2, format('(b) devolveu %s, esperado 2', v_n);
+  assert (select count(*) from public.kit_notas where origin = 'demo') = 2, '(b) as duas notas não são demo';
+  assert (select count(*) from public.kit_nota_itens where chave in (repeat('1', 44), repeat('2', 44))) = 2, '(b) itens da nota';
+  assert (select count(*) from public.kit_ordens where ordem_id = 'OC-DM-1') = 1, '(b) ordem';
+  assert (select count(*) from public.kit_recebimentos where recebimento_id = 'RC-DM-1') = 1, '(b) recebimento';
+  assert (select count(*) from public.kit_pagamentos where pagamento_id = 'PG-DM-1') = 1, '(b) pagamento';
+  assert (select origin from public.kit_notas where chave = repeat('0', 44)) = 'base', '(b) a nota da base mudou de origem';
+  raise notice '(b) ok: o lote de duas notas gravou as tabelas e devolveu 2; a origem vem da função, não do lote (origin base no lote virou demo)';
+
+  -- (c) repetir o lote não duplica nem apaga nada: devolve 0
+  v_antes := (select count(*) from public.kit_nota_itens);
+  v_n := public.kit_inserir_lote_demo(v_lote);
+  assert v_n = 0, format('(c) devolveu %s, esperado 0', v_n);
+  assert (select count(*) from public.kit_notas) = 3 and (select count(*) from public.kit_nota_itens) = v_antes, '(c) repetir mudou as linhas';
+  raise notice '(c) ok: o mesmo lote de novo devolve 0 e não duplica nem apaga nada';
+
+  -- (d) lote com uma nota de fornecedor inexistente: levanta erro e nada do lote fica (uma transação só)
+  v_lote := jsonb_build_object(
+    'kit_ordens', jsonb_build_array(jsonb_build_object('ordem_id', 'OC-DM-9', 'fornecedor_id', 'F01', 'destino', 'LJ-001',
+      'data_emissao', '2026-11-20', 'status', 'aberta', 'motivo_status', '', 'valor_total', 40.00)),
+    'kit_notas', jsonb_build_array(jsonb_build_object('chave', repeat('9', 44), 'nota_id', 'DM-00009', 'numero', 99, 'serie', 1,
+      'fornecedor_id', 'F99', 'destino', 'LJ-001', 'data_emissao', '2026-11-23', 'pedido_referenciado', null,
+      'canal_entrada', 'SEFAZ', 'valor_total', 1.00)));
+  begin
+    perform public.kit_inserir_lote_demo(v_lote);
+    raise exception '(d) o lote com fornecedor inexistente entrou';
+  exception when foreign_key_violation then
+    null;
+  end;
+  assert not exists (select 1 from public.kit_ordens where ordem_id = 'OC-DM-9'), '(d) a ordem do lote que falhou ficou gravada';
+  raise notice '(d) ok: lote com nota inválida levantou erro e nenhuma linha dele ficou';
+
+  -- (e) lote ausente ou fora do formato
+  begin
+    perform public.kit_inserir_lote_demo(null);
+    raise exception '(e) lote nulo entrou';
+  exception when raise_exception then
+    if sqlerrm like '(e)%' then raise; end if;
+  end;
+  begin
+    perform public.kit_inserir_lote_demo('[]'::jsonb);
+    raise exception '(e) lote em lista entrou';
+  exception when raise_exception then
+    if sqlerrm like '(e)%' then raise; end if;
+  end;
+  raise notice '(e) ok: lote nulo ou fora do formato levanta erro';
+
+  -- (f) permissões: só o service_role executa
+  assert not has_function_privilege('anon', 'public.kit_inserir_lote_demo(jsonb)', 'execute'), '(f) anon executa';
+  assert not has_function_privilege('authenticated', 'public.kit_inserir_lote_demo(jsonb)', 'execute'), '(f) authenticated executa';
+  assert has_function_privilege('service_role', 'public.kit_inserir_lote_demo(jsonb)', 'execute'), '(f) service_role não executa';
+  raise notice '(f) ok: anon e authenticated sem execute; service_role com';
+
+  -- (g) a carga da base (upsert pela chave) não apaga a nota de demonstração e deixa a da base como base
+  insert into public.kit_notas (chave, nota_id, numero, serie, fornecedor_id, destino, data_emissao, pedido_referenciado, canal_entrada, valor_total, origin)
+  values (repeat('0', 44), 'NF-001', 1, 1, 'F01', 'LJ-001', '2026-11-23', null, 'SEFAZ', 40.00, 'base')
+  on conflict (chave) do update set nota_id = excluded.nota_id, origin = excluded.origin;
+  assert (select count(*) from public.kit_notas where origin = 'demo') = 2, '(g) a carga apagou nota de demonstração';
+  raise notice '(g) ok: o upsert da base deixa as notas de demonstração como estavam';
+end
+$$;
+SQL
+
 echo "== sem versão repetida"
 repetidas="$(ls "$MIGRACOES" | sed 's/_.*//' | sort | uniq -d)"
 if [ -n "$repetidas" ]; then echo "versão repetida: $repetidas" >&2; exit 1; fi
-echo "OK: todas as migrações aplicadas sem erro, sem versão repetida, e as provas de proposals.version e de save_approval_decision passaram"
+echo "OK: todas as migrações aplicadas sem erro, sem versão repetida, e as provas de proposals.version, de save_approval_decision e de kit_inserir_lote_demo passaram"

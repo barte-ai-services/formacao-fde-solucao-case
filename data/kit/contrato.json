@@ -1,6 +1,6 @@
 {
  "contract": "base_do_kit",
- "version": "1.0.0",
+ "version": "1.1.0",
  "schema": "public",
  "table_prefix": "kit_",
  "description": "Tabelas que espelham a base do kit da Já Chegou (SEFAZ, ERP, WMS e app de loja, banco) para os conectores simulados do plano #53 lerem. O Supabase guarda uma cópia fiel dos JSON; não há transformação nem tabela derivada.",
@@ -45,6 +45,7 @@
   "kit_pagamentos.nota_chave e kit_recebimentos.nota_chave são texto sem chave estrangeira: no pagamento todas são nulas e no recebimento 4 chaves não estão em notas.json.",
   "kit_notas_lancadas.nota_id é nulo em toda a fonte, por isso não é obrigatório nem único.",
   "unidade não tem restrição de valores: a fonte traz só UN, e a caixa (CX) aparece na exceção E4 dos documentos da nota.",
+  "kit_notas.origin (#349) diz de onde vem a nota: 'base' (a carga de data/kit/notas.json, o padrão) ou 'demo' (gerada pelo modo demonstração). É coluna nova no fim, obrigatória, com padrão: mudança compatível, por isso a versão sobe só a menor (1.1.0). A carga da base grava origin = 'base' e nunca apaga linha, então as notas de origin = demo sobrevivem a ela. As linhas de demonstração das demais tabelas (ordens, itens, recebimentos, pagamentos, notas lançadas) não têm marca própria: a contagem do JSON não as vê e a conferência online precisa descontá-las quando o modo estiver ligado.",
   "Os nomes de tabelas e colunas espelham os arquivos e as chaves da fonte, em português, como no glossário do domínio: ADR-001 (docs/adr/ADR-001-kit-base-names.md). Só as chaves estruturais deste contrato são em inglês."
  ],
  "tables": [
@@ -353,6 +354,12 @@
      "name": "valor_total",
      "type": "numeric(14,2)",
      "nullable": false
+    },
+    {
+     "name": "origin",
+     "type": "text",
+     "nullable": false,
+     "default": "base"
     }
    ],
    "primary_key": [

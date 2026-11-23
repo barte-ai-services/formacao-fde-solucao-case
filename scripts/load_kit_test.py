@@ -111,6 +111,51 @@ class TransformTest(unittest.TestCase):
         self.assertEqual(expected, total)
 
 
+class FakeStore(ck.Supabase):
+    """O Supabase em memória: o upsert por chave primária, como o PostgREST com merge-duplicates. Nada além de gravar."""
+
+    def __init__(self) -> None:
+        super().__init__("https://fake.supabase.co", "sb_secret_fake")
+        self.tables: dict[str, dict[tuple[Json, ...], dict[str, Json]]] = {}
+        self.calls: list[str] = []
+
+    def write(self, table: str, rows: list[dict[str, Json]], primary_key: list[str]) -> None:
+        self.calls.append("write")
+        stored = self.tables.setdefault(table, {})
+        for row in rows:
+            stored[tuple(row[c] for c in primary_key)] = {**stored.get(tuple(row[c] for c in primary_key), {}), **row}
+
+    def _request(self, *args: Json, **kwargs: Json) -> tuple[int, dict[str, str], bytes]:
+        raise AssertionError("a carga só grava por write: nenhuma outra requisição (delete, patch) é permitida")
+
+
+class DemoNotesTest(unittest.TestCase):
+    """#349: as notas do modo demonstração (origin = demo) sobrevivem à carga da base."""
+
+    @staticmethod
+    def demo_note() -> dict[str, Json]:
+        return {"chave": "9" * 44, "nota_id": "DM-00001", "numero": 1, "serie": 1, "fornecedor_id": "F01",
+                "destino": "LJ-001", "data_emissao": "2026-11-23", "pedido_referenciado": None,
+                "canal_entrada": "SEFAZ", "valor_total": Decimal("10.00"), "origin": "demo"}
+
+    def test_every_base_note_is_loaded_with_origin_base(self) -> None:
+        notes = ck.build_rows(DATA_DIR)["kit_notas"]
+        self.assertEqual(80, len(notes))
+        self.assertEqual({"base"}, {n["origin"] for n in notes})
+        self.assertEqual("origin", list(notes[0])[-1])
+
+    def test_load_leaves_demo_rows_intact_and_never_deletes(self) -> None:
+        store = FakeStore()
+        demo = self.demo_note()
+        store.tables["kit_notas"] = {(demo["chave"],): dict(demo)}
+        ck.load(store, DATA_DIR)
+        ck.load(store, DATA_DIR)
+        self.assertEqual(demo, store.tables["kit_notas"][(demo["chave"],)])
+        self.assertEqual(81, len(store.tables["kit_notas"]))
+        origins = [r["origin"] for r in store.tables["kit_notas"].values()]
+        self.assertEqual((80, 1), (origins.count("base"), origins.count("demo")))
+
+
 class RepositoryTest(unittest.TestCase):
     def test_no_answer_key_in_the_repository(self) -> None:
         self.assertFalse(os.path.exists(os.path.join(DATA_DIR, "gabarito")))

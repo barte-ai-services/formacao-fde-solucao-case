@@ -109,6 +109,7 @@ def build_rows(data_dir: str = DATA_DIR) -> dict[str, list[Row]]:
     rows: dict[str, list[Row]] = {}
     for t in contract["tables"]:
         columns = [c["name"] for c in t["columns"]]
+        defaults = {c["name"]: c["default"] for c in t["columns"] if "default" in c}  # #349 kit_notas.origin = 'base'
         source = read_json(data_dir, t["file"])
         records = file_records(t, source)
         rows[t["name"]] = []
@@ -118,7 +119,7 @@ def build_rows(data_dir: str = DATA_DIR) -> dict[str, list[Row]]:
             rows[t["name"]].append({c: 1 if c == "id" else source[c] for c in columns})
         else:
             for r in records:
-                rows[t["name"]].append({c: r.get(c) for c in columns})
+                rows[t["name"]].append({c: r.get(c, defaults.get(c)) for c in columns})
     return rows
 
 

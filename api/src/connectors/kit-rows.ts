@@ -1,6 +1,6 @@
 // Linhas das tabelas kit_* (base do kit, ADR-001) e a conversão para os tipos do domínio (#59).
 import { Money, Quantity, type Unit } from '../domain/index.js';
-import { isBoolean, isInteger, isIsoDate, isString, nullable, oneOf, parseRows, shaped, type Guard, type Shape } from './guards.js';
+import { isBoolean, isInteger, isIsoDate, isString, nullable, oneOf, optional, parseRows, shaped, type Guard, type Shape } from './guards.js';
 import type { SelectOptions, SupabaseRest } from './supabase-rest.js';
 
 /** #59 numeric chega do PostgREST como número ou texto, conforme a configuração. */
@@ -55,6 +55,8 @@ export type KitNota = {
   pedido_referenciado: string | null; // ADR-001
   canal_entrada: string; // ADR-001
   valor_total: Numeric; // ADR-001
+  /** #349 De onde vem a nota: a base do kit ou o modo demonstração. Opcional na leitura, para as linhas e os mocks anteriores à coluna. */
+  origin?: 'base' | 'demo'; // ADR-001
 };
 
 export type KitNotaItem = {
@@ -172,7 +174,7 @@ export const isKitOrdemItemRow = shaped<KitOrdemItem>(ordemItemShape);
 const notaShape = {
   chave: isString, nota_id: isString, numero: isInteger, serie: isInteger, fornecedor_id: isString, // ADR-001
   destino: isString, data_emissao: isString, pedido_referenciado: nullableString, canal_entrada: isString, // ADR-001
-  valor_total: isNumeric, // ADR-001
+  valor_total: isNumeric, origin: optional(oneOf('base', 'demo')), // ADR-001
 } satisfies Shape<KitNota>;
 export const isKitNotaRow = shaped<KitNota>(notaShape);
 
