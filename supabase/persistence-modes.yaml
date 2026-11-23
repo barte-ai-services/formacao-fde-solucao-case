@@ -29,7 +29,7 @@ strategies:
   # (api/src/connectors/supabase-rest.ts) e cada requisição roda numa transação própria
   # (PostgREST, Transactions). Um caso de uso que grava mais de uma requisição não é atômico, salvo os que vão por
   # função do banco numa só chamada rpc: a subida de nível (raise_proposal_level, #230) e a decisão do aprovador
-  # (save_approval_decision, #304).
+  # (save_approval_decision, #304) e a trava da rodada (take_automation_lock e release_automation_lock, #356).
   unit_of_work: postgrest-request
   tenancy:
     # A Já Chegou é uma empresa só; loja (store, destino) é um lugar dela, não um inquilino.
@@ -238,6 +238,28 @@ tables:
     # #311 (.github/workflows/supabase-base-do-kit.yml, passo "Aplicar as migrações"), que não garante rodar fora de transação,
     # #311 e CONCURRENTLY não roda dentro de uma.
     # RLS ligado e sem política (20261117140000_dossier_sob_demanda.sql): só a chave secreta do Worker lê e grava.
+
+  # O modo demonstração (#356): a configuração que liga o ritmo de 1 minuto da rodada, mudada no banco sem deploy.
+  demo_settings:
+    mode: upsert-with-history
+    history: none
+    # #356 Uma linha só (id é o booleano true, com check); a escrita é um upsert pela chave. O que se guarda é o valor de hoje, quem
+    # #356 mudou (e-mail do Access, nulo no service token) e quando; a troca anterior não fica registrada.
+    gap: nenhum histórico das trocas de modo; a decisão de guardá-lo é de quem opera a demonstração
+    tenant: none
+    deletion: none
+    erasure: not stated          # changed_by é o e-mail de um administrador; sem caminho de apagamento registrado
+    # RLS ligado e sem política (20261123100000_modo_demonstracao.sql): só a chave secreta do Worker lê e grava.
+
+  # A trava da rodada (#356): uma linha com o dono e a validade, tomada e solta por função numa requisição.
+  automation_lock:
+    mode: ephemeral
+    reason: >-
+      Não guarda registro pelo qual o sistema responda: é o estado momentâneo de quem roda a rodada (dono e validade), tomado por
+      take_automation_lock, solto por release_automation_lock e vencido sozinho se o Worker morrer. A rodada pulada porque a trava
+      estava tomada fica em automation_runs (status skipped), não aqui.
+    growth: fixed                # uma linha, para sempre
+    # RLS ligado e sem política; as funções só rodam para service_role (20261123100000_modo_demonstracao.sql).
 
   # Base do kit (#52, ADR-001): espelho dos JSON de data/kit/, que é a fonte versionada.
   kit_fornecedores: &kit   # #156: ganha a coluna email (migração da #156); o modo é o da #156
