@@ -19,7 +19,7 @@ language plpgsql
 set search_path = public
 as $$
 declare
-  v_notas integer;
+  v_inserted_notes integer;
 begin
   if p_batch is null or jsonb_typeof(p_batch) <> 'object' then
     raise exception 'lote da demonstração ausente ou fora do formato';
@@ -49,7 +49,7 @@ begin
   select chave, nota_id, numero, serie, fornecedor_id, destino, data_emissao, pedido_referenciado, canal_entrada, valor_total, 'demo'
     from jsonb_populate_recordset(null::public.kit_notas, p_batch -> 'kit_notas')
   on conflict do nothing;
-  get diagnostics v_notas = row_count;
+  get diagnostics v_inserted_notes = row_count;
 
   insert into public.kit_nota_itens (chave, codigo_fornecedor, sku, descricao, quantidade, unidade, preco_unitario, valor)
   select chave, codigo_fornecedor, sku, descricao, quantidade, unidade, preco_unitario, valor
@@ -71,7 +71,7 @@ begin
     from jsonb_populate_recordset(null::public.kit_pagamentos, p_batch -> 'kit_pagamentos')
   on conflict do nothing;
 
-  return v_notas;
+  return v_inserted_notes;
 end;
 $$;
 revoke execute on function public.kit_insert_demo_batch(jsonb) from public, anon, authenticated;

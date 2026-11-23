@@ -329,9 +329,9 @@ psql <<'SQL'
 \set QUIET off
 do $$
 declare
-  v_lote jsonb;
+  v_batch jsonb;
   v_n integer;
-  v_antes integer;
+  v_before integer;
 begin
   -- o cadastro que o lote cita (a carga do kit o traz em produção)
   insert into public.kit_fornecedores (fornecedor_id, razao_social, cnpj, bloqueado, motivo_bloqueio)
@@ -352,7 +352,7 @@ begin
   raise notice '(a) ok: origin vale base por padrão e só aceita base ou demo';
 
   -- (b) um lote de duas notas, com ordem, recebimento e pagamento: grava tudo e devolve 2
-  v_lote := jsonb_build_object(
+  v_batch := jsonb_build_object(
     'kit_ordens', jsonb_build_array(jsonb_build_object('ordem_id', 'OC-DM-1', 'fornecedor_id', 'F01', 'destino', 'LJ-001',
       'data_emissao', '2026-11-20', 'status', 'aberta', 'motivo_status', '', 'valor_total', 40.00)),
     'kit_ordem_itens', jsonb_build_array(jsonb_build_object('ordem_id', 'OC-DM-1', 'codigo_fornecedor', 'F01-001', 'sku', 'SKU-1',
@@ -373,7 +373,7 @@ begin
       'descricao', 'Produto de teste', 'quantidade', 4, 'unidade', 'UN')),
     'kit_pagamentos', jsonb_build_array(jsonb_build_object('pagamento_id', 'PG-DM-1', 'fornecedor_id', 'F01', 'destino', 'LJ-001',
       'data', '2026-11-20', 'valor', 40.00, 'forma', 'pix', 'origem', 'compra emergencial da loja, fora do fluxo', 'nota_chave', null)));
-  v_n := public.kit_insert_demo_batch(v_lote);
+  v_n := public.kit_insert_demo_batch(v_batch);
   assert v_n = 2, format('(b) devolveu %s, esperado 2', v_n);
   assert (select count(*) from public.kit_notas where origin = 'demo') = 2, '(b) as duas notas não são demo';
   assert (select count(*) from public.kit_nota_itens where chave in (repeat('1', 44), repeat('2', 44))) = 2, '(b) itens da nota';
@@ -384,21 +384,21 @@ begin
   raise notice '(b) ok: o lote de duas notas gravou as tabelas e devolveu 2; a origem vem da função, não do lote (origin base no lote virou demo)';
 
   -- (c) repetir o lote não duplica nem apaga nada: devolve 0
-  v_antes := (select count(*) from public.kit_nota_itens);
-  v_n := public.kit_insert_demo_batch(v_lote);
+  v_before := (select count(*) from public.kit_nota_itens);
+  v_n := public.kit_insert_demo_batch(v_batch);
   assert v_n = 0, format('(c) devolveu %s, esperado 0', v_n);
-  assert (select count(*) from public.kit_notas) = 3 and (select count(*) from public.kit_nota_itens) = v_antes, '(c) repetir mudou as linhas';
+  assert (select count(*) from public.kit_notas) = 3 and (select count(*) from public.kit_nota_itens) = v_before, '(c) repetir mudou as linhas';
   raise notice '(c) ok: o mesmo lote de novo devolve 0 e não duplica nem apaga nada';
 
   -- (d) lote com uma nota de fornecedor inexistente: levanta erro e nada do lote fica (uma transação só)
-  v_lote := jsonb_build_object(
+  v_batch := jsonb_build_object(
     'kit_ordens', jsonb_build_array(jsonb_build_object('ordem_id', 'OC-DM-9', 'fornecedor_id', 'F01', 'destino', 'LJ-001',
       'data_emissao', '2026-11-20', 'status', 'aberta', 'motivo_status', '', 'valor_total', 40.00)),
     'kit_notas', jsonb_build_array(jsonb_build_object('chave', repeat('9', 44), 'nota_id', 'DM-00009', 'numero', 99, 'serie', 1,
       'fornecedor_id', 'F99', 'destino', 'LJ-001', 'data_emissao', '2026-11-23', 'pedido_referenciado', null,
       'canal_entrada', 'SEFAZ', 'valor_total', 1.00)));
   begin
-    perform public.kit_insert_demo_batch(v_lote);
+    perform public.kit_insert_demo_batch(v_batch);
     raise exception '(d) o lote com fornecedor inexistente entrou';
   exception when foreign_key_violation then
     null;

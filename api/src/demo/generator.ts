@@ -33,7 +33,7 @@ const EXCEPTION_POOL: readonly (readonly [ExceptionCode, Size])[] = EXCEPTION_CO
 );
 
 /** Exato na loja, sem o número do pedido, exato no CD, exato acima de R$ 100 mil, fornecedor bloqueado e dois dentro da tolerância. (#349) */
-const MATCH_POOL: readonly MatchVariant[] = ['exato_L', 'exato_L', 'sem_xped_L', 'exato_C', 'exato_H', 'bloqueado_C', 'tolerancia_L', 'tolerancia_L'];
+const MATCH_POOL: readonly MatchVariant[] = ['exact_L', 'exact_L', 'no_xped_L', 'exact_C', 'exact_H', 'blocked_C', 'tolerance_L', 'tolerance_L'];
 
 const ANALYST_CEILING_CENTS = 2_000_000;
 const COORDINATION_CEILING_CENTS = 10_000_000;

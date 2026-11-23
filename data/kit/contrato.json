@@ -3,7 +3,7 @@
  "version": "1.1.0",
  "schema": "public",
  "table_prefix": "kit_",
- "description": "Tabelas que espelham a base do kit da Já Chegou (SEFAZ, ERP, WMS e app de loja, banco) para os conectores simulados do plano #53 lerem. O Supabase guarda uma cópia fiel dos JSON; não há transformação nem tabela derivada.",
+ "description": "Tabelas que espelham a base do kit da Já Chegou (SEFAZ, ERP, WMS e app de loja, banco) para os conectores simulados do plano #53 lerem. O Supabase guarda uma cópia fiel dos JSON nas linhas da base (origin = base); as linhas de demonstração (origin = demo) são acrescentadas pelo app. Não há transformação nem tabela derivada.",
  "pinned_source": {
   "path": "data/kit/*.json",
   "reference": "cabeça da branch main do repositório",

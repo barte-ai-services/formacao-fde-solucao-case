@@ -6,7 +6,7 @@ export const INSERT_FUNCTION = 'kit_insert_demo_batch';
 
 /**
  * (#349) A falha da gravação, só com campos nomeados: a operação, o status HTTP e o código do banco. Nunca leva o texto do provedor,
- * a resposta nem a chave, e não guarda o erro original: quem precisa do detalhe lê o registro interno da camada.
+ * a resposta nem a chave, e não guarda o erro original: quem chama a rodada (#348) registra o DemoInsertError no log interno, com operation, status, code, seed e sequenceStart (#349).
  */
 export class DemoInsertError extends Error {
   constructor(

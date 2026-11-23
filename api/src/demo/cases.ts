@@ -23,16 +23,16 @@ import {
 import { itemCents, receiptLinesOf, totalCents, type DemoItem, type NoteInput } from './rows.js';
 
 
-export type MatchVariant = 'exato_L' | 'sem_xped_L' | 'exato_C' | 'exato_H' | 'bloqueado_C' | 'tolerancia_L';
+export type MatchVariant = 'exact_L' | 'no_xped_L' | 'exact_C' | 'exact_H' | 'blocked_C' | 'tolerance_L';
 export type ExceptionCode = 'E1' | 'E2' | 'E3' | 'E4' | 'E5' | 'E6' | 'E7' | 'E8';
 
 const MATCH_SIZE: Readonly<Record<MatchVariant, Size>> = {
-  exato_L: 'L',
-  sem_xped_L: 'L',
-  exato_C: 'C',
-  exato_H: 'H',
-  bloqueado_C: 'C',
-  tolerancia_L: 'L',
+  exact_L: 'L',
+  no_xped_L: 'L',
+  exact_C: 'C',
+  exact_H: 'H',
+  blocked_C: 'C',
+  tolerance_L: 'L',
 };
 
 type Scenario = { readonly supplierId: string; readonly store: string; readonly issuedOn: string };
@@ -87,11 +87,11 @@ function withinToleranceDrift(items: readonly DemoItem[]): DemoItem[] {
 
 export function matchCase(env: CaseEnv, variant: MatchVariant): CaseOutcome {
   const size = MATCH_SIZE[variant];
-  const s = scenario(env, size, variant === 'bloqueado_C' ? BLOCKED_SUPPLIER : undefined);
+  const s = scenario(env, size, variant === 'blocked_C' ? BLOCKED_SUPPLIER : undefined);
   const items = orderItems(env.rng, s.supplierId, targetCents(env.rng, size));
   const orderId = placeOrder(env, s, items, env.rng.int(3, 9));
-  const billed = variant === 'tolerancia_L' ? withinToleranceDrift(items) : items;
-  const withoutOrderRef = variant === 'sem_xped_L';
+  const billed = variant === 'tolerance_L' ? withinToleranceDrift(items) : items;
+  const withoutOrderRef = variant === 'no_xped_L';
   const note = newNote(env, { ...s, items: billed, orderId: withoutOrderRef ? null : orderId, slot: 0 });
   env.sink.addNote(note);
   receive(env, s, note, orderId, billed);

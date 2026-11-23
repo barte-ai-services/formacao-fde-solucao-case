@@ -53,10 +53,10 @@ describe('#349 gerador de notas da demonstração', () => {
 
   it('toda nota leva origin = demo, nota_id DM- e uma chave de acesso de 44 dígitos', () => {
     for (const { rows } of rounds(40)) {
-      for (const nota of rows.kit_notas) {
-        expect(nota.origin).toBe('demo');
-        expect(nota.nota_id).toMatch(/^DM-\d{5,}$/);
-        expect(nota.chave).toMatch(/^\d{44}$/);
+      for (const note of rows.kit_notas) {
+        expect(note.origin).toBe('demo');
+        expect(note.nota_id).toMatch(/^DM-\d{5,}$/);
+        expect(note.chave).toMatch(/^\d{44}$/);
       }
     }
   });
@@ -73,12 +73,12 @@ describe('#349 gerador de notas da demonstração', () => {
     for (const { rows } of rounds(60)) {
       const orders = new Set(rows.kit_ordens.map((o) => o.ordem_id));
       const keys = new Set(rows.kit_notas.map((n) => n.chave));
-      for (const nota of rows.kit_notas) {
-        if (nota.pedido_referenciado !== null && !nota.pedido_referenciado.startsWith('OC-DM-')) throw new Error('ordem fora do prefixo');
-        const items = rows.kit_nota_itens.filter((i) => i.chave === nota.chave);
+      for (const note of rows.kit_notas) {
+        if (note.pedido_referenciado !== null && !note.pedido_referenciado.startsWith('OC-DM-')) throw new Error('ordem fora do prefixo');
+        const items = rows.kit_nota_itens.filter((i) => i.chave === note.chave);
         expect(items.length).toBeGreaterThan(0);
         const sum = items.reduce((acc, i) => acc + Math.round(Number(i.valor) * 100), 0);
-        expect(sum).toBe(Math.round(Number(nota.valor_total) * 100));
+        expect(sum).toBe(Math.round(Number(note.valor_total) * 100));
       }
       for (const i of rows.kit_nota_itens) expect(keys.has(i.chave)).toBe(true);
       for (const i of rows.kit_ordem_itens) expect(orders.has(i.ordem_id)).toBe(true);
@@ -94,7 +94,7 @@ describe('#349 gerador de notas da demonstração', () => {
     for (const forbidden of ['gabarito', 'registrar', 'encaminhar', 'acao_doca', 'tipo_caso', 'explicacao', 'classificacao', 'classification']) {
       expect(text).not.toContain(forbidden);
     }
-    for (const nota of batch.rows.kit_notas) expect(batch.expected.has(nota.chave)).toBe(true);
+    for (const note of batch.rows.kit_notas) expect(batch.expected.has(note.chave)).toBe(true);
     expect(batch.expected.size).toBe(8);
   });
 
@@ -103,16 +103,16 @@ describe('#349 gerador de notas da demonstração', () => {
   });
 
   it('#349/AC-4 nenhuma nota repete chave ou nota_id dentro do lote nem entre rodadas', () => {
-    const notas = rounds(100).flatMap((b) => b.rows.kit_notas);
-    expect(new Set(notas.map((n) => n.chave)).size).toBe(notas.length);
-    expect(new Set(notas.map((n) => n.nota_id)).size).toBe(notas.length);
+    const notes = rounds(100).flatMap((b) => b.rows.kit_notas);
+    expect(new Set(notes.map((n) => n.chave)).size).toBe(notes.length);
+    expect(new Set(notes.map((n) => n.nota_id)).size).toBe(notes.length);
   });
 
   it('#349/AC-4 chaves já tomadas são evitadas', () => {
     const first = generateDemoBatch(input({ seed: 9 }));
     const taken = new Set(first.rows.kit_notas.map((n) => n.chave));
     const again = generateDemoBatch(input({ seed: 9, takenKeys: taken }));
-    for (const nota of again.rows.kit_notas) expect(taken.has(nota.chave)).toBe(false);
+    for (const note of again.rows.kit_notas) expect(taken.has(note.chave)).toBe(false);
   });
 
   it('#349/AC-2 em 100 notas aparecem todas as exceções, o match e todos os níveis da régua', () => {

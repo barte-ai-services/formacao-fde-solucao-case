@@ -134,8 +134,7 @@ class DemoNotesTest(unittest.TestCase):
 
     @staticmethod
     def demo_note() -> dict[str, Json]:
-        # ADR-001
-        return {"chave": "9" * 44, "nota_id": "DM-00001", "numero": 1, "serie": 1, "fornecedor_id": "F01",
+        return {"chave": "9" * 44, "nota_id": "DM-00001", "numero": 1, "serie": 1, "fornecedor_id": "F01",  # ADR-001
                 "destino": "LJ-001", "data_emissao": "2026-11-23", "pedido_referenciado": None,  # ADR-001
                 "canal_entrada": "SEFAZ", "valor_total": Decimal("10.00"), "origin": "demo"}  # ADR-001
 
