@@ -11,7 +11,7 @@ import { kitTables } from '../support/kit.js';
 import { countSubrequests, UNCAPPED } from '../support/subrequest-counter.js';
 
 const ENV: Env = { BARTE_ACADEMY_SUPABASE_URL: 'https://fake.supabase.co', BARTE_ACADEMY_SUPABASE_SECRET_KEY: 'sb_secret_fake' };
-const CRON = { cron: '*/15 * * * *' };
+const CRON = { cron: '* * * * *', scheduledTime: Date.parse('2026-11-23T10:15:00Z') };
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -44,7 +44,8 @@ describe('#311 a rodada resiliente', () => {
     const fake = new FakePostgrest(kitTables());
     const cost = await captureCost();
     // #311 A leitura das sugestões do Claude vem antes da captura e gasta 1: a captura termina no subrequest cost + 1.
-    const captured = cost + 1;
+    // #356 A rodada orquestrada lê antes o modo, toma a trava e lê os passos adiados: mais 3 antes da captura.
+    const captured = cost + 1 + 3;
     const failing = failingAfter(fake, captured);
     vi.stubGlobal('fetch', failing.fetch);
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -56,23 +57,26 @@ describe('#311 a rodada resiliente', () => {
     expect(runs).toHaveLength(1);
     expect(runs[0]).toMatchObject({ status: 'ok', error: null });
     expect(runs[0]?.failed_steps).toEqual(
-      expect.arrayContaining(['proposals', 'registry-e8', 'dock', 'store', 'return-notes', 'duplicate-titles', 'overdue-requests', 'claude', 'engine']),
+      // #356 Os nomes são os dos passos da rodada orçada (round-steps.ts) mais os que os helpers registram (round-helpers.ts).
+      expect.arrayContaining(['propostas', 'dock', 'store', 'return-notes', 'duplicados', 'overdue-requests', 'claude']),
     );
     // #311 Os passos depois do que falhou ainda foram tentados: o fetch chegou às tabelas de cada um.
     const after = failing.trail.slice(captured).join('\n');
-    // #311 O prazo dos pedidos (outbox_supplier_emails), a rodada do Claude (claude_suggestions), o motor (engine_settings) e a gravação da rodada.
-    for (const call of ['GET outbox_supplier_emails', 'GET claude_suggestions', 'GET engine_settings', 'POST automation_runs']) {
+    // #311 O prazo dos pedidos (outbox_supplier_emails), a rodada do Claude (claude_suggestions) e a gravação da rodada.
+    // #356 O motor, o último passo, não é admitido: o gasto medido das chamadas que falharam já não deixa lugar para o custo declarado dele.
+    for (const call of ['GET outbox_supplier_emails', 'GET claude_suggestions', 'POST automation_runs']) {
       expect(after).toContain(call);
     }
     // #311 Cada passo que lê as propostas (E8, doca, loja, devoluções) tentou a leitura em vez de abortar a rodada no primeiro.
-    expect(failing.trail.slice(captured).filter((c) => c === 'GET proposals').length).toBeGreaterThanOrEqual(4);
+    // #356 A rodada orçada executa só os passos que cabem nos 50 (os outros ficam adiados): ao menos 3 deles leem as propostas.
+    expect(failing.trail.slice(captured).filter((c) => c === 'GET proposals').length).toBeGreaterThanOrEqual(3);
     // #311 O log traz só a classe ou o status, nunca o texto do erro.
     const lines = log.mock.calls.map((c) => String(c[0])).join('\n');
     expect(lines).not.toContain('fetch failed');
     expect(lines).not.toContain('falha de rede');
   });
 
-  it('com o teto de 50 subrequests, a gravação incluída, a rodada quieta termina, pula o que não coube e GRAVA a linha', async () => {
+  it('#356 a rodada quieta cabe nos 50 subrequests, a gravação e a soltura da trava incluídas, sem passo falho, e GRAVA a linha', async () => {
     const fake = new FakePostgrest(kitTables());
     vi.stubGlobal('fetch', fake.fetch);
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -87,13 +91,12 @@ describe('#311 a rodada resiliente', () => {
     const runs = fake.rows('automation_runs');
     expect(runs).toHaveLength(before + 1);
     const last = runs[runs.length - 1];
-    expect(last).toMatchObject({ status: 'ok', error: null });
-    expect(last?.failed_steps).not.toEqual([]);
+    expect(last).toMatchObject({ status: 'ok', error: null, failed_steps: [] });
     expect(counter.count()).toBeLessThanOrEqual(50);
-    expect(last?.subrequests).toBe(counter.count());
+    // #356 A gravação conta a si mesma; a soltura da trava vem depois dela.
+    expect(last?.subrequests).toBe(counter.count() - 1);
     const lines = log.mock.calls.map((c) => String(c[0]));
-    expect(lines.filter((l) => l.startsWith('cron: orçamento de subrequests esgotado'))).toHaveLength(1);
-    expect(lines.filter((l) => l.startsWith('cron: subrequests'))).toEqual([`cron: subrequests ${counter.count()}/50 (tick */15 * * * *)`]);
+    expect(lines.filter((l) => l.startsWith('cron: subrequests'))).toEqual([`cron: subrequests ${counter.count()}/50 (tick * * * * *)`]);
   });
 
   it('a captura segue no caminho crítico: falha nela ainda é rodada failed e o erro sobe', async () => {
@@ -112,7 +115,7 @@ describe('#311 a rodada resiliente', () => {
     vi.stubGlobal('fetch', fake.fetch);
     vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    await tick(CRON, ENV, UNCAPPED);
+    await tick(CRON, ENV);
 
     expect(fake.rows('automation_runs')[0]?.failed_steps).toEqual([]);
   });

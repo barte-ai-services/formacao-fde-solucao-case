@@ -21,6 +21,12 @@ export type ProposeDeps = {
   /** #65: as sugestões de ordem provável da rodada do Claude (#171). Sem elas, a regra decide sozinha. */
   readonly suggestions?: ProbableOrderSuggestions;
   readonly now?: () => Date;
+  /**
+   * #356 AC-4 O teto de notas conferidas propostas por chamada (padrão: todas, como fora da rodada). As gravações são em lote,
+   * então o gasto em requisições não cresce com o volume; o teto limita o corpo e o trabalho do passo, e o que passa dele segue
+   * `conferida` para a chamada seguinte.
+   */
+  readonly limit?: number;
 };
 
 export type ProposeResult = {
@@ -42,7 +48,7 @@ export type ProposeResult = {
  * da regra e o novo estado da nota.
  */
 export async function proposeChecked(deps: ProposeDeps): Promise<ProposeResult> {
-  const invoices = await loadCheckedInvoices(deps.rest);
+  const invoices = await loadCheckedInvoices(deps.rest, deps.limit);
   if (invoices.length === 0) return { proposed: 0, approvedByRule: 0, awaitingApproval: [] };
   const now = (deps.now ?? (() => new Date()))();
   const today = todayInBrasilia(now);

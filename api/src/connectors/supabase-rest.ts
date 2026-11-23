@@ -73,6 +73,17 @@ export function postgresErrorOf(error: unknown): { readonly code: string; readon
   return { code, message };
 }
 
+/** #356 Os códigos de um objeto que o banco ainda não tem: tabela (PGRST205, 42P01), função (PGRST202), coluna (PGRST204, 42703). */
+const MISSING_SCHEMA_CODES: ReadonlySet<string> = new Set(['PGRST202', 'PGRST204', 'PGRST205', '42703', '42P01']);
+
+/**
+ * #356 A falha é "o objeto não existe": a migração que o cria ainda não foi aplicada (o deploy do Worker e o do Supabase correm em
+ * paralelo). Quem lê um objeto novo trata isto como o estado de antes da migração; qualquer outra falha sobe.
+ */
+export function isMissingSchema(error: unknown): boolean {
+  return error instanceof SupabaseRestError && error.code !== undefined && MISSING_SCHEMA_CODES.has(error.code);
+}
+
 const DEFAULT_PAGE_SIZE = 1000;
 const DEFAULT_TIMEOUT_MS = 10_000;
 const MAX_DETAIL = 300;

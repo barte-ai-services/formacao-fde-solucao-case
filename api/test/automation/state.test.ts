@@ -30,3 +30,25 @@ describe('#211 automationState', () => {
     expect(automationState(null, at('10:00'))).toBe('stalled');
   });
 });
+
+describe('#356/AC-5 nextRunAt no ritmo do modo', () => { // ADR-002
+  it('ligado, é o próximo minuto cheio', () => { // ADR-002
+    expect(nextRunAt(at('10:03'), 1).toISOString()).toBe('2026-11-16T10:04:00.000Z');
+    expect(nextRunAt(at('10:59'), 1).toISOString()).toBe('2026-11-16T11:00:00.000Z');
+  });
+  it('sem o intervalo, segue em 15 minutos como hoje', () => { // ADR-002
+    expect(nextRunAt(at('10:03')).toISOString()).toBe('2026-11-16T10:15:00.000Z');
+  });
+});
+
+describe('#356/AC-5 automationState sem falso alarme', () => { // ADR-002
+  const run = (startedAt: string, status: 'ok' | 'failed') => ({ startedAt: at(startedAt).toISOString(), status });
+
+  it('com o ritmo de 1 minuto, uma rodada de 3 minutos atrás não é parada', () => { // ADR-002
+    expect(automationState(run('10:15', 'ok'), at('10:18'))).toBe('ok');
+  });
+  it('a medida é a mesma em qualquer modo: 3 intervalos de 15 minutos', () => { // ADR-002
+    expect(automationState(run('09:45', 'ok'), at('10:29'))).toBe('ok');
+    expect(automationState(run('09:45', 'ok'), at('10:31'))).toBe('stalled');
+  });
+});

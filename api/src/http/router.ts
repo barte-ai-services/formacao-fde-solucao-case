@@ -97,7 +97,8 @@ export async function route(request: Request, env: Env, deps: RouterDeps, ctx?: 
   );
   if (approval) return approval;
 
-  const admin = await adminRoutes(request, auth.identity, env);
+  // #356 A rodada manual (`rodar-agora`) roda depois da resposta, pelo waitUntil do Worker, como o dossiê da gaveta.
+  const admin = await adminRoutes(request, auth.identity, env, ctx ? (work) => ctx.waitUntil(work) : undefined);
   if (admin) return admin;
 
   const returnNotes = await returnNoteRoutes(request, auth.identity, env, deps.returnNotes ?? {}, supabaseFromEnv);

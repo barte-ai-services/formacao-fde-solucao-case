@@ -1,7 +1,7 @@
-// #333: o despacho do `scheduled` pelo `controller.cron`: o de 15 minutos roda o tick, o do auditor roda só o auditor, e um cron desconhecido não roda nada.
+// #333 #356: o despacho do `scheduled` pelo `controller.cron`: o de minuto (#356) roda o tick, o do auditor roda só o auditor, e um cron desconhecido não roda nada.
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AUDIT_CRON, CLAUDE_CRON, DOSSIER_CRON, auditTick, dispatchScheduled, dossierTick } from '../../src/cron/schedule.js';
+import { AUDIT_CRON, TICK_CRON, DOSSIER_CRON, auditTick, dispatchScheduled, dossierTick } from '../../src/cron/schedule.js';
 import { isRecord } from '../../src/connectors/guards.js';
 import type { Env } from '../../src/env.js';
 import { harness } from '../supplier/supabase-support.js';
@@ -18,9 +18,9 @@ function runners() {
 }
 
 describe('#333 o scheduled despacha pelo cron que disparou', () => {
-  it('#333/AC-1: o cron de 15 minutos roda o tick e não o auditor', async () => {
+  it('#356/AC-1: o cron de minuto roda o tick e não o auditor', async () => {
     const r = runners();
-    await dispatchScheduled({ cron: CLAUDE_CRON }, NO_ENV, r);
+    await dispatchScheduled({ cron: TICK_CRON }, NO_ENV, r);
     expect(r.tick).toHaveBeenCalledOnce();
     expect(r.audit).not.toHaveBeenCalled();
   });
@@ -40,9 +40,9 @@ describe('#333 o scheduled despacha pelo cron que disparou', () => {
     expect(r.audit).not.toHaveBeenCalled();
   });
 
-  it('#311/AC-2: o cron de 15 minutos não roda o dossiê', async () => {
+  it('#311/AC-2: o cron de minuto não roda o dossiê', async () => {
     const r = runners();
-    await dispatchScheduled({ cron: CLAUDE_CRON }, NO_ENV, r);
+    await dispatchScheduled({ cron: TICK_CRON }, NO_ENV, r);
     expect(r.dossier).not.toHaveBeenCalled();
   });
 
@@ -64,15 +64,49 @@ describe('#333 o scheduled despacha pelo cron que disparou', () => {
     expect(line).not.toContain('chave-de-teste');
   });
 
-  it('#333/AC-2: os nomes dos crons são os do wrangler.jsonc, e o do auditor é deslocado do de 15 minutos', () => {
+  it('#333/AC-2: os nomes dos crons são os do wrangler.jsonc, e o do tick é de minuto e o do auditor e o do dossiê são deslocados de 15 em 15', () => {
     const text = readFileSync(new URL('../../wrangler.jsonc', import.meta.url), 'utf8');
     const json = text.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
     const config: unknown = JSON.parse(json);
-    expect(config).toMatchObject({ triggers: { crons: [CLAUDE_CRON, AUDIT_CRON, DOSSIER_CRON] } });
-    expect(new Set([CLAUDE_CRON, AUDIT_CRON, DOSSIER_CRON]).size).toBe(3);
+    expect(config).toMatchObject({ triggers: { crons: [TICK_CRON, AUDIT_CRON, DOSSIER_CRON] } });
+    expect(new Set([TICK_CRON, AUDIT_CRON, DOSSIER_CRON]).size).toBe(3);
     // #311 O plano gratuito permite 5 cron triggers por conta (docs da Cloudflare): este Worker usa 3.
     const crons = isRecord(config) && isRecord(config.triggers) && Array.isArray(config.triggers.crons) ? config.triggers.crons : [];
     expect(crons.length).toBeLessThanOrEqual(5);
+  });
+});
+
+describe('#356/AC-1 o cron de minuto e os outros dois, no mesmo minuto, são invocações separadas', () => { // ADR-002
+  it('#356/AC-1 a expressão do tick é a de todo minuto, e as outras duas seguem as de 15 em 15', () => {
+    expect(TICK_CRON).toBe('* * * * *');
+    expect(AUDIT_CRON).toBe('7-59/15 * * * *');
+    expect(DOSSIER_CRON).toBe('11-59/15 * * * *');
+  });
+
+  it('#356/AC-1 nos minutos 7 e 11 as três invocações disparam juntas, e cada uma só chama o handler da sua expressão', async () => {
+    const expected = [
+      [TICK_CRON, 'tick'], [AUDIT_CRON, 'audit'], [DOSSIER_CRON, 'dossier'],
+    ] as const;
+    for (const [cron, handler] of expected) {
+      const r = runners();
+      await dispatchScheduled({ cron, scheduledTime: Date.parse('2026-11-23T10:07:00Z') }, NO_ENV, r);
+      for (const name of ['tick', 'audit', 'dossier'] as const) {
+        expect(r[name], `${cron} -> ${name}`).toHaveBeenCalledTimes(name === handler ? 1 : 0);
+      }
+    }
+  });
+
+  it('#356/AC-1 o despacho entrega ao tick o controller inteiro, com o scheduledTime que decide o ritmo', async () => {
+    const r = runners();
+    const controller = { cron: TICK_CRON, scheduledTime: Date.parse('2026-11-23T10:15:00Z') };
+    await dispatchScheduled(controller, NO_ENV, r);
+    expect(r.tick).toHaveBeenCalledWith(controller, NO_ENV);
+  });
+
+  it('#356/AC-1 o comentário do wrangler.jsonc diz o ritmo de minuto', () => {
+    const text = readFileSync(new URL('../../wrangler.jsonc', import.meta.url), 'utf8');
+    expect(text).toContain('* * * * *');
+    expect(text).not.toContain('A cada 15 minutos: a captura');
   });
 });
 

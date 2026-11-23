@@ -21,6 +21,8 @@ export type SubrequestCounter = {
   readonly fetch: FetchFn;
   /** #311 O fetch da gravação da rodada: o único que gasta a reserva, ainda dentro do teto. */
   readonly reservedFetch: FetchFn;
+  /** #356 AC-4 Conta uma chamada que não passa por fetch (o `ai.run` do Workers AI) e a recusa como o `fetch` recusaria: lança o mesmo erro. */
+  admit(): void;
   count(): number;
   /** #311 Quantas chamadas ainda cabem antes do teto (a reserva incluída); nulo sem orçamento. */
   remaining(): number | null;
@@ -39,18 +41,26 @@ export type SubrequestCounter = {
 export function countSubrequests(inner?: FetchFn, budget?: SubrequestBudget): SubrequestCounter {
   let calls = 0;
   let refusals = 0;
+  const take = (limit: number | undefined): void => {
+    if (limit !== undefined && calls >= limit) {
+      refusals += 1;
+      throw new SubrequestBudgetError();
+    }
+    calls += 1;
+  };
   const through =
     (limit: number | undefined): FetchFn =>
     (input, init) => {
-      if (limit !== undefined && calls >= limit) {
-        refusals += 1;
-        return Promise.reject(new SubrequestBudgetError());
+      try {
+        take(limit);
+      } catch (error) {
+        return Promise.reject(error);
       }
-      calls += 1;
       return inner ? inner(input, init) : fetch(input, init);
     };
   const spendable = budget ? budget.cap - budget.reserve : undefined;
   return {
+    admit: () => take(spendable),
     fetch: through(spendable),
     reservedFetch: through(budget?.cap),
     count: () => calls,

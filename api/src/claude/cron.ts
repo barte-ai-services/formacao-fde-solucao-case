@@ -33,7 +33,7 @@ import { auditTasksFor, tasksFor } from './tasks/index.js';
  * #333   a de 15 minutos (runClaudeRound, tasksFor, sem o auditor): varredura 6 + rodada do Claude 44 = 50 medidos, no teto (eram 58 com o auditor, que era o último e nunca rodava);
  * #333   a do auditor (runAuditRound, auditTasksFor, deslocada: 7-59/15): 1 nota por invocação (AUDIT_NOTES_PER_RUN), 2 chamadas à Messages API e 6 ao banco = 8 medidos com 2 voltas; no pior caso, as 18 voltas do teto próprio do auditor (AUDIT_MAX_TURNS) e as 12 leituras (AUDIT_MAX_READS) = 36 medidos e 38 pela conta, contra os 50 (tasks/invoice-audit.ts).
  * #157 Os 50 do plano gratuito contam só a rodada do Claude e a varredura, não a invocação inteira: a captura, proposeChecked, as
- * #157 publicações e as notas de devolução gastam subrequests antes (api/src/cron/tick.ts, runRound). O Worker é tratado como o plano
+ * #157 publicações e as notas de devolução gastam subrequests antes (api/src/cron/round-work.ts; antes da #356, api/src/cron/tick.ts). O Worker é tratado como o plano
  * #157 gratuito (50 subrequests); a rodada de 15 minutos mede 50 e cabe (#333); a invocação inteira do Cron é do Spike #303.
  * #157 A rodada é de melhor esforço, pelo desenho fail-closed da #171: passado o limite do Worker, todo fetch seguinte lança: a chave em
  * #157 curso e as que vêm depois dela não gravam nada, as anteriores (de qualquer tarefa) já gravaram, e a regra decide sozinha o que ficou
@@ -50,9 +50,20 @@ export type ClaudeRound = { readonly ran: boolean; readonly failedTasks: string[
 export function runClaudeRound(
   rest: SupabaseRest,
   env: ClaudeEnv,
-  options: { readonly fetch?: FetchFn; readonly log?: (line: string) => void } = {},
+  options: {
+    readonly fetch?: FetchFn;
+    readonly log?: (line: string) => void;
+    readonly only?: readonly string[];
+    /** #356 AC-3 O prazo da rodada (epoch em ms), fixado no começo dela: os passos do Claude da rodada orquestrada dividem UM, não um cada. */
+    readonly deadline?: number;
+    /** #356 AC-2 O timeout de cada pergunta (a conversa toda); a rodada manual o encurta para caber no waitUntil. Sem ele, ASK_TIMEOUT_MS. */
+    readonly timeoutMs?: number;
+  } = {},
 ): Promise<ClaudeRound> {
-  return runRound(rest, env, tasksFor, options);
+  // #356 AC-4 `only` roda só as tarefas de nome dado: cada uma é um passo da rodada orçada (cron/round-steps.ts).
+  const only = options.only;
+  const tasksOf = only ? (r: SupabaseRest) => tasksFor(r).filter((t) => only.includes(t.name)) : tasksFor;
+  return runRound(rest, env, tasksOf, options);
 }
 
 /** #333 A rodada do cron do auditor: o mesmo corpo e o mesmo fail-closed, só com as tarefas de auditTasksFor. */
@@ -68,7 +79,7 @@ async function runRound(
   rest: SupabaseRest,
   env: ClaudeEnv,
   tasksOf: (rest: SupabaseRest) => readonly ClaudeTask<unknown, unknown>[],
-  options: { readonly fetch?: FetchFn; readonly log?: (line: string) => void },
+  options: { readonly fetch?: FetchFn; readonly log?: (line: string) => void; readonly deadline?: number; readonly timeoutMs?: number },
 ): Promise<ClaudeRound> {
   const log = options.log ?? ((line: string) => console.log(line));
   const credentials = credentialsFromEnv(env);
@@ -76,7 +87,7 @@ async function runRound(
     log('cron: sem credencial do Claude; tarefas do Claude puladas e a regra decide sozinha');
     return { ran: false, failedTasks: [], failures: 0 };
   }
-  const client = new ClaudeClient({ credentials, fetch: options.fetch });
+  const client = new ClaudeClient({ credentials, fetch: options.fetch, timeoutMs: options.timeoutMs });
   const secrets = [credentials.kind === 'api-key' ? credentials.apiKey : credentials.token, env.BARTE_ACADEMY_SUPABASE_SECRET_KEY ?? ''];
   let result: RunResult = { failedTasks: [] };
   try {
@@ -87,7 +98,7 @@ async function runRound(
       tasks: tasksOf(rest),
       log: (line) => log(`cron: ${line}`),
       limit: CRON_LIMIT,
-      deadline: Date.now() + ROUND_BUDGET_MS,
+      deadline: options.deadline ?? Date.now() + ROUND_BUDGET_MS,
       secrets,
     });
   } catch {

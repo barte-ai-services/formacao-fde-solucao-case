@@ -27,10 +27,13 @@ const isTitleRow = shaped<TitleRow>({
  * grava com o filtro `state=eq.lancado`, a guarda contra corrida: um título que alguém liberou nesse
  * meio-tempo não volta a bloqueado. Idempotente: na segunda rodada não há título lançado de E6.
  * Uma chave que falha não derruba as outras.
+ * #356 AC-4 Cada título é um update, então o laço tem teto por chamada (`limit`, padrão sem teto, como fora da rodada): o que passa
+ * do teto segue `lancado` e a chamada seguinte o bloqueia, sem fome, porque o bloqueado sai do filtro.
  */
 export async function blockDuplicateTitles(
   rest: SupabaseRest,
   now: () => Date = () => new Date(),
+  limit: number = Number.POSITIVE_INFINITY,
 ): Promise<BlockDuplicatesResult> {
   const keys = parseRows(
     await rest.select('invoices', { select: 'access_key', filters: { classification: 'eq.E6' }, order: 'access_key' }),
@@ -44,6 +47,7 @@ export async function blockDuplicateTitles(
       select: 'invoice_access_key,amount_cents,due_on',
       filters: { invoice_access_key: `in.(${keys.map((k) => `"${k}"`).join(',')})`, state: 'eq.lancado' },
       order: 'invoice_access_key',
+      ...(Number.isFinite(limit) ? { limit } : {}),
     }),
     isTitleRow,
     'titles',

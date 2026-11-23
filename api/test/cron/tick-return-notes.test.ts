@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { tick } from '../../src/cron/tick.js';
-import { UNCAPPED } from '../support/subrequest-counter.js';
+import { RETURN_NOTES_PER_STEP } from '../../src/cron/round-work.js';
 import { DockAction } from '../../src/domain/index.js';
 import { FakePostgrest } from '../support/fake-postgrest.js';
 import { kitTables } from '../support/kit.js';
@@ -10,12 +10,22 @@ import { awaiting, decide, returnFirstItem, type Row } from '../returns/supabase
 // #156 O passo da devolução na rodada do Cron (#156, AC-7, AC-8; #156), sobre o kit e o PostgREST falso.
 
 const ENV = { BARTE_ACADEMY_SUPABASE_URL: 'https://fake.supabase.co', BARTE_ACADEMY_SUPABASE_SECRET_KEY: 'sb_secret_fake' };
-const CRON = { cron: '*/15 * * * *' };
+// #356 Sem `scheduledTime` a rodada é manual (sem o ritmo do modo): o teste roda a rodada quando quer, e cada rodada orçada executa só o que cabe nos 50.
+const CRON = { cron: '* * * * *' };
+/** #356 Quantas rodadas seguidas bastam para o passo da devolução ter rodado (os passos adiados passam à frente na rodada seguinte). */
+const ROUNDS = 3;
 
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
+
+/** #356 As rodadas seguidas que dão a vez a cada passo; devolve o resumo da última. */
+async function rounds(count = ROUNDS) {
+  let last = null;
+  for (let i = 0; i < count; i += 1) last = await tick(CRON, ENV);
+  return last;
+}
 
 /** #156 O kit depois da primeira rodada (captura, proposta, regra): o que a regra aprovou já passou pela varredura. */
 async function afterFirstRound() {
@@ -23,8 +33,8 @@ async function afterFirstRound() {
   vi.stubGlobal('fetch', fake.fetch);
   const log = vi.spyOn(console, 'log').mockImplementation(() => {});
   const error = vi.spyOn(console, 'error').mockImplementation(() => {});
-  await tick(CRON, ENV, UNCAPPED);
-  return { fake, log, error, round: () => tick(CRON, ENV, UNCAPPED), queued: () => fake.rows('outbox_return_notes') };
+  await rounds();
+  return { fake, log, error, round: rounds, queued: () => fake.rows('outbox_return_notes') };
 }
 
 const keyOf = (p: Row): string => String(p.invoice_access_key);
@@ -121,9 +131,9 @@ describe('#156 a rodada do Cron publica a devolução das decisões', () => {
   });
 });
 
-describe('#156 o teto de 20 publicações por rodada', () => {
-  it('#156: 25 decisões que devolvem entram 20 numa rodada e o resto na seguinte', async () => {
-    const { fake, round, queued } = await afterFirstRound();
+describe('#156 o teto de publicações por passo da rodada', () => {
+  it('#156 #356: 25 decisões que devolvem entram no máximo RETURN_NOTES_PER_STEP por rodada, e as rodadas seguintes publicam o resto', async () => {
+    const { fake, queued } = await afterFirstRound();
     const base = queued().length;
     const pool = fake.rows('proposals').filter((p) => p.state === 'aguardando_aprovacao');
     expect(pool.length).toBeGreaterThanOrEqual(25);
@@ -132,10 +142,12 @@ describe('#156 o teto de 20 publicações por rodada', () => {
       decide(fake, p, { state: 'aprovada', action: returnFirst(fake, p), decidedOn: '2026-11-15' });
     }
 
-    await round();
-    expect(queued()).toHaveLength(base + 20);
-
-    await round();
+    let previous = base;
+    for (let i = 0; i < 40 && queued().length < base + 25; i += 1) {
+      await tick(CRON, ENV);
+      expect(queued().length - previous).toBeLessThanOrEqual(RETURN_NOTES_PER_STEP);
+      previous = queued().length;
+    }
     expect(queued()).toHaveLength(base + 25);
   });
 });
@@ -156,7 +168,7 @@ describe('#156 a devolução que falha não derruba a rodada', () => {
     const written = [...log.mock.calls, ...error.mock.calls].map((c) => String(c[0])).join('\n');
     expect(written).toMatch(/devoluções/);
     expect(written).not.toContain(secret);
-    expect(fake.rows('automation_runs')).toHaveLength(runsBefore + 1);
+    expect(fake.rows('automation_runs')).toHaveLength(runsBefore + ROUNDS);
     expect(fake.rows('automation_runs').at(-1)?.status).toBe('ok');
   });
 });

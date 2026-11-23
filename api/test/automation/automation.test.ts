@@ -39,8 +39,9 @@ describe('#211 AC-1 o tick grava a rodada', () => {
     expect(runs[0]?.proposed).toBeGreaterThan(0);
     expect(Date.parse(String(runs[0]?.finished_at))).toBeGreaterThanOrEqual(Date.parse(String(runs[0]?.started_at)));
     expect(Object.keys(runs[0] ?? {}).sort()).toEqual([
-      'approved_by_rule', 'cadastro_e8', 'checked', 'dock_published', 'duplicates_blocked', 'engine_approved', 'engine_evaluated', 'error', 'failed',
-      'failed_steps', 'finished_at', 'inserted', 'proposed', 'seen', 'started_at', 'status', 'store_published', 'subrequests',
+      'approved_by_rule', 'cadastro_e8', 'checked', 'deferred_steps', 'demo_enabled', 'dock_published', 'duplicates_blocked', 'engine_approved',
+      'engine_evaluated', 'error', 'failed', 'failed_steps', 'finished_at', 'inserted', 'origin', 'proposed', 'seen', 'started_at', 'status',
+      'store_published', 'subrequests',
     ]);
   });
 

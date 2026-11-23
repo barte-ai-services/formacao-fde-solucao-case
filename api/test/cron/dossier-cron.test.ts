@@ -6,14 +6,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MAX_ATTEMPTS } from '../../src/claude/runner.js';
 import { dispatchDossiers, DOSSIER_EVENT_LIMIT } from '../../src/cron/dossier-round.js';
-import { CLAUDE_CRON, DOSSIER_CRON, dispatchScheduled } from '../../src/cron/schedule.js';
+import { TICK_CRON, DOSSIER_CRON, dispatchScheduled } from '../../src/cron/schedule.js';
 import { SupabaseRest } from '../../src/connectors/supabase-rest.js';
 import { supabaseConnectors } from '../../src/connectors/supabase-connectors.js';
 import { FakePostgrest } from '../support/fake-postgrest.js';
 import { kitTables } from '../support/kit.js';
 import { countSubrequests } from '../support/subrequest-counter.js';
 import { awaitingKeys, eventSuggestions, kitAwaitingPeople, runDossierCron, SUPABASE_ENV, WITH_CLAUDE } from '../support/dossier-world.js';
-import { SUBREQUEST_CAP, UNCAPPED } from '../support/subrequest-counter.js';
+import { SUBREQUEST_CAP } from '../support/subrequest-counter.js';
 import { tick } from '../../src/cron/tick.js';
 
 afterEach(() => {
@@ -22,17 +22,17 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('#311 a causa: o tick de 15 minutos já gasta o teto antes do dossiê', () => {
-  it('#311/AC-1: a captura, a proposta e as publicações do tick, sozinhas, passam de 50 subrequests; por isso o dossiê tem a própria invocação', async () => {
+describe('#311 a causa: o tick já gastava o teto antes do dossiê, e o dossiê continua fora dele', () => {
+  it('#311/AC-1: o tick de hoje (orçado em 50 pela #356) não tem o dossiê entre os passos: ele tem a própria invocação', async () => {
     const fake = new FakePostgrest(kitTables());
     const counter = countSubrequests(fake.fetch, 10_000);
     vi.stubGlobal('fetch', counter.fetch);
     vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    await tick({ cron: CLAUDE_CRON }, WITH_CLAUDE, UNCAPPED);
+    await tick({ cron: TICK_CRON, scheduledTime: Date.parse('2026-11-23T10:15:00Z') }, WITH_CLAUDE);
 
-    // #311 Medido em 22/11 sobre o kit inteiro: 172 subrequests no tick sem o dossiê (141 até o ponto onde o dossiê rodava). O teto é 50.
-    expect(counter.count()).toBeGreaterThan(SUBREQUEST_CAP);
+    // #311 Antes da #356 o tick fazia 172 subrequests sem o dossiê (141 até o ponto onde ele rodava), contra os 50. Orçado, o tick cabe, e o dossiê segue no cron próprio.
+    expect(counter.count()).toBeLessThanOrEqual(SUBREQUEST_CAP);
     expect(counter.trail().some((t) => t.includes('dossier_requests'))).toBe(false);
   });
 });

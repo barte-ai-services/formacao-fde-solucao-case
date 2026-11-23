@@ -19,7 +19,7 @@
 # #156 acrescenta: declara as tabelas que a camada de persistência da devolução lê ou grava e
 # toda a base do kit. #311 declara dossier_requests (ver a entrada em tables). Ainda sem modo declarado, a declarar pelo dono de cada uma: titles,
 # outbox_dock_actions, outbox_registry_corrections, outbox_store_actions, claude_suggestions,
-# exceptions, automation_runs, engine_decisions e engine_settings (#251).
+# exceptions, engine_decisions e engine_settings (#251). #356 declara automation_runs, demo_settings e automation_lock.
 
 database: postgresql 17          # supabase/config.toml, [db] major_version = 17
 migrations: supabase/migrations  # migrações do Supabase CLI, YYYYMMDDHHMMSS_nome.sql
@@ -29,7 +29,7 @@ strategies:
   # (api/src/connectors/supabase-rest.ts) e cada requisição roda numa transação própria
   # (PostgREST, Transactions). Um caso de uso que grava mais de uma requisição não é atômico, salvo os que vão por
   # função do banco numa só chamada rpc: a subida de nível (raise_proposal_level, #230) e a decisão do aprovador
-  # (save_approval_decision, #304).
+  # (save_approval_decision, #304) e a trava da rodada (take_automation_lock e release_automation_lock, #356).
   unit_of_work: postgrest-request
   tenancy:
     # A Já Chegou é uma empresa só; loja (store, destino) é um lugar dela, não um inquilino.
@@ -238,6 +238,57 @@ tables:
     # #311 (.github/workflows/supabase-base-do-kit.yml, passo "Aplicar as migrações"), que não garante rodar fora de transação,
     # #311 e CONCURRENTLY não roda dentro de uma.
     # RLS ligado e sem política (20261117140000_dossier_sob_demanda.sql): só a chave secreta do Worker lê e grava.
+
+  # O modo demonstração (#356): a configuração que liga o ritmo de 1 minuto da rodada, mudada no banco sem deploy.
+  demo_settings:
+    mode: upsert-with-history
+    history: json-column
+    history_column: history      # jsonb, lista de {version, at, by, enabled}; uma entrada por troca de modo
+    version_column: version
+    # #356 Uma linha só (id é o booleano true, com check), semeada pela migração. A troca é lida e gravada por PATCH filtrado em
+    # #356 id=eq.true&version=eq.<lida>, que sobe a versão e acrescenta a entrada ao history no mesmo PATCH (a disciplina da #156); o
+    # #356 PATCH que não toca linha é recusado (DemoModeWriteError, `conflict`, 409 na camada API) e a linha ausente é erro, não recriação.
+    tenant: none
+    deletion: none
+    erasure: not stated          # changed_by e o `by` do history são o e-mail de um administrador; só no banco, nunca em resposta nem em log; sem caminho de apagamento registrado
+    # RLS ligado e sem política (20261123100000_modo_demonstracao.sql): só a chave secreta do Worker lê e grava.
+
+  # A trava da rodada (#356): uma linha com o dono e a validade, tomada e solta por função numa requisição.
+  automation_lock:
+    mode: ephemeral
+    reason: >-
+      Não guarda registro pelo qual o sistema responda: é o estado momentâneo de quem roda a rodada (dono e validade), tomado por
+      take_automation_lock, solto por release_automation_lock e vencido sozinho se o Worker morrer. A rodada pulada porque a trava
+      estava tomada fica em automation_runs (status skipped), não aqui.
+    growth: fixed                # uma linha, para sempre
+    # RLS ligado e sem política; as funções só rodam para service_role (20261123100000_modo_demonstracao.sql).
+
+  # A rodada da automação (#311, #356): uma linha por rodada, nunca alterada. Colunas novas da #356 em 20261123100000_modo_demonstracao.sql.
+  automation_runs:
+    mode: append-only
+    history: none
+    # #356 Cada rodada é um fato: ok, failed ou skipped (a trava estava tomada), com a origem (cron | manual; as linhas antigas são do
+    # #356 Cron), se o modo demonstração estava ligado (demo_enabled) e os passos adiados à seguinte (deferred_steps, nomes fixos, nunca
+    # #356 mensagem de erro). A migração só acrescenta colunas; nenhum índice novo: as leituras ordenam por started_at desc, que o
+    # #356 índice automation_runs_started_at_idx (20261116100000_automation_runs.sql) já serve.
+    projection: >-
+      o estado corrente = a linha mais recente com status ok ou failed, por started_at desc (a skipped nunca conta): os passos adiados
+      da rodada seguinte vêm de lastDeferred (api/src/automation/round-store.ts, limit 1) e o estado do painel parte de runs[0] de
+      listRuns (api/src/http/automation.ts, que usa a mesma filtragem); as puladas têm lista própria (listSkippedRuns)
+    rebuild_test: >-
+      api/test/automation/round-store.test.ts, "o estado corrente de automation_runs, remontado das linhas em qualquer ordem" (linhas ok,
+      failed e skipped fora de ordem: lastDeferred ignora a skipped mais nova e listRuns devolve só ok e failed, da mais nova à mais velha);
+      api/test/http/automacao-modo.test.ts cobre o estado do painel com a skipped mais nova
+    growth: >-
+      sem retenção, cerca de 1.440 linhas por dia com o modo demonstração ligado (uma por minuto) e 96 com ele desligado (uma por 15
+      minutos); as leituras são limitadas por started_at desc com limit (listRuns, lastDeferred) e a das puladas também por uma janela
+      de 24 horas (listSkippedRuns), todas pelo índice automation_runs_started_at_idx
+    indexes:
+      - name: automation_runs_started_at_idx
+        serves: as leituras por started_at desc com limit (listRuns, lastDeferred) e a janela recente das puladas (listSkippedRuns)
+    # #356 PER-2 O grant de update, delete e truncate sai do service_role na 20261123100000_modo_demonstracao.sql: append-only de verdade.
+    deletion: none
+    erasure: not stated          # sem dado pessoal: contagens, status e nomes fixos de passo
 
   # Base do kit (#52, ADR-001): espelho dos JSON de data/kit/, que é a fonte versionada.
   kit_fornecedores: &kit   # #156: ganha a coluna email (migração da #156); o modo é o da #156

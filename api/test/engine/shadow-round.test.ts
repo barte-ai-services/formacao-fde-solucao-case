@@ -4,6 +4,7 @@ import { MemoryApprovalStore } from '../../src/approval/store.js';
 import { SupabaseApprovalStore } from '../../src/approval/supabase-store.js';
 import { SupabaseRest } from '../../src/connectors/supabase-rest.js';
 import { tick } from '../../src/cron/tick.js';
+import { rounds, roundsUntil } from '../support/rounds.js';
 import { UNCAPPED } from '../support/subrequest-counter.js';
 import { RULE_VERSION } from '../../src/engine/decision.js';
 import { runShadowRound } from '../../src/engine/run.js';
@@ -320,6 +321,7 @@ describe('#41 a loja no Supabase', () => {
 
 describe('#41 o motor na rodada do Cron', () => {
   const ENV = { BARTE_ACADEMY_SUPABASE_URL: 'https://fake.supabase.co', BARTE_ACADEMY_SUPABASE_SECRET_KEY: 'sb_secret_fake' };
+  const CRON = { cron: '* * * * *' }; // #356 sem scheduledTime a rodada é manual, sem o ritmo do modo
   const ai = (run: () => Promise<unknown>) => ({ run }) as unknown as Ai;
   const answer = async () => ({ response: { outcome: 'approve', confidence: 0.99, reason: 'fecha' } });
 
@@ -328,10 +330,12 @@ describe('#41 o motor na rodada do Cron', () => {
     vi.stubGlobal('fetch', fake.fetch);
     vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    await tick({ cron: '*/15 * * * *' }, { ...ENV, ai: ai(answer) }, UNCAPPED);
+    // #356 O motor é o último passo da rodada orçada: roda na primeira rodada em que cabe.
+    const round = () => tick(CRON, { ...ENV, ai: ai(answer) });
+    await roundsUntil(round, () => fake.rows('engine_decisions').length > 0);
     const decisions = fake.rows('engine_decisions');
     const cascade = decisions.filter((d) => d.role === 'cascade');
-    const [run] = fake.rows('automation_runs');
+    const run = fake.rows('automation_runs').find((r) => Number(r.engine_evaluated) > 0);
     expect(cascade.length).toBeGreaterThan(0);
     expect(run?.engine_evaluated).toBe(cascade.length);
     // #41 Na base do kit a regra decide as E4 elegíveis; o Clef é medido ao lado, sem mudar quem decide.
@@ -347,9 +351,10 @@ describe('#41 o motor na rodada do Cron', () => {
     expect([...evaluated].some((id) => approvedIds.has(id))).toBe(false);
     expect(fake.rows('proposals').filter((p) => evaluated.has(p.id)).every((p) => p.state === 'aguardando_aprovacao')).toBe(true);
 
-    await tick({ cron: '*/15 * * * *' }, { ...ENV, ai: ai(answer) }, UNCAPPED);
-    expect(fake.rows('automation_runs')[1]?.engine_evaluated).toBe(0);
+    // #356 As rodadas seguintes não reavaliam: nada novo no motor, e as avaliadas das rodadas somam só as da primeira.
+    await rounds(round, 4);
     expect(fake.rows('engine_decisions')).toHaveLength(decisions.length);
+    expect(fake.rows('automation_runs').reduce((n, r) => n + Number(r.engine_evaluated), 0)).toBe(cascade.length);
   });
 
   it('se o motor falha, a rodada segue ok e conta zero', async () => {
@@ -364,16 +369,16 @@ describe('#41 o motor na rodada do Cron', () => {
       logs.push(args.map(String).join(' '));
     });
 
-    await expect(tick({ cron: '*/15 * * * *' }, { ...ENV, ai: ai(answer) }, UNCAPPED)).resolves.toMatchObject({ seen: expect.any(Number) });
-    expect(fake.rows('automation_runs')[0]).toMatchObject({ status: 'ok', engine_evaluated: 0 });
-    expect(logs.some((l) => l.includes('motor de decisão indisponível (HTTP 404)'))).toBe(true);
+    await expect(tick(CRON, { ...ENV, ai: ai(answer) })).resolves.toMatchObject({ seen: expect.any(Number) });
+    await roundsUntil(() => tick(CRON, { ...ENV, ai: ai(answer) }), () => logs.some((l) => l.includes('motor de decisão indisponível (HTTP 404)')));
+    expect(fake.rows('automation_runs').every((r) => r.status === 'ok' && r.engine_evaluated === 0)).toBe(true);
   });
 
   it('sem o binding do Workers AI, o motor é pulado e a rodada segue', async () => {
     const fake = new FakePostgrest(kitTables());
     vi.stubGlobal('fetch', fake.fetch);
     vi.spyOn(console, 'log').mockImplementation(() => {});
-    await tick({ cron: '*/15 * * * *' }, ENV, UNCAPPED);
+    await tick(CRON, ENV);
     expect(fake.rows('engine_decisions')).toHaveLength(0);
     expect(fake.rows('automation_runs')[0]).toMatchObject({ status: 'ok', engine_evaluated: 0 });
   });

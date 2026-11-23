@@ -60,6 +60,11 @@ export type Published<T> = T & { readonly id: number; readonly publishedAt: stri
 export interface Outbox<T> {
   publish(message: T): Promise<Published<T>>;
   list(): Promise<Published<T>[]>;
+  /**
+   * #356 AC-4 As mensagens já publicadas das notas dadas, numa leitura: quem tem teto de publicações por chamada pula as que a caixa
+   * já tem (republicar custa duas requisições e não tira a mensagem da fila, o que prenderia as de trás). Opcional: sem ela, publica de novo.
+   */
+  listFor?(invoiceAccessKeys: readonly string[]): Promise<Published<T>[]>;
 }
 
 export type DockActionMessage = {

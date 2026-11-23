@@ -1,6 +1,6 @@
 // #56 Reconferir: apaga o que a conferência gravou e roda a captura e a conferência completas de novo.
 // Só as tabelas do domínio; nenhuma kit_* (a base do kit é a fonte e fica intacta).
-import { tick, type TickSummary } from "../cron/tick.js";
+import { tickAfterLock, type TickSummary } from "../cron/tick.js";
 import type { SupabaseRest } from '../connectors/supabase-rest.js';
 import type { Env } from '../env.js';
 
@@ -33,12 +33,16 @@ export async function resetDomain(rest: SupabaseRest, tables = DOMAIN_TABLES): P
   }
 }
 
-/** #56 Apaga e roda o tick uma vez: captura, conferência, conciliação e proposta. */
+/**
+ * #56 Apaga e roda o tick uma vez: captura, conferência, conciliação e proposta. #356 AC-3 Sem `runTick`, a trava da rodada é tomada
+ * antes de apagar (tickAfterLock): com ela tomada e válida, lança `RoundInProgressError` sem apagar nada. Com `runTick` (os testes), só apaga e roda.
+ */
 export async function reconferir(
   rest: SupabaseRest,
   env: Env,
-  runTick: (env: Env) => Promise<TickSummary | null | void> = (e) => tick({ cron: "reconferir" }, e),
+  runTick?: (env: Env) => Promise<TickSummary | null | void>,
 ): Promise<TickSummary | null> {
+  if (runTick === undefined) return tickAfterLock({ cron: "reconferir" }, env, (metered) => resetDomain(metered));
   await resetDomain(rest);
   return (await runTick(env)) ?? null;
 }
