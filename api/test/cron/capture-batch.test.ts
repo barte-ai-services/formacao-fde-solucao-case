@@ -52,7 +52,10 @@ const ENV: Env = {
 async function tickRounds(fake: FakePostgrest, rounds: number): Promise<{ spend: number[]; runs: Row[] }> {
   // #349 O fake não implementa a rpc do lote das notas demo: com o modo ligado ela responde 0 (o lote já existia, nenhuma nota entrou), contada como subrequest igual.
   vi.stubGlobal('fetch', (input: string | URL, init?: RequestInit) => 
-    String(input).includes('/rpc/kit_insert_demo_batch') ? Promise.resolve(new Response('0', { status: 200, headers: { 'content-type': 'application/json' } })) : fake.fetch(String(input), init));
+    String(input).includes('/rpc/kit_insert_demo_batch') ? Promise.resolve(new Response('0', { status: 200, headers: { 'content-type': 'application/json' } }))
+      // #363 As filas das rpcs da contagem da doca e das respostas da demonstração: vazias, uma leitura cada.
+      : /\/rpc\/demo_(dock_count|supplier_replies)_pending/.test(String(input)) ? Promise.resolve(new Response('[]', { status: 200, headers: { 'content-type': 'application/json' } }))
+      : fake.fetch(String(input), init));
   vi.spyOn(console, 'log').mockImplementation(() => {});
   const spend: number[] = [];
   for (let i = 0; i < rounds; i += 1) {
@@ -83,14 +86,14 @@ describe('#362/AC-1 a rodada quieta com 80 notas já capturadas cabe com folga n
 });
 
 describe('#362/AC-1 e #349 a rodada quieta com o modo demonstração ligado, o passo notas-demo antes da captura', () => { // ADR-002
-  it('#362/AC-1 com o modo ligado, a rodada quieta gasta menos de 20 dos 50, igual com 80 e com 200 notas, e failed_steps vazio', async () => { // ADR-002
+  it('#362/AC-1 com o modo ligado, a rodada quieta gasta menos de 22 dos 50, igual com 80 e com 200 notas, e failed_steps vazio', async () => { // ADR-002
     const w = quietWorld(80, true, true);
     const a = await tickRounds(w, 6);
     const b = await tickRounds(quietWorld(200, true, true), 6);
     for (const r of [a, b]) {
       expect(r.runs.every((run) => run.demo_enabled === true), 'o modo está ligado').toBe(true);
       expect(r.runs.every((run) => run.status === 'ok' && (run.failed_steps as string[]).length === 0), JSON.stringify(r.runs.map((run) => run.failed_steps))).toBe(true);
-      expect(Math.max(...r.spend), `gasto por rodada: ${r.spend.join(', ')}`).toBeLessThan(20);
+      expect(Math.max(...r.spend), `gasto por rodada: ${r.spend.join(', ')}`).toBeLessThan(22); // #363 com o modo ligado entram duas leituras de fila vazia (contagem da doca e respostas do fornecedor)
     }
     expect(b.spend).toEqual(a.spend);
   });

@@ -188,6 +188,47 @@ describe('#356/AC-4 o custo de cada passo, medido com a fila cheia', () => { // 
   });
 });
 
+/** #363 Mede os passos da demonstração com a fila CHEIA, requisição a requisição: o fetch falso devolve as filas das rpcs e conta tudo. */
+describe('#363 o custo da contagem da doca e das respostas do fornecedor, medido com a fila cheia', () => { // ADR-002
+  const NOW = new Date('2026-11-23T12:00:00Z');
+  const LONG_AGO = '2026-11-20T10:00:00+00:00';
+  const dockQueue = Array.from({ length: 60 }, (_, i) => ({
+    actionId: `dock-${i}`, channel: 'dock', invoiceAccessKey: `K-${i}`, publishedAt: LONG_AGO, supplierId: 'F08', store: 'LJ-001',
+    purchaseOrderId: null, classification: null, items: [{ supplierCode: 'F08-001', description: 'Arroz', quantity: 4, unit: 'UN' }],
+  }));
+  const replyQueue = Array.from({ length: 60 }, (_, i) => ({ requestId: i + 1, recipient: 'a@f.test', sentAt: LONG_AGO }));
+
+  async function measured(run: 'demoDockCount' | 'demoSupplierReplies'): Promise<number> {
+    const requests: string[] = [];
+    const answers: Record<string, unknown> = { 'rpc/demo_dock_count_pending': dockQueue, 'rpc/demo_supplier_replies_pending': replyQueue };
+    vi.stubGlobal('fetch', async (input: string) => {
+      requests.push(new URL(String(input)).pathname.replace('/rest/v1/', ''));
+      return new Response(JSON.stringify(answers[requests.at(-1) ?? ''] ?? []), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+    const env: Env = { BARTE_ACADEMY_SUPABASE_URL: URL_, BARTE_ACADEMY_SUPABASE_SECRET_KEY: 'sb_secret_fake' };
+    const meter = startRoundMeter(env, { measureOnly: true });
+    const rest = new SupabaseRest({ url: URL_, secretKey: 'sb_secret_fake', fetch: meter.fetch });
+    await supabaseRoundWork(rest, meter.env, meter.fetch, { demoClock: () => NOW })[run]();
+    expect(requests.length).toBe(meter.spent());
+    return meter.spent();
+  }
+
+  it('a contagem da doca gasta o declarado: 1 leitura e 1 gravação em lote, qualquer que seja o tamanho da fila', async () => { // ADR-002
+    expect(await measured('demoDockCount')).toBe(STEP_COSTS.dockCount);
+  });
+
+  it('as respostas do fornecedor gastam o declarado: 1 leitura e 1 lote, qualquer que seja o tamanho da fila', async () => { // ADR-002
+    expect(await measured('demoSupplierReplies')).toBe(STEP_COSTS.supplierReplies);
+  });
+
+  it('com o modo ligado a lista continua cabendo no orçamento, e o planRound a aceita', () => { // ADR-002
+    const w = kitWorld();
+    const steps = buildRoundSteps(supabaseRoundWork(new SupabaseRest({ url: URL_, secretKey: 'k', fetch: async () => new Response('[]') }), w.env), Date.now, undefined, true).steps;
+    expect(() => planRound(steps, [])).not.toThrow();
+    for (const s of steps) expect(() => planRound(steps, [s.name]), s.name).not.toThrow();
+  });
+});
+
 describe('#356/AC-4 a lista cabe no orçamento', () => { // ADR-002
   it('todo passo cabe sozinho ao lado da captura, o que o planRound exige para não haver fome', () => { // ADR-002
     const build = kitWorld().build();
@@ -345,6 +386,8 @@ async function fullestWorld(demo = false) {
     const url = String(input);
     if (url.startsWith(PORT_URL)) return Promise.resolve(new Response('{}', { status: 200 }));
     if (url.includes('/rpc/kit_insert_demo_batch')) return Promise.resolve(new Response('0', { status: 200, headers: { 'content-type': 'application/json' } }));
+    // #363 As filas das rpcs da contagem e das respostas da demonstração: vazias nesta rodada, uma leitura cada.
+    if (url.includes('/rpc/demo_dock_count_pending') || url.includes('/rpc/demo_supplier_replies_pending')) return Promise.resolve(new Response('[]', { status: 200, headers: { 'content-type': 'application/json' } }));
     if (!url.startsWith(ANTHROPIC)) return w.fake.fetch(url, init);
     const body = messagesBody(init);
     if (Object.keys(body.tools[0]?.input_schema.properties ?? {}).includes('summary')) {
@@ -425,7 +468,8 @@ describe('#356/AC-4 a rodada mais cheia, ligada ao tick, contra o teto de 50', (
 });
 
 /** #349 #362 A mesma rodada mais cheia ao tick com o modo demonstração ligado: o passo notas-demo (custo declarado 2) entra antes da captura e a rodada segue dentro de 50. */
-const FULLEST_TICK_DEMO_MEASURED = 45;
+// #363 46 com as duas leituras da contagem da doca e das respostas (fila vazia) a mais.
+const FULLEST_TICK_DEMO_MEASURED = 46;
 
 describe('#349/AC-4 a rodada mais cheia ao tick com o modo demonstração ligado', () => { // ADR-002
   it('o gasto medido de cada rodada, com o notas-demo à frente da captura, não passa de 50, e nenhum passo falha', async () => { // ADR-002

@@ -23,6 +23,8 @@ function work(captured: number[]): RoundWork {
       captured.push(5);
       return 5;
     },
+    demoDockCount: async () => {},
+    demoSupplierReplies: async () => {},
     failedSteps: () => [],
   };
 }

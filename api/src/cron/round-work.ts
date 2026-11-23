@@ -15,6 +15,10 @@ import type { Env } from '../env.js';
 import { proposeChecked } from '../approval/propose-checked.js';
 import { runClaudeRound } from '../claude/cron.js';
 import { tasksFor } from '../claude/tasks/index.js';
+import { modeIntervalMinutes } from '../automation/rhythm.js';
+import { dockCountStep } from '../demo/dock-count.js';
+import { supplierRepliesStep } from '../demo/supplier-replies.js';
+import { supabaseDockCountPorts, supabaseSupplierReplyPorts } from '../demo/supabase-demo-ports.js';
 import { lastDaysUtc } from './publish-approved-e8.js';
 import { captureInvoices, markCheckFailures, type CaptureDeps } from './capture.js';
 import type { RoundWork } from './round-steps.js';
@@ -51,6 +55,9 @@ export const DUPLICATES_PER_STEP = 9;
 export const REGISTRY_MESSAGES_PER_STEP = 8;
 export const PROPOSALS_PER_STEP = 40;
 export const CHECK_FAILURE_MARKS_PER_STEP = 5;
+/** #363 A semente dos sorteios da demonstração: fixa, para a mesma nota e o mesmo pedido darem sempre o mesmo desfecho entre as rodadas. */
+const DEMO_ROUND_MS = modeIntervalMinutes(true) * 60_000;
+export const DEMO_SEED = 'demo-ja-chegou';
 export const ENGINE_LIMITS = { decisionLimit: 2, clefLimit: 1 } as const;
 
 /**
@@ -63,7 +70,14 @@ export function supabaseRoundWork(
   env: Env,
   fetch?: FetchFn,
   // #356 AC-2 Só a rodada manual os passa (cron/manual-window.ts): o prazo de uma pergunta ao Claude e o teto do prazo do Clef.
-  { claudeTimeoutMs, clefTimeoutCapMs, demoMode }: { readonly claudeTimeoutMs?: number; readonly clefTimeoutCapMs?: number; readonly demoMode?: () => Promise<boolean> } = {},
+  { claudeTimeoutMs, clefTimeoutCapMs, demoMode, demoClock = () => new Date(), demoSeed = DEMO_SEED }: {
+    readonly claudeTimeoutMs?: number;
+    readonly clefTimeoutCapMs?: number;
+    readonly demoMode?: () => Promise<boolean>;
+    /** #363 Relógio e semente da demonstração, injetados (os testes fixam os dois). */
+    readonly demoClock?: () => Date;
+    readonly demoSeed?: string;
+  } = {},
 ): RoundWork {
   const failedSteps = new Set<string>();
   const fail: Fail = (step) => void failedSteps.add(step);
@@ -106,6 +120,9 @@ export function supabaseRoundWork(
     },
     blockDuplicates: () => blockDuplicateTitles(rest, undefined, DUPLICATES_PER_STEP),
     markOverdueSupplierRequests: () => markOverdueRequests(rest, fail),
+    // #363 A rodada da demonstração é de 1 minuto: a contagem e a resposta contam rodadas nesse ritmo (só rodam com o modo ligado).
+    demoDockCount: () => dockCountStep({ ...supabaseDockCountPorts(rest), clock: demoClock, seed: demoSeed, roundMs: DEMO_ROUND_MS }).run(),
+    demoSupplierReplies: () => supplierRepliesStep({ ...supabaseSupplierReplyPorts(rest), clock: demoClock, seed: demoSeed, roundMs: DEMO_ROUND_MS }).run(),
     claudeTasks: tasksFor(rest).map((t) => t.name),
     claudeTask: async (name, deadline) => {
       const round = await runClaudeRound(rest, env, { only: [name], deadline, ...(fetch ? { fetch } : {}), ...(claudeTimeoutMs === undefined ? {} : { timeoutMs: claudeTimeoutMs }) });
