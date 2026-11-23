@@ -84,9 +84,7 @@ export function AutomationBand({ now = () => new Date() }: { now?: () => Date })
           <Icon icon={band.icon} />
         </span>
         <div className="pagar-automation-band__text">
-          <span className="pagar-automation-band__title">
-            {band.title}
-          </span>
+          <span className="pagar-automation-band__title">{band.title}</span>
           {demo ? (
             <StatusBadge size="sm" tone="info" className="pagar-automation-band__demo">
               {t.demoMode}

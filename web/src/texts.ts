@@ -46,12 +46,10 @@ export const texts = {
     noRuns: "Nenhuma rodada registrada ainda.",
     // #357 Modo demonstração, rodada pulada e os controles do administrador.
     demoMode: "Modo demonstração",
-    demoModeInterval: (minutes: number) => `Modo demonstração · rodada a cada ${minutes} min`,
     statusSkipped: "Pulada",
     skipped: (at: string) => `Rodada pulada às ${at}: outra rodada ainda estava correndo.`,
     admin: {
       runNow: "Rodar agora",
-      running: "Rodada pedida",
       demoToggle: "Ligar modo demonstração",
       runNowFailed: "Não consegui pedir a rodada. Tente de novo.",
       runNowBusy: "Já há uma rodada correndo. Tente de novo daqui a pouco.",
