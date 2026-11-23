@@ -95,16 +95,21 @@ async function followDemoMode(deps: DelegatedDeps, settings: EngineSettings): Pr
   let demo: boolean;
   try {
     demo = await deps.demoMode();
-  } catch {
-    return settings;
+  } catch (error) {
+    // #351 Falha fechada: sem o modo, a rodada nunca amplia a delegação; com o modo já ligado antes, vale o valor de antes.
+    const before = settings.delegationBeforeDemo ?? null;
+    console.log(`cron: modo demonstração ilegível (${errorName(error)}); delegação do analista mantida em ${before ?? settings.delegationEnabled}`);
+    return before === null ? settings : { ...settings, delegationEnabled: before };
   }
   const before = settings.delegationBeforeDemo ?? null;
   if (demo && before === null) {
     await deps.store.setDelegation(settings.level, true, settings.delegationEnabled);
+    console.log(`cron: modo demonstração ligou a delegação do analista (antes: ${settings.delegationEnabled})`);
     return { ...settings, delegationEnabled: true, delegationBeforeDemo: settings.delegationEnabled };
   }
   if (!demo && before !== null) {
     await deps.store.setDelegation(settings.level, before, null);
+    console.log(`cron: modo demonstração devolveu a delegação do analista a ${before}`);
     return { ...settings, delegationEnabled: before, delegationBeforeDemo: null };
   }
   return settings;

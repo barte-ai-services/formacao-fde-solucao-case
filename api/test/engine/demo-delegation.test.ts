@@ -1,5 +1,5 @@
 // #351 Com o modo demonstração ligado, a delegação do analista liga sozinha; desligado o modo, volta ao valor de antes.
-// A régua (routeDivergences) continua decidindo o nível: diretoria e bloqueio nunca saem da pessoa.
+// #351 A régua (routeDivergences) continua decidindo o nível: diretoria e bloqueio nunca saem da pessoa.
 import { describe, expect, it } from 'vitest';
 import { MemoryApprovalStore } from '../../src/approval/store.js';
 import { DEFAULT_ANALYST_SETTINGS } from '../../src/engine/decision.js';
@@ -89,5 +89,21 @@ describe('#351 delegação condicionada ao modo demonstração', () => {
 
     expect(round).toMatchObject({ mode: 'delegated', approved: 0 });
     expect((await approvals.find(big.invoice.accessKey))?.approval).toBeNull();
+  });
+});
+
+describe('#351 falha fechada na leitura do modo', () => {
+  it('modo já ligado e a leitura falha: a rodada usa o valor de antes, sem escrever', async () => {
+    const store = new MemoryEngineStore([DEFAULT_ANALYST_SETTINGS]);
+    const approvals = new MemoryApprovalStore([caseFile()]);
+    await runEngineRound(build(store, new MemoryApprovalStore([]), async () => true));
+    const round = await runEngineRound(
+      build(store, approvals, async () => {
+        throw new Error('falha');
+      }),
+    );
+
+    expect(round).toMatchObject({ mode: 'shadow' });
+    expect((await store.settings('analista')).delegationEnabled).toBe(true);
   });
 });
