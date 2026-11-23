@@ -30,7 +30,7 @@ describe('#59 REL-3 divergências gravadas antes do estado', () => {
     await store.insertNew([first]);
     first.check(emptyContext(), [withDivergence]);
     await expect(store.saveChecked([first], '2026-11-15T00:00:00Z')).rejects.toMatchObject({ table: 'divergences', status: 503 });
-    expect(await store.listPendingKeys()).toEqual([first.accessKey]);
+    expect(await store.listPendingKeys()).toEqual([{ accessKey: first.accessKey, checkError: null }]);
     expect(fake.rows('divergences')).toHaveLength(0);
 
     failDivergences = false;

@@ -9,21 +9,40 @@
  * adia o passo, e se ele não couber junto dos críticos (STEP_BUDGET menos a soma dos críticos) o planRound
  * lança erro e a rodada inteira não roda. O mesmo vale para críticos que somados passam do orçamento.
  * Marque `critical` só o que não pode esperar (a captura). Nenhum outro código precisa mudar: o executor
- * isola a falha do passo.
+ * isola a falha do passo. Um passo com laço (um update ou uma publicação por item) leva um teto por chamada,
+ * parâmetro do trabalho em cron/round-work.ts, e o custo declarado é medido NESSE teto, não no volume do kit.
+ *
+ * A ADMISSÃO: o conjunto garantido (`planRound`) é decidido só pelos custos declarados e nunca passa fome. Com o medidor
+ * (`SpentMeter`, a porta `spent` de round.ts) o passo fora dele também roda quando o gasto medido deixa lugar, para a
+ * rodada com a fila vazia não esticar a cadência de quem cabe. O piso de uma rodada ociosa é ler cada fila uma vez
+ * (~40 subrequests medidos), então os passos de custo declarado alto, no fim da lista, ainda esperam algumas rodadas.
  */
 
-/** #356 AC-4 O teto de subrequests de uma invocação do Worker. */
-export const SUBREQUEST_LIMIT = 50;
+import { SUBREQUEST_CAP } from '../cron/subrequests.js';
+
 /**
- * #356 AC-4 A reserva fora do orçamento dos passos: a linha de automation_runs e a trava precisam ser gravadas
- * mesmo quando o orçamento dos passos acaba, e o gasto real pode vir de fetch não contado. Cobre ler o modo (1),
- * tomar a trava (1), soltá-la (1) e gravar a rodada (1), mais 2 de folga para a atualização da linha e para o
- * log que vai a um serviço.
+ * #356 AC-4 A reserva fora do orçamento dos passos: o que a rodada gasta fora deles são 5 chamadas às portas (ler o modo,
+ * tomar a trava, ler os adiados, gravar a rodada e soltar a trava), mais 2 de folga para um fetch que o gasto declarado
+ * não previu e para o reenvio da gravação sem as colunas novas (#311). O medidor (cron/round-meter.ts, sobre o contador de
+ * cron/subrequests.ts, o teto SUBREQUEST_CAP da #311) faz valer a conta: na fase dos passos recusa o fetch quando a contagem chega a
+ * SUBREQUEST_CAP - FINISH_RESERVE (a gravação, o reenvio e a soltura que faltam), de modo que o excesso falha o passo e não a contabilidade.
  */
-export const ROUND_RESERVE = 6;
+export const ROUND_RESERVE = 7;
+/**
+ * #356 AC-3 O limite real de duração da rodada: o medidor (cron/round-meter.ts) recusa todo fetch novo depois de 3 minutos
+ * do começo da rodada, e a rodada acaba no máximo quando o fetch que já estava em curso termina. É a base da conta de
+ * LOCK_TTL_MS (round.ts). A rodada do Claude para de começar tarefa antes, aos 2 minutos (ROUND_BUDGET_MS).
+ */
+export const ROUND_LIMIT_MS = 3 * 60_000;
 /** #356 AC-4 O que sobra para os passos. */
-export const STEP_BUDGET = SUBREQUEST_LIMIT - ROUND_RESERVE;
+export const STEP_BUDGET = SUBREQUEST_CAP - ROUND_RESERVE;
 
+/**
+ * #356 AC-4 Um passo da rodada: a unidade de extensão (#349, #351). A lista de `RoundStep` é montada em cron/round-steps.ts
+ * (`buildRoundSteps`); um passo novo é só mais um item dela, com nome, custo declarado e execução, e é planejado
+ * (`planRound`, pelo declarado), admitido (`executeRound`, pelo medido) e cortado (o medidor) como os demais. Veja
+ * test/cron/round-extension.test.ts.
+ */
 export type RoundStep = {
   readonly name: string;
   /** #356 AC-4 O custo máximo, em subrequests, que o passo faz numa rodada com a fila cheia. */
@@ -35,7 +54,12 @@ export type RoundStep = {
 
 export type RoundPlan = { readonly run: RoundStep[]; readonly deferred: string[] };
 export type RoundFailure = { readonly name: string; readonly error: string };
-export type RoundOutcome = { readonly ran: string[]; readonly failed: RoundFailure[]; readonly deferred: string[] };
+export type RoundOutcome = {
+  readonly ran: string[];
+  readonly failed: RoundFailure[];
+  readonly deferred: string[];
+  readonly overspent: RoundOverspend[];
+};
 
 /**
  * #356 AC-4 Quem pede a vez primeiro: o crítico, depois os adiados da rodada anterior (do que espera há mais
@@ -78,19 +102,70 @@ export function planRound(steps: readonly RoundStep[], deferredBefore: readonly 
   };
 }
 
-/** #356 AC-4 Roda os passos que cabem, cada um falhando sozinho: a falha de um só é contada e o seguinte roda. */
-export async function executeRound(steps: readonly RoundStep[], deferredBefore: readonly string[]): Promise<RoundOutcome> {
+/** #356 AC-4 O passo que gastou mais subrequests que o custo declarado: vai ao log da rodada para o custo ser corrigido. */
+export type RoundOverspend = { readonly name: string; readonly declared: number; readonly measured: number };
+
+/**
+ * #356 AC-4 O gasto medido da invocação até agora, em subrequests (uma porta: o medidor real, fora do domínio, conta
+ * fetch a fetch tudo o que sai do Worker). O executor só subtrai dois valores dele, então a base não importa.
+ */
+export type SpentMeter = () => number;
+
+/**
+ * #356 AC-4 Um passo fora do conjunto garantido roda se o seu custo declarado couber no que sobra do orçamento depois
+ * do gasto já feito (o medido) e do que os garantidos que faltam declaram.
+ */
+function fitsLeftover(step: RoundStep, usedSoFar: number, guaranteedLeft: number): boolean {
+  return step.maxSubrequests <= STEP_BUDGET - usedSoFar - guaranteedLeft;
+}
+
+/**
+ * #356 AC-4 Quantas chamadas, ou passos inteiros, o medidor recusou até agora (uma porta, como `SpentMeter`). O passo que engole a
+ * recusa por dentro (guarda o erro e segue) também falhou, como na #311: o executor o conta em `failed` com a classe do erro de recusa.
+ */
+export type RefusedMeter = () => number;
+
+/** #356 AC-4 A classe do erro que o passo que engoliu uma chamada recusada leva a `failed` (a de cron/subrequests.ts). */
+export const REFUSED_ERROR = 'SubrequestBudgetError';
+
+/**
+ * #356 AC-4 Roda os passos, cada um falhando sozinho: a falha de um só é contada e o seguinte roda.
+ * Os garantidos (os de `planRound`) sempre rodam, na ordem da lista. Com o medidor, o passo fora do garantido também
+ * roda quando o gasto MEDIDO deixa lugar para ele sem tirar o dos garantidos que faltam: a fila vazia gasta pouco e
+ * todo passo roda em toda rodada; a cheia gasta o declarado e o que não coube fica adiado para a rodada seguinte.
+ * Sem o medidor, só os garantidos rodam. O gasto de um passo acima do declarado vai a `overspent` e sai do que sobra.
+ */
+export async function executeRound(
+  steps: readonly RoundStep[],
+  deferredBefore: readonly string[],
+  spent?: SpentMeter,
+  refused?: RefusedMeter,
+): Promise<RoundOutcome> {
   const plan = planRound(steps, deferredBefore);
+  const guaranteed = new Set<RoundStep>(plan.run);
   const ran: string[] = [];
   const failed: RoundFailure[] = [];
-  for (const s of plan.run) {
+  const overspent: RoundOverspend[] = [];
+  const notRun = new Set(plan.deferred);
+  const start = spent?.() ?? 0;
+  let guaranteedLeft = plan.run.reduce((n, s) => n + s.maxSubrequests, 0);
+  for (const s of steps) {
+    const isGuaranteed = guaranteed.has(s);
+    if (isGuaranteed) guaranteedLeft -= s.maxSubrequests;
+    else if (!spent || !fitsLeftover(s, spent() - start, guaranteedLeft)) continue;
+    notRun.delete(s.name);
+    const before = spent?.() ?? 0;
+    const refusedBefore = refused?.() ?? 0;
     try {
       await s.run();
-      ran.push(s.name);
+      if ((refused?.() ?? 0) > refusedBefore) failed.push({ name: s.name, error: REFUSED_ERROR });
+      else ran.push(s.name);
     } catch (e) {
       // #356 AC-4 só a classe do erro vai ao resultado, nunca a mensagem, para o tick logar (#335)
       failed.push({ name: s.name, error: e instanceof Error ? e.name : typeof e });
     }
+    const measured = spent ? spent() - before : 0;
+    if (measured > s.maxSubrequests) overspent.push({ name: s.name, declared: s.maxSubrequests, measured });
   }
-  return { ran, failed, deferred: plan.deferred };
+  return { ran, failed, deferred: plan.deferred.filter((n) => notRun.has(n)), overspent };
 }

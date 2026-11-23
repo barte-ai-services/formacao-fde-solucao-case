@@ -50,9 +50,18 @@ export type ClaudeRound = { readonly ran: boolean; readonly failedTasks: string[
 export function runClaudeRound(
   rest: SupabaseRest,
   env: ClaudeEnv,
-  options: { readonly fetch?: FetchFn; readonly log?: (line: string) => void } = {},
+  options: {
+    readonly fetch?: FetchFn;
+    readonly log?: (line: string) => void;
+    readonly only?: readonly string[];
+    /** #356 AC-3 O prazo da rodada (epoch em ms), fixado no começo dela: os passos do Claude da rodada orquestrada dividem UM, não um cada. */
+    readonly deadline?: number;
+  } = {},
 ): Promise<ClaudeRound> {
-  return runRound(rest, env, tasksFor, options);
+  // #356 AC-4 `only` roda só as tarefas de nome dado: cada uma é um passo da rodada orçada (cron/round-steps.ts).
+  const only = options.only;
+  const tasksOf = only ? (r: SupabaseRest) => tasksFor(r).filter((t) => only.includes(t.name)) : tasksFor;
+  return runRound(rest, env, tasksOf, options);
 }
 
 /** #333 A rodada do cron do auditor: o mesmo corpo e o mesmo fail-closed, só com as tarefas de auditTasksFor. */
@@ -68,7 +77,7 @@ async function runRound(
   rest: SupabaseRest,
   env: ClaudeEnv,
   tasksOf: (rest: SupabaseRest) => readonly ClaudeTask<unknown, unknown>[],
-  options: { readonly fetch?: FetchFn; readonly log?: (line: string) => void },
+  options: { readonly fetch?: FetchFn; readonly log?: (line: string) => void; readonly deadline?: number },
 ): Promise<ClaudeRound> {
   const log = options.log ?? ((line: string) => console.log(line));
   const credentials = credentialsFromEnv(env);
@@ -87,7 +96,7 @@ async function runRound(
       tasks: tasksOf(rest),
       log: (line) => log(`cron: ${line}`),
       limit: CRON_LIMIT,
-      deadline: Date.now() + ROUND_BUDGET_MS,
+      deadline: options.deadline ?? Date.now() + ROUND_BUDGET_MS,
       secrets,
     });
   } catch {

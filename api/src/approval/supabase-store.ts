@@ -337,9 +337,10 @@ function approvalFromRow(row: ApprovalRow, proposal: Proposal): Approval {
 }
 
 /** #63 As notas conferidas e ainda sem proposta, com as divergências gravadas. */
-export async function loadCheckedInvoices(rest: SupabaseRest): Promise<Invoice[]> {
+export async function loadCheckedInvoices(rest: SupabaseRest, limit?: number): Promise<Invoice[]> {
   const invoices = parseRows(
-    await rest.select('invoices', { filters: { state: 'eq.conferida' }, order: 'access_key' }),
+    // #356 AC-4 `limit` é o teto de notas por chamada do passo da rodada; sem ele, todas.
+    await rest.select('invoices', { filters: { state: 'eq.conferida' }, order: 'access_key', ...(limit === undefined ? {} : { limit }) }),
     isInvoiceRow,
     'invoices',
   );

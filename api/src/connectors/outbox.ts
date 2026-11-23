@@ -78,6 +78,13 @@ export class SupabaseOutbox<T extends { readonly invoiceAccessKey: string }, E> 
     return rows.map((row) => this.toPublished(row));
   }
 
+  async listFor(invoiceAccessKeys: readonly string[]): Promise<Published<T>[]> {
+    if (invoiceAccessKeys.length === 0) return [];
+    const filter = `in.(${invoiceAccessKeys.map((k) => `"${k}"`).join(',')})`;
+    const rows = parseRows(await this.rest.select(this.table, { filters: { invoice_access_key: filter }, order: 'id' }), this.isRow, this.table);
+    return rows.map((row) => this.toPublished(row));
+  }
+
   private toPublished(row: OutboxRow<E>): Published<T> {
     return { ...this.codec.decode(row.invoice_access_key, row.payload), id: row.id, publishedAt: row.published_at };
   }

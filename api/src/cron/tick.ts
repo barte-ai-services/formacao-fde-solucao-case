@@ -192,7 +192,7 @@ async function runRound(
  * #66 As sugestões de casamento por descrição que a rodada do Claude (api/src/claude) gravou. Se a leitura falha,
  * registra uma linha (só o status, sem dado sensível) e a regra decide sozinha.
  */
-async function storedSuggestions(rest: SupabaseRest, fail: Fail): Promise<DescriptionSuggester | undefined> {
+export async function storedSuggestions(rest: SupabaseRest, fail: Fail): Promise<DescriptionSuggester | undefined> {
   try {
     return storedDescriptionSuggester(await listDescriptionSuggestions(rest));
   } catch (error) {
@@ -207,14 +207,22 @@ async function storedSuggestions(rest: SupabaseRest, fail: Fail): Promise<Descri
  * #35 (plano #66, AC-5) Manda ao Cadastro o E8 das propostas decididas os últimos 7 dias (UTC). Se falha, registra
  * uma linha sem dado sensível e a rodada segue: a caixa de saída é idempotente e a próxima rodada repete.
  */
-async function publishApproved(
+export async function publishApproved(
   rest: SupabaseRest,
   outbox: RegistryCorrectionOutbox,
   fail: Fail,
+  // #356 AC-4 O passo da rodada varre uma fatia da janela por vez; sem a fatia, a janela inteira de sempre.
+  days: readonly string[] = lastDaysUtc(new Date(), PUBLISH_WINDOW_DAYS),
+  // #356 AC-4 O teto de mensagens novas por chamada; sem ele, todas, como fora da rodada.
+  limit?: number,
 ): Promise<number> {
   try {
-    const days = lastDaysUtc(new Date(), PUBLISH_WINDOW_DAYS);
-    const { published } = await publishApprovedUnregistered({ store: new SupabaseApprovalStore(rest), outbox, days });
+    const { published } = await publishApprovedUnregistered({
+      store: new SupabaseApprovalStore(rest),
+      outbox,
+      days,
+      ...(limit === undefined ? {} : { limit }),
+    });
     return published;
   } catch (error) {
     const status = error instanceof SupabaseRestError ? `HTTP ${error.status}` : "falha na publicação";
@@ -229,9 +237,9 @@ async function publishApproved(
  * Se falha, registra uma linha sem dado sensível e a rodada segue: a varredura é idempotente e a
  * próxima rodada repete.
  */
-async function publishDock(rest: SupabaseRest, fail: Fail): Promise<number> {
+export async function publishDock(rest: SupabaseRest, fail: Fail, limit: number = Number.POSITIVE_INFINITY): Promise<number> {
   try {
-    return (await publishDecidedDockActions(rest)).published;
+    return (await publishDecidedDockActions(rest, undefined, limit)).published;
   } catch (error) {
     const status = error instanceof SupabaseRestError ? `HTTP ${error.status}` : "falha na publicação";
     fail("dock");
@@ -241,9 +249,9 @@ async function publishDock(rest: SupabaseRest, fail: Fail): Promise<number> {
 }
 
 /** #135 As notas de loja: a ação aprovada vai para o app da loja. Falhou, o Cron repete na próxima rodada. */
-async function publishStoreActions(rest: SupabaseRest, fail: Fail): Promise<number> {
+export async function publishStoreActions(rest: SupabaseRest, fail: Fail, limit: number = Number.POSITIVE_INFINITY): Promise<number> {
   try {
-    return (await publishDecidedStoreActions(rest)).published;
+    return (await publishDecidedStoreActions(rest, undefined, limit)).published;
   } catch (error) {
     const status = error instanceof SupabaseRestError ? `HTTP ${error.status}` : "falha na publicação";
     fail("store");
@@ -258,7 +266,13 @@ async function publishStoreActions(rest: SupabaseRest, fail: Fail): Promise<numb
  * aprova pelo caminho da aprovação da pessoa e conta em `engine_approved`. Sem o binding do Workers AI, pula; se
  * falha, registra uma linha sem dado sensível e a rodada segue: a próxima avalia o que ficou.
  */
-async function runEngine(rest: SupabaseRest, env: Env, fail: Fail): Promise<{ evaluated: number; approved: number }> {
+export async function runEngine(
+  rest: SupabaseRest,
+  env: Env,
+  fail: Fail,
+  // #356 AC-4 Os tetos da rodada do motor, para o passo caber no orçamento; sem eles, os de sempre.
+  limits: { readonly decisionLimit?: number; readonly clefLimit?: number } = {},
+): Promise<{ evaluated: number; approved: number }> {
   const none = { evaluated: 0, approved: 0 };
   if (!env.ai) {
     console.log("cron: sem o binding do Workers AI; motor de decisão pulado");
@@ -270,6 +284,7 @@ async function runEngine(rest: SupabaseRest, env: Env, fail: Fail): Promise<{ ev
       store: new SupabaseEngineStore(rest),
       clef: new WorkersAiClef(env.ai),
       today: () => todayInBrasilia(),
+      ...limits,
     });
     if (round.mode === "delegated") {
       console.log(
@@ -300,9 +315,9 @@ async function runEngine(rest: SupabaseRest, env: Env, fail: Fail): Promise<{ ev
  * falha, registra uma linha sem dado (só o status ou a tabela de uma linha fora do formato) e a rodada segue:
  * a varredura é idempotente e a próxima rodada repete.
  */
-async function publishReturnNotes(rest: SupabaseRest, fail: Fail): Promise<number> {
+export async function publishReturnNotes(rest: SupabaseRest, fail: Fail, limit: number = RETURN_NOTES_PER_ROUND): Promise<number> {
   try {
-    const { published } = await sweepReturnNotes(new SupabaseDecidedReturnSource(rest), erpReturnNoteOutbox(rest), RETURN_NOTES_PER_ROUND);
+    const { published } = await sweepReturnNotes(new SupabaseDecidedReturnSource(rest), erpReturnNoteOutbox(rest), limit);
     return published;
   } catch (error) {
     const reason =
@@ -321,7 +336,7 @@ async function publishReturnNotes(rest: SupabaseRest, fail: Fail): Promise<numbe
  * #157 Marca no_reply o pedido ao fornecedor enviado, sem leitura, depois do prazo. Se falha, registra uma linha sem dado
  * (só o status ou a tabela) e a rodada segue: a varredura é idempotente e a próxima rodada repete.
  */
-async function markOverdueRequests(rest: SupabaseRest, fail: Fail): Promise<number> {
+export async function markOverdueRequests(rest: SupabaseRest, fail: Fail): Promise<number> {
   try {
     return (await sweepSupplierOverdue(rest)).marked;
   } catch (error) {
@@ -333,7 +348,7 @@ async function markOverdueRequests(rest: SupabaseRest, fail: Fail): Promise<numb
 }
 
 /** #311 Registra o passo periférico que falhou (o nome fixo vai para automation_runs.failed_steps). */
-type Fail = (step: string) => void;
+export type Fail = (step: string) => void;
 
 /** #311 O que um passo periférico recebe da rodada: onde registrar a falha e o contador, que diz se ainda há orçamento. */
 type Round = { fail: Fail; counter: SubrequestCounter };

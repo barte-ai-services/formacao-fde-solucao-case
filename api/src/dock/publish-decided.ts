@@ -41,6 +41,7 @@ async function sweep<M extends { readonly invoiceAccessKey: string; readonly act
   place: ReceivingPlace,
   outbox: Outbox<M>,
   message: (invoiceAccessKey: string, store: string, action: DockAction) => M,
+  limit: number,
 ): Promise<{ published: number }> {
   const rows = parseRows(
     await rest.select('proposals', {
@@ -65,6 +66,8 @@ async function sweep<M extends { readonly invoiceAccessKey: string; readonly act
   }
   let published = 0;
   for (const row of rows) {
+    // #356 AC-4 O teto de publicações da chamada, para o passo da rodada caber no orçamento: o resto fica para a próxima.
+    if (published >= limit) break;
     const store = stores.get(row.invoice_access_key);
     if (store === undefined || receivingPlace(store) !== place) continue;
     const action = dockActionFromJson(row.dock_action, 'proposals');
@@ -79,14 +82,16 @@ async function sweep<M extends { readonly invoiceAccessKey: string; readonly act
 export function publishDecidedDockActions(
   rest: SupabaseRest,
   outbox: DockActionOutbox = wmsDockActionOutbox(rest),
+  limit: number = Number.POSITIVE_INFINITY,
 ): Promise<{ published: number }> {
-  return sweep(rest, 'doca_cd', outbox, (invoiceAccessKey, _store, action) => ({ invoiceAccessKey, action }));
+  return sweep(rest, 'doca_cd', outbox, (invoiceAccessKey, _store, action) => ({ invoiceAccessKey, action }), limit);
 }
 
 /** #135 AC-1 As notas de loja: a ação vai para o app da loja. */
 export function publishDecidedStoreActions(
   rest: SupabaseRest,
   outbox: StoreActionOutbox = appStoreActionOutbox(rest),
+  limit: number = Number.POSITIVE_INFINITY,
 ): Promise<{ published: number }> {
-  return sweep(rest, 'app_loja', outbox, (invoiceAccessKey, store, action) => ({ invoiceAccessKey, store, action }));
+  return sweep(rest, 'app_loja', outbox, (invoiceAccessKey, store, action) => ({ invoiceAccessKey, store, action }), limit);
 }
