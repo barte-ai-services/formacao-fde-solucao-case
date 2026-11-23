@@ -35,7 +35,7 @@ describe("#355/AC-2 useLiveFeed", () => {
     await tick(0);
     expect(result.current.state).toBe("ready");
     await tick(POLL_MS);
-    expect(sent).toEqual(["/api/ao-vivo", "/api/ao-vivo?since=S1"]);
+    expect(sent).toEqual(["/api/live", "/api/live?since=S1"]);
     // #355 O segundo pedido segue pendurado por muito mais que um período: nenhum terceiro sai.
     await tick(POLL_MS * 4);
     expect(sent).toHaveLength(2);
@@ -58,7 +58,7 @@ describe("#355/AC-2 useLiveFeed", () => {
     expect(result.current.state).toBe("ready");
     expect(JSON.stringify(result.current)).not.toContain("chave-do-servidor-123");
     await tick(POLL_MS);
-    expect(sent[2]).toBe("/api/ao-vivo?since=S1");
+    expect(sent[2]).toBe("/api/live?since=S1");
     expect(result.current.stale).toBe(false);
   });
 

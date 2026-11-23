@@ -14,7 +14,7 @@ import { useLiveFeed } from "../components/useLiveFeed";
 import type { RouteProps } from "./types";
 import { texts } from "../texts";
 
-const t = texts.aoVivo;
+const t = texts.live;
 const KEY_TAIL = 8;
 
 /** #355 O número da nota; sem ele, a chave curta (a API nem sempre resolve o número). */
@@ -35,8 +35,8 @@ function Figures({ feed }: { feed: LiveFeed }): ReactElement {
   );
 }
 
-/** /pagar/ao-vivo: os passos da automação, do mais novo ao mais velho, que se atualizam sozinhos (#355). */
-export default function AoVivo(_props: RouteProps): ReactElement {
+/** /pagar/ao-vivo: os passos da automação, do mais novo ao mais velho, que se atualizam sozinhos (#355). */ // ADR-004
+export default function LiveRoute(_props: RouteProps): ReactElement {
   const { state, feed, stale, retry } = useLiveFeed();
   const [open, setOpen] = useState<string | null>(null);
 

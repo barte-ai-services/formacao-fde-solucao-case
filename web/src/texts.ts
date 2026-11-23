@@ -286,7 +286,7 @@ export const texts = {
   },
 
   /** #355 A tela Ao vivo: os passos da automação, do mais novo ao mais velho. */
-  aoVivo: {
+  live: {
     title: "Ao vivo",
     subtitle: "Os passos da automação, do mais novo ao mais velho.",
     loading: "Buscando os passos da automação…",

@@ -3,7 +3,7 @@
  * precisa tocar nesta tabela, a não ser para criar uma rota nova.
  */
 import Devolucoes from "./devolucoes";
-import AoVivo from "./ao-vivo";
+import LiveRoute from "./live";
 import Doca from "./doca";
 import NotasDuplicadas from "./duplicadas";
 import FilaDeAprovacao from "./fila";
@@ -23,7 +23,7 @@ export const ROUTES: readonly RouteDefinition[] = [
   { path: "/pagar/fila/:id", component: Proposta },
   { path: "/pagar/hoje", component: ListaDoDia },
   { path: "/pagar/duplicadas", component: NotasDuplicadas },
-  { path: "/pagar/ao-vivo", component: AoVivo },
+  { path: "/pagar/ao-vivo", component: LiveRoute }, // ADR-004
   { path: "/pagar/valor-barrado", component: ValorBarrado },
   { path: "/doca", component: Doca },
   { path: "/devolucoes", component: Devolucoes },

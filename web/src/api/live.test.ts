@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { ApiError } from "./client";
 import { parseLive, type LiveEvent } from "./live";
 
-// #354 A borda do ao vivo lê só o contrato de `GET /api/ao-vivo`.
+// #354 A borda do ao vivo lê só o contrato de `GET /api/live`.
 
 const day = (pct: number | null) => ({ date: "2026-11-20", decided: 10, byRule: 3, withoutPersonPct: pct });
 const person = (n: number): LiveEvent => ({ kind: "human_decision", at: `2026-11-20T13:0${n}:00.000Z`, actor: "person", actor_name: "Ana", step: "Decidiu", invoice: { access_key: `K${n}`, number: String(n) } });
@@ -25,5 +26,14 @@ describe("#354 a borda lê só o contrato", () => {
     ["corpo que não é objeto", "x"],
   ])("recusa %s sem repetir o corpo na mensagem", (_name, bad) => {
     expect(() => parseLive(bad)).toThrow(/fora do contrato/);
+  });
+
+  it("o erro de corpo fora do contrato não leva código, como nas outras bordas", () => {
+    try {
+      parseLive("x");
+      expect.unreachable();
+    } catch (error) {
+      expect((error as ApiError).code).toBeNull();
+    }
   });
 });

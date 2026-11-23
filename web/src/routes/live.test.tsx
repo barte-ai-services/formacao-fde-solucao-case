@@ -5,9 +5,9 @@ import { POLL_MS } from "../components/useLiveFeed";
 import { fallbackContext } from "../shell/context";
 
 /*
- * #355 A tela Ao vivo (/pagar/ao-vivo) contra o wireframe aprovado: o esqueleto que nasceu vermelho e está verde desde a camada do
+ * #355 A tela Ao vivo (/pagar/ao-vivo) contra o wireframe aprovado: o esqueleto que nasceu vermelho e está verde desde a camada do // ADR-004
  * contrato. Roda a tela inteira pelo Frame, como o usuário a abre, com o fetch simulado. Os textos entre aspas são literais do
- * wireframe, de propósito: o teste não lê `texts.aoVivo`, e assim pega a troca de um texto da tela.
+ * wireframe, de propósito: o teste não lê `texts.live`, e assim pega a troca de um texto da tela.
  */
 
 const KEY = (n: number) => `3526110000000000000055001000${String(n).padStart(8, "0")}1000`;
@@ -40,7 +40,7 @@ const proposal = (key: string) => ({
 
 type Reply = { status?: number; body: unknown };
 
-/** #355 O servidor simulado: cada pedido a `/api/ao-vivo` pega a próxima resposta da fila; a última se repete. */
+/** #355 O servidor simulado: cada pedido a `/api/live` pega a próxima resposta da fila; a última se repete. */
 function serve(replies: Reply[]) {
   const live: URL[] = [];
   const proposals: string[] = [];
@@ -48,7 +48,7 @@ function serve(replies: Reply[]) {
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
       const url = new URL(String(input), "http://web.test");
-      if (url.pathname === "/api/ao-vivo") {
+      if (url.pathname === "/api/live") {
         const reply = replies[Math.min(live.length, replies.length - 1)]!;
         live.push(url);
         return Response.json(reply.body, { status: reply.status ?? 200 });
@@ -66,7 +66,7 @@ function serve(replies: Reply[]) {
 }
 
 const open = () => {
-  window.history.replaceState(null, "", "/pagar/ao-vivo");
+  window.history.replaceState(null, "", "/pagar/ao-vivo"); // ADR-004
   return render(<Frame context={fallbackContext("coordenacao@jachegou.test")} />);
 };
 const rows = () => Array.from(document.querySelectorAll<HTMLElement>("tbody tr"));
@@ -80,7 +80,7 @@ afterEach(() => {
 });
 
 describe("#355 Ao vivo: a tela vista pela rota", () => {
-  it("#355/AC-3: abre em /pagar/ao-vivo com o título e os dois números que a API entregou, sem recalcular", async () => {
+  it("#355/AC-3: abre em /pagar/ao-vivo com o título e os dois números que a API entregou, sem recalcular", async () => { // ADR-004
     const { live } = serve([{ body: FIRST }]);
     open();
     expect(await screen.findByRole("heading", { name: "Ao vivo" })).toBeTruthy();
@@ -142,7 +142,7 @@ describe("#355 Ao vivo: a tela vista pela rota", () => {
     expect(screen.getByText("75%")).toBeTruthy();
     expect(screen.getByText("5")).toBeTruthy();
     // #355 A página não foi recarregada: o título nunca saiu da tela e a rota é a mesma.
-    expect(window.location.pathname).toBe("/pagar/ao-vivo");
+    expect(window.location.pathname).toBe("/pagar/ao-vivo"); // ADR-004
     // #355 Sem passo novo: a lista fica como está e o cursor segue o último devolvido.
     await poll(10_000);
     expect(live.length).toBeGreaterThanOrEqual(3);
@@ -207,7 +207,7 @@ describe("#355 Ao vivo: a tela vista pela rota", () => {
     let release: (() => void) | undefined;
     // #355 Só o pedido do ao vivo fica pendurado; a faixa de automação e o resto não o soltam nem o prendem.
     vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => new Promise<Response>((resolve) => {
-      if (new URL(String(input), "http://web.test").pathname === "/api/ao-vivo") release = () => resolve(Response.json(FIRST));
+      if (new URL(String(input), "http://web.test").pathname === "/api/live") release = () => resolve(Response.json(FIRST));
       else resolve(Response.json({ error: "not_found" }, { status: 404 }));
     })));
     open();
@@ -225,7 +225,7 @@ describe("#355 Ao vivo: a tela vista pela rota", () => {
     const item = await within(document.querySelector("aside")!).findByText("Ao vivo");
     fireEvent.click(item);
     expect(await screen.findByRole("heading", { name: "Ao vivo" })).toBeTruthy();
-    expect(window.location.pathname).toBe("/pagar/ao-vivo");
+    expect(window.location.pathname).toBe("/pagar/ao-vivo"); // ADR-004
     await waitFor(() => expect(rows()).toHaveLength(4));
   });
 });

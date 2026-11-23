@@ -1,4 +1,4 @@
-// #355 O ao vivo no fio: a resposta de `GET /api/ao-vivo` (#354), lida na borda. A tela só recebe o que passou por `parseLive`.
+// #355 O ao vivo no fio: a resposta de `GET /api/live` (#354), lida na borda. A tela só recebe o que passou por `parseLive`.
 import { ApiError, apiGet } from "./client";
 
 export type LiveActor = "system" | "rule" | "claude" | "engine" | "person";
@@ -54,7 +54,7 @@ export interface LiveBody {
 }
 
 /** #354 O corpo não tem a forma do contrato. Sem texto do corpo: a tela mostra só a mensagem dela. */
-const malformed = (): ApiError => new ApiError(0, "corpo_inesperado", "a API respondeu fora do contrato");
+const malformed = (): ApiError => new ApiError(0, null, "a API respondeu fora do contrato");
 
 type Dict = Record<string, unknown>;
 const isDict = (v: unknown): v is Dict => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -104,6 +104,6 @@ export const liveApi = {
   /** #354 `since` é o cursor devolvido, no pedido sem mexer; sem ele, a API traz os últimos passos. */
   load: async (since: string | null, signal: AbortSignal): Promise<LiveBody> => {
     const query = since === null ? "" : `?since=${encodeURIComponent(since)}`;
-    return parseLive(await apiGet<unknown>(`/api/ao-vivo${query}`, { signal }));
+    return parseLive(await apiGet<unknown>(`/api/live${query}`, { signal }));
   },
 };
