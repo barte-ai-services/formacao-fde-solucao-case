@@ -11,11 +11,12 @@
  *    a automação parada até a migração entrar, e soltar a trava que não existe não gasta requisição;
  *  - adiados: sem a coluna, nada adiado (a ordem de hoje);
  *  - gravação: sem as colunas, refaz uma vez só com as de antes (como recordRun, #311).
- * Escrever o modo sem a tabela falha: ligar o modo que não foi gravado seria mentir a quem pediu.
+ * Escrever o modo sem a tabela falha: ligar o modo que não foi gravado seria mentir a quem pediu. A escrita são duas requisições (a leitura da
+ * versão e o PATCH condicionado a ela), fora da rodada; a leitura do modo da rodada segue uma.
  *
  * O que sai daqui: o log leva só o nome do objeto que falta e a decisão tomada, nunca o texto nem o corpo do erro do PostgREST.
  */
-import { arrayOf, isBoolean, isString, nullable, parseOne, parseRows, shaped, type Shape } from '../connectors/guards.js';
+import { arrayOf, isBoolean, isInteger, isRecord, isString, nullable, parseOne, parseRows, shaped, type Shape } from '../connectors/guards.js';
 import { isMissingSchema, SupabaseRestError, type SupabaseRest } from '../connectors/supabase-rest.js';
 import type { DemoModeState, RoundPorts, RoundRecord } from './round.js';
 import { runRow } from './runs.js';
@@ -29,10 +30,23 @@ export type RoundStoreConfig = {
   readonly log: (line: string) => void;
 };
 
+/**
+ * #356 AC-2 A troca de modo que não gravou: `conflict` (a versão lida andou, ou nenhuma linha passou no filtro) ou `missing` (a migração
+ * semeia a linha; sem ela não há o que condicionar). A camada API mapeia `conflict` para 409. Só a razão: nunca o e-mail nem o history.
+ */
+export class DemoModeWriteError extends Error {
+  constructor(readonly reason: 'conflict' | 'missing') {
+    super(`demo-mode: a troca de modo não foi gravada (${reason})`);
+    this.name = 'DemoModeWriteError';
+  }
+}
+
 type ModeRow = { enabled: boolean; changed_at: string | null };
+type ModeVersionRow = { version: number; history: Record<string, unknown>[] };
 type DeferredRow = { deferred_steps: string[] };
 
 const isModeRow = shaped<ModeRow>({ enabled: isBoolean, changed_at: nullable(isString) } satisfies Shape<ModeRow>);
+const isModeVersionRow = shaped<ModeVersionRow>({ version: isInteger, history: arrayOf(isRecord) } satisfies Shape<ModeVersionRow>);
 const isDeferredRow = shaped<DeferredRow>({ deferred_steps: arrayOf(isString) } satisfies Shape<DeferredRow>);
 
 /** #356 AC-3 O rpc devolve verdadeiro ou falso; qualquer outra coisa é resposta fora do formato. */
@@ -59,11 +73,25 @@ export function supabaseRoundStore(config: RoundStoreConfig): Pick<RoundPorts, '
       }
     },
     async write(change): Promise<void> {
-      await rest.upsert(
+      // #356 AC-2 Lê a versão e grava por PATCH filtrado por ela: a escrita sobre o estado velho não pega linha e é recusada.
+      const rows = parseRows(
+        await rest.select('demo_settings', { select: 'version,history', filters: { id: 'eq.true' }, limit: 1 }),
+        isModeVersionRow,
         'demo_settings',
-        [{ id: true, enabled: change.enabled, changed_by: change.changedBy, changed_at: change.changedAt.toISOString() }],
-        'id',
       );
+      const current = rows[0];
+      if (current === undefined) throw new DemoModeWriteError('missing');
+      const version = current.version + 1;
+      const at = change.changedAt.toISOString();
+      const updated = await rest.update(
+        'demo_settings',
+        { id: 'eq.true', version: `eq.${current.version}` },
+        {
+          enabled: change.enabled, changed_by: change.changedBy, changed_at: at, version,
+          history: [...current.history, { version, at, by: change.changedBy, enabled: change.enabled }],
+        },
+      );
+      if (updated.length === 0) throw new DemoModeWriteError('conflict');
     },
   };
 

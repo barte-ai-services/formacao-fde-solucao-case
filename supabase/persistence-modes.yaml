@@ -19,7 +19,7 @@
 # #156 acrescenta: declara as tabelas que a camada de persistência da devolução lê ou grava e
 # toda a base do kit. #311 declara dossier_requests (ver a entrada em tables). Ainda sem modo declarado, a declarar pelo dono de cada uma: titles,
 # outbox_dock_actions, outbox_registry_corrections, outbox_store_actions, claude_suggestions,
-# exceptions, automation_runs, engine_decisions e engine_settings (#251).
+# exceptions, engine_decisions e engine_settings (#251). #356 declara automation_runs, demo_settings e automation_lock.
 
 database: postgresql 17          # supabase/config.toml, [db] major_version = 17
 migrations: supabase/migrations  # migrações do Supabase CLI, YYYYMMDDHHMMSS_nome.sql
@@ -242,13 +242,15 @@ tables:
   # O modo demonstração (#356): a configuração que liga o ritmo de 1 minuto da rodada, mudada no banco sem deploy.
   demo_settings:
     mode: upsert-with-history
-    history: none
-    # #356 Uma linha só (id é o booleano true, com check); a escrita é um upsert pela chave. O que se guarda é o valor de hoje, quem
-    # #356 mudou (e-mail do Access, nulo no service token) e quando; a troca anterior não fica registrada.
-    gap: nenhum histórico das trocas de modo; a decisão de guardá-lo é de quem opera a demonstração
+    history: json-column
+    history_column: history      # jsonb, lista de {version, at, by, enabled}; uma entrada por troca de modo
+    version_column: version
+    # #356 Uma linha só (id é o booleano true, com check), semeada pela migração. A troca é lida e gravada por PATCH filtrado em
+    # #356 id=eq.true&version=eq.<lida>, que sobe a versão e acrescenta a entrada ao history no mesmo PATCH (a disciplina da #156); o
+    # #356 PATCH que não toca linha é recusado (DemoModeWriteError, `conflict`, 409 na camada API) e a linha ausente é erro, não recriação.
     tenant: none
     deletion: none
-    erasure: not stated          # changed_by é o e-mail de um administrador; sem caminho de apagamento registrado
+    erasure: not stated          # changed_by e o `by` do history são o e-mail de um administrador; só no banco, nunca em resposta nem em log; sem caminho de apagamento registrado
     # RLS ligado e sem política (20261123100000_modo_demonstracao.sql): só a chave secreta do Worker lê e grava.
 
   # A trava da rodada (#356): uma linha com o dono e a validade, tomada e solta por função numa requisição.
@@ -260,6 +262,18 @@ tables:
       estava tomada fica em automation_runs (status skipped), não aqui.
     growth: fixed                # uma linha, para sempre
     # RLS ligado e sem política; as funções só rodam para service_role (20261123100000_modo_demonstracao.sql).
+
+  # A rodada da automação (#311, #356): uma linha por rodada, nunca alterada. Colunas novas da #356 em 20261123100000_modo_demonstracao.sql.
+  automation_runs:
+    mode: append-only
+    history: none
+    # #356 Cada rodada é um fato: ok, failed ou skipped (a trava estava tomada), com a origem (cron | manual; as linhas antigas são do
+    # #356 Cron), se o modo demonstração estava ligado (demo_enabled) e os passos adiados à seguinte (deferred_steps, nomes fixos, nunca
+    # #356 mensagem de erro). A migração só acrescenta colunas; nenhum índice novo (a leitura das puladas, status=eq.skipped por
+    # #356 started_at desc com limite, não pede um numa tabela pequena).
+    projection: none             # as listas do painel leem as linhas direto (listRuns, listSkippedRuns)
+    deletion: none
+    erasure: not stated          # sem dado pessoal: contagens, status e nomes fixos de passo
 
   # Base do kit (#52, ADR-001): espelho dos JSON de data/kit/, que é a fonte versionada.
   kit_fornecedores: &kit   # #156: ganha a coluna email (migração da #156); o modo é o da #156

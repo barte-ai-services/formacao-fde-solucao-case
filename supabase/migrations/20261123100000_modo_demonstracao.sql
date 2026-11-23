@@ -5,11 +5,15 @@
 
 -- #356 AC-1 O modo demonstração: UMA linha (a chave é o booleano `true` e o check impede outra). Ligado, a rodada roda todo minuto;
 -- #356 AC-1 desligado, de 15 em 15. Muda no banco, sem deploy. changed_by é o e-mail do Access de quem mudou (nulo no service token).
+-- #356 AC-2 version e history: cada troca sobe a versão e acrescenta {version, at, by, enabled} ao history, num PATCH filtrado pela versão
+-- #356 AC-2 lida (como outbox_supplier_emails): a escrita sobre estado velho não pega linha. O history guarda o e-mail só no banco (RLS sem política).
 create table public.demo_settings (
   id boolean primary key default true,
   enabled boolean not null default false,
   changed_by text,
   changed_at timestamptz not null default now(),
+  version integer not null default 1,
+  history jsonb not null default '[]',
   constraint demo_settings_single_row check (id)
 );
 alter table public.demo_settings enable row level security;
@@ -77,6 +81,3 @@ alter table public.automation_runs
   add constraint automation_runs_origin_check check (origin in ('cron', 'manual')),
   add column demo_enabled boolean not null default false,
   add column deferred_steps text[] not null default '{}';
-
--- #356 AC-5 A lista das rodadas puladas (GET /api/automacao) lê só o status skipped, da mais nova à mais velha.
-create index automation_runs_skipped_idx on public.automation_runs (started_at desc) where status = 'skipped';

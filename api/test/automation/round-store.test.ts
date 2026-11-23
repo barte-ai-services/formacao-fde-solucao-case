@@ -62,19 +62,93 @@ describe('#356/AC-1 o modo na leitura', () => { // ADR-002
 });
 
 describe('#356/AC-2 o modo na escrita', () => { // ADR-002
-  it('grava o modo, quem mudou e quando, pela linha única, numa requisição', async () => {
-    const { store, calls } = storeOf();
-    await store.mode.write({ enabled: true, changedBy: 'ana@exemplo.test', changedAt: new Date('2026-11-23T10:00:00Z') });
+  const CHANGE = { enabled: true, changedBy: 'ana@exemplo.test', changedAt: new Date('2026-11-23T10:00:00Z') };
+  const SEED = { id: true, enabled: false, changed_by: null, changed_at: '2026-11-23T09:00:00+00:00', version: 3, history: [{ version: 3, at: '2026-11-23T09:00:00.000Z', by: null, enabled: false }] };
+  const readThenPatch = (patched: unknown[] = [{ id: true }]) => (call: Call): Reply => ({ body: call.method === 'GET' ? [{ version: 3, history: SEED.history }] : patched });
+
+  it('lê a versão e grava por PATCH filtrado por ela: uma leitura e uma gravação, sem upsert', async () => {
+    const { store, calls } = storeOf(readThenPatch());
+    await store.mode.write(CHANGE);
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toMatchObject({ method: 'GET', table: 'demo_settings' });
+    expect(calls[0]?.params.get('select')).toBe('version,history');
+    expect(calls[1]).toMatchObject({ method: 'PATCH', table: 'demo_settings' });
+    expect(calls[1]?.params.get('id')).toBe('eq.true');
+    expect(calls[1]?.params.get('version')).toBe('eq.3');
+    expect(calls.some((c) => c.prefer.includes('merge-duplicates'))).toBe(false);
+  });
+
+  it('sobe a versão e acrescenta ao history {version, at, by, enabled}, sem apagar as entradas anteriores', async () => {
+    const { store, calls } = storeOf(readThenPatch());
+    await store.mode.write(CHANGE);
+    expect(calls[1]?.body).toEqual({
+      enabled: true, changed_by: 'ana@exemplo.test', changed_at: '2026-11-23T10:00:00.000Z', version: 4,
+      history: [...SEED.history, { version: 4, at: '2026-11-23T10:00:00.000Z', by: 'ana@exemplo.test', enabled: true }],
+    });
+  });
+
+  it('o service token (sem e-mail) grava o by nulo', async () => {
+    const { store, calls } = storeOf(readThenPatch());
+    await store.mode.write({ ...CHANGE, changedBy: null });
+    expect((calls[1]?.body as { history: { by: unknown }[] }).history.at(-1)?.by).toBeNull();
+  });
+
+  it('o PATCH que não tocou linha (a versão andou) é recusado com o erro tipado de conflito', async () => {
+    const { store } = storeOf(readThenPatch([]));
+    await expect(store.mode.write(CHANGE)).rejects.toMatchObject({ name: 'DemoModeWriteError', reason: 'conflict' });
+  });
+
+  it('sem a linha (a migração semeia uma) é erro tipado, não recriação sem a condição', async () => {
+    const { store, calls } = storeOf(() => ({ body: [] }));
+    await expect(store.mode.write(CHANGE)).rejects.toMatchObject({ name: 'DemoModeWriteError', reason: 'missing' });
     expect(calls).toHaveLength(1);
-    expect(calls[0]).toMatchObject({ method: 'POST', table: 'demo_settings' });
-    expect(calls[0]?.params.get('on_conflict')).toBe('id');
-    expect(calls[0]?.prefer).toContain('resolution=merge-duplicates');
-    expect(calls[0]?.body).toEqual([{ id: true, enabled: true, changed_by: 'ana@exemplo.test', changed_at: '2026-11-23T10:00:00.000Z' }]);
+  });
+
+  it('o erro não leva o e-mail de quem mudou nem o history', async () => {
+    const { store } = storeOf(readThenPatch([]));
+    const error = await store.mode.write(CHANGE).catch((e: unknown) => e);
+    expect(String((error as Error).message)).not.toContain('ana@exemplo.test');
+    expect(JSON.stringify(error)).not.toContain('ana@exemplo.test');
+  });
+
+  it('o history fora do formato é erro de leitura, não uma gravação por cima', async () => {
+    const { store, calls } = storeOf(() => ({ body: [{ version: 3, history: 'nada' }] }));
+    await expect(store.mode.write(CHANGE)).rejects.toMatchObject({ operation: 'parse' });
+    expect(calls).toHaveLength(1);
   });
 
   it('sem a tabela a escrita falha: não se finge ter ligado o modo', async () => { // ADR-002
     const { store } = storeOf(() => ({ status: 404, body: NO_TABLE }));
     await expect(store.mode.write({ enabled: true, changedBy: null, changedAt: new Date() })).rejects.toMatchObject({ status: 404 });
+  });
+
+  describe('contra o banco falso', () => { // ADR-002
+    const make = () => {
+      const fake = new FakePostgrest({ demo_settings: [{ ...SEED }] });
+      const rest = new SupabaseRest({ url: 'https://fake.supabase.co', secretKey: 'sb_secret_fake', fetch: fake.fetch });
+      return { fake, store: supabaseRoundStore({ rest, finish: rest, log: () => {} }) };
+    };
+
+    it('duas escritas sobre a mesma versão: a primeira grava, a segunda é conflito e não sobrescreve', async () => {
+      const { fake, store } = make();
+      const first = store.mode.write(CHANGE);
+      const second = store.mode.write({ ...CHANGE, enabled: false, changedBy: 'bia@exemplo.test' });
+      const results = await Promise.allSettled([first, second]);
+      expect(results.map((r) => r.status).sort()).toEqual(['fulfilled', 'rejected']);
+      const row = fake.rows('demo_settings')[0] as { version: number; history: unknown[] };
+      expect(row.version).toBe(4);
+      expect(row.history).toHaveLength(2);
+    });
+
+    it('escritas em sequência andam a versão e guardam cada troca no history', async () => {
+      const { fake, store } = make();
+      await store.mode.write(CHANGE);
+      await store.mode.write({ ...CHANGE, enabled: false, changedAt: new Date('2026-11-23T11:00:00Z') });
+      const row = fake.rows('demo_settings')[0] as { version: number; enabled: boolean; history: { version: number }[] };
+      expect(row.version).toBe(5);
+      expect(row.enabled).toBe(false);
+      expect(row.history.map((h) => h.version)).toEqual([3, 4, 5]);
+    });
   });
 });
 

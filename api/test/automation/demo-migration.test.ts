@@ -66,8 +66,14 @@ describe('#356 migração do modo demonstração', () => { // ADR-002
     expect(sql).toMatch(/add column deferred_steps text\[\] not null default '\{\}'/);
   });
 
-  it('a leitura das puladas tem índice parcial próprio', () => { // ADR-002
-    expect(sql).toMatch(/create index automation_runs_skipped_idx on public\.automation_runs \(started_at desc\) where status = 'skipped'/);
+  it('não cria índice: a tabela é pequena e a leitura das puladas não pede um (IDX-4, sem exceção a registrar)', () => { // ADR-002
+    expect(sql).not.toMatch(/create (unique )?index/);
+    expect(raw).not.toContain('automation_runs_skipped_idx');
+  });
+
+  it('#356/AC-2 demo_settings guarda a versão e o history das trocas, para o PATCH condicionado', () => { // ADR-002
+    expect(sql).toMatch(/version integer not null default 1/);
+    expect(sql).toMatch(/history jsonb not null default '\[\]'/);
   });
 
   it('não toca em failed_steps nem em subrequests (migração 20261122130000)', () => { // ADR-002
