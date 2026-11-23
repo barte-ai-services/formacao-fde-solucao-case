@@ -7,6 +7,7 @@ import {
   isString,
   nullable,
   oneOf,
+  optional,
   parseRows,
   shaped,
   type Guard,
@@ -32,6 +33,7 @@ import {
 type SettingsRow = {
   level: string;
   delegation_enabled: boolean;
+  delegation_before_demo?: boolean | null;
   confidence_threshold: number | string;
   clef_timeout_ms: number;
 };
@@ -43,6 +45,7 @@ const isNumeric: Guard<number | string> = (v): v is number | string =>
 const isSettingsRow = shaped<SettingsRow>({
   level: isString,
   delegation_enabled: isBoolean,
+  delegation_before_demo: optional(nullable(isBoolean)),
   confidence_threshold: isNumeric,
   clef_timeout_ms: isInteger,
 } satisfies Shape<SettingsRow>);
@@ -157,9 +160,18 @@ export class SupabaseEngineStore implements EngineStore, EngineReader {
     return {
       level: row.level,
       delegationEnabled: row.delegation_enabled,
+      delegationBeforeDemo: row.delegation_before_demo ?? null,
       confidenceThreshold: Number(row.confidence_threshold),
       clefTimeoutMs: row.clef_timeout_ms,
     };
+  }
+
+  async setDelegation(level: string, delegationEnabled: boolean, beforeDemo: boolean | null): Promise<void> {
+    await this.rest.update(
+      'engine_settings',
+      { level: `eq.${level}` },
+      { delegation_enabled: delegationEnabled, delegation_before_demo: beforeDemo, updated_at: new Date().toISOString() },
+    );
   }
 
   /**

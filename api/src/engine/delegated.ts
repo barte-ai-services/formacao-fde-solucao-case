@@ -51,6 +51,11 @@ export type DelegatedDeps = Omit<ShadowDeps, 'approvals'> & {
   readonly today: () => string;
   /** #42 Teto de propostas decididas na rodada delegada; padrão `DELEGATED_ROUND_LIMIT`. */
   readonly decisionLimit?: number;
+  /**
+   * #351 O modo demonstração (demo_settings.enabled, #348), lido pela rodada. Ligado, a delegação do analista liga;
+   * desligado, volta ao valor de antes. Ausente, nada muda. Se a leitura falha, a delegação fica como está.
+   */
+  readonly demoMode?: () => Promise<boolean>;
 };
 
 /** #42 A rodada do Cron: a sombra com a delegação desligada, a delegada com ela ligada. */
@@ -75,9 +80,39 @@ const errorName = (error: unknown): string => {
  * delegação e a sombra volta a gravar.
  */
 export async function runEngineRound(deps: DelegatedDeps): Promise<EngineRound> {
-  const settings = await deps.store.settings(DELEGATED_LEVEL);
+  const settings = await followDemoMode(deps, await deps.store.settings(DELEGATED_LEVEL));
   if (!settings.delegationEnabled) return { mode: 'shadow', ...(await runShadowRound(deps)) };
   return { mode: 'delegated', ...(await runDelegatedRound(deps, settings)) };
+}
+
+/**
+ * #351 A delegação do analista segue o modo demonstração. Ligado: liga e guarda o valor de antes (uma vez). Desligado:
+ * devolve esse valor e limpa o guardado. A régua não muda: o motor só aprova o que `screen` deixa passar (E4 do
+ * analista), então diretoria e bloqueio continuam com a pessoa. Escreve só quando o modo muda (uma chamada).
+ */
+async function followDemoMode(deps: DelegatedDeps, settings: EngineSettings): Promise<EngineSettings> {
+  if (!deps.demoMode) return settings;
+  let demo: boolean;
+  try {
+    demo = await deps.demoMode();
+  } catch (error) {
+    // #351 Falha fechada: sem o modo, a rodada nunca amplia a delegação; com o modo já ligado antes, vale o valor de antes.
+    const before = settings.delegationBeforeDemo ?? null;
+    console.log(`cron: modo demonstração ilegível (${errorName(error)}); delegação do analista mantida em ${before ?? settings.delegationEnabled}`);
+    return before === null ? settings : { ...settings, delegationEnabled: before };
+  }
+  const before = settings.delegationBeforeDemo ?? null;
+  if (demo && before === null) {
+    await deps.store.setDelegation(settings.level, true, settings.delegationEnabled);
+    console.log(`cron: modo demonstração ligou a delegação do analista (antes: ${settings.delegationEnabled})`);
+    return { ...settings, delegationEnabled: true, delegationBeforeDemo: settings.delegationEnabled };
+  }
+  if (!demo && before !== null) {
+    await deps.store.setDelegation(settings.level, before, null);
+    console.log(`cron: modo demonstração devolveu a delegação do analista a ${before}`);
+    return { ...settings, delegationEnabled: before, delegationBeforeDemo: null };
+  }
+  return settings;
 }
 
 /**

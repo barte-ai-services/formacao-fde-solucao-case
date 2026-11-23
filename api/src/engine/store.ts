@@ -51,6 +51,11 @@ export type ProposalOutcomeRow = {
 export interface EngineStore {
   /** #41 A configuração do nível; sem linha, os padrões da migração. */
   settings(level: string): Promise<EngineSettings>;
+  /**
+   * #351 Grava a delegação do nível e o valor de antes do modo demonstração (nulo com o modo desligado). Uma
+   * escrita só, e só quando o modo muda.
+   */
+  setDelegation(level: string, delegationEnabled: boolean, beforeDemo: boolean | null): Promise<void>;
   /** #41 O que já foi avaliado neste modo, para a rodada não reavaliar (idempotência). */
   evaluated(mode: EngineMode, clefVersion: string): Promise<Evaluated>;
   /**
@@ -111,6 +116,11 @@ export class MemoryEngineStore implements EngineStore, EngineReader {
 
   async settings(level: string): Promise<EngineSettings> {
     return this.levels.get(level) ?? { ...DEFAULT_ANALYST_SETTINGS, level };
+  }
+
+  async setDelegation(level: string, delegationEnabled: boolean, beforeDemo: boolean | null): Promise<void> {
+    const current = await this.settings(level);
+    this.levels.set(level, { ...current, delegationEnabled, delegationBeforeDemo: beforeDemo });
   }
 
   async evaluated(mode: EngineMode, clefVersion: string): Promise<Evaluated> {

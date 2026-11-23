@@ -106,10 +106,21 @@ async function executeRound(
   const rest = new SupabaseRest({ url, secretKey, fetch: meter.fetch, ...(window ? { timeoutMs: window.supabaseTimeoutMs } : {}) });
   const finish = new SupabaseRest({ url, secretKey, fetch: meter.reservedFetch, ...(window ? { timeoutMs: window.finishTimeoutMs } : {}) });
   const log = (line: string): void => console.log(line);
-  const work = supabaseRoundWork(rest, meter.env, meter.fetch, window ? { claudeTimeoutMs: window.claudeTimeoutMs, clefTimeoutCapMs: window.clefTimeoutMs } : {});
+  // #351 O modo que a rodada já leu (ports.mode.read) segue para o motor: nenhuma requisição a mais. Sem leitura, falha fechada.
+  let demoEnabled: boolean | undefined;
+  const demoMode = async (): Promise<boolean> => {
+    if (demoEnabled === undefined) throw new Error("modo não lido");
+    return demoEnabled;
+  };
+  const work = supabaseRoundWork(rest, meter.env, meter.fetch, { demoMode, ...(window ? { claudeTimeoutMs: window.claudeTimeoutMs, clefTimeoutCapMs: window.clefTimeoutMs } : {}) });
+  const store = supabaseRoundStore({ rest, finish, log });
   const ports: RoundPorts = {
-    ...supabaseRoundStore({ rest, finish, log }),
-    buildRound: (demoEnabled) => buildRoundSteps(work, Date.now, window?.claudeDeadlineMs, demoEnabled),
+    ...store,
+    // #351 buildRound roda depois da leitura do modo da rodada: guarda o valor para o passo do motor (nenhuma requisição a mais).
+    buildRound: (enabled) => {
+      demoEnabled = enabled;
+      return buildRoundSteps(work, Date.now, window?.claudeDeadlineMs, enabled);
+    },
     spent: meter.spent,
     refused: meter.refused,
     ...(window ? { timeUp: meter.expired } : {}),
