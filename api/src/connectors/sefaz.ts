@@ -8,21 +8,21 @@ export class SefazConnector implements SefazPort {
   constructor(private readonly rest: SupabaseRest) {}
 
   /** #362 A mesma leitura das notas de listIssuedInvoices, para a rodada que lê as duas pagar a das notas uma vez só. */
-  private readNotas(): Promise<KitNota[]> {
+  private readInvoiceRows(): Promise<KitNota[]> {
     return readRows(this.rest, 'kit_notas', isKitNotaRow, { order: 'chave' });
   }
 
   async listIssuedKeys(): Promise<string[]> {
-    return (await this.readNotas()).map((n) => n.chave);
+    return (await this.readInvoiceRows()).map((n) => n.chave);
   }
 
   async listIssuedInvoices(): Promise<Invoice[]> {
-    const [notas, itens] = await Promise.all([
-      this.readNotas(),
+    const [invoiceRows, itens] = await Promise.all([
+      this.readInvoiceRows(),
       readRows(this.rest, 'kit_nota_itens', isKitNotaItemRow, { order: 'chave,codigo_fornecedor' }),
     ]);
     const itemsByKey = groupBy(itens, (i) => i.chave);
-    return notas.map((n) =>
+    return invoiceRows.map((n) =>
       Invoice.receive({
         accessKey: n.chave,
         number: String(n.numero),

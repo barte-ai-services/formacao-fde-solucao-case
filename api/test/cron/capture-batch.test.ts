@@ -22,13 +22,13 @@ const copyKey = (key: string, n: number) => `${key.slice(0, -4)}${String(1000 + 
 /** #362 As notas do kit (80) e, acima disso, cópias delas com chave nova e os mesmos itens: `count` notas na SEFAZ. */
 function sefazWith(count: number): Record<string, Row[]> {
   const tables = kitTables();
-  const notas = tables.kit_notas ?? [];
+  const invoiceRows = tables.kit_notas ?? [];
   const itens = tables.kit_nota_itens ?? [];
-  for (let n = 0; notas.length < count; n += 1) {
-    const original = notas[n % 80];
+  for (let n = 0; invoiceRows.length < count; n += 1) {
+    const original = invoiceRows[n % 80];
     if (!original) throw new Error('o kit não tem notas');
     const key = copyKey(String(original.chave), n);
-    notas.push({ ...original, chave: key });
+    invoiceRows.push({ ...original, chave: key });
     for (const item of itens.filter((i) => i.chave === original.chave)) itens.push({ ...item, chave: key });
   }
   return tables;
@@ -114,7 +114,7 @@ describe('#362/AC-3 notas novas ou a conferir: só elas são gravadas, conferida
     const fake = withThreeNew();
     const { spent } = await captureOnly(fake);
     const posts = fake.requests.filter((r) => r.method === 'POST' && r.url.includes('/invoices'));
-    expect(posts.flatMap((p) => p.body as Row[]).map((r) => r.access_key)).toHaveLength(6); // 3 gravadas e 3 conferidas, nenhuma das 77
+    expect(posts.flatMap((p) => p.body as Row[]).map((r) => r.access_key)).toHaveLength(6); // #362 AC-3 3 gravadas e 3 conferidas, nenhuma das 77
     expect(new Set(posts.flatMap((p) => p.body as Row[]).map((r) => r.access_key)).size).toBe(3);
     expect(fake.rows('invoices').filter((r) => r.state === 'conferida')).toHaveLength(3);
     expect(spent).toBeLessThanOrEqual(18);
@@ -138,7 +138,7 @@ describe('#362/AC-3 notas novas ou a conferir: só elas são gravadas, conferida
     expect(gone).toBe(77);
     await captureOnly(partial);
     const classOf = (fake: FakePostgrest, key: unknown) => fake.rows('invoices').find((r) => r.access_key === key)?.classification;
-    for (const nota of (partial.rows('kit_notas') ?? []).slice(-3)) expect(classOf(partial, nota.chave)).toBe(classOf(all, nota.chave));
+    for (const invoiceRow of (partial.rows('kit_notas') ?? []).slice(-3)) expect(classOf(partial, invoiceRow.chave)).toBe(classOf(all, invoiceRow.chave));
     expect(partial.rows('divergences').length).toBeLessThanOrEqual(all.rows('divergences').length);
   });
 });
