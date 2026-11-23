@@ -20,12 +20,16 @@
   "triggers": {
     // Três crons, cada um com o próprio teto de 50 subrequests do plano gratuito (#333, #311); o `scheduled` despacha pelo
     // `controller.cron` (src/cron/schedule.ts, que repete estas expressões, e um teste confere).
-    // 1. A cada 15 minutos: a captura, as publicações, a varredura do prazo, a rodada do Claude (sem o auditor) e o motor.
-    // 2. Nos minutos 7, 22, 37 e 52, deslocado do primeiro: só o auditor de notas, 1 nota por invocação.
-    // 3. Nos minutos 11, 26, 41 e 56, deslocado dos dois: só o dossiê das propostas que esperam uma pessoa (#311), até 5 por
-    //    invocação. Ele saiu do primeiro porque o tick de 15 minutos já passa dos 50 subrequests antes de chegar nele.
+    // 1. Todo minuto (#356): o tick. Quem decide se a rodada roda é o modo demonstração: ligado, roda todo minuto; desligado, só nos
+    //    minutos múltiplos de 15 (UTC), e nos outros sai depois de ler o modo, sem gravar linha. A rodada é a captura, as publicações,
+    //    a varredura do prazo, a rodada do Claude (sem o auditor) e o motor, em passos orçados em 50 subrequests.
+    // 2. Nos minutos 7, 22, 37 e 52: só o auditor de notas, 1 nota por invocação.
+    // 3. Nos minutos 11, 26, 41 e 56: só o dossiê das propostas que esperam uma pessoa (#311), até 5 por invocação. Ele saiu do tick
+    //    porque a rodada de 15 minutos já passava dos 50 subrequests antes de chegar nele.
+    // Nos minutos 7, 11, 22, 26... o tick de minuto e o cron do auditor ou do dossiê disparam juntos, em invocações separadas, cada uma
+    // com o próprio teto e despachada só ao seu handler.
     // O plano gratuito permite 5 cron triggers por conta (docs da Cloudflare): este Worker usa 3; outros Workers da conta não foram conferidos.
-    "crons": ["*/15 * * * *", "7-59/15 * * * *", "11-59/15 * * * *"]
+    "crons": ["* * * * *", "7-59/15 * * * *", "11-59/15 * * * *"]
   }
   // Segredos (BARTE_ACADEMY_*) não ficam aqui: em produção, `wrangler secret put`;
   // localmente, no `.dev.vars`, que o git ignora.

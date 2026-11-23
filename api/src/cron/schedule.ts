@@ -1,38 +1,43 @@
 // #333 O despacho do `scheduled` pelo `controller.cron`: o Worker tem três cron triggers (api/wrangler.jsonc), cada um com o próprio teto de 50 subrequests (#311 o terceiro é o do dossiê).
+// #356 O primeiro é o de minuto: a rodada decide pelo modo demonstração se roda naquele minuto (cron/tick.ts, automation/rhythm.ts).
 import { runAuditRound } from "../claude/cron";
 import { supabaseConnectors } from "../connectors/supabase-connectors";
 import { SupabaseRest } from "../connectors/supabase-rest";
 import type { Env } from "../env";
 import { dispatchDossiers } from "./dossier-round";
 import { countSubrequests, subrequestsLine } from "./subrequests";
-import { tick, type TickSummary } from "./tick";
+import { tick, type TickController, type TickSummary } from "./tick";
 
-/** #333 O cron de 15 minutos: a captura, as publicações, a varredura do prazo, a rodada do Claude sem o auditor e o motor (tick; #311 sem o dossiê). Igual ao de api/wrangler.jsonc. */
-export const CLAUDE_CRON = "*/15 * * * *";
+/**
+ * #356 O cron do tick: dispara TODO minuto; quem decide se a rodada roda é o modo demonstração (ligado, todo minuto; desligado, só nos
+ * minutos múltiplos de 15 de `scheduledTime`, UTC). A rodada é a captura, as publicações, a varredura do prazo, a rodada do Claude sem o
+ * auditor e o motor, em passos orçados (tick; #311 sem o dossiê). Igual ao de api/wrangler.jsonc.
+ */
+export const TICK_CRON = "* * * * *";
 
-/** #333 O cron do auditor: deslocado do de 15 minutos (minutos 7, 22, 37 e 52), para as duas invocações não coincidirem. Igual ao de api/wrangler.jsonc. */
+/** #333 O cron do auditor: deslocado dos minutos cheios da rodada de 15 em 15 (minutos 7, 22, 37 e 52). #356 Com o tick de minuto os três coincidem nesses minutos, em invocações separadas, cada uma com o próprio teto de 50 e despachada só ao seu handler. Igual ao de api/wrangler.jsonc. */
 export const AUDIT_CRON = "7-59/15 * * * *";
 
 /**
- * #311 O cron do dossiê: deslocado dos outros dois (minutos 11, 26, 41 e 56), para as três invocações não coincidirem. Igual ao de api/wrangler.jsonc.
+ * #311 O cron do dossiê: deslocado dos outros dois (minutos 11, 26, 41 e 56); o tick de minuto (#356) coincide com ele, em invocações separadas. Igual ao de api/wrangler.jsonc.
  * O plano gratuito permite 5 cron triggers por conta (docs da Cloudflare); este Worker usa 3. Outros Workers da conta não foram conferidos.
  */
 export const DOSSIER_CRON = "11-59/15 * * * *";
 
 /** #333 O que cada cron roda; os testes trocam por espiões. */
 export interface Runners {
-  readonly tick: (controller: Pick<ScheduledController, "cron">, env: Env) => Promise<TickSummary | null>;
+  readonly tick: (controller: TickController, env: Env) => Promise<TickSummary | null>;
   readonly audit: (controller: Pick<ScheduledController, "cron">, env: Env) => Promise<void>;
   readonly dossier: (controller: Pick<ScheduledController, "cron">, env: Env) => Promise<void>;
 }
 
 /** #333 AC-4 O cron que não é nenhum dos configurados não roda nada: uma linha, só com a expressão do cron, que não é segredo. */
 export async function dispatchScheduled(
-  controller: Pick<ScheduledController, "cron">,
+  controller: TickController,
   env: Env,
   runners: Runners = { tick, audit: auditTick, dossier: dossierTick },
 ): Promise<void> {
-  if (controller.cron === CLAUDE_CRON) {
+  if (controller.cron === TICK_CRON) {
     await runners.tick(controller, env);
   } else if (controller.cron === AUDIT_CRON) {
     await runners.audit(controller, env);

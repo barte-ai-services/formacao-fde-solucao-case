@@ -12,6 +12,7 @@ import {
 import { SupabaseApprovalStore } from '../../src/approval/supabase-store.js';
 import { SupabaseRest } from '../../src/connectors/supabase-rest.js';
 import { tick } from '../../src/cron/tick.js';
+import { rounds, roundsUntil } from '../support/rounds.js';
 import { UNCAPPED } from '../support/subrequest-counter.js';
 import { ENGINE_APPROVER } from '../../src/domain/approval.js';
 import { ClefTimeoutError } from '../../src/engine/clef.js';
@@ -371,6 +372,7 @@ describe('#42 a aprovação do motor no Supabase', () => {
 
 describe('#42 o motor delegado na rodada do Cron', () => {
   const ENV = { BARTE_ACADEMY_SUPABASE_URL: 'https://fake.supabase.co', BARTE_ACADEMY_SUPABASE_SECRET_KEY: 'sb_secret_fake' };
+  const CRON = { cron: '* * * * *' }; // #356 sem scheduledTime a rodada é manual, sem o ritmo do modo
   const ai = (run: () => Promise<unknown>) => ({ run }) as unknown as Ai;
   const answer = async () => ({ response: { outcome: 'approve', confidence: 0.99, reason: 'fecha' } });
   const settings = (delegation: boolean) => [
@@ -382,7 +384,9 @@ describe('#42 o motor delegado na rodada do Cron', () => {
     vi.stubGlobal('fetch', fake.fetch);
     vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    await tick({ cron: '*/15 * * * *' }, { ...ENV, ai: ai(answer) }, UNCAPPED);
+    // #356 O motor é o último passo da rodada orçada: roda na primeira rodada em que cabe.
+    const round = () => tick(CRON, { ...ENV, ai: ai(answer) });
+    await roundsUntil(round, () => fake.rows('engine_decisions').length > 0);
 
     const decisions = fake.rows('engine_decisions');
     expect(decisions.every((d) => d.mode === 'delegated' && d.role === 'cascade')).toBe(true);
@@ -399,12 +403,12 @@ describe('#42 o motor delegado na rodada do Cron', () => {
       expect(fake.rows('titles').find((t) => t.invoice_access_key === key)?.state).toBe('na_lista_do_dia');
       expect(fake.rows('proposals').find((p) => p.id === a.proposal_id)?.state).toBe('aprovada');
     }
-    expect(fake.rows('automation_runs')[0]).toMatchObject({ status: 'ok', engine_approved: engineApprovals.length, engine_evaluated: decisions.length });
+    expect(fake.rows('automation_runs').find((r) => Number(r.engine_evaluated) > 0)).toMatchObject({ status: 'ok', engine_approved: engineApprovals.length, engine_evaluated: decisions.length });
 
-    // #42 A segunda rodada não aprova de novo: as aprovadas saíram da fila.
-    await tick({ cron: '*/15 * * * *' }, { ...ENV, ai: ai(answer) }, UNCAPPED);
+    // #42 As rodadas seguintes não aprovam de novo: as aprovadas saíram da fila.
+    await rounds(round, 4);
     expect(fake.rows('approvals').filter((a) => a.approver === 'motor')).toHaveLength(engineApprovals.length);
-    expect(fake.rows('automation_runs')[1]).toMatchObject({ engine_approved: 0 });
+    expect(fake.rows('automation_runs').reduce((n, r) => n + Number(r.engine_approved), 0)).toBe(engineApprovals.length);
   });
 
   it('desligada: só a sombra, nada do motor em approvals e engine_approved zero', async () => {
@@ -412,11 +416,11 @@ describe('#42 o motor delegado na rodada do Cron', () => {
     vi.stubGlobal('fetch', fake.fetch);
     vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    await tick({ cron: '*/15 * * * *' }, { ...ENV, ai: ai(answer) }, UNCAPPED);
+    await roundsUntil(() => tick(CRON, { ...ENV, ai: ai(answer) }), () => fake.rows('engine_decisions').length > 0);
 
     expect(fake.rows('engine_decisions').length).toBeGreaterThan(0);
     expect(fake.rows('engine_decisions').every((d) => d.mode === 'shadow')).toBe(true);
     expect(fake.rows('approvals').some((a) => a.approver === 'motor' || a.engine_decision_id !== undefined)).toBe(false);
-    expect(fake.rows('automation_runs')[0]).toMatchObject({ status: 'ok', engine_approved: 0 });
+    expect(fake.rows('automation_runs').every((r) => r.status === 'ok' && r.engine_approved === 0)).toBe(true);
   });
 });

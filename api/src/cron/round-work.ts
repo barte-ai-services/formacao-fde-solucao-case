@@ -1,7 +1,7 @@
 /*
- * #356 AC-4 O trabalho real de cada passo da rodada: o que `runRound` de tick.ts fazia em sequência, agora um
+ * #356 AC-4 O trabalho real de cada passo da rodada: o que o `runRound` do tick fazia em sequência (os helpers estão em round-helpers.ts), agora um
  * passo por vez para o executor de automation/round-budget.ts. Os passos falham sozinhos, como a #311 deixou: os helpers de
- * tick.ts engolem a falha, logam uma linha sem dado sensível e a registram em `fail` (failed_steps); o que lança, o executor
+ * round-helpers.ts engolem a falha, logam uma linha sem dado sensível e a registram em `fail` (failed_steps); o que lança, o executor
  * conta. Só a captura, o caminho crítico, faz a rodada `failed` (`ROUND_FAILING_STEPS`).
  *
  * #311 O dossiê não é passo daqui: tem o cron próprio (cron/dossier-round.ts) e a rodada orquestrada não o despacha.
@@ -28,10 +28,10 @@ import {
   runEngine,
   storedSuggestions,
   type Fail,
-} from './tick.js';
+} from "./round-helpers.js";
 import { findUnreconciledReceipts } from './unreconciled-receipts.js';
 
-/** #356 AC-4 A janela do E8 é a de tick.ts (7 dias, PUBLISH_WINDOW_DAYS), servida em fatias (REGISTRY_SLICES). */
+/** #356 AC-4 A janela do E8 é a de round-helpers.ts (7 dias, PUBLISH_WINDOW_DAYS), servida em fatias (REGISTRY_SLICES). */
 export const REGISTRY_WINDOW_DAYS = 7;
 /** #356 AC-4 Os tetos de cada passo por rodada, escolhidos para o passo caber ao lado da captura (STEP_COSTS). */
 export const RETURN_NOTES_PER_STEP = 5;
@@ -92,7 +92,11 @@ export function supabaseRoundWork(rest: SupabaseRest, env: Env, fetch?: FetchFn)
     publishRegistry: (from, to) => publishApproved(rest, registryCorrections, fail, lastDaysUtc(new Date(), REGISTRY_WINDOW_DAYS).slice(from, to), REGISTRY_MESSAGES_PER_STEP),
     publishDock: () => publishDock(rest, fail, DOCK_PER_STEP),
     publishStore: () => publishStoreActions(rest, fail, STORE_PER_STEP),
-    publishReturns: () => publishReturnNotes(rest, fail, RETURN_NOTES_PER_STEP),
+    publishReturns: async () => {
+      const published = await publishReturnNotes(rest, fail, RETURN_NOTES_PER_STEP);
+      console.log(`cron: devoluções publicadas ${published}`);
+      return published;
+    },
     blockDuplicates: () => blockDuplicateTitles(rest, undefined, DUPLICATES_PER_STEP),
     markOverdueSupplierRequests: () => markOverdueRequests(rest, fail),
     claudeTasks: tasksFor(rest).map((t) => t.name),

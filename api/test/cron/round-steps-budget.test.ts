@@ -11,6 +11,7 @@ import { SUBREQUEST_CAP } from '../../src/cron/subrequests.js';
 import { startRoundMeter, type RoundMeter } from '../../src/cron/round-meter.js';
 import { PROPOSALS_PER_STEP, REGISTRY_MESSAGES_PER_STEP, supabaseRoundWork } from '../../src/cron/round-work.js';
 import { buildRoundSteps, CLAUDE_TASK_COSTS, REGISTRY_SLICES, STEP_COSTS } from '../../src/cron/round-steps.js';
+import { tick } from '../../src/cron/tick.js';
 import { sweepSupplierOverdue } from '../../src/cron/supplier-sweep.js';
 import type { Env } from '../../src/env.js';
 import { decide, returnFirstItem } from '../returns/supabase-decided-source.support.js';
@@ -388,6 +389,33 @@ describe('#356/AC-4 a rodada mais cheia contra o teto de 50', () => { // ADR-002
     for (const name of every) {
       expect(records.some((r) => !r.deferredSteps.includes(name)), `${name} nunca rodou`).toBe(true);
     }
+  });
+});
+
+/**
+ * #356 AC-4 O gasto medido da rodada mais cheia com a rodada LIGADA AO TICK (as portas reais sobre o SupabaseRest, um medidor por
+ * invocação): o que o `subrequests` gravado diz (o medido, a gravação incluída) mais a soltura da trava, que vem depois dela.
+ * Quem acrescenta um passo, uma leitura ou uma porta muda este número e vê o teste cair.
+ */
+const FULLEST_TICK_MEASURED = 48;
+
+describe('#356/AC-4 a rodada mais cheia, ligada ao tick, contra o teto de 50', () => { // ADR-002
+  it('o gasto medido de cada rodada do tick (modo, trava, adiados, passos, gravação e soltura) não passa de 50, e nenhum passo falha', async () => { // ADR-002
+    const world = await fullestWorld();
+    const tickRound = () => tick({ cron: '* * * * *' }, world.env);
+    const spend: number[] = [];
+    for (let i = 0; i < ROUNDS; i += 1) {
+      if (i === 1) world.decideAll();
+      await tickRound();
+      // a gravação conta a si mesma (spent + 1); a soltura da trava, depois dela, é a subrequest que falta
+      spend.push(Number(world.fake.rows('automation_runs').at(-1)?.subrequests) + 1);
+    }
+    const runs = world.fake.rows('automation_runs');
+    expect(runs.every((r) => r.status === 'ok' && (r.failed_steps as string[]).length === 0), JSON.stringify(runs.map((r) => r.failed_steps))).toBe(true);
+    expect(world.fake.rows('automation_lock')).toEqual([]);
+    expect(Math.max(...spend), `gasto por rodada: ${spend.join(', ')}`).toBe(FULLEST_TICK_MEASURED);
+    expect(FULLEST_TICK_MEASURED).toBeLessThanOrEqual(SUBREQUEST_CAP);
+    expect((runs[0]?.deferred_steps as string[]).length, 'a rodada cheia adia passos').toBeGreaterThan(0);
   });
 });
 

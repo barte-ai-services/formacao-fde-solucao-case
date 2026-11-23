@@ -136,7 +136,7 @@ export function runNow(ports: RoundPorts): Promise<RoundResult> {
 
 /** #356 AC-2 Liga ou desliga o modo demonstração e devolve o estado gravado. */
 export async function setDemoMode(
-  ports: RoundPorts,
+  ports: Pick<RoundPorts, 'mode' | 'now'>,
   change: { readonly enabled: boolean; readonly changedBy: string | null },
 ): Promise<{ readonly enabled: boolean; readonly changedAt: string }> {
   const changedAt = ports.now();

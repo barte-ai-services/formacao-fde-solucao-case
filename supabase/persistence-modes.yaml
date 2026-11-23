@@ -272,6 +272,7 @@ tables:
     # #356 mensagem de erro). A migração só acrescenta colunas; nenhum índice novo (a leitura das puladas, status=eq.skipped por
     # #356 started_at desc com limite, não pede um numa tabela pequena).
     projection: none             # as listas do painel leem as linhas direto (listRuns, listSkippedRuns)
+    # #356 PER-2 O grant de update, delete e truncate sai do service_role na 20261123100000_modo_demonstracao.sql: append-only de verdade.
     deletion: none
     erasure: not stated          # sem dado pessoal: contagens, status e nomes fixos de passo
 

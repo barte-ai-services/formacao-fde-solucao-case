@@ -81,3 +81,8 @@ alter table public.automation_runs
   add constraint automation_runs_origin_check check (origin in ('cron', 'manual')),
   add column demo_enabled boolean not null default false,
   add column deferred_steps text[] not null default '{}';
+
+-- #356 PER-2 automation_runs é append-only (supabase/persistence-modes.yaml): uma linha por rodada, nunca alterada. service_role tem BYPASSRLS, então o
+-- #356 PER-2 que recusa é o grant: o privilégio de tabela sai de quem não precisa dele. Insert e select seguem (a rodada grava, a tela lê); nenhum
+-- #356 PER-2 código da API atualiza, apaga ou trunca a tabela (api/test/automation/demo-migration.test.ts confere).
+revoke update, delete, truncate on public.automation_runs from anon, authenticated, service_role;

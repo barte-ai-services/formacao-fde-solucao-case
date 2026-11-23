@@ -76,6 +76,28 @@ describe('#356 migração do modo demonstração', () => { // ADR-002
     expect(sql).toMatch(/history jsonb not null default '\[\]'/);
   });
 
+  it('#356/AC-3 automation_runs é append-only: ninguém, nem o service_role, atualiza, apaga ou trunca (PER-2)', () => { // ADR-002
+    expect(sql).toContain('revoke update, delete, truncate on public.automation_runs from anon, authenticated, service_role;');
+    // O grant de insert e select do service_role (20261116100000) segue: a rodada grava e a tela lê.
+    expect(sql).not.toMatch(/revoke (insert|select)/);
+  });
+
+  it('#356/AC-3 nenhum código da API atualiza ou apaga linha de automation_runs (o revoke não quebra ninguém)', () => {
+    const root = new URL('../../src/', import.meta.url);
+    const sources = (dir: URL): string[] =>
+      readdirSync(dir).flatMap((name) => {
+        if (name.endsWith('.ts')) return [new URL(name, dir).href];
+        try {
+          return sources(new URL(`${name}/`, dir));
+        } catch {
+          return [];
+        }
+      });
+    const writers = sources(root).filter((file) => /\.(update|delete)\(\s*['"]automation_runs['"]/.test(readFileSync(new URL(file), 'utf8')));
+    expect(sources(root).length).toBeGreaterThan(50);
+    expect(writers).toEqual([]);
+  });
+
   it('não toca em failed_steps nem em subrequests (migração 20261122130000)', () => { // ADR-002
     expect(sql).not.toMatch(/failed_steps|subrequests/);
   });

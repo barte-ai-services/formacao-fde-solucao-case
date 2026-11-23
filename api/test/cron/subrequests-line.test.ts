@@ -3,13 +3,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { tick } from '../../src/cron/tick.js';
 import { FakePostgrest } from '../support/fake-postgrest.js';
 import { kitTables } from '../support/kit.js';
-import { countSubrequests, UNCAPPED } from '../support/subrequest-counter.js';
+import { countSubrequests } from '../support/subrequest-counter.js';
 import { kitAwaitingPeople, runDossierCron, WITH_CLAUDE, SUPABASE_ENV } from '../support/dossier-world.js';
 
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
+
+const CRON = { cron: '* * * * *', scheduledTime: Date.parse('2026-11-23T10:15:00Z') };
 
 const lineOf = (log: { mock: { calls: unknown[][] } }, prefix: string): string[] =>
   log.mock.calls.map((c) => String(c[0])).filter((l) => l.startsWith(prefix));
@@ -21,11 +23,12 @@ describe('#311 a conta de subrequests no fim de cada invocação', () => {
     vi.stubGlobal('fetch', counter.fetch);
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    await tick({ cron: '*/15 * * * *' }, SUPABASE_ENV);
+    await tick(CRON, SUPABASE_ENV);
 
     const n = counter.count();
-    expect(lineOf(log, 'cron: subrequests')).toEqual([`cron: subrequests ${n}/50 (tick */15 * * * *)`]);
-    expect(fake.rows('automation_runs')[0]?.subrequests).toBe(n);
+    expect(lineOf(log, 'cron: subrequests')).toEqual([`cron: subrequests ${n}/50 (tick ${CRON.cron})`]);
+    // #356 A gravação conta a si mesma; a soltura da trava, que vem depois dela, só entra na linha do log.
+    expect(fake.rows('automation_runs')[0]?.subrequests).toBe(n - 1);
   });
 
   it('o tick que falha na captura também loga a linha e grava o n', async () => {
@@ -34,11 +37,12 @@ describe('#311 a conta de subrequests no fim de cada invocação', () => {
     vi.stubGlobal('fetch', counter.fetch);
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    await expect(tick({ cron: '*/15 * * * *' }, SUPABASE_ENV)).rejects.toThrow();
+    await expect(tick(CRON, SUPABASE_ENV)).rejects.toThrow();
 
     const n = counter.count();
-    expect(lineOf(log, 'cron: subrequests')).toEqual([`cron: subrequests ${n}/50 (tick */15 * * * *)`]);
-    expect(fake.rows('automation_runs')[0]?.subrequests).toBe(n);
+    expect(lineOf(log, 'cron: subrequests')).toEqual([`cron: subrequests ${n}/50 (tick ${CRON.cron})`]);
+    // #356 A gravação conta a si mesma; a soltura da trava, que vem depois dela, só entra na linha do log.
+    expect(fake.rows('automation_runs')[0]?.subrequests).toBe(n - 1);
   });
 
   it('o cron do dossiê loga `subrequests n/50`, contando também a Messages API', async () => {
@@ -52,17 +56,18 @@ describe('#311 a conta de subrequests no fim de cada invocação', () => {
     expect(lineOf(log, 'cron: subrequests')).toEqual([`cron: subrequests ${run.counter.count()}/50 (dossiê 11-59/15 * * * *)`]);
   });
 
-  it('a conta do tick sobre a base do kit: a rodada quieta (sem nota nova, sem Claude) faz 67 chamadas, acima dos 50 do plano gratuito', async () => {
+  it('#356 a conta do tick sobre a base do kit: a rodada quieta (sem nota nova, sem Claude) faz 43 chamadas, dentro dos 50 do plano gratuito', async () => {
     const fake = new FakePostgrest(kitTables());
     vi.stubGlobal('fetch', fake.fetch);
     vi.spyOn(console, 'log').mockImplementation(() => {});
-    await tick({ cron: '*/15 * * * *' }, SUPABASE_ENV, UNCAPPED);
+    await tick(CRON, SUPABASE_ENV);
     const counter = countSubrequests(fake.fetch, 1000);
     vi.stubGlobal('fetch', counter.fetch);
 
-    await tick({ cron: '*/15 * * * *' }, SUPABASE_ENV, UNCAPPED);
+    await tick(CRON, SUPABASE_ENV);
 
-    expect(counter.count()).toBe(67);
-    expect(counter.count()).toBeGreaterThan(50);
+    // #311 Antes do orçamento (#356) a mesma rodada fazia 67 chamadas; agora os passos que não cabem ficam para a rodada seguinte.
+    expect(counter.count()).toBe(43);
+    expect(counter.count()).toBeLessThanOrEqual(50);
   });
 });

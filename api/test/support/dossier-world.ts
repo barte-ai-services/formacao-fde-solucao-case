@@ -1,7 +1,7 @@
 // #311 O mundo dos testes do dossiê agendado: o kit inteiro já capturado e proposto (o tick sem credencial do Claude),
 // #311 o Claude falso e a invocação do cron do dossiê com o fetch que conta as subrequests.
 import { vi } from 'vitest';
-import { CLAUDE_CRON, DOSSIER_CRON, dispatchScheduled } from '../../src/cron/schedule.js';
+import { TICK_CRON, DOSSIER_CRON, dispatchScheduled } from '../../src/cron/schedule.js';
 import type { Env } from '../../src/env.js';
 import { FakePostgrest } from './fake-postgrest.js';
 import { kitTables } from './kit.js';
@@ -23,7 +23,7 @@ export async function kitAwaitingPeople(): Promise<FakePostgrest> {
   const fake = new FakePostgrest(kitTables());
   vi.stubGlobal('fetch', fake.fetch);
   vi.spyOn(console, 'log').mockImplementation(() => {});
-  await dispatchScheduled({ cron: CLAUDE_CRON }, SUPABASE_ENV);
+  await dispatchScheduled({ cron: TICK_CRON }, SUPABASE_ENV);
   return fake;
 }
 

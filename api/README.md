@@ -2,19 +2,22 @@
 
 O Worker `formacao-fde-solucao-case-api`, na Cloudflare. Por enquanto, responde
 `GET /health`, `GET /me` e `GET /api/valor-barrado` e a tela de `web/` (atrás do Cloudflare Access, #60; o
-painel está em `src/panel/README.md`) e tem dois Crons (`wrangler.jsonc`, `src/cron/schedule.ts`),
+painel está em `src/panel/README.md`) e tem três Crons (`wrangler.jsonc`, `src/cron/schedule.ts`),
 cada um com o próprio teto de 50 subrequests do plano gratuito (#333):
 
-- a cada 15 minutos (`*/15 * * * *`): a captura, as publicações, a varredura do prazo, a rodada do Claude, o dossiê e o
-  motor. A rodada do Claude não tem o auditor; a varredura mais a rodada do Claude medem 50 subrequests
-  (`test/claude/budget.test.ts`);
+- todo minuto (`* * * * *`, #356): a rodada orquestrada (o tick): a captura, as publicações, a varredura do prazo, a rodada do
+  Claude (sem o auditor) e o motor, em passos orçados em 50 subrequests por invocação. Quem decide se a rodada roda naquele
+  minuto é o modo demonstração, ver [A rodada e o modo demonstração](#a-rodada-e-o-modo-demonstração-356);
 - nos minutos 7, 22, 37 e 52 (`7-59/15 * * * *`): só o auditor de notas, 1 nota por invocação, 8 subrequests medidos com
   2 voltas do laço de tool use e, no pior caso do teto de voltas próprio do auditor (`AUDIT_MAX_TURNS` = 18 e
   `AUDIT_MAX_READS` = 12, contra as 6 voltas das outras tarefas), 36 medidos e 38 pela conta, contra os 50 (conta em
   `src/claude/tasks/invoice-audit.ts`). O prazo do laço todo (`ASK_TIMEOUT_MS`, 45 s) deixa uns 2,5 s por volta em 18.
-  Cada auditoria terminada deixa uma linha de log com voltas, leituras e recusas por motivo, sem conteúdo.
+  Cada auditoria terminada deixa uma linha de log com voltas, leituras e recusas por motivo, sem conteúdo;
+- nos minutos 11, 26, 41 e 56 (`11-59/15 * * * *`): só o dossiê (#311), ver abaixo.
 
-Um cron que não é nenhum dos dois não roda nada e registra uma linha.
+Nos minutos 7, 11, 22, 26... o cron de minuto e o do auditor ou do dossiê disparam juntos, em invocações separadas, cada
+uma com o próprio teto de 50; o `scheduled` despacha pelo `controller.cron`, e cada invocação chama só o handler da sua
+expressão (`test/cron/schedule.test.ts`). Um cron que não é nenhum dos três não roda nada e registra uma linha.
 
 ## Rodar local
 
@@ -31,6 +34,48 @@ BARTE_ACADEMY_ANTHROPIC_API_KEY=...
 ACCESS_AUD=...
 ACCESS_TEAM_DOMAIN=long-frost-f16b.cloudflareaccess.com
 ```
+
+## A rodada e o modo demonstração (#356)
+
+A rodada (`src/automation/round.ts`, ligada ao Cron em `src/cron/tick.ts`) é uma lista ordenada de passos
+(`src/cron/round-steps.ts`), cada um com o custo máximo em subrequests medido (`test/cron/round-steps-budget.test.ts`).
+Um medidor por invocação (`src/cron/round-meter.ts`) conta tudo o que sai do Worker; o passo que não cabe no que sobra dos 50
+fica para a rodada seguinte, onde passa à frente (sem fome), e a rodada grava quais adiou. **Para acrescentar um passo (#349,
+#351), acrescente-o à lista em `round-steps.ts`, com o custo medido; nada mais muda.** A rodada mais cheia gasta 48 dos 50
+(`FULLEST_TICK_MEASURED`, a gravação e a soltura da trava incluídas).
+
+- **Ritmo:** com o modo demonstração desligado (o padrão), a rodada só roda quando o minuto UTC de `scheduledTime` é múltiplo de
+  15; nos outros minutos o tick lê o modo e sai, sem gravar linha. Ligado, roda todo minuto. Sem a tabela `demo_settings` (a migração
+  `20261123100000_modo_demonstracao.sql` ainda não aplicada), o modo é desligado e nada derruba a rodada.
+- **Trava:** duas rodadas nunca correm juntas. A segunda (Cron ou manual) não roda passo nenhum e fica gravada como `skipped` em
+  `automation_runs`; a trava vence sozinha em 5 minutos se o Worker morrer.
+- **Origem e modo:** cada linha de `automation_runs` guarda `origin` (`cron` ou `manual`), `demo_enabled` e `deferred_steps`.
+  A tabela é append-only: ninguém, nem o `service_role`, atualiza ou apaga uma linha.
+
+### Rotas de administração
+
+Só para administradores (`BARTE_ACADEMY_ADMIN_EMAILS`): 403 para os demais, 405 fora do POST, 415 se o corpo não é JSON,
+503 sem as credenciais do Supabase e 502 genérico quando o banco falha (a resposta nunca leva o texto do PostgREST).
+
+- `POST /api/admin/rodar-agora`: dispara uma rodada de origem `manual` depois da resposta e responde `202` na hora, com
+  `{ "accepted": true, "origin": "manual" }`. Respeita a trava: com ela tomada, a rodada pula e fica gravada como `skipped`.
+- `POST /api/admin/modo-demonstracao` com `{ "enabled": true }` (ou `false`): liga ou desliga o modo, sem deploy, e grava quem mudou
+  (o e-mail do Access, só no banco) e quando. Responde `200` com `{ "enabled": boolean, "changedAt": string }`. Corpo que não é
+  exatamente isso: `400 invalid_body`. Duas trocas ao mesmo tempo: `409 conflict` para a que perdeu.
+
+### `GET /api/automacao`
+
+Para qualquer pessoa autenticada. A resposta tem `state`, `last`, `next`, `runs` e `indicators`, com o formato e o significado de
+sempre (a web de hoje só conhece rodadas `ok` e `failed`: `last` e `runs` nunca trazem uma `skipped`), e os campos acrescentados:
+
+- `demo`: o modo demonstração, com `enabled` e `changedAt`. Nunca traz o e-mail de quem mudou.
+- `intervalMinutes`: o intervalo do modo, 1 ligado e 15 desligado.
+- `next`: a próxima rodada no ritmo do modo.
+- `skipped`: as últimas rodadas puladas, da mais nova à mais velha, cada uma com `id`, `startedAt`, `origin` (`cron` ou `manual`) e `demoEnabled`.
+- `isAdmin`: se quem pede é administrador (a web mostra ou esconde os controles).
+
+Sem `demo_settings`: `demo` desligado, `intervalMinutes` 15 e `skipped` vazio. O contrato está escrito aqui e conferido contra a
+resposta em `test/http/automacao-modo.test.ts`.
 
 ## O Claude no Worker (#171)
 

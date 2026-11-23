@@ -5,6 +5,8 @@ import type { Env } from '../../src/env.js';
 import { FakePostgrest } from '../support/fake-postgrest.js';
 import { accessEnv, accessKit, type AccessKit } from '../support/access-token.js';
 import { kitTables } from '../support/kit.js';
+import { roundsUntil } from '../support/rounds.js';
+import { tick } from '../../src/cron/tick.js';
 
 const ctx = { waitUntil: () => {}, passThroughOnException: () => {}, props: {} } as unknown as ExecutionContext;
 const ADMIN = 'cfo@jachegou.test';
@@ -127,7 +129,8 @@ describe('#174 POST /api/admin/reconferir', () => {
     expect(response.status).toBe(200);
     const summary = (await response.json()) as Record<string, number>;
     expect(summary).toMatchObject({ seen: 80, inserted: 80, checked: 80, failed: 0 });
-    expect(summary.proposed).toBeGreaterThan(0);
+    // #356 A rodada é orçada em 50 subrequests e os passos adiados da anterior passam à frente: a proposta pode ficar para a rodada seguinte.
+    await roundsUntil(() => tick({ cron: 'reconferir' }, env), () => fake.rows('proposals').length > 0);
     expect(fake.rows('invoices')).toHaveLength(80);
     expect(fake.rows('outbox_dock_actions').some((r) => r.id === 99)).toBe(false);
     expect(Object.fromEntries(Object.keys(kitTables()).map((t) => [t, fake.rows(t).length]))).toEqual(kitBefore);
