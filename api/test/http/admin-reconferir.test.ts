@@ -7,6 +7,7 @@ import { accessEnv, accessKit, type AccessKit } from '../support/access-token.js
 import { kitTables } from '../support/kit.js';
 import { roundsUntil } from '../support/rounds.js';
 import { tick } from '../../src/cron/tick.js';
+import { countSubrequests } from '../support/subrequest-counter.js';
 
 const ctx = { waitUntil: () => {}, passThroughOnException: () => {}, props: {} } as unknown as ExecutionContext;
 const ADMIN = 'cfo@jachegou.test';
@@ -186,6 +187,32 @@ describe('#174 POST /api/admin/reconferir', () => {
       expect(response.status).toBe(502);
       expect(JSON.stringify(await response.json())).not.toContain('segredo-do-banco');
       expect(fake.rows('automation_lock')).toHaveLength(0);
+    });
+    it('#356/AC-3 se a leitura do modo falha depois de apagar: 502 genérico e a trava é solta, sem esperar a validade', async () => {
+      const fake = serve();
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      seedDomain(fake);
+      fake.failNext('demo_settings', 'GET', 500, { message: 'segredo-do-banco' });
+      const response = await call({ body: confirm });
+      expect(response.status).toBe(502);
+      expect(await response.json()).toEqual({ error: 'reconferir_failed' });
+      expect(fake.rows('automation_lock')).toHaveLength(0);
+      expect(fake.requests.filter((r) => r.url.includes('rpc/release_automation_lock'))).toHaveLength(1);
+    });
+  });
+
+  // #356/AC-4 Os apagamentos do domínio gastam do mesmo orçamento de 50 subrequests da rodada.
+  describe('#356/AC-4 o orçamento da reconferência', () => {
+    it('#356/AC-4 a invocação inteira (trava, 9 apagamentos, rodada, gravação e soltura) gasta no máximo 50 subrequests', async () => {
+      const fake = serve();
+      const counter = countSubrequests(fake.fetch, 1000);
+      vi.stubGlobal('fetch', counter.fetch);
+      expect((await call({ body: confirm })).status).toBe(200);
+      expect(counter.trail().filter((t) => t.startsWith('DELETE'))).toHaveLength(9);
+      expect(counter.count()).toBeLessThanOrEqual(50);
+      expect(fake.rows('automation_runs')).toHaveLength(1);
+      expect(fake.rows('automation_lock')).toHaveLength(0);
+      expect(counter.trail().at(-1)).toBe('POST rpc/release_automation_lock');
     });
   });
 });

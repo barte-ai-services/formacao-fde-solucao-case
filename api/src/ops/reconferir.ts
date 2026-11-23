@@ -42,7 +42,7 @@ export async function reconferir(
   env: Env,
   runTick?: (env: Env) => Promise<TickSummary | null | void>,
 ): Promise<TickSummary | null> {
-  if (runTick === undefined) return tickAfterLock({ cron: "reconferir" }, env, () => resetDomain(rest));
+  if (runTick === undefined) return tickAfterLock({ cron: "reconferir" }, env, (metered) => resetDomain(metered));
   await resetDomain(rest);
   return (await runTick(env)) ?? null;
 }

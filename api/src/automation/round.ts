@@ -113,12 +113,13 @@ function errorClass(error: unknown): string {
  */
 export async function runRound(ports: RoundPorts, trigger: RoundTrigger, held?: string): Promise<RoundResult> {
   const startedAt = ports.now();
+  if (held !== undefined) return runHeld(ports, trigger, held, startedAt);
   const demo = await ports.mode.read();
   if (trigger.origin === 'cron' && !roundRhythm(modeIntervalMinutes(demo.enabled), trigger.scheduledTime).runs) {
     return { kind: 'off-rhythm' };
   }
-  const owner = held ?? ports.newOwner();
-  if (held === undefined && !(await ports.lock.take(owner, LOCK_TTL_MS))) {
+  const owner = ports.newOwner();
+  if (!(await ports.lock.take(owner, LOCK_TTL_MS))) {
     await recordSafely(ports, {
       startedAt, finishedAt: ports.now(), status: 'skipped', origin: trigger.origin, demoEnabled: demo.enabled,
       figures: NO_FIGURES, error: null, deferredSteps: [], failedSteps: [], subrequests: recordedSubrequests(ports),
@@ -129,6 +130,19 @@ export async function runRound(ports: RoundPorts, trigger: RoundTrigger, held?: 
     return await runLocked(ports, trigger.origin, demo.enabled, startedAt);
   } finally {
     await releaseSafely(ports, owner);
+  }
+}
+
+/**
+ * #356 AC-3 A rodada de quem já tem a trava: a posse é dele desde antes da primeira leitura, então TUDO daqui, a leitura do modo inclusive,
+ * fica dentro do try/finally que a solta. É o único lugar que solta a trava de uma rodada com `held`; sem ritmo a respeitar (a reconferência é manual).
+ */
+async function runHeld(ports: RoundPorts, trigger: RoundTrigger, held: string, startedAt: Date): Promise<RoundResult> {
+  try {
+    const demo = await ports.mode.read();
+    return await runLocked(ports, trigger.origin, demo.enabled, startedAt);
+  } finally {
+    await releaseSafely(ports, held);
   }
 }
 

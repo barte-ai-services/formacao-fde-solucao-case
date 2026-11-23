@@ -49,6 +49,9 @@ export async function tick(controller: TickController, env: Env): Promise<TickSu
   return summarize(await executeRound(env, trigger, `tick ${controller.cron}`));
 }
 
+/** #356 AC-4 O que roda depois da trava e antes da rodada (o apagamento do domínio): recebe o `rest` MEDIDO da invocação, e seus pedidos gastam do mesmo orçamento de 50. */
+export type DomainReset = (rest: SupabaseRest) => Promise<void>;
+
 /** #356 AC-3 A reconferência pediu a trava e outra rodada, ainda válida, a tem: nada foi apagado nem gravado. */
 export class RoundInProgressError extends Error {
   constructor() {
@@ -59,9 +62,9 @@ export class RoundInProgressError extends Error {
 
 /**
  * #356 AC-3 A rodada da reconferência: toma a trava ANTES de `before` (o apagamento do domínio) e a rodada corre com essa mesma posse,
- * solta no fim. Trava tomada e válida: lança `RoundInProgressError` sem chamar `before`. Se `before` falha, a trava é solta e o erro sobe.
+ * solta no fim. Trava tomada e válida: lança `RoundInProgressError` sem chamar `before`. Se `before` falha, a trava é solta e o erro sobe. `before` recebe o `rest` medido.
  */
-export async function tickAfterLock(controller: TickController, env: Env, before: () => Promise<void>): Promise<TickSummary | null> {
+export async function tickAfterLock(controller: TickController, env: Env, before: DomainReset): Promise<TickSummary | null> {
   const result = await executeRound(env, { origin: "manual" }, `tick ${controller.cron}`, before);
   if (result?.kind === "locked") throw new RoundInProgressError();
   return summarize(result);
@@ -83,7 +86,7 @@ export function runManualRound(env: Env): Promise<RoundResult | null> {
 }
 
 /** #356 Monta o medidor, as portas e a rodada da invocação; a linha de subrequests sai sempre, inclusive quando a rodada não roda. */
-async function executeRound(env: Env, trigger: RoundTrigger, label: string, before?: () => Promise<void>): Promise<RoundResult | null> {
+async function executeRound(env: Env, trigger: RoundTrigger, label: string, before?: DomainReset): Promise<RoundResult | null> {
   const url = env.BARTE_ACADEMY_SUPABASE_URL;
   const secretKey = env.BARTE_ACADEMY_SUPABASE_SECRET_KEY;
   if (!url || !secretKey) {
@@ -106,7 +109,7 @@ async function executeRound(env: Env, trigger: RoundTrigger, label: string, befo
   };
   let result: RoundResult | null = null;
   try {
-    result = before ? await runAfterLock(ports, trigger, before) : await runRound(ports, trigger);
+    result = before ? await runAfterLock(ports, trigger, () => before(rest)) : await runRound(ports, trigger);
     return result;
   } finally {
     // #356 AC-1 Fora do ritmo a invocação só leu o modo: uma linha por minuto no log não diz nada, e a leitura não é uma rodada.
@@ -121,8 +124,9 @@ async function runAfterLock(ports: RoundPorts, trigger: RoundTrigger, before: ()
   try {
     await before();
   } catch (error) {
-    await ports.lock.release(owner).catch(() => ports.log("cron: trava não solta; vence sozinha"));
+    await ports.lock.release(owner).catch((e: unknown) => ports.log(`cron: trava não solta (${e instanceof Error ? e.name : "Error"}); vence sozinha`));
     throw error;
   }
+  // #356 AC-3 A partir daqui a soltura é só de runRound (runHeld): quem chama não solta de novo.
   return runRound(ports, trigger, owner);
 }
