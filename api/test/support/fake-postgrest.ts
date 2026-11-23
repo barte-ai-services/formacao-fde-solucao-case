@@ -172,6 +172,12 @@ export class FakePostgrest {
       const conflict = params.get('on_conflict')?.split(',');
       const prefer = headers.Prefer ?? '';
       const out: Row[] = [];
+      // #371 O POST é uma transação, como no banco: a linha que viola uma restrição desfaz as que entraram antes dela no mesmo corpo.
+      const committed = rows.length;
+      const rollback = (status: number, payload: unknown) => {
+        rows.length = committed;
+        return json(status, payload);
+      };
       for (const incoming of body as Row[]) {
         const existing = conflict ? rows.find((r) => conflict.every((c) => r[c] === incoming[c])) : undefined;
         if (existing) {
@@ -181,13 +187,13 @@ export class FakePostgrest {
             out.push(existing);
             continue;
           }
-          return json(409, { code: '23505', message: 'duplicate key' });
+          return rollback(409, { code: '23505', message: 'duplicate key' });
         }
         const row: Row = { ...this.defaults(table), ...incoming };
         const violated = this.uniques.some(
           (u) => u.table === table && u.when(row) && rows.some((r) => u.when(r) && u.columns.every((c) => r[c] === row[c])),
         );
-        if (violated) return json(409, { code: '23505', message: 'duplicate key value violates unique constraint' });
+        if (violated) return rollback(409, { code: '23505', message: 'duplicate key value violates unique constraint' });
         rows.push(row);
         out.push(row);
       }

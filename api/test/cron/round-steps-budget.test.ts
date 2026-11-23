@@ -150,7 +150,6 @@ describe('#356/AC-4 o custo de cada passo, medido com a fila cheia', () => { // 
       dock: byName('doca'),
       store: byName('loja'),
       returns: byName('devolucoes'),
-      engine: byName('motor'),
     }).toEqual({
       capture: STEP_COSTS.capture,
       unreconciled: STEP_COSTS.unreconciled,
@@ -158,8 +157,11 @@ describe('#356/AC-4 o custo de cada passo, medido com a fila cheia', () => { // 
       dock: STEP_COSTS.dock,
       store: STEP_COSTS.store,
       returns: STEP_COSTS.returns,
-      engine: STEP_COSTS.engine,
     });
+    // #371 O motor decide em lote (grava as decisões numa requisição e relê as propostas numa vez): avulso gasta menos que os 20 que a rodada de 15 minutos
+    // #371 declara. O custo da rodada sem o caminho fixo não muda (test/cron/round-demo-off-identical.test.ts), então aqui ele é um teto, e o que se mede
+    // #371 igual ao declarado é o motor do caminho fixo (test/cron/round-fixed-path-budget.test.ts).
+    expect(byName('motor')).toBeLessThanOrEqual(STEP_COSTS.engine);
   });
 
   it('o E8 de cada fatia da janela de 7 dias não gasta mais que o declarado, com as decisões do kit dentro da fatia', async () => { // ADR-002
@@ -468,8 +470,8 @@ describe('#356/AC-4 a rodada mais cheia, ligada ao tick, contra o teto de 50', (
 });
 
 /** #349 #362 A mesma rodada mais cheia ao tick com o modo demonstração ligado: o passo notas-demo (custo declarado 2) entra antes da captura e a rodada segue dentro de 50. */
-// #363 46 com as duas leituras da contagem da doca e das respostas (fila vazia) a mais.
-const FULLEST_TICK_DEMO_MEASURED = 46;
+// #363 46 com as duas leituras da contagem da doca e das respostas (fila vazia) a mais; #371 48 com o caminho fixo (o motor e as propostas rodam em toda rodada, na frente dos demais).
+const FULLEST_TICK_DEMO_MEASURED = 48;
 
 describe('#349/AC-4 a rodada mais cheia ao tick com o modo demonstração ligado', () => { // ADR-002
   it('o gasto medido de cada rodada, com o notas-demo à frente da captura, não passa de 50, e nenhum passo falha', async () => { // ADR-002

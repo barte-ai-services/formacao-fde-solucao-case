@@ -56,8 +56,11 @@ export interface EngineStore {
    * escrita só, e só quando o modo muda.
    */
   setDelegation(level: string, delegationEnabled: boolean, beforeDemo: boolean | null): Promise<void>;
-  /** #41 O que já foi avaliado neste modo, para a rodada não reavaliar (idempotência). */
-  evaluated(mode: EngineMode, clefVersion: string): Promise<Evaluated>;
+  /**
+   * #41 O que já foi avaliado neste modo, para a rodada não reavaliar (idempotência).
+   * #371 `cascadeOnly`: a rodada delegada só usa a cascata; a leitura da versão atual do Clef (a segunda) fica de fora e `clef` e `failed` saem vazios.
+   */
+  evaluated(mode: EngineMode, clefVersion: string, options?: { readonly cascadeOnly?: boolean }): Promise<Evaluated>;
   /**
    * #41 Grava as decisões e devolve quantas entraram. Idempotente: a decisão que já existe para a mesma
    * proposta, versão e modo é ignorada (a unicidade de engine_decisions).
@@ -68,6 +71,11 @@ export interface EngineStore {
    * proposta já tem a linha (outra rodada gravou antes, ou não há proposta da nota): quem gravou primeiro decide.
    */
   recordWithId(decision: EngineDecision): Promise<number | null>;
+  /**
+   * #371 As decisões da rodada delegada gravadas de uma vez: um id por decisão, na ordem, nulo onde `recordWithId` devolveria nulo. Quem não
+   * tem a gravação em lote (o dublê) não a declara, e a rodada grava uma a uma.
+   */
+  recordMany?(decisions: readonly EngineDecision[]): Promise<(number | null)[]>;
   /**
    * #41 Grava a resposta da nova tentativa do Clef por cima da linha `clef_failed` da mesma proposta, versão, modo
    * e papel, ainda com as tentativas lidas, e devolve quantas trocou. Só a linha de falha é trocada: a resposta que
@@ -123,8 +131,11 @@ export class MemoryEngineStore implements EngineStore, EngineReader {
     this.levels.set(level, { ...current, delegationEnabled, delegationBeforeDemo: beforeDemo });
   }
 
-  async evaluated(mode: EngineMode, clefVersion: string): Promise<Evaluated> {
+  async evaluated(mode: EngineMode, clefVersion: string, options: { readonly cascadeOnly?: boolean } = {}): Promise<Evaluated> {
     const inMode = this.decisions.filter((d) => d.mode === mode);
+    if (options.cascadeOnly) {
+      return { cascade: new Set(inMode.filter((d) => d.role === 'cascade').map((d) => d.invoiceAccessKey)), clef: new Set(), failed: new Map() };
+    }
     const current = inMode.filter((d) => d.modelVersion === clefVersion);
     return {
       cascade: new Set(inMode.filter((d) => d.role === 'cascade').map((d) => d.invoiceAccessKey)),
@@ -142,6 +153,12 @@ export class MemoryEngineStore implements EngineStore, EngineReader {
     let inserted = 0;
     for (const d of decisions) if ((await this.recordWithId(d)) !== null) inserted += 1;
     return inserted;
+  }
+
+  async recordMany(decisions: readonly EngineDecision[]): Promise<(number | null)[]> {
+    const ids: (number | null)[] = [];
+    for (const d of decisions) ids.push(await this.recordWithId(d));
+    return ids;
   }
 
   async recordWithId(d: EngineDecision): Promise<number | null> {

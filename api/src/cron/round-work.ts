@@ -59,6 +59,12 @@ export const CHECK_FAILURE_MARKS_PER_STEP = 5;
 const DEMO_ROUND_MS = modeIntervalMinutes(true) * 60_000;
 export const DEMO_SEED = 'demo-ja-chegou';
 export const ENGINE_LIMITS = { decisionLimit: 2, clefLimit: 1 } as const;
+/**
+ * #371 Os tetos do motor no caminho fixo do modo demonstração: de 3 a 8 notas novas por minuto pedem decidir em lote. Até 4 decisões por rodada, gravadas
+ * numa requisição só, e uma chamada ao Clef: o custo declarado do passo (STEP_COSTS.engineFixed) é medido nesses tetos, e quatro decisões a cada minuto
+ * dão conta das notas candidatas do motor (a E4 sozinha do analista é uma em cada nove notas do gerador).
+ */
+export const ENGINE_LIMITS_DEMO = { decisionLimit: 4, clefLimit: 1 } as const;
 
 /**
  * #356 AC-4 Liga os passos ao Supabase e ao Worker. A camada API monta, por rodada, um medidor (cron/round-meter.ts, o contador da
@@ -110,7 +116,7 @@ export function supabaseRoundWork(
       });
       return { proposed: r.proposed, approvedByRule: r.approvedByRule };
     },
-    publishRegistry: (from, to) => publishApproved(rest, registryCorrections, fail, lastDaysUtc(new Date(), REGISTRY_WINDOW_DAYS).slice(from, to), REGISTRY_MESSAGES_PER_STEP),
+    publishRegistry: (from, to, limit = REGISTRY_MESSAGES_PER_STEP) => publishApproved(rest, registryCorrections, fail, lastDaysUtc(new Date(), REGISTRY_WINDOW_DAYS).slice(from, to), limit),
     publishDock: () => publishDock(rest, fail, DOCK_PER_STEP),
     publishStore: () => publishStoreActions(rest, fail, STORE_PER_STEP),
     publishReturns: async () => {
@@ -129,7 +135,11 @@ export function supabaseRoundWork(
       // #311 A tarefa que falhou ou desistiu conta como passo falho do Claude, como no tick.
       if (round.failedTasks.length > 0) fail('claude');
     },
-    engine: () => runEngine(rest, env, fail, { ...ENGINE_LIMITS, ...(demoMode ? { demoMode } : {}), ...(clefTimeoutCapMs === undefined ? {} : { clefTimeoutCapMs }) }),
+    engine: async () => {
+      // #371 O modo que a rodada já leu (nenhuma requisição a mais) escolhe os tetos: ligado, o motor decide em lote (ENGINE_LIMITS_DEMO).
+      const demo = demoMode ? await demoMode().catch(() => false) : false;
+      return runEngine(rest, env, fail, { ...(demo ? ENGINE_LIMITS_DEMO : ENGINE_LIMITS), ...(demoMode ? { demoMode } : {}), ...(clefTimeoutCapMs === undefined ? {} : { clefTimeoutCapMs }) });
+    },
     // #349 O passo só entra na lista com o modo ligado (buildRoundSteps), então `enabled` é sempre true aqui.
     captureDemoNotes: () => runDemoNotesRound({ rest, enabled: true, now: new Date() }),
     failedSteps: () => [...failedSteps],

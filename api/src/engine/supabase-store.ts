@@ -179,7 +179,7 @@ export class SupabaseEngineStore implements EngineStore, EngineReader {
    * resposta (já medida) e a falha (`clef_failed`, com as tentativas e a hora da última, que a rodada usa para
    * tentar de novo a mais antiga e parar no teto).
    */
-  async evaluated(mode: EngineMode, clefVersion: string): Promise<Evaluated> {
+  async evaluated(mode: EngineMode, clefVersion: string, options: { readonly cascadeOnly?: boolean } = {}): Promise<Evaluated> {
     const read = async (filters: Record<string, string>) =>
       parseRows(
         await this.rest.select('engine_decisions', {
@@ -189,9 +189,10 @@ export class SupabaseEngineStore implements EngineStore, EngineReader {
         isEvaluatedRow,
         'engine_decisions',
       );
+    // #371 A rodada delegada só usa a cascata: uma leitura em vez de duas.
     const [cascadeRows, current] = await Promise.all([
       read({ role: 'eq.cascade' }),
-      read({ model_version: `eq.${clefVersion}` }),
+      options.cascadeOnly ? Promise.resolve([]) : read({ model_version: `eq.${clefVersion}` }),
     ]);
     const failure = (r: EvaluatedRow) => isClefFailure({ pendingReason: r.pending_reason });
     return {
@@ -203,6 +204,28 @@ export class SupabaseEngineStore implements EngineStore, EngineReader {
           .map((r) => [r.invoice_access_key, { role: r.role, attempts: r.attempts, lastAttemptAt: r.last_attempt_at }]),
       ),
     };
+  }
+
+  /**
+   * #371 O lote da rodada delegada: uma leitura das propostas e uma gravação, com o id de cada decisão (nulo na que já existe ou que não tem proposta).
+   * Se o lote bate na unicidade de uma cascata por proposta e modo (23505), nenhuma linha entrou: grava uma a uma, e a que perdeu a corrida fica nula.
+   */
+  async recordMany(decisions: readonly EngineDecision[]): Promise<(number | null)[]> {
+    const rows = await this.rowsOf(decisions);
+    if (rows.length === 0) return decisions.map(() => null);
+    let inserted: unknown[];
+    try {
+      inserted = await this.rest.insert('engine_decisions', rows, { onConflict: 'proposal_id,model_version,mode', ignoreDuplicates: true });
+    } catch (error) {
+      if (postgresErrorOf(error)?.code !== '23505') throw error;
+      const ids: (number | null)[] = [];
+      for (const d of decisions) ids.push(await this.recordWithId(d));
+      return ids;
+    }
+    const idByKey = new Map(
+      parseRows(inserted, shaped<{ id: number; invoice_access_key: string }>({ id: isInteger, invoice_access_key: isString }), 'engine_decisions').map((r) => [r.invoice_access_key, r.id]),
+    );
+    return decisions.map((d) => idByKey.get(d.invoiceAccessKey) ?? null);
   }
 
   /**

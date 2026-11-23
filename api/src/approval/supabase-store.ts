@@ -392,6 +392,32 @@ export class SupabaseApprovalStore implements ApprovalStore {
     return { ...file, audit: await this.latestAudit(invoiceAccessKey) };
   }
 
+  /**
+   * #371 Duas leituras para o lote todo: as propostas das chaves (estado e versão) e as aprovações delas. Segue aguardando quem está
+   * `aguardando_aprovacao`, sem aprovação e na versão que o lote leu; o resto (a pessoa decidiu, a proposta mudou, sumiu) fica com a pessoa.
+   */
+  async reread(files: readonly CaseFile[]): Promise<ReadonlySet<string>> {
+    const keys = files.map((f) => f.invoice.accessKey);
+    if (keys.length === 0) return new Set();
+    if (!keys.every(isAccessKey)) corrupt('proposals', 'chave de acesso fora do formato');
+    const proposals = parseRows(
+      await this.rest.select('proposals', { select: 'id,invoice_access_key,state,version', filters: { invoice_access_key: `in.(${keys.map((k) => `"${k}"`).join(',')})` } }),
+      shaped<{ id: number; invoice_access_key: string; state: string; version: number }>({ id: isInteger, invoice_access_key: isString, state: isString, version: isInteger }),
+      'proposals',
+    );
+    const awaiting = proposals.filter((p) => p.state === 'aguardando_aprovacao');
+    if (awaiting.length === 0) return new Set();
+    const decided = new Set(
+      parseRows(
+        await this.rest.select('approvals', { select: 'proposal_id', filters: { proposal_id: `in.(${awaiting.map((p) => p.id).join(',')})` } }),
+        shaped<{ proposal_id: number }>({ proposal_id: isInteger }),
+        'approvals',
+      ).map((a) => a.proposal_id),
+    );
+    const readVersion = new Map(files.map((f) => [f.invoice.accessKey, f.version]));
+    return new Set(awaiting.filter((p) => !decided.has(p.id) && readVersion.get(p.invoice_access_key) === p.version).map((p) => p.invoice_access_key));
+  }
+
   /** #230 AC-7 Um erro ao ler a auditoria não derruba a proposta: audit vai nula, e o log traz só o tipo do erro. */
   private async latestAudit(invoiceAccessKey: string): Promise<StoredAudit | null> {
     try {

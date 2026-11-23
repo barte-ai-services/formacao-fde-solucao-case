@@ -46,7 +46,7 @@ export type DelegatedRound = {
 
 export type DelegatedDeps = Omit<ShadowDeps, 'approvals'> & {
   /** #42 A leitura da fila, a releitura da proposta na hora de aprovar e a gravação da aprovação. */
-  readonly approvals: Pick<ApprovalStore, 'listAwaiting' | 'find' | 'saveDecision'>;
+  readonly approvals: Pick<ApprovalStore, 'listAwaiting' | 'find' | 'saveDecision' | 'reread'>;
   /** #42 O dia (AAAA-MM-DD, Brasília) da aprovação, o mesmo `decided_on` da aprovação da pessoa. */
   readonly today: () => string;
   /** #42 Teto de propostas decididas na rodada delegada; padrão `DELEGATED_ROUND_LIMIT`. */
@@ -148,9 +148,11 @@ async function approveAsEngine(
   key: string,
   decision: EngineDecision,
   decisionId: number,
+  // #371 A proposta que o lote já conferiu (`approvals.reread`, na versão lida): sem ela, relê aqui, nota a nota, como antes.
+  checked: CaseFile | null = null,
 ): Promise<Approval> {
   try {
-    const current = await deps.approvals.find(key);
+    const current = checked ?? (await deps.approvals.find(key));
     if (!current || !stillAwaiting(current)) return 'person';
     const approval = approveByEngine(
       current.invoice,
@@ -195,64 +197,98 @@ export async function runDelegatedRound(deps: DelegatedDeps, settings: EngineSet
   const mode = 'delegated';
   const limit = deps.clefLimit ?? CLEF_ROUND_LIMIT;
   const decisionLimit = deps.decisionLimit ?? DELEGATED_ROUND_LIMIT;
-  let decided = 0;
-  let evaluated = 0;
-  let approved = 0;
-  let keptWithPerson = 0;
-  let belowConfidence = 0;
-  let clefCalls = 0;
-  let clefFailed = 0;
-  let deferred = 0;
-  let errors = 0;
+  const counts = { evaluated: 0, approved: 0, keptWithPerson: 0, belowConfidence: 0, clefCalls: 0, clefFailed: 0, deferred: 0, errors: 0 };
   let firstError: string | null = null;
   const fail = (name: string) => {
-    errors += 1;
+    counts.errors += 1;
     firstError ??= name;
   };
 
   const awaiting = (await deps.approvals.listAwaiting()).filter(isCandidate);
+  const decided: Decided[] = [];
   if (awaiting.length > 0) {
-    const seen = await deps.store.evaluated(mode, deps.clef.modelVersion);
+    // #371 Só a cascata importa na rodada delegada: uma leitura das decisões em vez de duas.
+    const seen = await deps.store.evaluated(mode, deps.clef.modelVersion, { cascadeOnly: true });
     for (const file of awaiting) {
-      const key = file.invoice.accessKey;
-      if (seen.cascade.has(key)) continue;
-      if (decided >= decisionLimit) {
-        deferred += 1;
+      if (seen.cascade.has(file.invoice.accessKey)) continue;
+      if (decided.length >= decisionLimit) {
+        counts.deferred += 1;
         continue;
       }
       let decision = screen(file, mode);
       if (!decision) {
-        if (clefCalls >= limit) {
-          deferred += 1;
+        if (counts.clefCalls >= limit) {
+          counts.deferred += 1;
           continue;
         }
-        clefCalls += 1;
+        counts.clefCalls += 1;
         const answer = await askClef(file, { clef: deps.clef, settings, mode, now: deps.now });
-        if (answer.pendingReason === 'clef_failed') clefFailed += 1;
+        if (answer.pendingReason === 'clef_failed') counts.clefFailed += 1;
         decision = applyThreshold(answer, settings.confidenceThreshold);
       }
-      decided += 1;
-      // #42 Cada proposta falha sozinha: o erro ao gravar uma não derruba as outras.
-      let decisionId: number | null;
-      try {
-        decisionId = await deps.store.recordWithId(decision);
-      } catch (error) {
-        fail(errorName(error));
-        continue;
-      }
-      // #42 Outra rodada gravou a decisão antes: é ela que decide esta proposta.
-      if (decisionId === null) continue;
-      evaluated += 1;
-      if (decision.pendingReason === 'below_confidence') belowConfidence += 1;
-      if (decision.outcome !== 'approve') continue;
-      const result = await approveAsEngine(deps, key, decision, decisionId);
-      if (result === 'approved') approved += 1;
-      else if (result === 'person') keptWithPerson += 1;
-      else {
-        fail(result.error);
-        console.error(`#42 motor: aprovação da nota ${key} não gravada (${result.error}); fica com a pessoa`);
-      }
+      decided.push({ file, decision });
     }
   }
-  return { evaluated, approved, keptWithPerson, belowConfidence, clefCalls, clefFailed, deferred, errors, firstError };
+  // #371 As decisões da rodada gravam juntas (uma leitura e uma gravação), e cada uma falha sozinha só se o lote falhar.
+  const ids = await recordAll(deps.store, decided.map((d) => d.decision), fail);
+  const toApprove: Approvable[] = [];
+  decided.forEach(({ file, decision }, i) => {
+    const decisionId = ids[i] ?? null;
+    // #42 Outra rodada gravou a decisão antes (ou a gravação falhou): é a outra que decide esta proposta.
+    if (decisionId === null) return;
+    counts.evaluated += 1;
+    if (decision.pendingReason === 'below_confidence') counts.belowConfidence += 1;
+    if (decision.outcome === 'approve') toApprove.push({ file, decision, decisionId });
+  });
+  const stillAwaiting = await rereadBatch(deps, toApprove.map((a) => a.file));
+  for (const { file, decision, decisionId } of toApprove) {
+    const key = file.invoice.accessKey;
+    // #371 Com a releitura do lote, a nota que a pessoa decidiu, ou que mudou de versão, fica com ela sem tocar no banco.
+    const result = stillAwaiting && !stillAwaiting.has(key) ? 'person' : await approveAsEngine(deps, key, decision, decisionId, stillAwaiting ? file : null);
+    if (result === 'approved') counts.approved += 1;
+    else if (result === 'person') counts.keptWithPerson += 1;
+    else {
+      fail(result.error);
+      console.error(`#42 motor: aprovação da nota ${key} não gravada (${result.error}); fica com a pessoa`);
+    }
+  }
+  return { ...counts, firstError };
+}
+
+type Decided = { readonly file: CaseFile; readonly decision: EngineDecision };
+type Approvable = Decided & { readonly decisionId: number };
+
+/**
+ * #371 Grava as decisões e devolve o id de cada uma (nulo onde outra rodada gravou antes ou onde a gravação falhou). Em lote, quando a loja o tem;
+ * se o lote falha, uma a uma, para que cada decisão falhe sozinha, como antes do lote (#42).
+ */
+async function recordAll(store: DelegatedDeps['store'], decisions: readonly EngineDecision[], fail: (name: string) => void): Promise<(number | null)[]> {
+  if (decisions.length === 0) return [];
+  if (store.recordMany) {
+    try {
+      return await store.recordMany(decisions);
+    } catch {
+      // #371 O lote falhou (a classe do erro é contada por decisão abaixo): grava uma a uma.
+    }
+  }
+  const ids: (number | null)[] = [];
+  for (const decision of decisions) {
+    try {
+      ids.push(await store.recordWithId(decision));
+    } catch (error) {
+      fail(errorName(error));
+      ids.push(null);
+    }
+  }
+  return ids;
+}
+
+/** #371 As chaves que seguem aguardando, relidas numa vez só; nulo quando a porta não relê em lote (a releitura é nota a nota) ou a releitura falhou. */
+async function rereadBatch(deps: DelegatedDeps, files: readonly CaseFile[]): Promise<ReadonlySet<string> | null> {
+  if (files.length === 0 || !deps.approvals.reread) return null;
+  try {
+    return await deps.approvals.reread(files);
+  } catch {
+    return null;
+  }
 }

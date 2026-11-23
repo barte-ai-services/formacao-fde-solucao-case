@@ -25,7 +25,7 @@ export interface RoundWork {
   /** #63 A proposta e a régua das notas conferidas. O dossiê das que esperam uma pessoa não é passo daqui: tem o cron próprio da #311 (cron/dossier-round.ts). */
   propose(): Promise<{ proposed: number; approvedByRule: number }>;
   /** #35 O E8 das decisões dos dias [from, to) da janela de 7 dias (0 é hoje, UTC): uma fatia por passo. */
-  publishRegistry(from: number, to: number): Promise<number>;
+  publishRegistry(from: number, to: number, limit?: number): Promise<number>;
   publishDock(): Promise<number>;
   publishStore(): Promise<number>;
   publishReturns(): Promise<number>;
@@ -70,6 +70,19 @@ export const STEP_COSTS = {
   supplierReplies: 2,
   engine: 20,
   demoNotes: DEMO_NOTES_STEP_COST,
+  /**
+   * #371 Os custos de `propostas` e `motor` no CAMINHO FIXO do modo demonstração: medidos em sequência, depois de notas-demo e captura, com a leitura
+   * guardada da rodada valendo de um passo para o seguinte (test/cron/round-fixed-path-budget.test.ts), e não avulsos como os de cima. O motor, em
+   * lote (ENGINE_LIMITS_DEMO: até 4 decisões por rodada, uma chamada ao Clef), grava as decisões numa requisição e relê as propostas numa vez só.
+   */
+  proposeFixed: 7,
+  engineFixed: 15,
+  /**
+   * #371 O E8 de cada fatia no revezamento do modo demonstração: 7 leituras mais até REGISTRY_MESSAGES_PER_STEP_DEMO (3) publicações. Com o teto de 8 de
+   * sempre (15) a fatia não cabia nunca ao lado do caminho fixo, que deixa no máximo 13 do orçamento; com 3, no máximo 10, e o que passar do teto fica
+   * para a rodada seguinte (a caixa de saída é idempotente).
+   */
+  registryDemo: 10,
 } as const satisfies Record<string, number>;
 
 /** #356 AC-4 O custo medido de cada tarefa do Claude (a fila cheia dela), pelo nome em tasksFor. */
@@ -82,12 +95,21 @@ export const CLAUDE_TASK_COSTS: Readonly<Record<string, number>> = {
 
 /** #356 AC-4 As fatias da janela do E8: cada uma cabe sozinha ao lado da captura. */
 export const REGISTRY_SLICES: readonly (readonly [number, number])[] = [[0, 2], [2, 4], [4, 6], [6, 7]];
+/** #371 O teto de mensagens E8 novas por fatia com o modo demonstração ligado (STEP_COSTS.registryDemo). */
+export const REGISTRY_MESSAGES_PER_STEP_DEMO = 3;
 
 /**
  * #356 AC-4 O passo que, se falha, grava a rodada como `failed`: só a captura, o caminho crítico (#311). Todo o resto falha sozinho,
  * entra em `failed_steps` e a rodada segue `ok`, como o tick de hoje.
  */
 export const ROUND_FAILING_STEPS: ReadonlySet<string> = new Set(['captura']);
+
+/**
+ * #371 O caminho fixo da rodada com o modo demonstração ligado: roda em TODA rodada, antes dos demais, nesta ordem. A operação parece viva por causa
+ * deles (as notas novas entram, são capturadas, ganham proposta e decisão do motor). Os demais passos se revezam com o que sobra do orçamento
+ * (automation/round-budget.ts, `executeRound`).
+ */
+export const FIXED_PATH = ['notas-demo', 'captura', 'propostas', 'motor'] as const;
 
 function claudeCost(task: string): number {
   const cost = CLAUDE_TASK_COSTS[task];
@@ -107,6 +129,8 @@ export function buildRoundSteps(work: RoundWork, now: () => number = Date.now, c
     name,
     maxSubrequests,
     ...(critical ? { critical } : {}),
+    // #371 Com o modo ligado, os quatro passos do caminho fixo levam `fixed`; desligado, nenhum passo muda.
+    ...(demoEnabled && (FIXED_PATH as readonly string[]).includes(name) ? { fixed: true } : {}),
     run,
   });
   /*
@@ -130,14 +154,14 @@ export function buildRoundSteps(work: RoundWork, now: () => number = Date.now, c
     }, true),
     step('marcas-da-conferencia', STEP_COSTS.checkFailures, () => work.markCheckFailures()),
     step('recebimentos-sem-nota', STEP_COSTS.unreconciled, () => work.reportUnreconciledReceipts()),
-    step('propostas', STEP_COSTS.propose, async () => {
+    step('propostas', demoEnabled ? STEP_COSTS.proposeFixed : STEP_COSTS.propose, async () => {
       const r = await work.propose();
       figures.proposed = r.proposed;
       figures.approvedByRule = r.approvedByRule;
     }),
     ...REGISTRY_SLICES.map(([from, to]) =>
-      step(`cadastro-e8-dias-${from}-${to - 1}`, STEP_COSTS.registry, async () => {
-        figures.cadastroE8 += await work.publishRegistry(from, to);
+      step(`cadastro-e8-dias-${from}-${to - 1}`, demoEnabled ? STEP_COSTS.registryDemo : STEP_COSTS.registry, async () => {
+        figures.cadastroE8 += await (demoEnabled ? work.publishRegistry(from, to, REGISTRY_MESSAGES_PER_STEP_DEMO) : work.publishRegistry(from, to));
       }),
     ),
     step('doca', STEP_COSTS.dock, async () => {
@@ -161,7 +185,7 @@ export function buildRoundSteps(work: RoundWork, now: () => number = Date.now, c
       await work.markOverdueSupplierRequests();
     }),
     ...work.claudeTasks.map((name) => step(`claude-${name}`, claudeCost(name), () => work.claudeTask(name, claudeDeadline))),
-    step('motor', STEP_COSTS.engine, async () => {
+    step('motor', demoEnabled ? STEP_COSTS.engineFixed : STEP_COSTS.engine, async () => {
       const r = await work.engine();
       figures.engineEvaluated = r.evaluated;
       figures.engineApproved = r.approved;

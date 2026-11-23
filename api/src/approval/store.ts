@@ -47,6 +47,11 @@ export interface ApprovalStore {
   listAwaiting(): Promise<CaseFile[]>;
   find(invoiceAccessKey: string): Promise<CaseFile | null>;
   /**
+   * #371 A releitura de um lote antes de o motor aprovar: as chaves cuja proposta segue aguardando, sem aprovação e na versão que o
+   * lote leu. Em vez de um `find` por nota. Quem não a declara é relido nota a nota, pelo `find`.
+   */
+  reread?(files: readonly CaseFile[]): Promise<ReadonlySet<string>>;
+  /**
    * #63 Regra 8: grava a decisão uma vez só. Se a proposta já tem aprovação gravada, lança
    * `AlreadyDecidedError` e não muda nada (a corrida entre duas pessoas cai aqui). #42 Na aprovação do motor
    * (`approval.engine`), o banco ainda confere a decisão e a delegação: se recusa, lança
@@ -106,6 +111,14 @@ export class MemoryApprovalStore implements ApprovalStore {
 
   async find(invoiceAccessKey: string): Promise<CaseFile | null> {
     return this.files.get(invoiceAccessKey) ?? null;
+  }
+
+  async reread(files: readonly CaseFile[]): Promise<ReadonlySet<string>> {
+    const still = files.filter((f) => {
+      const current = this.files.get(f.invoice.accessKey);
+      return current?.proposal.state === 'aguardando_aprovacao' && current.approval === null && current.version === f.version;
+    });
+    return new Set(still.map((f) => f.invoice.accessKey));
   }
 
   async saveDecision(file: CaseFile & { readonly approval: Approval }): Promise<void> {
