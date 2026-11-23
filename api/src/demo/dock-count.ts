@@ -1,12 +1,17 @@
 // #363 Contagem da doca da demonstração: módulo puro, sem plugar na rodada (a parte 2 pluga).
 // #363 Para cada ação publicada na doca (ou na loja) de nota demo, sorteia em que rodada a contagem chega
 // #363 (2 a 5 depois da publicação) e monta as linhas que o conector do WMS lê (kit_recebimentos e itens).
+import type { ExceptionCode } from '../domain/classification.js';
 import type { KitRecebimento, KitRecebimentoItem } from '../connectors/kit-rows.js';
 import { roundsElapsed, type Clock, type DemoRoundStep } from './demo-step.js';
 import { seededInt } from './seeded-draw.js';
 
-/** #363 Uma leitura mais um lote gravado: o custo em subrequests do passo. */
-export const DOCK_COUNT_COST = 2;
+/**
+ * #363 Custo do passo medido em requisições (fetches), não em chamadas de porta: a leitura da doca
+ * (outbox_dock_actions, outbox_store_actions, itens e exceção da nota) cabe em até 2 requisições e a
+ * gravação em 1, a rpc kit_insert_demo_batch (#349). O adaptador da parte 2 respeita esse teto.
+ */
+export const DOCK_COUNT_COST = 3;
 const MIN_DELAY_ROUNDS = 2;
 const MAX_DELAY_ROUNDS = 5;
 const DEFAULT_BATCH_LIMIT = 50;
@@ -31,7 +36,7 @@ export type PendingDockAction = {
   readonly store: string;
   readonly purchaseOrderId: string | null;
   /** #363 A exceção da nota (por exemplo E1 ou E3); null quando a nota não tem exceção. */
-  readonly classification: string | null;
+  readonly classification: ExceptionCode | null;
   readonly items: readonly PendingDockItem[];
 };
 

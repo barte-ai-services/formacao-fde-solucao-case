@@ -8,6 +8,7 @@ import {
   type DockCountBatch,
   type PendingDockAction,
 } from '../../src/demo/dock-count.js';
+import type { ExceptionCode } from '../../src/domain/classification.js';
 import { checkFaltaFisica } from '../../src/domain/checks/e1-falta-fisica.js';
 import { checkQuantidadeMenor } from '../../src/domain/checks/e3-quantidade-menor.js';
 import { Invoice, Money, Quantity, type Receipt } from '../../src/domain/index.js';
@@ -94,7 +95,7 @@ describe('#363/AC-1: a contagem da doca chega entre 2 e 5 rodadas depois da publ
   });
 
   it('#363/AC-1: sem exceção (ou outra classificação) conta exatamente o que a nota traz', () => {
-    for (const classification of [null, 'E2', 'E4', 'E8']) {
+    for (const classification of [null, 'E2', 'E4', 'E8'] as const) {
       const a = action({ classification });
       const [row] = plan(a, afterRounds(5));
       expect(row?.items.map((i) => [i.codigo_fornecedor, i.quantidade, i.unidade])).toEqual([ // ADR-001
@@ -143,9 +144,9 @@ describe('#363/AC-1: a contagem da doca chega entre 2 e 5 rodadas depois da publ
       ],
       total: Money.ofCents(100_000),
     });
-    const single = (classification: string | null) =>
+    const single = (classification: ExceptionCode | null) =>
       action({ classification, items: [{ supplierCode: 'F08-001', description: 'Óleo de soja 900 ml', quantity: 100, unit: 'UN' }] });
-    const asReceipt = (classification: string | null): Receipt => {
+    const asReceipt = (classification: ExceptionCode | null): Receipt => {
       const [row] = plan(single(classification), afterRounds(5));
       if (!row) throw new Error('sem contagem');
       return {
@@ -159,7 +160,7 @@ describe('#363/AC-1: a contagem da doca chega entre 2 e 5 rodadas depois da publ
         items: row.items.map((i) => ({ supplierCode: i.codigo_fornecedor, description: i.descricao, quantity: Quantity.of(i.quantidade, i.unidade === 'CX' ? 'CX' : 'UN') })), // ADR-001
       };
     };
-    const ctx = (c: string | null) => emptyContext({ receipts: [asReceipt(c)] });
+    const ctx = (c: ExceptionCode | null) => emptyContext({ receipts: [asReceipt(c)] });
     expect(checkFaltaFisica(invoice, ctx('E1')).map((d) => d.classification)).toEqual(['E1']);
     expect(checkQuantidadeMenor(invoice, ctx('E1'))).toEqual([]);
     expect(checkQuantidadeMenor(invoice, ctx('E3')).map((d) => d.classification)).toEqual(['E3']);
@@ -178,10 +179,11 @@ describe('#363/AC-4: o passo da contagem grava em lote, dentro do custo, de form
   };
   const pendings = (n: number) => Array.from({ length: n }, (_, i) => action({ actionId: `a-${i}`, invoiceAccessKey: `K-${i}` }));
 
-  it('#363/AC-4: o custo declarado é de 2 subrequests (uma leitura e um lote) e o passo tem a forma do passo de rodada', () => {
+  it('#363/AC-4: o custo declarado é de 3 subrequests (a leitura em até 2 requisições e o lote em 1, a rpc) e o passo tem a forma do passo de rodada', () => {
     const w = world([]);
     const step = dockCountStep({ ...w, clock: () => T0, seed: 's', roundMs: ROUND_MS });
-    expect(DOCK_COUNT_COST).toBe(2);
+    expect(DOCK_COUNT_COST).toBe(3);
+    expect(DOCK_COUNT_COST).toBeLessThanOrEqual(3);
     expect(step.maxSubrequests).toBe(DOCK_COUNT_COST);
     expect(typeof step.name).toBe('string');
   });
@@ -209,7 +211,7 @@ describe('#363/AC-4: o passo da contagem grava em lote, dentro do custo, de form
   });
 
   it('#363/AC-4: a mesma semente, relógio e entrada dão a mesma saída; outra semente muda os sorteios', () => {
-    const input = pendings(40).map((a, i) => ({ ...a, classification: i % 2 === 0 ? 'E3' : 'E1' }));
+    const input = pendings(40).map((a, i) => ({ ...a, classification: (i % 2 === 0 ? 'E3' : 'E1') as ExceptionCode }));
     const run = (seed: string) => planDockCount(input, { clock: () => afterRounds(3), seed, roundMs: ROUND_MS });
     expect(run('s1')).toEqual(run('s1'));
     expect(run('s1')).not.toEqual(run('s2'));
