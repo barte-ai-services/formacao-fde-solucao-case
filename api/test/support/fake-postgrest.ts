@@ -91,6 +91,8 @@ function parseSelect(select: string): SelectItem[] {
 }
 
 const SAVE_APPROVAL_DECISION = 'save_approval_decision';
+const TAKE_AUTOMATION_LOCK = 'take_automation_lock';
+const RELEASE_AUTOMATION_LOCK = 'release_automation_lock';
 
 /** #304 O erro que o PostgREST devolve quando a função levanta `raise exception` (SQLSTATE P0001). */
 class RpcRaise extends Error {}
@@ -147,6 +149,9 @@ export class FakePostgrest {
     }
 
     if (table === `rpc/${SAVE_APPROVAL_DECISION}` && method === 'POST') return this.saveApprovalDecision(body as Row, json);
+
+    if (table === `rpc/${TAKE_AUTOMATION_LOCK}` && method === 'POST') return json(200, this.takeAutomationLock(body as Row));
+    if (table === `rpc/${RELEASE_AUTOMATION_LOCK}` && method === 'POST') return json(200, this.releaseAutomationLock(body as Row));
 
     if (method === 'GET') {
       let result = rows.filter((r) => this.matches(r, params));
@@ -264,6 +269,29 @@ export class FakePostgrest {
       for (const [name, rows] of saved) this.tables.set(name, rows);
       return json(400, { code: 'P0001', message: error.message });
     }
+  }
+
+  /**
+   * #356 AC-3 A função public.take_automation_lock da migração 20261123100000: a linha única da trava é tomada se não existe ou se
+   * #356 AC-3 venceu (o relógio é o do fake, `Date.now()`, que o teste move com timers falsos). Devolve verdadeiro só a quem tomou.
+   */
+  private takeAutomationLock(args: Row): boolean {
+    const rows = this.table('automation_lock');
+    const now = Date.now();
+    const current = rows[0];
+    if (current && Date.parse(String(current.expires_at)) > now) return false;
+    const next = { id: true, owner: args.p_owner, expires_at: new Date(now + Number(args.p_valid_for_ms)).toISOString() };
+    if (current) Object.assign(current, next);
+    else rows.push(next);
+    return true;
+  }
+
+  /** #356 AC-3 A função release_automation_lock: apaga a linha só se o dono é o de quem pede. */
+  private releaseAutomationLock(args: Row): boolean {
+    const rows = this.table('automation_lock');
+    if (rows[0]?.owner !== args.p_owner) return false;
+    rows.length = 0;
+    return true;
   }
 
   /** #156 Projeta as colunas do select e monta os recursos embutidos pelas chaves estrangeiras. */

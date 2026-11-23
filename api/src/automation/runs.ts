@@ -1,6 +1,6 @@
 // #211 AC-1 Cada rodada do Cron fica em automation_runs: só números e a classe do erro, nada sensível.
-import { arrayOf, isInteger, isString, nullable, oneOf, optional, parseRows, shaped, type Shape } from '../connectors/guards.js';
-import { SupabaseRestError, type SupabaseRest } from '../connectors/supabase-rest.js';
+import { arrayOf, isBoolean, isInteger, isString, nullable, oneOf, optional, parseRows, shaped, type Shape } from '../connectors/guards.js';
+import { isMissingSchema, SupabaseRestError, type SupabaseRest } from '../connectors/supabase-rest.js';
 
 const TABLE = 'automation_runs';
 
@@ -64,17 +64,12 @@ const isRow = shaped<Row>({
   failed_steps: optional(arrayOf(isString)), subrequests: optional(nullable(isInteger)),
 } satisfies Shape<Row>);
 
-/** #211 Grava a rodada. Quem chama não deixa a falha daqui derrubar o Cron. */
-export async function recordRun(
-  rest: SupabaseRest,
-  run: {
-    startedAt: Date; finishedAt: Date; status: RunStatus; figures: RunFigures; error?: string | null;
-    /** #311 Os passos periféricos que falharam e os subrequests da invocação (a própria gravação incluída). */
-    failedSteps?: readonly string[]; subrequests?: number;
-  },
-): Promise<void> {
+/** #356 As colunas de sempre de uma linha de automation_runs (as que existem em qualquer versão do banco). */
+export function runRow(run: {
+  startedAt: Date; finishedAt: Date; status: RunStatus | 'skipped'; figures: RunFigures; error?: string | null;
+}): Record<string, unknown> {
   const f = run.figures;
-  const row = {
+  return {
     started_at: run.startedAt.toISOString(),
     finished_at: run.finishedAt.toISOString(),
     status: run.status,
@@ -85,6 +80,18 @@ export async function recordRun(
     engine_approved: f.engineApproved,
     error: run.error ?? null,
   };
+}
+
+/** #211 Grava a rodada. Quem chama não deixa a falha daqui derrubar o Cron. */
+export async function recordRun(
+  rest: SupabaseRest,
+  run: {
+    startedAt: Date; finishedAt: Date; status: RunStatus; figures: RunFigures; error?: string | null;
+    /** #311 Os passos periféricos que falharam e os subrequests da invocação (a própria gravação incluída). */
+    failedSteps?: readonly string[]; subrequests?: number;
+  },
+): Promise<void> {
+  const row = runRow(run);
   try {
     await rest.insert(TABLE, [{ ...row, failed_steps: run.failedSteps ?? [], subrequests: run.subrequests ?? null }]);
   } catch (error) {
@@ -98,8 +105,9 @@ export async function recordRun(
 
 /** #211 As últimas rodadas, da mais nova para a mais velha. #354 Com `afterIso`, só as iniciadas depois dele; `asc` as devolve da mais velha à mais nova. */
 export async function listRuns(rest: SupabaseRest, limit: number, afterIso?: string, direction: 'asc' | 'desc' = 'desc'): Promise<AutomationRun[]> {
-  const filters = afterIso === undefined ? undefined : { started_at: `gt.${afterIso}` };
-  const rows = parseRows(await rest.select(TABLE, { order: `started_at.${direction}`, limit, ...(filters && { filters }) }), isRow, TABLE);
+  // #356 AC-5 Só as rodadas que rodaram: a pulada (`skipped`) tem lista própria e não quebra a web, que só conhece ok e failed.
+  const filters = { status: 'in.(ok,failed)', ...(afterIso !== undefined && { started_at: `gt.${afterIso}` }) };
+  const rows = parseRows(await rest.select(TABLE, { order: `started_at.${direction}`, limit, filters }), isRow, TABLE);
   return rows.map((r) => ({
     id: r.id,
     startedAt: r.started_at,
@@ -116,4 +124,26 @@ export async function listRuns(rest: SupabaseRest, limit: number, afterIso?: str
       engineApproved: r.engine_approved,
     },
   }));
+}
+
+/** #356 AC-5 Uma rodada pulada porque outra tinha a trava: quando, de que origem e em que modo. */
+export type SkippedRun = { id: number; startedAt: string; origin: 'cron' | 'manual'; demoEnabled: boolean };
+
+type SkippedRow = { id: number; started_at: string; origin: 'cron' | 'manual'; demo_enabled: boolean };
+
+const isSkippedRow = shaped<SkippedRow>({
+  id: isInteger, started_at: isString, origin: oneOf('cron', 'manual'), demo_enabled: isBoolean,
+} satisfies Shape<SkippedRow>);
+
+/** #356 AC-5 As últimas rodadas puladas, da mais nova à mais velha. Sem as colunas novas (migração não aplicada) não há puladas. */
+export async function listSkippedRuns(rest: SupabaseRest, limit: number): Promise<SkippedRun[]> {
+  try {
+    const rows = await rest.select(TABLE, {
+      select: 'id,started_at,origin,demo_enabled', order: 'started_at.desc', limit, filters: { status: 'eq.skipped' },
+    });
+    return parseRows(rows, isSkippedRow, TABLE).map((r) => ({ id: r.id, startedAt: r.started_at, origin: r.origin, demoEnabled: r.demo_enabled }));
+  } catch (error) {
+    if (isMissingSchema(error)) return [];
+    throw error;
+  }
 }
