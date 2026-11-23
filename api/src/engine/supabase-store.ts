@@ -128,9 +128,25 @@ const KEYS_PER_READ = 100;
 const isAccessKey = (v: string): boolean => /^\d{44}$/.test(v);
 
 export class SupabaseEngineStore implements EngineStore, EngineReader {
-  constructor(private readonly rest: SupabaseRest) {}
+  /**
+   * #356 AC-2 `clefTimeoutCapMs`: o teto do prazo do Clef que a rodada manual impõe (cron/manual-window.ts); o valor do banco só exige > 0 e,
+   * subido, estouraria a janela do waitUntil. Sem teto (o Cron, a reconferência), vale o do banco.
+   */
+  constructor(
+    private readonly rest: SupabaseRest,
+    private readonly clefTimeoutCapMs?: number,
+  ) {}
+
+  private capped(settings: EngineSettings): EngineSettings {
+    if (this.clefTimeoutCapMs === undefined) return settings;
+    return { ...settings, clefTimeoutMs: Math.min(settings.clefTimeoutMs, this.clefTimeoutCapMs) };
+  }
 
   async settings(level: string): Promise<EngineSettings> {
+    return this.capped(await this.storedSettings(level));
+  }
+
+  private async storedSettings(level: string): Promise<EngineSettings> {
     const rows = parseRows(
       await this.rest.select('engine_settings', { filters: { level: `eq.${level}` } }),
       isSettingsRow,

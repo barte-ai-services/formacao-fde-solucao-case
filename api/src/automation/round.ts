@@ -121,7 +121,7 @@ export async function runRound(ports: RoundPorts, trigger: RoundTrigger, held?: 
     return { kind: 'off-rhythm' };
   }
   const owner = ports.newOwner();
-  if (!(await ports.lock.take(owner, LOCK_TTL_MS))) {
+  if (!(await takeLock(ports, owner))) {
     await recordSafely(ports, {
       startedAt, finishedAt: ports.now(), status: 'skipped', origin: trigger.origin, demoEnabled: demo.enabled,
       figures: NO_FIGURES, error: null, deferredSteps: [], failedSteps: [], subrequests: recordedSubrequests(ports),
@@ -223,6 +223,19 @@ async function recordSafely(ports: RoundPorts, record: RoundRecord): Promise<voi
 }
 
 /** #356 AC-3 Soltar a trava é o último passo; se falha, a validade a vence sozinha. */
+/**
+ * #356 AC-3 Toma a trava para `owner`. Se `take` lança (o RPC passou do timeout do cliente, mas o Postgres pode ter concluído e gravado a trava com
+ * este dono), solta com o mesmo dono antes de relançar: a soltura só apaga `where owner = p_owner`, então não mexe em trava alheia.
+ */
+export async function takeLock(ports: RoundPorts, owner: string): Promise<boolean> {
+  try {
+    return await ports.lock.take(owner, LOCK_TTL_MS);
+  } catch (error) {
+    await releaseSafely(ports, owner);
+    throw error;
+  }
+}
+
 async function releaseSafely(ports: RoundPorts, owner: string): Promise<void> {
   try {
     await ports.lock.release(owner);

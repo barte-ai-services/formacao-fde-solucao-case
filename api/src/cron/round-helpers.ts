@@ -111,7 +111,7 @@ export async function runEngine(
   env: Env,
   fail: Fail,
   // #356 AC-4 Os tetos da rodada do motor, para o passo caber no orçamento; sem eles, os de sempre.
-  limits: { readonly decisionLimit?: number; readonly clefLimit?: number } = {},
+  { clefTimeoutCapMs, ...limits }: { readonly decisionLimit?: number; readonly clefLimit?: number; readonly clefTimeoutCapMs?: number } = {},
 ): Promise<{ evaluated: number; approved: number }> {
   const none = { evaluated: 0, approved: 0 };
   if (!env.ai) {
@@ -121,7 +121,7 @@ export async function runEngine(
   try {
     const round = await runEngineRound({
       approvals: new SupabaseApprovalStore(rest),
-      store: new SupabaseEngineStore(rest),
+      store: new SupabaseEngineStore(rest, clefTimeoutCapMs),
       clef: new WorkersAiClef(env.ai),
       today: () => todayInBrasilia(),
       ...limits,

@@ -57,7 +57,13 @@ export const ENGINE_LIMITS = { decisionLimit: 2, clefLimit: 1 } as const;
  * #311) e passa aqui o `rest` feito com o fetch dele, o env dele (`meter.env`, com o ai contado) e o fetch dele: o Claude usa esse
  * fetch, e assim todo fetch da rodada, o das portas inclusive, é contado.
  */
-export function supabaseRoundWork(rest: SupabaseRest, env: Env, fetch?: FetchFn, claudeTimeoutMs?: number): RoundWork {
+export function supabaseRoundWork(
+  rest: SupabaseRest,
+  env: Env,
+  fetch?: FetchFn,
+  // #356 AC-2 Só a rodada manual os passa (cron/manual-window.ts): o prazo de uma pergunta ao Claude e o teto do prazo do Clef.
+  { claudeTimeoutMs, clefTimeoutCapMs }: { readonly claudeTimeoutMs?: number; readonly clefTimeoutCapMs?: number } = {},
+): RoundWork {
   const failedSteps = new Set<string>();
   const fail: Fail = (step) => void failedSteps.add(step);
   const { captureDeps, registryCorrections } = supabaseConnectors(rest);
@@ -105,7 +111,7 @@ export function supabaseRoundWork(rest: SupabaseRest, env: Env, fetch?: FetchFn,
       // #311 A tarefa que falhou ou desistiu conta como passo falho do Claude, como no tick.
       if (round.failedTasks.length > 0) fail('claude');
     },
-    engine: () => runEngine(rest, env, fail, ENGINE_LIMITS),
+    engine: () => runEngine(rest, env, fail, { ...ENGINE_LIMITS, ...(clefTimeoutCapMs === undefined ? {} : { clefTimeoutCapMs }) }),
     failedSteps: () => [...failedSteps],
   };
 }

@@ -9,7 +9,7 @@
  * Os passos, na ordem, e os custos declarados estão em round-steps.ts (o ponto de extensão da #349 e da #351); o trabalho de cada
  * passo, em round-work.ts. O dossiê não é daqui: tem o cron próprio (#311, cron/dossier-round.ts).
  */
-import { LOCK_TTL_MS, runRound, type RoundPorts, type RoundResult, type RoundTrigger } from "../automation/round.js";
+import { runRound, takeLock, type RoundPorts, type RoundResult, type RoundTrigger } from "../automation/round.js";
 import { supabaseRoundStore } from "../automation/round-store.js";
 import { SupabaseRest } from "../connectors/supabase-rest";
 import type { Env } from "../env";
@@ -106,7 +106,7 @@ async function executeRound(
   const rest = new SupabaseRest({ url, secretKey, fetch: meter.fetch, ...(window ? { timeoutMs: window.supabaseTimeoutMs } : {}) });
   const finish = new SupabaseRest({ url, secretKey, fetch: meter.reservedFetch, ...(window ? { timeoutMs: window.finishTimeoutMs } : {}) });
   const log = (line: string): void => console.log(line);
-  const work = supabaseRoundWork(rest, meter.env, meter.fetch, window?.claudeTimeoutMs);
+  const work = supabaseRoundWork(rest, meter.env, meter.fetch, window ? { claudeTimeoutMs: window.claudeTimeoutMs, clefTimeoutCapMs: window.clefTimeoutMs } : {});
   const ports: RoundPorts = {
     ...supabaseRoundStore({ rest, finish, log }),
     buildRound: () => buildRoundSteps(work, Date.now, window?.claudeDeadlineMs),
@@ -130,7 +130,7 @@ async function executeRound(
 /** #356 AC-3 Toma a trava, roda `before` e entrega a rodada à mesma posse; `before` que falha solta a trava (a validade cobre se a soltura também falhar). */
 async function runAfterLock(ports: RoundPorts, trigger: RoundTrigger, before: () => Promise<void>): Promise<RoundResult> {
   const owner = ports.newOwner();
-  if (!(await ports.lock.take(owner, LOCK_TTL_MS))) return { kind: "locked" };
+  if (!(await takeLock(ports, owner))) return { kind: "locked" };
   try {
     await before();
   } catch (error) {

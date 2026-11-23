@@ -32,6 +32,7 @@ function world(opts: { demo?: boolean; steps?: StepSpec[]; failsRound?: string[]
     stepsBuilt: 0,
     breakRecord: false,
     breakRelease: false,
+    breakTake: false,
     owners: 0,
   };
   let spentNow = 0;
@@ -70,6 +71,8 @@ function world(opts: { demo?: boolean; steps?: StepSpec[]; failsRound?: string[]
         calls.push('trava');
         if (lock.owner !== null && lock.until > now) return false;
         Object.assign(lock, { owner, until: now + validForMs });
+        // #356 AC-3 O RPC passou do timeout do cliente: o banco gravou a trava, o cliente abortou e `take` lança.
+        if (state.breakTake) throw new Error('timeout do cliente');
         return true;
       },
       release: async (owner) => {
@@ -236,6 +239,23 @@ describe('#356/AC-4 a gravação e a soltura acontecem sempre', () => { // ADR-0
     expect(JSON.stringify(w.records)).not.toContain('texto do erro');
     expect(w.calls.at(-1)).toBe('soltar');
     expect(w.lock.owner).toBeNull();
+  });
+
+  it('#356/AC-3 o take que lança depois de o banco gravar a trava solta com o mesmo dono e relança, sem deixá-la presa', async () => { // ADR-002
+    const w = world();
+    w.state.breakTake = true;
+    await expect(runRound(w.ports, { origin: 'manual' })).rejects.toThrow('timeout do cliente');
+    expect(w.calls).toEqual(['modo', 'trava', 'soltar']);
+    expect(w.lock.owner).toBeNull();
+    expect(w.ran).toEqual([]);
+  });
+
+  it('#356/AC-3 se a soltura depois do take que lançou também falha, o erro do take é o que sobe e a classe vai ao log', async () => { // ADR-002
+    const w = world();
+    w.state.breakTake = true;
+    w.state.breakRelease = true;
+    await expect(runRound(w.ports, { origin: 'manual' })).rejects.toThrow('timeout do cliente');
+    expect(w.logs.join('\n')).not.toContain('banco fora');
   });
 
   it('um orçamento mal declarado grava a rodada como failed e solta a trava, em vez de deixá-la presa', async () => { // ADR-002
