@@ -1,5 +1,9 @@
 # Como contribuir
 
+> **Repositório encerrado.** A Formação acabou e a solução virou referência estática: nada mais é
+> publicado a partir da `main` (veja o [`README.md`](README.md)). O texto abaixo fica como registro de
+> como a turma trabalhou.
+
 A turma trabalha neste repositório por **clone, sem fork**. Cada aluno é colaborador com escrita:
 empurra a própria branch e abre PR contra a `main`.
 
@@ -37,7 +41,7 @@ empurra a própria branch e abre PR contra a `main`.
 
 ## O que a `main` faz depois do merge
 
-O merge na `main` publica o Worker e aplica as migrações no Supabase. Esses workflows usam as
+Durante a Formação, o merge na `main` publicava o Worker e aplicava as migrações no Supabase; hoje esses workflows estão desativados. Esses workflows usam as
 credenciais de produção, que ficam no environment `producao` e só a `main` alcança. O CI do PR
 não usa nenhum secret.
 

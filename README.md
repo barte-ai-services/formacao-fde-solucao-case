@@ -1,17 +1,43 @@
 # Formação FDE: solução do case Já Chegou
 
-Repositório público com a solução de referência do case **Já Chegou** da Formação FDE. A turma
-contribui aqui por clone e PR, sem fork: o passo a passo está no [`CONTRIBUTING.md`](CONTRIBUTING.md).
+Solução de referência do case **Já Chegou** da Formação FDE. É um repositório **estático**: serve
+para a turma refazer o case consultando como a equipe o resolveu, e não recebe mais contribuições.
 
-## Por que o repositório é público
+## Nada está no ar
 
-O CISO da Barte liberou o uso de repositório público neste case. Para isso valem as regras abaixo:
+A solução rodou durante a Formação e foi desligada em 26/11/2026:
 
-- **Nenhum cliente real.** A Já Chegou é fictícia, e nenhum nome de cliente real entra no repositório.
-- **Nada de segredo no git.** Credenciais ficam no `.env`, que o git ignora. As de produção ficam só
-  no environment `producao`, que só a `main` alcança, e nenhum workflow de PR usa secret.
-- **A `main` é protegida.** Só aceita PR com o CI verde e a aprovação de um code owner
-  (`.github/CODEOWNERS`).
+- os dois Workers da Cloudflare (a API com a tela e o servidor MCP) foram apagados, com os crons;
+- a aplicação do Cloudflare Access que os protegia foi apagada;
+- o projeto Supabase foi pausado;
+- o environment `producao` e todos os secrets e variáveis do GitHub foram apagados, e os workflows
+  de publicação (`deploy-api`, `deploy-mcp`, `supabase-base-do-kit`, `cloudflare-access`) estão
+  desativados. Eles ficam no repositório só como referência de como a esteira publicava.
+
+Os endereços `*.barte-academy.workers.dev` citados na documentação não respondem mais.
+
+## Rodar local, com as suas chaves
+
+Nada aqui traz credencial. Para rodar, use as suas:
+
+```bash
+cp .env.example .env            # scripts e `make eval`
+cp .env.example api/.dev.vars   # o Worker no `wrangler dev`
+```
+
+Troque os valores de exemplo pelos seus: um projeto Supabase seu (ou o local, com `supabase start` e
+`supabase db reset`, que aplica `supabase/migrations/`), carregado com `set -a; . ./.env; set +a; python3 scripts/load_kit.py`,
+e uma chave da API da Anthropic sua. Depois, `npm ci && npm run dev` em `api/`
+(detalhes em [`api/README.md`](api/README.md)). Os dois arquivos copiados ficam fora do git.
+
+O `web/` instala o `shell-kit` e o `barte-ui-kit` do GitHub Packages da org, que são internos: fora
+da org, o `npm ci` do `web/` falha. O restante (`api/`, `mcp/`, `scripts/`, `eval/`) roda sem eles.
+
+## Dados
+
+- **Nenhum cliente real.** A Já Chegou é fictícia, e os dados do kit (`data/kit/`) são fictícios.
+- **Nenhum segredo no git**, nem no histórico: a varredura com gitleaks e trufflehog só achou valores
+  de teste (um sha256 e URLs `postgres://` falsas).
 
 ## O problema
 

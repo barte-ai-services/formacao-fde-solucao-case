@@ -1,0 +1,68 @@
+name: Decommission hosted services
+
+# One-off, manual. Takes down what the reference solution ran in production (the two Workers,
+# the Cloudflare Access applications, the Supabase project) so the public repo is a static
+# reference. After it runs, the producao environment and its secrets are deleted, so it cannot
+# run again.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  decommission:
+    if: github.ref == 'refs/heads/main'
+    environment: producao
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.BARTE_ACADEMY_CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.BARTE_ACADEMY_CLOUDFLARE_ACCOUNT_ID }}
+      ACCESS_AUD: ${{ vars.BARTE_ACADEMY_ACCESS_AUD }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.BARTE_ACADEMY_SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_ID: ${{ vars.BARTE_ACADEMY_SUPABASE_PROJECT_ID }}
+    steps:
+      - name: Delete the MCP Worker
+        run: npx -y wrangler@4.168.0 delete --name formacao-fde-solucao-case-mcp --force
+      - name: Delete the API Worker (its cron triggers and Worker secrets go with it)
+        run: npx -y wrangler@4.168.0 delete --name formacao-fde-solucao-case-api --force
+      - name: Delete the Cloudflare Access applications
+        shell: python3 {0}
+        run: |
+          import json, os, urllib.request
+          api = "https://api.cloudflare.com/client/v4/accounts/" + os.environ["CLOUDFLARE_ACCOUNT_ID"] + "/access/apps"
+          def call(method, url):
+              req = urllib.request.Request(url, method=method, headers={"Authorization": "Bearer " + os.environ["CLOUDFLARE_API_TOKEN"]})
+              with urllib.request.urlopen(req, timeout=60) as r:
+                  return json.load(r)
+          apps = call("GET", api)["result"]
+          targets = [a for a in apps if a.get("aud") == os.environ["ACCESS_AUD"] or "formacao-fde-solucao-case" in json.dumps(a.get("self_hosted_domains") or a.get("domain") or "")]
+          for a in targets:
+              call("DELETE", api + "/" + a["id"])
+              print("deleted access app:", a.get("name"))
+          print("access apps deleted:", len(targets), "of", len(apps))
+      - name: Pause the Supabase project
+        shell: python3 {0}
+        run: |
+          import json, os, time, urllib.request
+          base = "https://api.supabase.com/v1/projects/" + os.environ["SUPABASE_PROJECT_ID"]
+          def call(method, url):
+              req = urllib.request.Request(url, method=method, headers={"Authorization": "Bearer " + os.environ["SUPABASE_ACCESS_TOKEN"]})
+              with urllib.request.urlopen(req, timeout=60) as r:
+                  body = r.read()
+                  return json.loads(body) if body else {}
+          print("status before:", call("GET", base).get("status"))
+          call("POST", base + "/pause")
+          for _ in range(40):
+              time.sleep(15)
+              status = call("GET", base).get("status")
+              print("status:", status)
+              if status in ("INACTIVE", "PAUSED"):
+                  break
+      - name: Confirm the Workers are gone
+        run: |
+          for w in api mcp; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "https://formacao-fde-solucao-case-$w.barte-academy.workers.dev/health")
+            echo "formacao-fde-solucao-case-$w: HTTP $code"
+          done
